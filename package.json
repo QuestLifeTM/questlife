@@ -1,0 +1,23 @@
+{
+  "name": "questlife",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "App",
+    "Admin"
+  ],
+  "scripts": {
+    "app": "npm --workspace @questlife/mobile run start",
+    "app:ios": "npm --workspace @questlife/mobile run ios",
+    "app:android": "npm --workspace @questlife/mobile run android",
+    "app:web": "npm --workspace @questlife/mobile run web",
+    "app:typecheck": "npm --workspace @questlife/mobile run typecheck",
+    "admin": "npm --workspace @questlife/admin run start",
+    "admin:web": "npm --workspace @questlife/admin run web",
+    "admin:typecheck": "npm --workspace @questlife/admin run typecheck"
+  },
+  "dependencies": {
+    "expo-image-picker": "~17.0.0",
+    "react-native-qrcode-svg": "^6.3.21"
+  }
+}

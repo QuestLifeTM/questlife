@@ -1,0 +1,362 @@
+import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { toLocalDateKey } from "@/services/journal/journalService";
+import {
+  CompleteQuestInput,
+  CompletionResult,
+  DailyPlan,
+  QuestEngineState,
+  QuestReviewData,
+  UserPack,
+} from "@/types/engine";
+
+function assertSupabaseConfigured() {
+  if (!isSupabaseConfigured) {
+    throw new Error(SUPABASE_CONFIG_ERROR);
+  }
+}
+
+function today() {
+  return toLocalDateKey(new Date());
+}
+
+/** Translates the RPC error codes into copy the app can show directly. */
+export function engineErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("ACTIVE_SESSION_EXISTS")) {
+    return "You already have an active quest. Complete it or save it for later first.";
+  }
+  if (message.includes("DAILY_LIMIT_REACHED")) {
+    return "You've used all 5 quests for today. Come back after midnight for fresh energy!";
+  }
+  if (message.includes("QUEST_ALREADY_COMPLETED")) {
+    return "You've already completed this quest.";
+  }
+  if (message.includes("QUEST_NOT_AVAILABLE")) {
+    return "This quest is no longer available.";
+  }
+  if (message.includes("RATING_REQUIRED")) {
+    return "Add a star rating to log your lore.";
+  }
+  return message;
+}
+
+export async function fetchEngineState(): Promise<QuestEngineState> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("get_quest_engine_state", { p_today: today() });
+  if (error) throw error;
+  const state = data as QuestEngineState;
+  return {
+    dailyLimit: state.dailyLimit ?? 5,
+    dailyUsed: state.dailyUsed ?? 0,
+    activeSession: state.activeSession ?? null,
+    todayCompletions: state.todayCompletions ?? [],
+  };
+}
+
+export async function startQuestSession(input: {
+  questId: string;
+  source?: "explore" | "pack" | "plan" | "featured" | "saved" | "social";
+  packId?: string | null;
+}) {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("start_quest_session", {
+    p_quest_id: input.questId,
+    p_today: today(),
+    p_source: input.source ?? "explore",
+    p_pack_id: input.packId ?? null,
+  });
+  if (error) throw error;
+}
+
+export async function abandonQuestSession(sessionId: string) {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("abandon_quest_session", { p_session_id: sessionId });
+  if (error) throw error;
+}
+
+export async function saveSessionForLater(sessionId: string) {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("save_quest_session_for_later", { p_session_id: sessionId });
+  if (error) throw error;
+}
+
+export async function completeQuestV2(input: CompleteQuestInput): Promise<CompletionResult> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("complete_quest_v2", {
+    p_quest_id: input.questId,
+    p_today: today(),
+    p_logged: input.logged,
+    p_reflection: input.reflection ?? null,
+    p_rating: input.rating ?? null,
+    p_review: input.review ?? null,
+    p_review_public: input.reviewPublic ?? true,
+    p_photo_urls: input.photoUrls ?? [],
+  });
+  if (error) throw error;
+  return data as CompletionResult;
+}
+
+export async function fetchQuestReviews(questId: string): Promise<QuestReviewData> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("get_quest_reviews", { p_quest_id: questId });
+  if (error) throw error;
+  const result = data as QuestReviewData;
+  return {
+    summary: result.summary ?? { averageRating: null, ratingCount: 0 },
+    reviews: result.reviews ?? [],
+  };
+}
+
+export async function uploadQuestPhoto(localUri: string): Promise<string> {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  const response = await fetch(localUri);
+  const blob = await response.arrayBuffer();
+  const extension = localUri.split(".").pop()?.toLowerCase() || "jpg";
+  const path = `${userData.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+
+  const { error } = await supabase.storage.from("quest-photos").upload(path, blob, {
+    contentType: extension === "png" ? "image/png" : "image/jpeg",
+  });
+  if (error) throw error;
+
+  const { data } = supabase.storage.from("quest-photos").getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// ---------------------------------------------------------------------------
+// User adventure packs
+// ---------------------------------------------------------------------------
+
+type UserPackRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  icon: string;
+  accent_color: string;
+  created_at: string;
+};
+
+export async function fetchUserPacks(): Promise<UserPack[]> {
+  assertSupabaseConfigured();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return [];
+
+  const [{ data: packRows, error: packError }, { data: questRows, error: questError }] = await Promise.all([
+    supabase
+      .from("user_adventure_packs")
+      .select("id, title, description, icon, accent_color, created_at")
+      .eq("user_id", userData.user.id)
+      .order("created_at", { ascending: false })
+      .returns<UserPackRow[]>(),
+    supabase
+      .from("user_adventure_pack_quests")
+      .select("user_pack_id, quest_id, position")
+      .order("position", { ascending: true }),
+  ]);
+
+  if (packError) throw packError;
+  if (questError) throw questError;
+
+  const questsByPack = new Map<string, string[]>();
+  for (const row of questRows ?? []) {
+    const list = questsByPack.get(row.user_pack_id) ?? [];
+    list.push(row.quest_id);
+    questsByPack.set(row.user_pack_id, list);
+  }
+
+  return (packRows ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    icon: row.icon,
+    accentColor: row.accent_color,
+    questIds: questsByPack.get(row.id) ?? [],
+    createdAt: row.created_at,
+  }));
+}
+
+export async function upsertUserPack(input: {
+  id?: string;
+  title: string;
+  description?: string | null;
+  icon: string;
+  accentColor: string;
+  questIds: string[];
+}): Promise<string> {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  const payload = {
+    title: input.title.trim(),
+    description: input.description?.trim() || null,
+    icon: input.icon || "🎒",
+    accent_color: input.accentColor,
+    user_id: userData.user.id,
+  };
+
+  const query = input.id
+    ? supabase.from("user_adventure_packs").update(payload).eq("id", input.id)
+    : supabase.from("user_adventure_packs").insert(payload);
+
+  const { data, error } = await query.select("id").single<{ id: string }>();
+  if (error) throw error;
+
+  const { error: deleteError } = await supabase
+    .from("user_adventure_pack_quests")
+    .delete()
+    .eq("user_pack_id", data.id);
+  if (deleteError) throw deleteError;
+
+  if (input.questIds.length) {
+    const { error: insertError } = await supabase.from("user_adventure_pack_quests").insert(
+      input.questIds.map((questId, index) => ({
+        user_pack_id: data.id,
+        quest_id: questId,
+        position: index,
+      })),
+    );
+    if (insertError) throw insertError;
+  }
+
+  return data.id;
+}
+
+export async function deleteUserPack(packId: string) {
+  assertSupabaseConfigured();
+  const { error } = await supabase.from("user_adventure_packs").delete().eq("id", packId);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Daily plans
+// ---------------------------------------------------------------------------
+
+type DailyPlanRow = {
+  id: string;
+  plan_on: string;
+  source_pack_id: string | null;
+};
+
+export async function fetchTodayPlan(): Promise<DailyPlan | null> {
+  assertSupabaseConfigured();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return null;
+
+  const { data: planRow, error } = await supabase
+    .from("daily_plans")
+    .select("id, plan_on, source_pack_id")
+    .eq("user_id", userData.user.id)
+    .eq("plan_on", today())
+    .maybeSingle<DailyPlanRow>();
+
+  if (error) throw error;
+  if (!planRow) return null;
+
+  const { data: questRows, error: questError } = await supabase
+    .from("daily_plan_quests")
+    .select("quest_id, position")
+    .eq("plan_id", planRow.id)
+    .order("position", { ascending: true });
+
+  if (questError) throw questError;
+
+  return {
+    id: planRow.id,
+    planOn: planRow.plan_on,
+    sourcePackId: planRow.source_pack_id,
+    questIds: (questRows ?? []).map((row) => row.quest_id as string),
+  };
+}
+
+export async function saveTodayPlan(input: { questIds: string[]; sourcePackId?: string | null }): Promise<DailyPlan | null> {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  const { data: planRow, error } = await supabase
+    .from("daily_plans")
+    .upsert(
+      {
+        user_id: userData.user.id,
+        plan_on: today(),
+        source_pack_id: input.sourcePackId ?? null,
+      },
+      { onConflict: "user_id,plan_on" },
+    )
+    .select("id, plan_on, source_pack_id")
+    .single<DailyPlanRow>();
+
+  if (error) throw error;
+
+  const { error: deleteError } = await supabase
+    .from("daily_plan_quests")
+    .delete()
+    .eq("plan_id", planRow.id);
+  if (deleteError) throw deleteError;
+
+  if (input.questIds.length) {
+    const { error: insertError } = await supabase.from("daily_plan_quests").insert(
+      input.questIds.map((questId, index) => ({
+        plan_id: planRow.id,
+        quest_id: questId,
+        position: index,
+      })),
+    );
+    if (insertError) throw insertError;
+  }
+
+  return {
+    id: planRow.id,
+    planOn: planRow.plan_on,
+    sourcePackId: planRow.source_pack_id,
+    questIds: input.questIds,
+  };
+}
+
+export async function clearTodayPlan() {
+  assertSupabaseConfigured();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return;
+
+  const { error } = await supabase
+    .from("daily_plans")
+    .delete()
+    .eq("user_id", userData.user.id)
+    .eq("plan_on", today());
+
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Featured batch for today
+// ---------------------------------------------------------------------------
+
+export async function fetchTodayFeaturedQuestIds(): Promise<string[]> {
+  assertSupabaseConfigured();
+
+  const { data: batch, error } = await supabase
+    .from("featured_quest_batches")
+    .select("id")
+    .eq("featured_on", today())
+    .maybeSingle<{ id: string }>();
+
+  if (error) throw error;
+  if (!batch) return [];
+
+  const { data: rows, error: questError } = await supabase
+    .from("featured_batch_quests")
+    .select("quest_id, position")
+    .eq("batch_id", batch.id)
+    .order("position", { ascending: true });
+
+  if (questError) throw questError;
+  return (rows ?? []).map((row) => row.quest_id as string);
+}
