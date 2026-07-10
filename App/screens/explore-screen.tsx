@@ -435,6 +435,7 @@ export function ExploreScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 0 }}>
           {categories.map((item) => {
             const active = category === item;
+            const tone = item === "All" ? null : categoryColor[item];
             return (
               <Pressable
                 key={item}
@@ -443,13 +444,13 @@ export function ExploreScreen() {
                   borderRadius: 99,
                   paddingVertical: 10,
                   paddingHorizontal: 16,
-                  backgroundColor: active ? T.dark : T.white,
+                  backgroundColor: active ? tone?.text ?? T.dark : tone?.bg ?? T.white,
                   borderWidth: 2,
-                  borderColor: active ? T.dark : T.border,
+                  borderColor: active ? tone?.text ?? T.dark : tone?.bg ?? T.border,
                   boxShadow: active ? "none" : `2px 2px 0px ${T.border}`
                 }}
               >
-                <Text style={{ color: active ? T.white : T.muted, fontWeight: "900", fontSize: 13 }}>{item}</Text>
+                <Text style={{ color: active ? T.white : tone?.text ?? T.muted, fontWeight: "900", fontSize: 13 }}>{item}</Text>
               </Pressable>
             );
           })}

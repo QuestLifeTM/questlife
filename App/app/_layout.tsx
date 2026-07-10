@@ -53,7 +53,7 @@ function AppLayout() {
     return <Redirect href="/(auth)/login" />;
   }
 
-  if (session && !isEmailVerified && !isOnboardingRoute && !isAuthRoute && !isCallbackRoute) {
+  if (session && !isEmailVerified && !isAuthRoute && !isCallbackRoute && !isResetRoute) {
     return (
       <Redirect
         href={{
@@ -64,7 +64,7 @@ function AppLayout() {
     );
   }
 
-  if (session && isEmailVerified && isAuthRoute) {
+  if (session && isEmailVerified && (isOnboardingRoute || isAuthRoute)) {
     return <Redirect href="/(tabs)" />;
   }
 

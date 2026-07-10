@@ -1,3 +1,5 @@
+import { questCategoryColors } from "@/types/content";
+
 export const T = {
   bg: "#fffcf5",
   dark: "#3d3438",
@@ -43,14 +45,4 @@ export const difficultyColor: Record<Difficulty, { text: string; bg: string }> =
   FORMIDABLE: { text: "#7f1d1d", bg: "rgba(127,29,29,0.12)" }
 };
 
-export const categoryColor: Record<string, { text: string; bg: string }> = {
-  ADVENTURE: { text: T.blue, bg: "rgba(77,168,255,0.12)" },
-  "FOOD AND DRINKS": { text: T.orange, bg: "rgba(243,156,18,0.12)" },
-  FITNESS: { text: T.red, bg: "rgba(225,112,85,0.12)" },
-  NATURE: { text: T.green, bg: "rgba(39,174,96,0.12)" },
-  CREATIVITY: { text: T.purple, bg: "rgba(162,155,254,0.12)" },
-  EVENTS: { text: T.teal, bg: "rgba(0,206,201,0.12)" },
-  SKILLS: { text: "#7c3aed", bg: "rgba(124,58,237,0.12)" },
-  SOCIAL: { text: T.cyan, bg: "rgba(0,187,249,0.12)" },
-  "WILD CARD": { text: T.pink, bg: "rgba(253,121,168,0.12)" }
-};
+export const categoryColor: Record<string, { text: string; bg: string }> = questCategoryColors;

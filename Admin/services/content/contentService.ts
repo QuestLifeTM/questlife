@@ -13,6 +13,7 @@ import {
   Quest,
   QuestFormInput,
   QuestStatus,
+  questCategoryColors,
 } from "@/types/content";
 
 type QuestRow = {
@@ -189,7 +190,7 @@ function mapQuest(
     difficulty: row.difficulty,
     status: row.status,
     featured: row.featured,
-    color: row.accent_color,
+    color: questCategoryColors[row.category]?.text ?? row.accent_color,
     saved: savedIds.has(row.id),
     completed: completedIds.has(row.id),
     createdBy: row.created_by,
@@ -542,6 +543,7 @@ export async function upsertQuest(input: QuestFormInput & { id?: string }) {
   assertSupabaseConfigured();
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
+  const categoryColor = questCategoryColors[input.category]?.text ?? input.color;
 
   const payload = {
     title: input.title.trim(),
@@ -553,7 +555,7 @@ export async function upsertQuest(input: QuestFormInput & { id?: string }) {
     difficulty: input.difficulty,
     status: input.status,
     featured: input.featured,
-    accent_color: input.color,
+    accent_color: categoryColor,
     review_note: input.reviewNote?.trim() || null,
     reviewed_at: input.status === "published" || input.reviewNote?.trim() ? new Date().toISOString() : null,
     reviewed_by: input.status === "published" || input.reviewNote?.trim() ? userData.user?.id ?? null : null,

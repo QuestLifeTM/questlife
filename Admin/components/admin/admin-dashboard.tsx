@@ -49,6 +49,7 @@ import {
   QuestFormInput,
   QuestStatus,
   questCategories,
+  questCategoryColors,
   questDifficulties,
   questStatuses,
 } from "@/types/content";
@@ -171,7 +172,7 @@ const permissionLabels: Record<AdminPermission, string> = {
 
 const defaultQuest: QuestFormInput = {
   category: "ADVENTURE",
-  color: nova.blue,
+  color: questCategoryColors.ADVENTURE.text,
   description: "",
   difficulty: "EASY",
   featured: false,
@@ -206,7 +207,7 @@ function addDays(dateKey: string, days: number) {
 function asForm(quest: Quest): QuestFormInput {
   return {
     category: quest.category,
-    color: quest.color,
+    color: questCategoryColors[quest.category]?.text ?? quest.color,
     description: quest.description,
     difficulty: quest.difficulty,
     featured: quest.featured,
@@ -605,18 +606,20 @@ function QuestRow({
 
 function QuestPreviewCard({ form, t }: { form: QuestFormInput; t: Theme }) {
   const steps = form.steps.map((step) => step.trim()).filter(Boolean);
+  const categoryTone = questCategoryColors[form.category] ?? { text: form.color || nova.blue, bg: nova.blueSoft };
+  const categoryAccent = categoryTone.text;
   return (
     <View style={{ gap: 16 }}>
       <Text style={{ color: t.text, fontSize: 18, fontWeight: "900" }}>Mobile Preview</Text>
       <View style={{ borderRadius: 26, backgroundColor: "#f7f0df", borderWidth: 1, borderColor: "#eadfcb", padding: 14, gap: 14 }}>
         <View style={{ borderRadius: 22, backgroundColor: "#fffaf0", borderWidth: 2, borderColor: "#f0dfbe", boxShadow: "0 14px 24px rgba(40,50,80,0.14)", overflow: "hidden" }}>
           <View style={{ flexDirection: "row" }}>
-            <View style={{ width: 8, backgroundColor: form.color || nova.blue }} />
+            <View style={{ width: 8, backgroundColor: categoryAccent }} />
             <View style={{ flex: 1, padding: 16, gap: 12 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7, flex: 1 }}>
-                  <View style={{ borderRadius: 999, backgroundColor: "#e8efff", paddingHorizontal: 10, paddingVertical: 5 }}>
-                    <Text style={{ color: "#2563eb", fontSize: 11, fontWeight: "900" }}>{form.category}</Text>
+                  <View style={{ borderRadius: 999, backgroundColor: categoryTone.bg, paddingHorizontal: 10, paddingVertical: 5 }}>
+                    <Text style={{ color: categoryTone.text, fontSize: 11, fontWeight: "900" }}>{form.category}</Text>
                   </View>
                   <View style={{ borderRadius: 999, backgroundColor: "#fff0db", paddingHorizontal: 10, paddingVertical: 5 }}>
                     <Text style={{ color: "#c05621", fontSize: 11, fontWeight: "900" }}>{form.difficulty}</Text>
@@ -646,8 +649,8 @@ function QuestPreviewCard({ form, t }: { form: QuestFormInput; t: Theme }) {
         </View>
 
         <View style={{ borderRadius: 22, backgroundColor: "#fffaf0", borderWidth: 1, borderColor: "#eddfc7", padding: 16, gap: 14 }}>
-          <View style={{ borderRadius: 18, backgroundColor: "#dbeafe", height: 92, alignItems: "center", justifyContent: "center" }}>
-            <Ionicons name="sparkles-outline" size={30} color={form.color || nova.blue} />
+          <View style={{ borderRadius: 18, backgroundColor: categoryTone.bg, height: 92, alignItems: "center", justifyContent: "center" }}>
+            <Ionicons name="sparkles-outline" size={30} color={categoryAccent} />
           </View>
           <View style={{ gap: 5 }}>
             <Text style={{ color: "#152033", fontSize: 22, fontWeight: "900" }}>{form.title || "Untitled quest"}</Text>
@@ -657,7 +660,7 @@ function QuestPreviewCard({ form, t }: { form: QuestFormInput; t: Theme }) {
             <Text style={{ color: "#152033", fontSize: 16, fontWeight: "900" }}>How it works</Text>
             {(steps.length ? steps : ["Add the first step for this quest."]).slice(0, 4).map((step, index) => (
               <View key={`${step}-${index}`} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
-                <View style={{ width: 25, height: 25, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: form.color || nova.blue }}>
+                <View style={{ width: 25, height: 25, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: categoryAccent }}>
                   <Text style={{ color: "#ffffff", fontWeight: "900", fontSize: 11 }}>{index + 1}</Text>
                 </View>
                 <Text style={{ color: "#607087", flex: 1, fontWeight: "700", lineHeight: 19 }}>{step}</Text>
@@ -682,6 +685,7 @@ function QuestForm({
   t: Theme;
 }) {
   const editable = !archived;
+  const categoryAccent = questCategoryColors[form.category]?.text ?? form.color ?? nova.blue;
   const updateStep = (index: number, value: string) => {
     const next = [...form.steps];
     next[index] = value;
@@ -693,7 +697,7 @@ function QuestForm({
       <Field editable={editable} label="Quest title" t={t} value={form.title} onChangeText={(title) => onChange({ ...form, title })} placeholder="e.g. Sunrise Photo Walk" />
       <View style={{ gap: 8 }}>
         <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.3, textTransform: "uppercase" }}>Category</Text>
-        <Segmented options={categoryOptions} t={t} value={form.category} onChange={(category) => onChange({ ...form, category })} />
+        <Segmented options={categoryOptions} t={t} value={form.category} onChange={(category) => onChange({ ...form, category, color: questCategoryColors[category].text })} />
       </View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
         <View style={{ flex: 1, minWidth: 180 }}>
@@ -714,7 +718,7 @@ function QuestForm({
         <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.3, textTransform: "uppercase" }}>Quest steps</Text>
         {form.steps.map((step, index) => (
           <View key={index} style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-            <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: form.color || nova.blue, alignItems: "center", justifyContent: "center" }}>
+            <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: categoryAccent, alignItems: "center", justifyContent: "center" }}>
               <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "900" }}>{index + 1}</Text>
             </View>
             <View style={{ flex: 1 }}>
@@ -731,7 +735,6 @@ function QuestForm({
           <ActionButton icon="add" label="Add Step" onPress={() => onChange({ ...form, steps: [...form.steps, ""] })} secondary t={t} />
         ) : null}
       </View>
-      <Field editable={editable} label="Accent color" t={t} value={form.color} onChangeText={(color) => onChange({ ...form, color })} />
     </View>
   );
 }

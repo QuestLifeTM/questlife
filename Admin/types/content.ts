@@ -24,6 +24,18 @@ export type QuestCategory = Exclude<(typeof questCategories)[number], "All">;
 export type QuestDifficulty = (typeof questDifficulties)[number];
 export type QuestStatus = (typeof questStatuses)[number];
 
+export const questCategoryColors: Record<QuestCategory, { text: string; bg: string }> = {
+  SOCIAL: { text: "#00E6B3", bg: "#E5FFF9" },
+  ADVENTURE: { text: "#4D9CFF", bg: "#EAF4FF" },
+  "FOOD AND DRINKS": { text: "#FF9C4D", bg: "#FFF2E3" },
+  FITNESS: { text: "#FF4560", bg: "#FFECEF" },
+  NATURE: { text: "#4DFF9C", bg: "#E9FFF2" },
+  SKILLS: { text: "#FFDB4D", bg: "#FFF8DA" },
+  EVENTS: { text: "#FF4D9C", bg: "#FFEAF4" },
+  CREATIVITY: { text: "#9C4DFF", bg: "#F3EAFF" },
+  "WILD CARD": { text: "#D14DFF", bg: "#FAE9FF" },
+};
+
 export type Quest = {
   id: string;
   title: string;
