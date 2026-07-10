@@ -14,6 +14,14 @@ const password = z
   .regex(/[A-Z]/, "Password needs an uppercase letter.")
   .regex(/\d/, "Password needs a number.");
 
+const username = z
+  .string()
+  .trim()
+  .min(1, "Username is required.")
+  .min(3, "Username must be at least 3 characters.")
+  .max(20, "Username must be 20 characters or less.")
+  .regex(/^[A-Za-z0-9_]+$/, "Use letters, numbers, and underscores only.");
+
 export const loginSchema = z.object({
   email,
   password: z.string().min(1, "Password is required."),
@@ -24,6 +32,7 @@ export const registerSchema = z
     confirmPassword: z.string().min(1, "Confirm your password."),
     email,
     password,
+    username,
   })
   .refine((value) => value.password === value.confirmPassword, {
     message: "Passwords do not match.",

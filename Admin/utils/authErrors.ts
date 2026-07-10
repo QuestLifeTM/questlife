@@ -33,6 +33,18 @@ export function getAuthErrorMessage(error: unknown) {
     return "Invalid email or password.";
   }
 
+  if (message.includes("admin_account_disabled") || message.includes("disabled")) {
+    return "This admin account is disabled.";
+  }
+
+  if (message.includes("admin_access_required")) {
+    return "This account does not have admin access.";
+  }
+
+  if (message.includes("invitation_expired")) {
+    return "This admin invitation has expired.";
+  }
+
   if (message.includes("already registered") || message.includes("already exists")) {
     return "An account with this email already exists.";
   }
@@ -55,6 +67,10 @@ export function getAuthErrorMessage(error: unknown) {
 
   if (message.includes("network") || message.includes("fetch")) {
     return "Network error. Check your connection and try again.";
+  }
+
+  if (message.includes("rate") || message.includes("too many")) {
+    return "Too many attempts. Please wait a moment and try again.";
   }
 
   if (message.includes("jwt") || message.includes("session")) {

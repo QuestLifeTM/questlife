@@ -67,6 +67,8 @@ type ProfileRow = {
 };
 
 type AdminMembershipRow = {
+  is_active?: boolean | null;
+  last_login?: string | null;
   user_id: string;
   role: AdminRole;
   permissions: AdminPermission[] | null;
@@ -77,6 +79,7 @@ type AdminInviteRow = {
   accepted_by: string | null;
   created_at: string | null;
   email: string;
+  expires_at?: string | null;
   id: string;
   invited_by: string | null;
   permissions: AdminPermission[] | null;
@@ -119,12 +122,25 @@ function mapInvite(row: AdminInviteRow): AdminInvite {
     acceptedBy: row.accepted_by,
     createdAt: row.created_at,
     email: row.email,
+    expiresAt: row.expires_at,
     id: row.id,
     invitedBy: row.invited_by,
     permissions: normalizeAdminPermissions(row.role, row.permissions),
     role: row.role,
     status: row.status,
   };
+}
+
+async function invokeAdminAuth<TPayload extends Record<string, unknown>>(payload: TPayload) {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.functions.invoke("admin-auth", {
+    body: payload,
+  });
+
+  if (error) throw error;
+  if (data && typeof data === "object" && "error" in data) {
+    throw new Error(String((data as { error?: unknown }).error ?? "Admin request failed."));
+  }
 }
 
 function mapNotification(row: AdminNotificationRow): AdminNotification {
@@ -344,7 +360,7 @@ export async function getAdminMembership(): Promise<AdminMembership | null> {
 
   const { data, error } = await supabase
     .from("admin_memberships")
-    .select("user_id, role, permissions")
+    .select("user_id, role, permissions, is_active, last_login")
     .eq("user_id", userData.user.id)
     .maybeSingle<AdminMembershipRow>();
 
@@ -360,6 +376,8 @@ export async function getAdminMembership(): Promise<AdminMembership | null> {
   return {
     displayName: profile?.display_name ?? null,
     email: profile?.email ?? userData.user.email ?? null,
+    isActive: data.is_active ?? true,
+    lastLogin: data.last_login ?? null,
     permissions: normalizeAdminPermissions(data.role, data.permissions),
     role: data.role,
     userId: data.user_id,
@@ -369,36 +387,27 @@ export async function getAdminMembership(): Promise<AdminMembership | null> {
 export async function listAdminProfiles(): Promise<AdminProfile[]> {
   assertSupabaseConfigured();
 
-  const { data, error } = await supabase
-    .from("admin_memberships")
-    .select("user_id, role, permissions")
-    .order("created_at", { ascending: true })
-    .returns<AdminMembershipRow[]>();
+  const { data, error } = await supabase.rpc("list_admin_accounts");
 
   if (error) throw error;
 
-  const rows = data ?? [];
-  const { data: profiles } = rows.length
-    ? await supabase
-      .from("profiles")
-      .select("id, email, display_name")
-      .in("id", rows.map((row) => row.user_id))
-      .returns<ProfileRow[]>()
-    : { data: [] as ProfileRow[] };
-
-  const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
-
-  return rows.map((row) => {
-    const profile = profileMap.get(row.user_id);
-
-    return {
-      displayName: profile?.display_name ?? null,
-      email: profile?.email ?? null,
-      permissions: normalizeAdminPermissions(row.role, row.permissions),
-      role: row.role,
-      userId: row.user_id,
-    };
-  });
+  return ((data ?? []) as Array<{
+    display_name: string | null;
+    email: string | null;
+    is_active: boolean;
+    last_login: string | null;
+    permissions: AdminPermission[] | null;
+    role: AdminRole;
+    user_id: string;
+  }>).map((row) => ({
+    displayName: row.display_name,
+    email: row.email,
+    isActive: row.is_active,
+    lastLogin: row.last_login,
+    permissions: normalizeAdminPermissions(row.role, row.permissions),
+    role: row.role,
+    userId: row.user_id,
+  }));
 }
 
 export async function listAdminInvites(): Promise<AdminInvite[]> {
@@ -406,7 +415,7 @@ export async function listAdminInvites(): Promise<AdminInvite[]> {
 
   const { data, error } = await supabase
     .from("admin_invites")
-    .select("id, email, role, permissions, status, invited_by, accepted_by, accepted_at, created_at")
+    .select("id, email, role, permissions, status, invited_by, accepted_by, accepted_at, created_at, expires_at")
     .order("created_at", { ascending: false })
     .returns<AdminInviteRow[]>();
 
@@ -419,29 +428,20 @@ export async function inviteAdmin(input: {
   permissions: AdminPermission[];
   role: AdminRole;
 }): Promise<AdminInvite> {
-  assertSupabaseConfigured();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) throw userError;
   if (input.role === "super_admin") {
     throw new Error("Super admin access is seeded manually and cannot be granted from the dashboard.");
   }
 
-  const payload = {
+  await invokeAdminAuth({
+    action: "invite",
     email: input.email.trim().toLowerCase(),
-    invited_by: userData.user?.id ?? null,
     permissions: normalizeAdminPermissions(input.role, input.permissions),
-    role: input.role,
-    status: "pending" as const,
-  };
+  });
 
-  const { data, error } = await supabase
-    .from("admin_invites")
-    .upsert(payload, { onConflict: "email" })
-    .select("id, email, role, permissions, status, invited_by, accepted_by, accepted_at, created_at")
-    .single<AdminInviteRow>();
-
-  if (error) throw error;
-  return mapInvite(data);
+  const invites = await listAdminInvites();
+  const created = invites.find((invite) => invite.email.toLowerCase() === input.email.trim().toLowerCase());
+  if (!created) throw new Error("Invite was created, but could not be loaded.");
+  return created;
 }
 
 export async function updateAdminAccess(input: {
@@ -449,22 +449,31 @@ export async function updateAdminAccess(input: {
   role: AdminRole;
   userId: string;
 }) {
-  assertSupabaseConfigured();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) throw userError;
-  if (input.role === "super_admin" && input.userId !== userData.user?.id) {
-    throw new Error("Only the seeded owner account can be super admin.");
+  if (input.role === "super_admin") {
+    throw new Error("Super Admin permissions cannot be changed here.");
   }
 
-  const { error } = await supabase
-    .from("admin_memberships")
-    .update({
-      permissions: normalizeAdminPermissions(input.role, input.permissions),
-      role: input.role,
-    })
-    .eq("user_id", input.userId);
+  await invokeAdminAuth({
+    action: "update_access",
+    permissions: normalizeAdminPermissions(input.role, input.permissions),
+    userId: input.userId,
+  });
+}
 
-  if (error) throw error;
+export async function disableAdmin(userId: string) {
+  await invokeAdminAuth({ action: "disable", userId });
+}
+
+export async function reactivateAdmin(userId: string) {
+  await invokeAdminAuth({ action: "reactivate", userId });
+}
+
+export async function deleteAdmin(userId: string) {
+  await invokeAdminAuth({ action: "delete", userId });
+}
+
+export async function resetAdminPassword(userId: string) {
+  await invokeAdminAuth({ action: "reset_password", userId });
 }
 
 export async function updateInviteAccess(input: {

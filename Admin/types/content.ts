@@ -113,6 +113,8 @@ export type AdminPermission = (typeof adminPermissions)[number];
 export type AdminMembership = {
   email?: string | null;
   displayName?: string | null;
+  isActive?: boolean;
+  lastLogin?: string | null;
   permissions: AdminPermission[];
   userId: string;
   role: AdminRole;
@@ -123,6 +125,7 @@ export type AdminInvite = {
   acceptedBy?: string | null;
   createdAt?: string | null;
   email: string;
+  expiresAt?: string | null;
   id: string;
   invitedBy?: string | null;
   permissions: AdminPermission[];
@@ -143,6 +146,8 @@ export type AdminNotification = {
 export type AdminProfile = {
   email?: string | null;
   displayName?: string | null;
+  isActive: boolean;
+  lastLogin?: string | null;
   permissions: AdminPermission[];
   role: AdminRole;
   userId: string;

@@ -74,6 +74,33 @@ export function AuthProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!session?.user) return;
+
+    let cancelled = false;
+
+    async function checkAdminAccount() {
+      const { data, error } = await supabase
+        .from("admin_memberships")
+        .select("is_active, deleted_at")
+        .eq("user_id", session?.user.id)
+        .maybeSingle<{ is_active: boolean | null; deleted_at: string | null }>();
+
+      if (cancelled || error) return;
+      if (!data || data.is_active === false || data.deleted_at) {
+        await supabase.auth.signOut().catch(() => undefined);
+      }
+    }
+
+    checkAdminAccount();
+    const interval = setInterval(checkAdminAccount, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [session?.user.id]);
+
   const value = useMemo(
     () => ({
       initializing,

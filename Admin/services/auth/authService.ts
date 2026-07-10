@@ -110,6 +110,7 @@ export async function signInWithEmail(email: string, password: string) {
   }
 
   await acceptAdminInvite();
+  await recordAdminLogin();
 }
 
 export async function getAdminLoginState(email: string): Promise<AdminLoginState> {
@@ -126,6 +127,20 @@ export async function getAdminLoginState(email: string): Promise<AdminLoginState
 export async function acceptAdminInvite() {
   assertSupabaseConfigured();
   const { error } = await supabase.rpc("accept_admin_invite");
+
+  if (error) throw error;
+}
+
+export async function recordAdminLogin() {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("record_admin_login");
+
+  if (error) throw error;
+}
+
+export async function recordAdminLogout() {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("record_admin_logout");
 
   if (error) throw error;
 }
@@ -162,6 +177,7 @@ export async function createAdminPassword(email: string, password: string) {
 
   if (data.session) {
     await acceptAdminInvite();
+    await recordAdminLogin();
   }
 
   return { email: normalizedEmail, needsVerification: !data.session };
@@ -212,6 +228,7 @@ export async function exchangeAuthCodeForSession(code: string) {
       id: data.user.id,
     });
     await acceptAdminInvite();
+    await recordAdminLogin();
   }
 
   return data;
@@ -261,6 +278,7 @@ export async function updatePassword(password: string) {
 
 export async function signOut() {
   assertSupabaseConfigured();
+  await recordAdminLogout().catch(() => undefined);
   const { error } = await supabase.auth.signOut();
 
   if (error) {

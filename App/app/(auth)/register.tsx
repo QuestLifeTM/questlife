@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { Alert, StyleSheet, Text, View } from "react-native";
 
@@ -20,6 +20,8 @@ import { AuthScaffold } from "@/components/auth/AuthScaffold";
 import { T } from "@/components/theme";
 import {
   AccountAlreadyExistsError,
+  EmailNotVerifiedError,
+  isUsernameAvailable,
   registerWithEmail,
   resendSignupConfirmationLink,
 } from "@/services/auth/authService";
@@ -32,44 +34,96 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const {
     control,
+    clearErrors,
     formState: { errors, isValid },
     handleSubmit,
+    setError,
   } = useForm<RegisterForm>({
     defaultValues: {
       confirmPassword: "",
       email: "",
       password: "",
+      username: "",
     },
     mode: "onChange",
     resolver: zodResolver(registerSchema),
   });
   const password = useWatch({ control, name: "password" });
+  const username = useWatch({ control, name: "username" });
+
+  useEffect(() => {
+    const trimmed = username.trim();
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(trimmed)) return;
+
+    let cancelled = false;
+    const timeout = setTimeout(async () => {
+      try {
+        const available = await isUsernameAvailable(trimmed);
+        if (cancelled) return;
+
+        if (available) {
+          clearErrors("username");
+        } else {
+          setError("username", {
+            message: "That username is already taken.",
+            type: "validate",
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setError("username", {
+            message: "Unable to check username right now.",
+            type: "validate",
+          });
+        }
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [clearErrors, setError, username]);
 
   async function onSubmit(values: RegisterForm) {
     try {
       setLoading(true);
-      const result = await registerWithEmail(values.email, values.password);
+      const result = await registerWithEmail(values.email, values.username, values.password);
       router.replace({
         pathname: "/(auth)/verify-email",
         params: { email: result.email },
       });
     } catch (error) {
-      if (error instanceof AccountAlreadyExistsError) {
+      if (error instanceof EmailNotVerifiedError) {
         Alert.alert(
-          "Account already exists",
-          "This email is already signed up. Log in if you confirmed it, or send a new confirmation email if you have not verified it yet.",
+          "Account Not Verified",
+          "You already created an account with this email address, but your email has not been verified.",
           [
             {
-              text: "Log in",
-              onPress: () => router.replace("/(auth)/login"),
-            },
-            {
-              text: "Send confirmation",
+              text: "Verify Email",
               onPress: () => handleExistingAccountConfirmation(error.email),
             },
             {
               style: "cancel",
-              text: "Cancel",
+              text: "Back",
+            },
+          ],
+        );
+        return;
+      }
+
+      if (error instanceof AccountAlreadyExistsError) {
+        Alert.alert(
+          "Account Already Exists",
+          "An account already exists for this email address.",
+          [
+            {
+              text: "Go to Login",
+              onPress: () => router.replace("/(auth)/login"),
+            },
+            {
+              text: "Forgot Password",
+              onPress: () => router.replace("/(auth)/forgot-password"),
             },
           ],
         );
@@ -123,6 +177,23 @@ export default function RegisterScreen() {
               onChangeText={onChange}
               placeholder="Email id"
               textContentType="emailAddress"
+              value={value}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="username"
+          render={({ field: { onBlur, onChange, value } }) => (
+            <AuthInput
+              autoCapitalize="none"
+              autoComplete="username"
+              error={errors.username?.message}
+              icon="person-outline"
+              onBlur={onBlur}
+              onChangeText={onChange}
+              placeholder="Username"
+              textContentType="username"
               value={value}
             />
           )}

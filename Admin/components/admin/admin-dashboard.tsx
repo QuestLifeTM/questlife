@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import { PropsWithChildren, useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Alert, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useContent } from "@/contexts/ContentContext";
@@ -21,6 +21,10 @@ import {
   updateInviteAccess,
   updateOwnAdminProfile,
   upsertQuest,
+  deleteAdmin,
+  disableAdmin,
+  reactivateAdmin,
+  resetAdminPassword,
 } from "@/services/content/contentService";
 import {
   deleteFeaturedBatch,
@@ -1249,6 +1253,73 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     }
   }
 
+  async function handleResetSelectedAdminPassword() {
+    if (!selectedAdmin || selectedAdmin.role === "super_admin") return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await resetAdminPassword(selectedAdmin.userId);
+      setMessage("Password reset email sent.");
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Unable to send password reset.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleToggleSelectedAdminActive() {
+    if (!selectedAdmin || selectedAdmin.role === "super_admin") return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      if (selectedAdmin.isActive) {
+        await disableAdmin(selectedAdmin.userId);
+        setMessage("Admin disabled.");
+      } else {
+        await reactivateAdmin(selectedAdmin.userId);
+        setMessage("Admin reactivated.");
+      }
+      await loadAdminOperations();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Unable to update admin status.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteSelectedAdmin() {
+    if (!selectedAdmin || selectedAdmin.role === "super_admin") return;
+
+    Alert.alert(
+      "Delete admin?",
+      "This removes the admin account from Supabase Auth and cannot be undone.",
+      [
+        { style: "cancel", text: "Cancel" },
+        {
+          style: "destructive",
+          text: "Delete",
+          onPress: async () => {
+            setSaving(true);
+            setError(null);
+            setMessage(null);
+            try {
+              await deleteAdmin(selectedAdmin.userId);
+              setSelectedAdminUserId(null);
+              await loadAdminOperations();
+              setMessage("Admin deleted.");
+            } catch (nextError) {
+              setError(nextError instanceof Error ? nextError.message : "Unable to delete admin.");
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ],
+    );
+  }
+
   async function revokeInvite(invite: AdminInvite) {
     setSaving(true);
     setError(null);
@@ -1972,7 +2043,9 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                                 style={{ borderTopColor: t.border, borderTopWidth: 1, backgroundColor: active ? t.active : "transparent", padding: 18, gap: 6 }}
                               >
                                 <Text style={{ color: active ? t.activeText : t.text, fontSize: 16, fontWeight: "900" }}>{profile.displayName || profile.email || profile.userId}</Text>
-                                <Text style={{ color: t.muted, fontWeight: "700" }}>{displayRole(profile.role)} · {profile.permissions.length} permissions</Text>
+                                <Text style={{ color: t.muted, fontWeight: "700" }}>
+                                  {displayRole(profile.role)} · {profile.isActive ? "Active" : "Disabled"} · Last login {formatDate(profile.lastLogin)}
+                                </Text>
                               </Pressable>
                             );
                           })}
@@ -1984,6 +2057,17 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                           <Panel t={t} style={{ padding: 22, gap: 16 }}>
                             <Text style={{ color: t.text, fontSize: 22, fontWeight: "900" }}>{selectedAdmin.displayName || selectedAdmin.email || "Admin"}</Text>
                             <Text style={{ color: t.muted, fontWeight: "700" }}>{selectedAdmin.email || selectedAdmin.userId}</Text>
+                            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                              <Pill
+                                t={t}
+                                tone={selectedAdmin.isActive
+                                  ? { bg: "rgba(34,197,94,0.16)", text: "#16a34a", border: "rgba(34,197,94,0.24)" }
+                                  : { bg: "rgba(239,68,68,0.14)", text: "#ef4444", border: "rgba(239,68,68,0.28)" }}
+                              >
+                                {selectedAdmin.isActive ? "Active" : "Disabled"}
+                              </Pill>
+                              <Pill t={t}>Last login {formatDate(selectedAdmin.lastLogin)}</Pill>
+                            </View>
                             <View style={{ gap: 8 }}>
                               <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.3, textTransform: "uppercase" }}>Role</Text>
                               <Panel t={t} style={{ padding: 14, backgroundColor: t.cardAlt }}>
@@ -2024,6 +2108,20 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                                 })}
                               </View>
                             </View>
+                            {selectedAdmin.role !== "super_admin" ? (
+                              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                                <ActionButton disabled={saving} icon="key-outline" label="Reset Password" onPress={handleResetSelectedAdminPassword} secondary t={t} />
+                                <ActionButton
+                                  disabled={saving}
+                                  icon={selectedAdmin.isActive ? "pause-circle-outline" : "play-circle-outline"}
+                                  label={selectedAdmin.isActive ? "Disable" : "Reactivate"}
+                                  onPress={handleToggleSelectedAdminActive}
+                                  secondary
+                                  t={t}
+                                />
+                                <ActionButton disabled={saving} icon="trash-outline" label="Delete" onPress={handleDeleteSelectedAdmin} secondary t={t} />
+                              </View>
+                            ) : null}
                           </Panel>
                         ) : <EmptyPanel icon="people-outline" title="No admins yet" body="Invited admins will appear here after they create an account." t={t} />}
 
@@ -2034,7 +2132,9 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                           {adminInvites.length ? adminInvites.map((invite) => (
                             <View key={invite.id} style={{ borderTopColor: t.border, borderTopWidth: 1, padding: 18, gap: 8 }}>
                               <Text style={{ color: t.text, fontSize: 16, fontWeight: "900" }}>{invite.email}</Text>
-                              <Text style={{ color: t.muted, fontWeight: "700" }}>{invite.role} · {invite.status} · {invite.permissions.length} permissions</Text>
+                              <Text style={{ color: t.muted, fontWeight: "700" }}>
+                                {invite.role} · {invite.status} · {invite.permissions.length} permissions · Expires {formatDate(invite.expiresAt)}
+                              </Text>
                               {invite.status === "pending" ? <ActionButton disabled={saving} icon="close-circle-outline" label="Revoke Invite" onPress={() => revokeInvite(invite)} secondary t={t} /> : null}
                             </View>
                           )) : (

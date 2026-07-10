@@ -64,7 +64,7 @@ export default function LoginScreen() {
         return;
       }
 
-      Alert.alert("Sign in failed", getAuthErrorMessage(error));
+      Alert.alert("Sign in failed", "Invalid email or password.");
     } finally {
       setLoading(false);
     }

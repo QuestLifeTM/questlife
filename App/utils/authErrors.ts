@@ -5,6 +5,7 @@ import {
   EmailAlreadyConfirmedError,
   EmailNotVerifiedError,
   EmailVerificationDisabledError,
+  UsernameUnavailableError,
 } from "@/services/auth/authService";
 
 export function getAuthErrorMessage(error: unknown) {
@@ -22,6 +23,10 @@ export function getAuthErrorMessage(error: unknown) {
 
   if (error instanceof EmailAlreadyConfirmedError) {
     return "This email is already confirmed. Please log in.";
+  }
+
+  if (error instanceof UsernameUnavailableError) {
+    return "That username is already taken.";
   }
 
   const message =
@@ -55,6 +60,10 @@ export function getAuthErrorMessage(error: unknown) {
 
   if (message.includes("network") || message.includes("fetch")) {
     return "Network error. Check your connection and try again.";
+  }
+
+  if (message.includes("rate") || message.includes("too many")) {
+    return "Too many attempts. Please wait a moment and try again.";
   }
 
   if (message.includes("jwt") || message.includes("session")) {

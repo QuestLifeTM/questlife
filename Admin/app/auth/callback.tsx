@@ -9,7 +9,7 @@ import { exchangeAuthCodeForSession } from "@/services/auth/authService";
 export default function AuthCallback() {
   const params = useLocalSearchParams<{ code?: string }>();
   const [done, setDone] = useState(false);
-  const [redirectTo, setRedirectTo] = useState<"/(tabs)" | "/(auth)/login">(
+  const [redirectTo, setRedirectTo] = useState<"/admin/published" | "/(auth)/login">(
     "/(auth)/login",
   );
 
@@ -25,7 +25,7 @@ export default function AuthCallback() {
         try {
           await exchangeAuthCodeForSession(code);
           if (mounted) {
-            setRedirectTo("/(tabs)");
+            setRedirectTo("/admin/published");
           }
         } catch {
           // Keep failed or expired callback links out of protected routes.

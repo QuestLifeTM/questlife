@@ -6,7 +6,10 @@ import { BackButton, PrimaryButton } from "@/components/auth/AuthControls";
 import { AuthTitle } from "@/components/auth/AuthText";
 import { AuthScaffold } from "@/components/auth/AuthScaffold";
 import { T } from "@/components/theme";
-import { resendSignupConfirmationLink } from "@/services/auth/authService";
+import {
+  getRegistrationAccountState,
+  resendSignupConfirmationLink,
+} from "@/services/auth/authService";
 import { getAuthErrorMessage } from "@/utils/authErrors";
 
 const RESEND_SECONDS = 60;
@@ -28,6 +31,32 @@ export default function VerifyEmailScreen() {
 
     return () => clearTimeout(timeout);
   }, [secondsLeft]);
+
+  useEffect(() => {
+    if (!email) return;
+
+    let cancelled = false;
+
+    async function checkVerification() {
+      try {
+        const state = await getRegistrationAccountState(email);
+        if (!cancelled && state === "verified") {
+          cancelled = true;
+          router.replace("/(auth)/login");
+        }
+      } catch {
+        // Keep polling; transient network errors should not strand the screen.
+      }
+    }
+
+    checkVerification();
+    const interval = setInterval(checkVerification, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [email]);
 
   async function handleResend() {
     try {
@@ -94,7 +123,7 @@ export default function VerifyEmailScreen() {
           {resending
             ? "Sending..."
             : secondsLeft > 0
-              ? `Resend email in ${secondsLeft}s`
+              ? `Resend available in ${secondsLeft} seconds.`
               : "Resend confirmation email"}
         </Text>
       </Pressable>
