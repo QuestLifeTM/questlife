@@ -1484,96 +1484,128 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     ...(canManageProfile ? [{ label: "Profile", icon: "person-circle-outline" as const, route: "/admin/profile", active: view === "profile" }] : []),
   ];
 
+  const collapsedRail = sidebarCollapsed && !compact;
+  const sidebarWidth = compact ? "100%" : collapsedRail ? 72 : 260;
+  const sidebarPaddingHorizontal = compact ? 18 : collapsedRail ? 12 : 24;
+
+  function renderNavItem(item: (typeof nav)[number]) {
+    return (
+      <Pressable
+        key={item.route}
+        accessibilityRole="button"
+        accessibilityLabel={item.label}
+        accessibilityState={{ selected: item.active }}
+        onPress={() => router.push(item.route)}
+        style={{
+          minHeight: 48,
+          width: collapsedRail ? 48 : "100%",
+          alignSelf: collapsedRail ? "center" : "stretch",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: collapsedRail ? "center" : "flex-start",
+          gap: collapsedRail ? 0 : 12,
+          borderRadius: 10,
+          borderWidth: 1,
+          borderColor: item.active ? nova.blue : "transparent",
+          backgroundColor: item.active ? t.active : "transparent",
+          paddingHorizontal: collapsedRail ? 0 : 14,
+        }}
+      >
+        <Ionicons name={item.icon} size={22} color={item.active ? nova.blue : t.muted} />
+        {collapsedRail ? null : (
+          <Text style={{ color: item.active ? t.activeText : t.muted, fontSize: 16, fontWeight: "800" }}>{item.label}</Text>
+        )}
+      </Pressable>
+    );
+  }
+
+  function renderSidebarAction(label: string, icon: keyof typeof Ionicons.glyphMap, onPress: () => void) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPress={onPress}
+        style={{
+          minHeight: 48,
+          width: collapsedRail ? 48 : "100%",
+          alignSelf: collapsedRail ? "center" : "stretch",
+          borderRadius: 10,
+          borderWidth: 1,
+          borderColor: t.border,
+          backgroundColor: t.card,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: collapsedRail ? "center" : "flex-start",
+          gap: collapsedRail ? 0 : 10,
+          paddingHorizontal: collapsedRail ? 0 : 14,
+        }}
+      >
+        <Ionicons name={icon} size={20} color={t.muted} />
+        {collapsedRail ? null : <Text style={{ color: t.muted, fontSize: 15, fontWeight: "900" }}>{label}</Text>}
+      </Pressable>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: t.page }}>
       <View style={{ flex: 1, flexDirection: compact ? "column" : "row" }}>
-        <View style={{ width: compact ? "100%" : sidebarCollapsed ? 88 : 240, backgroundColor: t.sidebar, borderRightWidth: compact ? 0 : 1, borderRightColor: t.border, padding: 24, gap: 28 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-            {sidebarCollapsed && !compact ? (
-              <View style={{ width: 40, height: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: nova.blue }}>
+        <View
+          style={{
+            width: sidebarWidth,
+            flexShrink: 0,
+            backgroundColor: t.sidebar,
+            borderRightWidth: compact ? 0 : 1,
+            borderRightColor: t.border,
+            paddingHorizontal: sidebarPaddingHorizontal,
+            paddingVertical: compact ? 16 : 18,
+            gap: compact ? 16 : 18,
+            overflow: "hidden",
+          }}
+        >
+          <View style={{ flexDirection: collapsedRail ? "column" : "row", alignItems: "center", justifyContent: collapsedRail ? "center" : "space-between", gap: 10 }}>
+            {collapsedRail ? (
+              <View style={{ width: 48, height: 48, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: nova.blue }}>
                 <Ionicons name="flash" size={21} color="#ffffff" />
               </View>
             ) : (
               <AdminLogo t={t} />
             )}
             {!compact ? (
-              <Pressable onPress={() => setSidebarCollapsed((current) => !current)} style={{ width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: t.border }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={collapsedRail ? "Expand sidebar" : "Collapse sidebar"}
+                onPress={() => setSidebarCollapsed((current) => !current)}
+                style={{
+                  width: collapsedRail ? 48 : 36,
+                  height: collapsedRail ? 44 : 36,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 1,
+                  borderColor: t.border,
+                  backgroundColor: t.card,
+                }}
+              >
                 <Ionicons name={sidebarCollapsed ? "chevron-forward" : "chevron-back"} size={18} color={t.muted} />
               </Pressable>
             ) : null}
           </View>
-          <View style={{ gap: 8 }}>
-            {nav.map((item) => (
-              <Pressable
-                key={item.route}
-                onPress={() => router.push(item.route)}
-                style={{
-                  minHeight: 48,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 13,
-                  borderLeftWidth: item.active ? 3 : 0,
-                  borderLeftColor: nova.blue,
-                  borderRadius: 0,
-                  backgroundColor: item.active ? t.active : "transparent",
-                  paddingHorizontal: 15,
-                }}
-              >
-                <Ionicons name={item.icon} size={21} color={item.active ? nova.blue : t.muted} />
-                {sidebarCollapsed && !compact ? null : (
-                  <Text style={{ color: item.active ? t.activeText : t.muted, fontSize: 16, fontWeight: "800" }}>{item.label}</Text>
-                )}
-              </Pressable>
-            ))}
-          </View>
-          {!compact ? <View style={{ flex: 1 }} /> : null}
-          {!compact && !sidebarCollapsed ? (
-            <Panel t={t} style={{ padding: 18, gap: 10 }}>
-              <Text style={{ color: t.activeText, fontSize: 12, fontWeight: "900", letterSpacing: 1.4 }}>QUEST OPS</Text>
-              <Text style={{ color: t.muted, fontSize: 13, fontWeight: "700", lineHeight: 18 }}>Drafts require review before publication.</Text>
-            </Panel>
-          ) : null}
+          {compact ? (
+            <View style={{ gap: 8 }}>
+              {nav.map(renderNavItem)}
+            </View>
+          ) : (
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 8, paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+              {nav.map(renderNavItem)}
+            </ScrollView>
+          )}
           {!compact ? (
-            <View style={{ gap: 14 }}>
-              {sidebarCollapsed ? null : (
+            <View style={{ gap: 10, flexShrink: 0 }}>
+              {collapsedRail ? null : (
                 <Text style={{ color: t.muted, fontSize: 15, fontWeight: "800" }}>{membership ? `${membership.role} access` : checkingRole ? "Checking access" : "No access"}</Text>
               )}
-              <Pressable
-                onPress={() => setMode((current) => current === "dark" ? "light" : "dark")}
-                style={{
-                  minHeight: 46,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: t.border,
-                  backgroundColor: t.card,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: sidebarCollapsed ? "center" : "flex-start",
-                  gap: 10,
-                  paddingHorizontal: 14,
-                }}
-              >
-                <Ionicons name={mode === "dark" ? "sunny-outline" : "moon-outline"} size={19} color={t.muted} />
-                {sidebarCollapsed ? null : <Text style={{ color: t.muted, fontSize: 15, fontWeight: "900" }}>{mode === "dark" ? "Light Mode" : "Dark Mode"}</Text>}
-              </Pressable>
-              <Pressable
-                onPress={handleLogout}
-                style={{
-                  minHeight: 46,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: t.border,
-                  backgroundColor: t.card,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: sidebarCollapsed ? "center" : "flex-start",
-                  gap: 10,
-                  paddingHorizontal: 14,
-                }}
-              >
-                <Ionicons name="log-out-outline" size={19} color={t.muted} />
-                {sidebarCollapsed ? null : <Text style={{ color: t.muted, fontSize: 15, fontWeight: "900" }}>Logout</Text>}
-              </Pressable>
+              {renderSidebarAction(mode === "dark" ? "Light Mode" : "Dark Mode", mode === "dark" ? "sunny-outline" : "moon-outline", () => setMode((current) => current === "dark" ? "light" : "dark"))}
+              {renderSidebarAction("Logout", "log-out-outline", handleLogout)}
             </View>
           ) : null}
         </View>
