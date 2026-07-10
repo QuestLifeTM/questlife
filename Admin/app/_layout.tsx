@@ -1,7 +1,8 @@
 import { Redirect, Stack, useGlobalSearchParams, usePathname, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 
 import { T } from "@/components/theme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -25,6 +26,7 @@ function AdminAppLayout() {
   const firstSegment = segments[0];
   const isAuthRoute = firstSegment === "(auth)";
   const isCallbackRoute = firstSegment === "auth";
+  const speedInsightsRoute = pathname.startsWith("/admin/quest/") ? "/admin/quest/[id]" : pathname;
 
   if (initializing) {
     return (
@@ -70,6 +72,7 @@ function AdminAppLayout() {
         <Stack.Screen name="auth/callback" />
         <Stack.Screen name="admin" />
       </Stack>
+      {Platform.OS === "web" ? <SpeedInsights route={speedInsightsRoute} /> : null}
     </GestureHandlerRootView>
   );
 }
