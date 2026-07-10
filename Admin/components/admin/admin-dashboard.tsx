@@ -201,6 +201,17 @@ function displayRole(role: AdminRole) {
   return role === "super_admin" ? "Super Admin" : "Admin";
 }
 
+function emailLocalPart(email?: string | null) {
+  return email?.split("@")[0]?.trim().toLowerCase() ?? "";
+}
+
+function cleanDisplayName(displayName?: string | null, email?: string | null) {
+  const trimmed = displayName?.trim() ?? "";
+  if (!trimmed) return "";
+  if (trimmed.toLowerCase() === emailLocalPart(email)) return "";
+  return trimmed;
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "Not recorded";
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
@@ -373,6 +384,60 @@ function Segmented<TValue extends string>({
         );
       })}
     </View>
+  );
+}
+
+function FilterCarousel<TValue extends string>({
+  options,
+  renderLabel,
+  t,
+  value,
+  onChange,
+}: {
+  options: readonly TValue[];
+  renderLabel?: (value: TValue) => string;
+  t: Theme;
+  value: TValue;
+  onChange: (value: TValue) => void;
+}) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ gap: 10, paddingRight: 18 }}
+      style={{ maxWidth: "100%" }}
+    >
+      {options.map((option) => {
+        const active = option === value;
+        return (
+          <Pressable
+            key={option}
+            onPress={() => onChange(option)}
+            style={{
+              minHeight: 40,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: active ? nova.blue : t.border,
+              backgroundColor: active ? (t.mode === "dark" ? "#1d2b4f" : nova.blueSoft) : t.card,
+              paddingHorizontal: 16,
+            }}
+          >
+            <Text
+              numberOfLines={1}
+              style={{
+                color: active ? (t.mode === "dark" ? "#bfdbfe" : "#1d4ed8") : t.muted,
+                fontSize: 13,
+                fontWeight: "900",
+              }}
+            >
+              {renderLabel ? renderLabel(option) : option}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -849,7 +914,9 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     ? adminProfiles.find((profile) => profile.userId === selectedAdminUserId) ?? null
     : adminProfiles[0] ?? null;
   const unreadCount = notifications.filter((notification) => !notification.readAt).length;
-  const adminName = membership?.displayName || membership?.email?.split("@")[0] || "Admin";
+  const cleanAdminName = cleanDisplayName(membership?.displayName, membership?.email);
+  const adminName = cleanAdminName || "Enter your name";
+  const needsAdminName = !cleanAdminName;
   const today = featuredDateKey(new Date());
   const featuredDateOptions = [-2, -1, 0, 1, 2, 3, 4, 5, 6].map((offset) => addDays(today, offset));
   const isFeaturedPast = featuredDate < today;
@@ -915,8 +982,8 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   }, [adventurePacks, selectedPackId]);
 
   useEffect(() => {
-    setProfileName(membership?.displayName ?? "");
-  }, [membership?.displayName]);
+    setProfileName(cleanDisplayName(membership?.displayName, membership?.email));
+  }, [membership?.displayName, membership?.email]);
 
   useEffect(() => {
     if (reviewQuests.length && !selectedReviewQuestId) {
@@ -1514,7 +1581,17 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
         <View style={{ flex: 1 }}>
           <View style={{ minHeight: 74, borderBottomWidth: 1, borderBottomColor: t.border, backgroundColor: t.shell, paddingHorizontal: compact ? 18 : 30, flexDirection: "row", alignItems: "center", gap: 18 }}>
             <View style={{ flex: 1, gap: 3 }}>
-              <Text style={{ color: t.text, fontSize: 19, fontWeight: "900" }}>Welcome back, {adminName}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <Text style={{ color: t.text, fontSize: 19, fontWeight: "900" }}>Welcome back,</Text>
+                <Pressable
+                  disabled={!needsAdminName || !canManageProfile}
+                  onPress={() => router.push("/admin/profile")}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <Text style={{ color: needsAdminName ? t.activeText : t.text, fontSize: 19, fontWeight: "900" }}>{adminName}</Text>
+                  {needsAdminName ? <Ionicons name="pencil-outline" size={17} color={t.activeText} /> : null}
+                </Pressable>
+              </View>
               <Text style={{ color: t.muted, fontSize: 13, fontWeight: "700" }}>Build the quests people will actually remember.</Text>
             </View>
             {canViewInbox ? (
@@ -1560,29 +1637,29 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
 
                 {view === "published" || view === "all" ? (
                   (view === "published" ? canViewPublished : canViewAll) ? (
-                  <Panel t={t} style={{ overflow: "hidden" }}>
-                    <View style={{ padding: 24, gap: 18 }}>
-                      <View style={{ flexDirection: compact ? "column" : "row", justifyContent: "space-between", gap: 16 }}>
+                  <View style={{ gap: 14 }}>
+                    <View style={{ gap: 10 }}>
+                      <FilterCarousel options={["All", ...categoryOptions]} t={t} value={categoryFilter} onChange={setCategoryFilter} />
+                      {view === "all" ? (
+                        <FilterCarousel options={statusFilterOptions} t={t} value={statusFilter} onChange={setStatusFilter} renderLabel={(status) => status === "all" ? "All Statuses" : statusLabel(status as QuestStatus)} />
+                      ) : null}
+                    </View>
+                    <Panel t={t} style={{ overflow: "hidden" }}>
+                      <View style={{ padding: 24, gap: 18 }}>
                         <View>
                           <Text style={{ color: t.text, fontSize: 22, fontWeight: "900" }}>{view === "published" ? "Published Library" : "Quest Library"}</Text>
                           <Text style={{ color: t.muted, marginTop: 5, fontWeight: "600" }}>{visibleQuests.length} quests shown</Text>
                         </View>
-                        <View style={{ gap: 12, alignItems: "flex-start", flex: compact ? undefined : 1, maxWidth: compact ? undefined : 720 }}>
-                          <Segmented options={["All", ...categoryOptions]} t={t} value={categoryFilter} onChange={setCategoryFilter} />
-                          {view === "all" ? (
-                            <Segmented options={statusFilterOptions} t={t} value={statusFilter} onChange={setStatusFilter} renderLabel={(status) => status === "all" ? "All Statuses" : statusLabel(status as QuestStatus)} />
-                          ) : null}
+                      </View>
+                      {visibleQuests.length ? visibleQuests.map((quest) => (
+                        <QuestRow key={quest.id} quest={quest} t={t} featuredDate={featuredDatesByQuest[quest.id]} onPress={() => router.push(`/admin/quest/${quest.id}`)} />
+                      )) : (
+                        <View style={{ padding: 24 }}>
+                          <EmptyPanel icon="search-outline" title="No quests found" body="Try another category or status filter." t={t} />
                         </View>
-                      </View>
-                    </View>
-                    {visibleQuests.length ? visibleQuests.map((quest) => (
-                      <QuestRow key={quest.id} quest={quest} t={t} featuredDate={featuredDatesByQuest[quest.id]} onPress={() => router.push(`/admin/quest/${quest.id}`)} />
-                    )) : (
-                      <View style={{ padding: 24 }}>
-                        <EmptyPanel icon="search-outline" title="No quests found" body="Try another category or status filter." t={t} />
-                      </View>
-                    )}
-                  </Panel>
+                      )}
+                    </Panel>
+                  </View>
                   ) : (
                     <EmptyPanel icon="lock-closed-outline" title="Quest library permission required" body="Your admin account does not have access to this quest library." t={t} />
                   )
