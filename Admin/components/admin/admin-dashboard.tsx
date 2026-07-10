@@ -8,6 +8,7 @@ import { useContent } from "@/contexts/ContentContext";
 import { signOut } from "@/services/auth/authService";
 import {
   upsertAdventurePack,
+  deleteAdminNotifications,
   deleteQuest,
   fetchAdminNotifications,
   fetchContentLibrary,
@@ -15,7 +16,9 @@ import {
   inviteAdmin,
   listAdminInvites,
   listAdminProfiles,
+  markAdminNotificationsRead,
   markAdminNotificationRead,
+  markAllAdminNotificationsRead,
   notifyQuestReviewResult,
   updateAdminAccess,
   updateInviteAccess,
@@ -1006,6 +1009,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const [profilePassword, setProfilePassword] = useState("");
   const [selectedAdminUserId, setSelectedAdminUserId] = useState<string | null>(null);
   const [selectedReviewQuestId, setSelectedReviewQuestId] = useState<string | null>(null);
+  const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [denyQuest, setDenyQuest] = useState<Quest | null>(null);
   const [denyNote, setDenyNote] = useState("");
@@ -1035,6 +1039,9 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     ? adminProfiles.find((profile) => profile.userId === selectedAdminUserId) ?? null
     : adminProfiles[0] ?? null;
   const unreadCount = notifications.filter((notification) => !notification.readAt).length;
+  const selectedNotificationSet = useMemo(() => new Set(selectedNotificationIds), [selectedNotificationIds]);
+  const selectedNotifications = notifications.filter((notification) => selectedNotificationSet.has(notification.id));
+  const allNotificationsSelected = notifications.length > 0 && selectedNotifications.length === notifications.length;
   const cleanAdminName = cleanDisplayName(membership?.displayName, membership?.email);
   const adminName = cleanAdminName || "Enter your name";
   const needsAdminName = !cleanAdminName;
@@ -1115,6 +1122,11 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
       setSelectedReviewQuestId(reviewQuests[0].id);
     }
   }, [reviewQuests.length, selectedReviewQuestId]);
+
+  useEffect(() => {
+    const validNotificationIds = new Set(notifications.map((notification) => notification.id));
+    setSelectedNotificationIds((current) => current.filter((id) => validNotificationIds.has(id)));
+  }, [notifications]);
 
   async function loadAdminContent() {
     const [content, featuredBatches] = await Promise.all([
@@ -1552,7 +1564,87 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     }
   }
 
+  function toggleNotificationSelection(id: string) {
+    setSelectedNotificationIds((current) =>
+      current.includes(id) ? current.filter((selectedId) => selectedId !== id) : [...current, id],
+    );
+  }
+
+  function toggleAllNotifications() {
+    setSelectedNotificationIds(allNotificationsSelected ? [] : notifications.map((notification) => notification.id));
+  }
+
+  async function readAllNotifications() {
+    if (!notifications.length || !unreadCount) return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await markAllAdminNotificationsRead();
+      await loadAdminOperations();
+      setMessage("All notifications marked as read.");
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Unable to mark notifications as read.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function markSelectedNotifications(read: boolean) {
+    if (!selectedNotificationIds.length) return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await markAdminNotificationsRead(selectedNotificationIds, read);
+      await loadAdminOperations();
+      setMessage(read ? "Selected notifications marked as read." : "Selected notifications marked as unread.");
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Unable to update selected notifications.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeNotifications(ids?: string[]) {
+    const deleteAll = !ids;
+    const count = ids?.length ?? notifications.length;
+    if (!count) return;
+
+    Alert.alert(
+      deleteAll ? "Delete all notifications?" : "Delete selected notifications?",
+      deleteAll ? "This will clear every notification in your inbox." : `This will delete ${count} selected notification${count === 1 ? "" : "s"}.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setSaving(true);
+            setError(null);
+            setMessage(null);
+            try {
+              await deleteAdminNotifications(ids);
+              setSelectedNotificationIds([]);
+              await loadAdminOperations();
+              setMessage(deleteAll ? "Inbox cleared." : "Selected notifications deleted.");
+            } catch (nextError) {
+              setError(nextError instanceof Error ? nextError.message : "Unable to delete notifications.");
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ],
+    );
+  }
+
   async function openNotification(notification: AdminNotification) {
+    if (selectedNotificationIds.length) {
+      toggleNotificationSelection(notification.id);
+      return;
+    }
+
     if (!notification.readAt) {
       await markAdminNotificationRead(notification.id);
       await loadAdminOperations();
@@ -2425,19 +2517,173 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                 {view === "inbox" ? (
                   canViewInbox ? (
                     <Panel t={t} style={{ overflow: "hidden" }}>
-                      <View style={{ padding: 22, gap: 5 }}>
-                        <Text style={{ color: t.text, fontSize: 22, fontWeight: "900" }}>Notifications</Text>
-                        <Text style={{ color: t.muted, fontWeight: "700" }}>{unreadCount} unread</Text>
+                      <View style={{ padding: 22, gap: 16 }}>
+                        <View style={{ flexDirection: compact ? "column" : "row", justifyContent: "space-between", gap: 14, alignItems: compact ? "stretch" : "center" }}>
+                          <View style={{ gap: 5 }}>
+                            <Text style={{ color: t.text, fontSize: 22, fontWeight: "900" }}>Notifications</Text>
+                            <Text style={{ color: t.muted, fontWeight: "700" }}>
+                              {unreadCount} unread · {selectedNotifications.length} selected
+                            </Text>
+                          </View>
+                          {notifications.length ? (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+                              <Pressable
+                                onPress={toggleAllNotifications}
+                                style={{
+                                  minHeight: 40,
+                                  borderRadius: 8,
+                                  borderWidth: 1,
+                                  borderColor: allNotificationsSelected ? nova.blue : t.border,
+                                  backgroundColor: allNotificationsSelected ? t.active : t.cardAlt,
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  paddingHorizontal: 12,
+                                }}
+                              >
+                                <Ionicons name={allNotificationsSelected ? "checkbox" : "square-outline"} size={18} color={allNotificationsSelected ? nova.blue : t.muted} />
+                                <Text style={{ color: allNotificationsSelected ? t.activeText : t.text, fontSize: 13, fontWeight: "900" }}>
+                                  {allNotificationsSelected ? "Clear" : "Select all"}
+                                </Text>
+                              </Pressable>
+                              <Pressable
+                                disabled={saving || !unreadCount}
+                                onPress={readAllNotifications}
+                                style={{
+                                  minHeight: 40,
+                                  borderRadius: 8,
+                                  borderWidth: 1,
+                                  borderColor: t.border,
+                                  backgroundColor: !unreadCount ? t.border : t.cardAlt,
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  opacity: !unreadCount ? 0.65 : 1,
+                                  paddingHorizontal: 12,
+                                }}
+                              >
+                                <Ionicons name="mail-open-outline" size={18} color={t.text} />
+                                <Text style={{ color: t.text, fontSize: 13, fontWeight: "900" }}>Read all</Text>
+                              </Pressable>
+                              <Pressable
+                                disabled={saving || !selectedNotifications.length}
+                                onPress={() => markSelectedNotifications(true)}
+                                style={{
+                                  minHeight: 40,
+                                  borderRadius: 8,
+                                  borderWidth: 1,
+                                  borderColor: t.border,
+                                  backgroundColor: selectedNotifications.length ? t.cardAlt : t.border,
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  opacity: selectedNotifications.length ? 1 : 0.65,
+                                  paddingHorizontal: 12,
+                                }}
+                              >
+                                <Ionicons name="checkmark-done-outline" size={18} color={t.text} />
+                                <Text style={{ color: t.text, fontSize: 13, fontWeight: "900" }}>Mark read</Text>
+                              </Pressable>
+                              <Pressable
+                                disabled={saving || !selectedNotifications.length}
+                                onPress={() => markSelectedNotifications(false)}
+                                style={{
+                                  minHeight: 40,
+                                  borderRadius: 8,
+                                  borderWidth: 1,
+                                  borderColor: t.border,
+                                  backgroundColor: selectedNotifications.length ? t.cardAlt : t.border,
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  opacity: selectedNotifications.length ? 1 : 0.65,
+                                  paddingHorizontal: 12,
+                                }}
+                              >
+                                <Ionicons name="mail-unread-outline" size={18} color={t.text} />
+                                <Text style={{ color: t.text, fontSize: 13, fontWeight: "900" }}>Mark unread</Text>
+                              </Pressable>
+                              <Pressable
+                                disabled={saving || !selectedNotifications.length}
+                                onPress={() => removeNotifications(selectedNotificationIds)}
+                                style={{
+                                  minHeight: 40,
+                                  borderRadius: 8,
+                                  borderWidth: 1,
+                                  borderColor: selectedNotifications.length ? "rgba(239,68,68,0.34)" : t.border,
+                                  backgroundColor: selectedNotifications.length ? "rgba(239,68,68,0.12)" : t.border,
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  opacity: selectedNotifications.length ? 1 : 0.65,
+                                  paddingHorizontal: 12,
+                                }}
+                              >
+                                <Ionicons name="trash-outline" size={18} color={selectedNotifications.length ? nova.red : t.text} />
+                                <Text style={{ color: selectedNotifications.length ? nova.red : t.text, fontSize: 13, fontWeight: "900" }}>Delete selected</Text>
+                              </Pressable>
+                              <Pressable
+                                disabled={saving || !notifications.length}
+                                onPress={() => removeNotifications()}
+                                style={{
+                                  minHeight: 40,
+                                  borderRadius: 8,
+                                  borderWidth: 1,
+                                  borderColor: "rgba(239,68,68,0.34)",
+                                  backgroundColor: "rgba(239,68,68,0.12)",
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  paddingHorizontal: 12,
+                                }}
+                              >
+                                <Ionicons name="close-circle-outline" size={18} color={nova.red} />
+                                <Text style={{ color: nova.red, fontSize: 13, fontWeight: "900" }}>Delete all</Text>
+                              </Pressable>
+                            </ScrollView>
+                          ) : null}
+                        </View>
                       </View>
                       {notifications.length ? notifications.map((notification) => (
                         <Pressable
                           key={notification.id}
                           onPress={() => openNotification(notification)}
-                          style={{ borderTopColor: t.border, borderTopWidth: 1, padding: 20, gap: 7, backgroundColor: notification.readAt ? "transparent" : t.active }}
+                          style={{
+                            borderTopColor: t.border,
+                            borderTopWidth: 1,
+                            padding: 18,
+                            gap: 12,
+                            backgroundColor: selectedNotificationSet.has(notification.id) ? t.cardAlt : notification.readAt ? "transparent" : t.active,
+                            flexDirection: "row",
+                            alignItems: "flex-start",
+                          }}
                         >
-                          <Text style={{ color: notification.readAt ? t.text : t.activeText, fontSize: 17, fontWeight: "900" }}>{notification.title}</Text>
-                          <Text style={{ color: t.muted, fontWeight: "700", lineHeight: 20 }}>{notification.body}</Text>
-                          <Text style={{ color: t.faint, fontSize: 12, fontWeight: "800" }}>{formatDate(notification.createdAt)}</Text>
+                          <Pressable
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              toggleNotificationSelection(notification.id);
+                            }}
+                            style={{
+                              width: 34,
+                              height: 34,
+                              borderRadius: 8,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderWidth: 1,
+                              borderColor: selectedNotificationSet.has(notification.id) ? nova.blue : t.border,
+                              backgroundColor: selectedNotificationSet.has(notification.id) ? t.active : t.card,
+                            }}
+                          >
+                            <Ionicons name={selectedNotificationSet.has(notification.id) ? "checkbox" : "square-outline"} size={20} color={selectedNotificationSet.has(notification.id) ? nova.blue : t.muted} />
+                          </Pressable>
+                          <View style={{ flex: 1, gap: 7 }}>
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+                              <Text style={{ flex: 1, color: notification.readAt ? t.text : t.activeText, fontSize: 17, fontWeight: notification.readAt ? "800" : "900" }}>{notification.title}</Text>
+                              {!notification.readAt ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: nova.blue, marginTop: 7 }} /> : null}
+                            </View>
+                            <Text style={{ color: t.muted, fontWeight: "700", lineHeight: 20 }}>{notification.body}</Text>
+                            <Text style={{ color: t.faint, fontSize: 12, fontWeight: "800" }}>{formatDate(notification.createdAt)}</Text>
+                          </View>
                         </Pressable>
                       )) : (
                         <View style={{ padding: 22 }}>

@@ -539,6 +539,48 @@ export async function markAdminNotificationRead(id: string) {
   if (error) throw error;
 }
 
+export async function markAdminNotificationsRead(ids: string[], read: boolean) {
+  assertSupabaseConfigured();
+  if (!ids.length) return;
+
+  const { error } = await supabase
+    .from("admin_notifications")
+    .update({ read_at: read ? new Date().toISOString() : null })
+    .in("id", ids);
+
+  if (error) throw error;
+}
+
+export async function markAllAdminNotificationsRead() {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  const { error } = await supabase
+    .from("admin_notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("user_id", userData.user.id);
+
+  if (error) throw error;
+}
+
+export async function deleteAdminNotifications(ids?: string[]) {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  let query = supabase.from("admin_notifications").delete().eq("user_id", userData.user.id);
+  if (ids) {
+    if (!ids.length) return;
+    query = query.in("id", ids);
+  }
+
+  const { error } = await query;
+  if (error) throw error;
+}
+
 export async function upsertQuest(input: QuestFormInput & { id?: string }) {
   assertSupabaseConfigured();
   const { data: userData, error: userError } = await supabase.auth.getUser();
