@@ -156,6 +156,7 @@ export type AdminNotification = {
 };
 
 export type AdminProfile = {
+  bio?: string | null;
   email?: string | null;
   displayName?: string | null;
   isActive: boolean;

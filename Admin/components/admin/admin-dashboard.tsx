@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import { PropsWithChildren, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Alert, Pressable, ScrollView, Switch, Text, TextInput, View, useWindowDimensions } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useContent } from "@/contexts/ContentContext";
@@ -21,13 +21,9 @@ import {
   markAllAdminNotificationsRead,
   notifyQuestReviewResult,
   updateAdminAccess,
-  updateInviteAccess,
   updateOwnAdminProfile,
   upsertQuest,
   deleteAdmin,
-  disableAdmin,
-  reactivateAdmin,
-  resetAdminPassword,
 } from "@/services/content/contentService";
 import {
   deleteFeaturedBatch,
@@ -69,6 +65,7 @@ type AdminView =
   | "profile"
   | "inbox";
 type Mode = "dark" | "light";
+type AdminManagementMode = "list" | "detail" | "invite";
 
 const ADMIN_THEME_STORAGE_KEY = "questlife-admin-theme";
 let adminThemeMemory: Mode = "dark";
@@ -171,6 +168,16 @@ const permissionLabels: Record<AdminPermission, string> = {
   "quests.submit_review": "Submit for review",
   "quests.view_all": "View all quests",
   "quests.view_published": "View published",
+};
+const permissionDescriptions: Record<AdminPermission, string> = {
+  "admins.manage": "Invite admins and manage their access to dashboard tools.",
+  "inbox.view": "Review admin notifications and publication decisions.",
+  "profile.manage": "Update the admin's own display name and password.",
+  "quests.create_draft": "Create new quest drafts for the content library.",
+  "quests.review_publish": "Review submitted quests and publish approved work.",
+  "quests.submit_review": "Send draft quests to the review queue.",
+  "quests.view_all": "View the complete quest library, including drafts and archived work.",
+  "quests.view_published": "Browse the live quests available in the mobile app.",
 };
 
 const defaultQuest: QuestFormInput = {
@@ -1007,7 +1014,9 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const [invitePermissions, setInvitePermissions] = useState<AdminPermission[]>(defaultAdminPermissions);
   const [profileName, setProfileName] = useState("");
   const [profilePassword, setProfilePassword] = useState("");
+  const [adminManagementMode, setAdminManagementMode] = useState<AdminManagementMode>("list");
   const [selectedAdminUserId, setSelectedAdminUserId] = useState<string | null>(null);
+  const [draftAdminPermissions, setDraftAdminPermissions] = useState<AdminPermission[]>([]);
   const [selectedReviewQuestId, setSelectedReviewQuestId] = useState<string | null>(null);
   const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -1037,7 +1046,14 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     : reviewQuests[0] ?? null;
   const selectedAdmin = selectedAdminUserId
     ? adminProfiles.find((profile) => profile.userId === selectedAdminUserId) ?? null
-    : adminProfiles[0] ?? null;
+    : null;
+  const selectedAdminPermissions = selectedAdmin?.role === "super_admin"
+    ? [...adminPermissions]
+    : selectedAdmin?.permissions ?? [];
+  const hasUnsavedAdminPermissionChanges = selectedAdmin?.role !== "super_admin" && (
+    draftAdminPermissions.length !== selectedAdminPermissions.length ||
+    draftAdminPermissions.some((permission) => !selectedAdminPermissions.includes(permission))
+  );
   const unreadCount = notifications.filter((notification) => !notification.readAt).length;
   const selectedNotificationSet = useMemo(() => new Set(selectedNotificationIds), [selectedNotificationIds]);
   const selectedNotifications = notifications.filter((notification) => selectedNotificationSet.has(notification.id));
@@ -1127,6 +1143,18 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     const validNotificationIds = new Set(notifications.map((notification) => notification.id));
     setSelectedNotificationIds((current) => current.filter((id) => validNotificationIds.has(id)));
   }, [notifications]);
+
+  useEffect(() => {
+    if (!hasUnsavedAdminPermissionChanges || typeof window === "undefined") return;
+
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [hasUnsavedAdminPermissionChanges]);
 
   async function loadAdminContent() {
     const [content, featuredBatches] = await Promise.all([
@@ -1415,8 +1443,61 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     );
   }
 
+  function openAdminDetail(profile: AdminProfile) {
+    setSelectedAdminUserId(profile.userId);
+    setDraftAdminPermissions(profile.role === "super_admin" ? [...adminPermissions] : profile.permissions);
+    setAdminManagementMode("detail");
+  }
+
+  function discardAdminPermissionChanges(callback: () => void) {
+    if (!hasUnsavedAdminPermissionChanges) {
+      callback();
+      return;
+    }
+
+    Alert.alert(
+      "Unsaved permission changes",
+      "Save your permission changes before leaving this admin, or discard them to continue.",
+      [
+        { text: "Keep editing", style: "cancel" },
+        {
+          text: "Discard changes",
+          style: "destructive",
+          onPress: () => {
+            setDraftAdminPermissions(selectedAdminPermissions);
+            callback();
+          },
+        },
+      ],
+    );
+  }
+
+  function returnToAdminList() {
+    discardAdminPermissionChanges(() => {
+      setSelectedAdminUserId(null);
+      setAdminManagementMode("list");
+    });
+  }
+
+  function navigateAwayFromAdminDetail(route: string) {
+    if (view === "admins" && adminManagementMode === "detail" && hasUnsavedAdminPermissionChanges) {
+      discardAdminPermissionChanges(() => router.push(route));
+      return;
+    }
+    router.push(route);
+  }
+
+  function toggleSelectedAdminPermission(permission: AdminPermission) {
+    if (!selectedAdmin || selectedAdmin.role === "super_admin") return;
+    setDraftAdminPermissions((current) =>
+      current.includes(permission)
+        ? current.filter((item) => item !== permission)
+        : [...current, permission],
+    );
+  }
+
   async function handleInviteAdmin() {
-    if (!inviteEmail.trim()) return;
+    if (!inviteEmail.trim()) return false;
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -1430,25 +1511,28 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
       setInvitePermissions(defaultAdminPermissions);
       await loadAdminOperations();
       setMessage("Admin invite saved.");
+      return true;
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Unable to invite admin.");
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
-  async function saveSelectedAdminAccess(nextRole: AdminRole, nextPermissions: AdminPermission[]) {
+  async function saveSelectedAdminAccess() {
     if (!selectedAdmin) return;
     setSaving(true);
     setError(null);
     setMessage(null);
     try {
       await updateAdminAccess({
-        permissions: nextRole === "super_admin" ? [...adminPermissions] : nextPermissions,
-        role: nextRole,
+        permissions: draftAdminPermissions,
+        role: selectedAdmin.role,
         userId: selectedAdmin.userId,
       });
       await loadAdminOperations();
+      setDraftAdminPermissions(draftAdminPermissions);
       setMessage("Admin permissions updated.");
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Unable to update admin.");
@@ -1457,44 +1541,8 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     }
   }
 
-  async function handleResetSelectedAdminPassword() {
-    if (!selectedAdmin || selectedAdmin.role === "super_admin") return;
-    setSaving(true);
-    setError(null);
-    setMessage(null);
-    try {
-      await resetAdminPassword(selectedAdmin.userId);
-      setMessage("Password reset email sent.");
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to send password reset.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleToggleSelectedAdminActive() {
-    if (!selectedAdmin || selectedAdmin.role === "super_admin") return;
-    setSaving(true);
-    setError(null);
-    setMessage(null);
-    try {
-      if (selectedAdmin.isActive) {
-        await disableAdmin(selectedAdmin.userId);
-        setMessage("Admin disabled.");
-      } else {
-        await reactivateAdmin(selectedAdmin.userId);
-        setMessage("Admin reactivated.");
-      }
-      await loadAdminOperations();
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to update admin status.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDeleteSelectedAdmin() {
-    if (!selectedAdmin || selectedAdmin.role === "super_admin") return;
+  async function handleDeleteAdmin(profile: AdminProfile) {
+    if (profile.role === "super_admin") return;
 
     Alert.alert(
       "Delete admin?",
@@ -1509,8 +1557,11 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
             setError(null);
             setMessage(null);
             try {
-              await deleteAdmin(selectedAdmin.userId);
-              setSelectedAdminUserId(null);
+              await deleteAdmin(profile.userId);
+              if (selectedAdminUserId === profile.userId) {
+                setSelectedAdminUserId(null);
+                setAdminManagementMode("list");
+              }
               await loadAdminOperations();
               setMessage("Admin deleted.");
             } catch (nextError) {
@@ -1522,26 +1573,6 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
         },
       ],
     );
-  }
-
-  async function revokeInvite(invite: AdminInvite) {
-    setSaving(true);
-    setError(null);
-    setMessage(null);
-    try {
-      await updateInviteAccess({
-        id: invite.id,
-        permissions: invite.permissions,
-        role: invite.role,
-        status: "revoked",
-      });
-      await loadAdminOperations();
-      setMessage("Invite revoked.");
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to revoke invite.");
-    } finally {
-      setSaving(false);
-    }
   }
 
   async function saveProfile() {
@@ -1684,7 +1715,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     view === "review" ? "Approve requests for publication or return them with a clear report." :
     view === "adventurePacks" ? "Build official quest collections with ordering, cover art, and app-ready previews." :
     view === "featured" ? "Schedule the daily six-quest lineup for the Explore carousel." :
-    view === "admins" ? "Invite admins, approve access, and decide exactly which tools each admin can use." :
+    view === "admins" ? "Manage admin access, review account details, and invite people into the dashboard." :
     view === "profile" ? "Manage your admin identity, password, and granted permissions." :
     view === "inbox" ? "Review publication decisions and admin tool notifications." :
     "Edit quest content and move it through draft, review, published, or archived states.";
@@ -1712,7 +1743,9 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
         accessibilityRole="button"
         accessibilityLabel={item.label}
         accessibilityState={{ selected: item.active }}
-        onPress={() => router.push(item.route)}
+        onPress={() => {
+          navigateAwayFromAdminDetail(item.route);
+        }}
         style={{
           minHeight: 48,
           width: collapsedRail ? 48 : "100%",
@@ -1834,7 +1867,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                 <Text style={{ color: t.text, fontSize: 19, fontWeight: "900" }}>Welcome back,</Text>
                 <Pressable
                   disabled={!needsAdminName || !canManageProfile}
-                  onPress={() => router.push("/admin/profile")}
+                  onPress={() => navigateAwayFromAdminDetail("/admin/profile")}
                   style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
                 >
                   <Text style={{ color: needsAdminName ? t.activeText : t.text, fontSize: 19, fontWeight: "900" }}>{adminName}</Text>
@@ -1844,7 +1877,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
               <Text style={{ color: t.muted, fontSize: 13, fontWeight: "700" }}>Build the quests people will actually remember.</Text>
             </View>
             {canViewInbox ? (
-              <Pressable onPress={() => router.push("/admin/inbox")} style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" }}>
+              <Pressable onPress={() => navigateAwayFromAdminDetail("/admin/inbox")} style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" }}>
                 <Ionicons name={unreadCount ? "notifications" : "notifications-outline"} size={23} color={t.muted} />
                 {unreadCount ? (
                   <View style={{ position: "absolute", right: 8, top: 8, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: nova.red, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
@@ -1863,6 +1896,9 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
               </View>
               <View style={{ alignItems: compact ? "flex-start" : "flex-end", gap: 10 }}>
                 {view === "all" && canCreateDraft ? <ActionButton icon="add" label="New Draft" onPress={() => router.push("/admin/create")} t={t} /> : null}
+                {view === "admins" && canManageAdmins && adminManagementMode === "list" ? (
+                  <ActionButton icon="person-add-outline" label="Invite admin" onPress={() => setAdminManagementMode("invite")} t={t} />
+                ) : null}
               </View>
             </View>
 
@@ -2334,156 +2370,181 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
 
                 {view === "admins" ? (
                   canManageAdmins ? (
-                    <View style={{ flexDirection: compact ? "column" : "row", gap: 18, alignItems: "flex-start" }}>
-                      <View style={{ flex: 1, gap: 18 }}>
-                        <Panel t={t} style={{ padding: 22, gap: 16 }}>
-                          <Text style={{ color: t.text, fontSize: 22, fontWeight: "900" }}>Invite Admin</Text>
-                          <Field label="Admin email" t={t} value={inviteEmail} onChangeText={setInviteEmail} placeholder="name@example.com" />
-                          <Panel t={t} style={{ padding: 14, backgroundColor: t.cardAlt }}>
-                            <Text style={{ color: t.text, fontWeight: "900" }}>Role: Admin</Text>
-                            <Text style={{ color: t.muted, marginTop: 5, fontWeight: "700", lineHeight: 20 }}>Super Admin is the owner account seeded in Supabase. Invited users receive specific admin permissions only.</Text>
-                          </Panel>
-                          <View style={{ gap: 10 }}>
-                            <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.3, textTransform: "uppercase" }}>Permissions</Text>
-                            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                              {grantableAdminPermissions.map((permission) => {
-                                const active = invitePermissions.includes(permission);
-                                return (
-                                  <Pressable
-                                    key={permission}
-                                    onPress={() => toggleInvitePermission(permission)}
-                                    style={{
-                                      borderRadius: 999,
-                                      borderWidth: 1,
-                                      borderColor: active ? nova.blue : t.border,
-                                      backgroundColor: active ? t.active : t.cardAlt,
-                                      paddingHorizontal: 12,
-                                      paddingVertical: 8,
-                                    }}
-                                  >
-                                    <Text style={{ color: active ? t.activeText : t.muted, fontSize: 12, fontWeight: "900" }}>{permissionLabels[permission]}</Text>
-                                  </Pressable>
-                                );
-                              })}
-                            </View>
-                          </View>
-                          <ActionButton disabled={saving || !inviteEmail.trim()} icon="mail-outline" label="Save Invite" onPress={handleInviteAdmin} t={t} />
-                        </Panel>
-
+                    <View style={{ gap: 18, maxWidth: 1120 }}>
+                      {adminManagementMode === "list" ? (
                         <Panel t={t} style={{ overflow: "hidden" }}>
-                          <View style={{ padding: 18 }}>
-                            <Text style={{ color: t.text, fontSize: 20, fontWeight: "900" }}>Current Admins</Text>
+                          <View style={{ padding: 22, gap: 5 }}>
+                            <Text style={{ color: t.text, fontSize: 22, fontWeight: "900" }}>Admin users</Text>
+                            <Text style={{ color: t.muted, fontWeight: "700" }}>Open an admin to review identity details and manage their tool access.</Text>
                           </View>
-                          {adminProfiles.map((profile) => {
-                            const active = selectedAdmin?.userId === profile.userId;
-                            return (
-                              <Pressable
-                                key={profile.userId}
-                                onPress={() => setSelectedAdminUserId(profile.userId)}
-                                style={{ borderTopColor: t.border, borderTopWidth: 1, backgroundColor: active ? t.active : "transparent", padding: 18, gap: 6 }}
-                              >
-                                <Text style={{ color: active ? t.activeText : t.text, fontSize: 16, fontWeight: "900" }}>{profile.displayName || profile.email || profile.userId}</Text>
-                                <Text style={{ color: t.muted, fontWeight: "700" }}>
-                                  {displayRole(profile.role)} · {profile.isActive ? "Active" : "Disabled"} · Last login {formatDate(profile.lastLogin)}
-                                </Text>
-                              </Pressable>
-                            );
-                          })}
+                          {adminProfiles.map((profile) => (
+                            <Pressable
+                              key={profile.userId}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Open ${profile.displayName || profile.email || "admin"}`}
+                              onPress={() => openAdminDetail(profile)}
+                              style={({ pressed }) => ({
+                                borderTopColor: t.border,
+                                borderTopWidth: 1,
+                                backgroundColor: pressed ? t.cardAlt : "transparent",
+                                padding: 18,
+                                flexDirection: compact ? "column" : "row",
+                                alignItems: compact ? "flex-start" : "center",
+                                gap: 14,
+                              })}
+                            >
+                              <View style={{ flex: 1, gap: 4 }}>
+                                <Text style={{ color: t.text, fontSize: 16, fontWeight: "900" }}>{profile.displayName || profile.email || "Unnamed admin"}</Text>
+                                <Text style={{ color: t.muted, fontSize: 13, fontWeight: "700" }}>{profile.email || profile.userId}</Text>
+                              </View>
+                              <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                                <Pill t={t} tone={profile.isActive
+                                  ? { bg: "rgba(34,197,94,0.14)", text: "#15803d", border: "rgba(34,197,94,0.30)" }
+                                  : { bg: "rgba(148,163,184,0.14)", text: t.muted, border: t.border }}
+                                >{profile.isActive ? "Active" : "Offline"}</Pill>
+                                <Text style={{ color: t.muted, fontSize: 13, fontWeight: "700" }}>Last active {formatDate(profile.lastLogin)}</Text>
+                                {profile.role !== "super_admin" ? (
+                                  <Pressable
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Delete ${profile.displayName || profile.email || "admin"}`}
+                                    onPress={(event) => {
+                                      event.stopPropagation();
+                                      handleDeleteAdmin(profile);
+                                    }}
+                                    style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, borderWidth: 1, borderColor: t.border, backgroundColor: t.cardAlt }}
+                                  >
+                                    <Ionicons name="trash-outline" size={18} color={nova.red} />
+                                  </Pressable>
+                                ) : null}
+                                <Ionicons name="chevron-forward" size={18} color={t.faint} />
+                              </View>
+                            </Pressable>
+                          ))}
+                          {adminInvites.filter((invite) => invite.status === "pending").map((invite) => (
+                            <View key={invite.id} style={{ borderTopColor: t.border, borderTopWidth: 1, padding: 18, flexDirection: compact ? "column" : "row", gap: 14, alignItems: compact ? "flex-start" : "center" }}>
+                              <View style={{ flex: 1, gap: 4 }}>
+                                <Text style={{ color: t.text, fontSize: 16, fontWeight: "900" }}>{invite.email}</Text>
+                                <Text style={{ color: t.muted, fontSize: 13, fontWeight: "700" }}>Invitation expires {formatDate(invite.expiresAt)}</Text>
+                              </View>
+                              <Pill t={t} tone={{ bg: "rgba(37,99,235,0.12)", text: nova.blue, border: "rgba(37,99,235,0.28)" }}>Invite sent</Pill>
+                            </View>
+                          ))}
+                          {!adminProfiles.length && !adminInvites.length ? (
+                            <View style={{ padding: 22 }}><Text style={{ color: t.muted, fontWeight: "700" }}>No admin users yet. Send an invite to get started.</Text></View>
+                          ) : null}
                         </Panel>
-                      </View>
+                      ) : null}
 
-                      <View style={{ flex: 1, gap: 18 }}>
-                        {selectedAdmin ? (
-                          <Panel t={t} style={{ padding: 22, gap: 16 }}>
-                            <Text style={{ color: t.text, fontSize: 22, fontWeight: "900" }}>{selectedAdmin.displayName || selectedAdmin.email || "Admin"}</Text>
-                            <Text style={{ color: t.muted, fontWeight: "700" }}>{selectedAdmin.email || selectedAdmin.userId}</Text>
-                            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                              <Pill
-                                t={t}
-                                tone={selectedAdmin.isActive
-                                  ? { bg: "rgba(34,197,94,0.16)", text: "#16a34a", border: "rgba(34,197,94,0.24)" }
-                                  : { bg: "rgba(239,68,68,0.14)", text: "#ef4444", border: "rgba(239,68,68,0.28)" }}
-                              >
-                                {selectedAdmin.isActive ? "Active" : "Disabled"}
-                              </Pill>
-                              <Pill t={t}>Last login {formatDate(selectedAdmin.lastLogin)}</Pill>
-                            </View>
+                      {adminManagementMode === "detail" && selectedAdmin ? (
+                        <Panel t={t} style={{ overflow: "hidden" }}>
+                          <View style={{ paddingHorizontal: 22, paddingTop: 18, paddingBottom: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                            <Pressable onPress={returnToAdminList} style={{ flexDirection: "row", alignItems: "center", gap: 7, minHeight: 40 }}>
+                              <Ionicons name="arrow-back" size={18} color={t.muted} />
+                              <Text style={{ color: t.muted, fontWeight: "900" }}>All admin users</Text>
+                            </Pressable>
+                            {selectedAdmin.role !== "super_admin" ? (
+                              <Pressable onPress={() => handleDeleteAdmin(selectedAdmin)} style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, borderWidth: 1, borderColor: t.border, backgroundColor: t.cardAlt }}>
+                                <Ionicons name="trash-outline" size={18} color={nova.red} />
+                              </Pressable>
+                            ) : null}
+                          </View>
+                          <ScrollView style={{ maxHeight: compact ? 520 : 600 }} contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: 20, gap: 24 }}>
                             <View style={{ gap: 8 }}>
-                              <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.3, textTransform: "uppercase" }}>Role</Text>
-                              <Panel t={t} style={{ padding: 14, backgroundColor: t.cardAlt }}>
-                                <Text style={{ color: t.text, fontWeight: "900" }}>{displayRole(selectedAdmin.role)}</Text>
-                                <Text style={{ color: t.muted, marginTop: 5, fontWeight: "700", lineHeight: 20 }}>
-                                  {selectedAdmin.role === "super_admin" ? "Owner account with every permission." : "Admin account. Adjust its allowed dashboard tools below."}
-                                </Text>
-                              </Panel>
-                            </View>
-                            <View style={{ gap: 10 }}>
-                              <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.3, textTransform: "uppercase" }}>Permissions</Text>
+                              <Text style={{ color: t.text, fontSize: 26, fontWeight: "900" }}>{selectedAdmin.displayName || "Unnamed admin"}</Text>
                               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                                <Pill t={t} tone={selectedAdmin.isActive
+                                  ? { bg: "rgba(34,197,94,0.14)", text: "#15803d", border: "rgba(34,197,94,0.30)" }
+                                  : { bg: "rgba(148,163,184,0.14)", text: t.muted, border: t.border }}
+                                >{selectedAdmin.isActive ? "Active" : "Offline"}</Pill>
+                                <Pill t={t}>{displayRole(selectedAdmin.role)}</Pill>
+                              </View>
+                            </View>
+
+                            <View style={{ gap: 14 }}>
+                              <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.2, textTransform: "uppercase" }}>About this admin</Text>
+                              <View style={{ gap: 12 }}>
+                                <View style={{ gap: 4 }}><Text style={{ color: t.faint, fontSize: 12, fontWeight: "800" }}>FULL NAME</Text><Text style={{ color: t.text, fontWeight: "800" }}>{selectedAdmin.displayName || "Not provided"}</Text></View>
+                                <View style={{ gap: 4 }}><Text style={{ color: t.faint, fontSize: 12, fontWeight: "800" }}>EMAIL</Text><Text style={{ color: t.text, fontWeight: "800" }}>{selectedAdmin.email || "Not available"}</Text></View>
+                                <View style={{ gap: 4 }}><Text style={{ color: t.faint, fontSize: 12, fontWeight: "800" }}>DESCRIPTION</Text><Text style={{ color: t.muted, fontWeight: "700", lineHeight: 20 }}>{selectedAdmin.bio?.trim() || "No description has been added yet."}</Text></View>
+                                <View style={{ gap: 4 }}><Text style={{ color: t.faint, fontSize: 12, fontWeight: "800" }}>LAST ACTIVE</Text><Text style={{ color: t.text, fontWeight: "800" }}>{formatDate(selectedAdmin.lastLogin)}</Text></View>
+                              </View>
+                            </View>
+
+                            <View style={{ gap: 10 }}>
+                              <View style={{ gap: 4 }}>
+                                <Text style={{ color: t.text, fontSize: 20, fontWeight: "900" }}>Permissions</Text>
+                                <Text style={{ color: t.muted, fontWeight: "700" }}>{selectedAdmin.role === "super_admin" ? "Super Admin access is managed only in Supabase." : "Choose the dashboard tools this admin can use."}</Text>
+                              </View>
+                              <View style={{ borderTopWidth: 1, borderTopColor: t.border }}>
                                 {(selectedAdmin.role === "super_admin" ? adminPermissions : grantableAdminPermissions).map((permission) => {
-                                  const active = selectedAdmin.role === "super_admin" || selectedAdmin.permissions.includes(permission);
+                                  const enabled = selectedAdmin.role === "super_admin" || draftAdminPermissions.includes(permission);
                                   return (
-                                    <Pressable
-                                      key={permission}
-                                      disabled={selectedAdmin.role === "super_admin"}
-                                      onPress={() => {
-                                        const nextPermissions = active
-                                          ? selectedAdmin.permissions.filter((item) => item !== permission)
-                                          : [...selectedAdmin.permissions, permission];
-                                        saveSelectedAdminAccess(selectedAdmin.role, nextPermissions);
-                                      }}
-                                      style={{
-                                        borderRadius: 999,
-                                        borderWidth: 1,
-                                        borderColor: active ? nova.blue : t.border,
-                                        backgroundColor: active ? t.active : t.cardAlt,
-                                        paddingHorizontal: 12,
-                                        paddingVertical: 8,
-                                        opacity: selectedAdmin.role === "super_admin" ? 0.72 : 1,
-                                      }}
-                                    >
-                                      <Text style={{ color: active ? t.activeText : t.muted, fontSize: 12, fontWeight: "900" }}>{permissionLabels[permission]}</Text>
-                                    </Pressable>
+                                    <View key={permission} style={{ minHeight: 76, borderBottomWidth: 1, borderBottomColor: t.border, paddingVertical: 14, flexDirection: "row", alignItems: "center", gap: 16 }}>
+                                      <View style={{ flex: 1, gap: 4 }}>
+                                        <Text style={{ color: t.text, fontWeight: "900" }}>{permissionLabels[permission]}</Text>
+                                        <Text style={{ color: t.muted, fontSize: 13, fontWeight: "600", lineHeight: 18 }}>{permissionDescriptions[permission]}</Text>
+                                      </View>
+                                      <Switch
+                                        accessibilityLabel={`${enabled ? "Disable" : "Enable"} ${permissionLabels[permission]}`}
+                                        disabled={selectedAdmin.role === "super_admin" || saving}
+                                        onValueChange={() => toggleSelectedAdminPermission(permission)}
+                                        trackColor={{ false: t.border, true: nova.blue }}
+                                        thumbColor="#ffffff"
+                                        value={enabled}
+                                      />
+                                    </View>
                                   );
                                 })}
                               </View>
                             </View>
-                            {selectedAdmin.role !== "super_admin" ? (
-                              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                                <ActionButton disabled={saving} icon="key-outline" label="Reset Password" onPress={handleResetSelectedAdminPassword} secondary t={t} />
-                                <ActionButton
-                                  disabled={saving}
-                                  icon={selectedAdmin.isActive ? "pause-circle-outline" : "play-circle-outline"}
-                                  label={selectedAdmin.isActive ? "Disable" : "Reactivate"}
-                                  onPress={handleToggleSelectedAdminActive}
-                                  secondary
-                                  t={t}
-                                />
-                                <ActionButton disabled={saving} icon="trash-outline" label="Delete" onPress={handleDeleteSelectedAdmin} secondary t={t} />
+                          </ScrollView>
+                          {selectedAdmin.role !== "super_admin" && hasUnsavedAdminPermissionChanges ? (
+                            <View style={{ borderTopWidth: 1, borderTopColor: t.border, backgroundColor: t.shell, padding: 16, flexDirection: compact ? "column" : "row", alignItems: compact ? "stretch" : "center", justifyContent: "space-between", gap: 12 }}>
+                              <Text style={{ color: t.text, fontWeight: "800" }}>You have unsaved permission changes.</Text>
+                              <View style={{ flexDirection: "row", gap: 10 }}>
+                                <View style={{ flex: compact ? 1 : undefined }}><ActionButton secondary disabled={saving} icon="close-outline" label="Discard" onPress={() => setDraftAdminPermissions(selectedAdminPermissions)} t={t} /></View>
+                                <View style={{ flex: compact ? 1 : undefined }}><ActionButton disabled={saving} icon="save-outline" label={saving ? "Saving..." : "Save changes"} onPress={saveSelectedAdminAccess} t={t} /></View>
                               </View>
-                            ) : null}
-                          </Panel>
-                        ) : <EmptyPanel icon="people-outline" title="No admins yet" body="Invited admins will appear here after they create an account." t={t} />}
-
-                        <Panel t={t} style={{ overflow: "hidden" }}>
-                          <View style={{ padding: 18 }}>
-                            <Text style={{ color: t.text, fontSize: 20, fontWeight: "900" }}>Pending Invites</Text>
-                          </View>
-                          {adminInvites.length ? adminInvites.map((invite) => (
-                            <View key={invite.id} style={{ borderTopColor: t.border, borderTopWidth: 1, padding: 18, gap: 8 }}>
-                              <Text style={{ color: t.text, fontSize: 16, fontWeight: "900" }}>{invite.email}</Text>
-                              <Text style={{ color: t.muted, fontWeight: "700" }}>
-                                {invite.role} · {invite.status} · {invite.permissions.length} permissions · Expires {formatDate(invite.expiresAt)}
-                              </Text>
-                              {invite.status === "pending" ? <ActionButton disabled={saving} icon="close-circle-outline" label="Revoke Invite" onPress={() => revokeInvite(invite)} secondary t={t} /> : null}
                             </View>
-                          )) : (
-                            <View style={{ padding: 18 }}>
-                              <Text style={{ color: t.muted, fontWeight: "700" }}>No invites yet.</Text>
-                            </View>
-                          )}
+                          ) : null}
                         </Panel>
-                      </View>
+                      ) : null}
+
+                      {adminManagementMode === "invite" ? (
+                        <Panel t={t} style={{ overflow: "hidden" }}>
+                          <View style={{ padding: 22, gap: 8, borderBottomWidth: 1, borderBottomColor: t.border }}>
+                            <Text style={{ color: t.text, fontSize: 24, fontWeight: "900" }}>Invite an admin</Text>
+                            <Text style={{ color: t.muted, fontWeight: "700" }}>They will receive a secure dashboard link to create their password.</Text>
+                          </View>
+                          <View style={{ padding: 22, gap: 24 }}>
+                            <Field label="Email address" t={t} value={inviteEmail} onChangeText={setInviteEmail} placeholder="name@example.com" />
+                            <View style={{ gap: 10 }}>
+                              <View style={{ gap: 4 }}>
+                                <Text style={{ color: t.text, fontSize: 20, fontWeight: "900" }}>Permissions</Text>
+                                <Text style={{ color: t.muted, fontWeight: "700" }}>Grant only the tools this admin needs. You can change these later.</Text>
+                              </View>
+                              <View style={{ borderTopWidth: 1, borderTopColor: t.border }}>
+                                {grantableAdminPermissions.map((permission) => {
+                                  const enabled = invitePermissions.includes(permission);
+                                  return (
+                                    <View key={permission} style={{ minHeight: 76, borderBottomWidth: 1, borderBottomColor: t.border, paddingVertical: 14, flexDirection: "row", alignItems: "center", gap: 16 }}>
+                                      <View style={{ flex: 1, gap: 4 }}>
+                                        <Text style={{ color: t.text, fontWeight: "900" }}>{permissionLabels[permission]}</Text>
+                                        <Text style={{ color: t.muted, fontSize: 13, fontWeight: "600", lineHeight: 18 }}>{permissionDescriptions[permission]}</Text>
+                                      </View>
+                                      <Switch accessibilityLabel={`${enabled ? "Remove" : "Grant"} ${permissionLabels[permission]}`} onValueChange={() => toggleInvitePermission(permission)} trackColor={{ false: t.border, true: nova.blue }} thumbColor="#ffffff" value={enabled} />
+                                    </View>
+                                  );
+                                })}
+                              </View>
+                            </View>
+                            <View style={{ flexDirection: compact ? "column-reverse" : "row", justifyContent: "space-between", gap: 12 }}>
+                              <ActionButton secondary icon="arrow-back" label="Go back" onPress={() => setAdminManagementMode("list")} t={t} />
+                              <ActionButton disabled={saving || !inviteEmail.trim()} icon="mail-outline" label={saving ? "Sending..." : "Send invite"} onPress={async () => { if (await handleInviteAdmin()) setAdminManagementMode("list"); }} t={t} />
+                            </View>
+                          </View>
+                        </Panel>
+                      ) : null}
                     </View>
                   ) : (
                     <EmptyPanel icon="lock-closed-outline" title="Super admin permission required" body="Only admins with admin-management permission can invite people or change access." t={t} />

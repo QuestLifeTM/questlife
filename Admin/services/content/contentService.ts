@@ -393,6 +393,7 @@ export async function listAdminProfiles(): Promise<AdminProfile[]> {
   if (error) throw error;
 
   return ((data ?? []) as Array<{
+    bio: string | null;
     display_name: string | null;
     email: string | null;
     is_active: boolean;
@@ -401,6 +402,7 @@ export async function listAdminProfiles(): Promise<AdminProfile[]> {
     role: AdminRole;
     user_id: string;
   }>).map((row) => ({
+    bio: row.bio,
     displayName: row.display_name,
     email: row.email,
     isActive: row.is_active,
