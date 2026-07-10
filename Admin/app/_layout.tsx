@@ -1,5 +1,6 @@
 import { Redirect, Stack, useGlobalSearchParams, usePathname, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ActivityIndicator, Platform, Text, View } from "react-native";
@@ -72,7 +73,12 @@ function AdminAppLayout() {
         <Stack.Screen name="auth/callback" />
         <Stack.Screen name="admin" />
       </Stack>
-      {Platform.OS === "web" ? <SpeedInsights route={speedInsightsRoute} /> : null}
+      {Platform.OS === "web" ? (
+        <>
+          <Analytics route={speedInsightsRoute} />
+          <SpeedInsights route={speedInsightsRoute} />
+        </>
+      ) : null}
     </GestureHandlerRootView>
   );
 }
