@@ -66,6 +66,45 @@ type AdminView =
   | "inbox";
 type Mode = "dark" | "light";
 
+const ADMIN_THEME_STORAGE_KEY = "questlife-admin-theme";
+let adminThemeMemory: Mode = "dark";
+
+function isMode(value: string | null): value is Mode {
+  return value === "dark" || value === "light";
+}
+
+function readAdminThemePreference(): Mode {
+  if (typeof window === "undefined") {
+    return adminThemeMemory;
+  }
+
+  try {
+    const storedMode = window.localStorage.getItem(ADMIN_THEME_STORAGE_KEY);
+    if (isMode(storedMode)) {
+      adminThemeMemory = storedMode;
+      return storedMode;
+    }
+  } catch {
+    return adminThemeMemory;
+  }
+
+  return adminThemeMemory;
+}
+
+function saveAdminThemePreference(nextMode: Mode) {
+  adminThemeMemory = nextMode;
+
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(ADMIN_THEME_STORAGE_KEY, nextMode);
+  } catch {
+    // Keep the in-memory preference when browser storage is unavailable.
+  }
+}
+
 const nova = {
   blue: "#2563eb",
   blueSoft: "#dbeafe",
@@ -862,7 +901,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const { isConfigured, session } = useAuth();
   const { refresh: refreshMobileContent } = useContent();
   const { width } = useWindowDimensions();
-  const [mode, setMode] = useState<Mode>("dark");
+  const [mode, setMode] = useState<Mode>(() => readAdminThemePreference());
   const t = themes[mode];
   const [membership, setMembership] = useState<AdminMembership | null>(null);
   const [adminProfiles, setAdminProfiles] = useState<AdminProfile[]>([]);
@@ -920,6 +959,10 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const today = featuredDateKey(new Date());
   const featuredDateOptions = [-2, -1, 0, 1, 2, 3, 4, 5, 6].map((offset) => addDays(today, offset));
   const isFeaturedPast = featuredDate < today;
+
+  useEffect(() => {
+    saveAdminThemePreference(mode);
+  }, [mode]);
 
   const stats = useMemo(() => ({
     archived: quests.filter((quest) => quest.status === "archived").length,
