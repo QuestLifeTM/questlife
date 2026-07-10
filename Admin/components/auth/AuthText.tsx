@@ -11,7 +11,7 @@ export function AuthTitle({ children, subtitle }: AuthTitleProps) {
     <View style={styles.wrap}>
       <Text style={styles.brand}>QuestLife</Text>
       <Text style={styles.title}>{children}</Text>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      {subtitle ? <Text adjustsFontSizeToFit minimumFontScale={0.82} style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
   );
 }

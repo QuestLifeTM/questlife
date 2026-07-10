@@ -1,6 +1,7 @@
 import { Redirect, Stack, useGlobalSearchParams, usePathname, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { ActivityIndicator, Text, View } from "react-native";
 
 import { T } from "@/components/theme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -26,7 +27,12 @@ function AdminAppLayout() {
   const isCallbackRoute = firstSegment === "auth";
 
   if (initializing) {
-    return null;
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 24, backgroundColor: T.bg }}>
+        <ActivityIndicator color={T.blue} />
+        <Text style={{ color: T.muted, fontWeight: "800", textAlign: "center" }}>Loading QuestLife Admin...</Text>
+      </View>
+    );
   }
 
   if (!session && !isAuthRoute && !isCallbackRoute) {

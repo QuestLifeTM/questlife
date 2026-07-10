@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Animated, Pressable, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Alert, Animated, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 
 import {
   AccountAlreadyExistsError,
@@ -100,6 +100,7 @@ export default function LoginScreen() {
   const { next } = useLocalSearchParams<{ next?: string }>();
   const { width } = useWindowDimensions();
   const wide = width >= 980;
+  const compact = width < 560;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -216,23 +217,24 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: C.bg, padding: wide ? 28 : 18 }}>
-      <Animated.View style={{ flex: 1, opacity, transform: [{ translateY }] }}>
-        <View style={{ flex: 1, flexDirection: wide ? "row" : "column", gap: 24 }}>
-          <View style={{ flex: 1.15, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: "#0f121a", padding: wide ? 34 : 22, gap: 28, overflow: "hidden" }}>
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: wide ? 28 : compact ? 14 : 18 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <Animated.View style={{ flex: 1, opacity, transform: [{ translateY }] }}>
+          <View style={{ flex: 1, flexDirection: wide ? "row" : "column-reverse", gap: compact ? 14 : 24 }}>
+          <View style={{ flex: wide ? 1.15 : undefined, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: "#0f121a", padding: wide ? 34 : compact ? 18 : 22, gap: compact ? 20 : 28, overflow: "hidden" }}>
             <Logo />
             <View style={{ gap: 10, maxWidth: 680 }}>
-              <Text style={{ color: C.text, fontSize: wide ? 48 : 36, lineHeight: wide ? 54 : 42, fontWeight: "900" }}>Content operations, without touching the app build.</Text>
-              <Text style={{ color: C.muted, fontSize: 17, lineHeight: 25, fontWeight: "600" }}>
+              <Text style={{ color: C.text, fontSize: wide ? 48 : compact ? 30 : 36, lineHeight: wide ? 54 : compact ? 36 : 42, fontWeight: "900" }}>Content operations, without touching the app build.</Text>
+              <Text style={{ color: C.muted, fontSize: compact ? 15 : 17, lineHeight: compact ? 22 : 25, fontWeight: "600" }}>
                 Sign in to create drafts, review quests, and publish live QuestLife content from the private admin dashboard.
               </Text>
             </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+            {!compact ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
               <Metric label="Published" value="Live" tone={C.blue} />
               <Metric label="Review Queue" value="Gated" tone="#a5b4fc" />
               <Metric label="Drafts" value="Private" tone={C.green} />
-            </View>
-            <View style={{ flex: 1, minHeight: 220, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, padding: 22, justifyContent: "space-between" }}>
+            </View> : null}
+            {!compact ? <View style={{ flex: 1, minHeight: 220, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, padding: 22, justifyContent: "space-between" }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 16 }}>
                 <View>
                   <Text style={{ color: C.text, fontSize: 20, fontWeight: "900" }}>Publication Flow</Text>
@@ -255,11 +257,11 @@ export default function LoginScreen() {
                   </View>
                 ))}
               </View>
-            </View>
+            </View> : null}
           </View>
 
-          <View style={{ flex: 0.85, justifyContent: "center" }}>
-            <View style={{ borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, padding: wide ? 34 : 24, gap: 22, boxShadow: "0 20px 35px rgba(0,0,0,0.28)" }}>
+          <View style={{ flex: wide ? 0.85 : undefined, justifyContent: "center" }}>
+            <View style={{ borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, padding: wide ? 34 : compact ? 20 : 24, gap: compact ? 18 : 22, boxShadow: "0 5px 8px rgba(0,0,0,0.22)" }}>
               <View style={{ gap: 8 }}>
                 <Text style={{ color: C.text, fontSize: 30, fontWeight: "900" }}>Admin Login</Text>
                 <Text style={{ color: C.muted, fontSize: 15, fontWeight: "700", lineHeight: 22 }}>{stepMessage}</Text>
@@ -354,8 +356,9 @@ export default function LoginScreen() {
               </Text>
             </View>
           </View>
-        </View>
-      </Animated.View>
+          </View>
+        </Animated.View>
+      </ScrollView>
     </View>
   );
 }

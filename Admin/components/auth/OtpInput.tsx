@@ -52,7 +52,7 @@ export function OtpInput({ code, disabled, onChangeCode }: OtpInputProps) {
 const styles = StyleSheet.create({
   wrap: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
     justifyContent: "space-between",
   },
   hiddenInput: {
@@ -69,7 +69,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     height: 50,
     justifyContent: "center",
-    width: 43,
+    flex: 1,
+    maxWidth: 43,
   },
   cellFilled: {
     borderColor: T.blue,

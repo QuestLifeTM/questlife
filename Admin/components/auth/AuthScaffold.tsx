@@ -1,11 +1,13 @@
 import { PropsWithChildren } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { radius, shadow, T } from "@/components/theme";
 import { AmbientGlow } from "@/components/ui";
 
 export function AuthScaffold({ children }: PropsWithChildren) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const compact = width < 380;
 
   return (
     <View style={styles.root}>
@@ -17,13 +19,14 @@ export function AuthScaffold({ children }: PropsWithChildren) {
             styles.content,
             {
               paddingTop: Math.max(insets.top + 16, 28),
-              paddingBottom: Math.max(insets.bottom + 24, 36)
+              paddingBottom: Math.max(insets.bottom + 24, 36),
+              paddingHorizontal: compact ? 14 : 22,
             }
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.card}>{children}</View>
+          <View style={[styles.card, compact ? styles.cardCompact : null]}>{children}</View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -41,7 +44,6 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     justifyContent: "center",
-    paddingHorizontal: 22
   },
   card: {
     width: "100%",
@@ -54,6 +56,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 28,
     ...shadow
+  },
+  cardCompact: {
+    borderRadius: radius.md,
+    paddingHorizontal: 18,
+    paddingVertical: 22,
   },
   warmGlow: {
     position: "absolute",

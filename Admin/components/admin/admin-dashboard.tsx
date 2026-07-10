@@ -748,11 +748,13 @@ function QuestStatCard({
 }
 
 function QuestRow({
+  compact,
   onPress,
   quest,
   t,
   featuredDate,
 }: {
+  compact: boolean;
   onPress: () => void;
   quest: Quest;
   t: Theme;
@@ -766,17 +768,17 @@ function QuestRow({
         borderTopWidth: 1,
         flexDirection: "row",
         alignItems: "center",
-        gap: 18,
-        minHeight: 86,
-        paddingHorizontal: 24,
+        gap: compact ? 12 : 18,
+        minHeight: compact ? 96 : 86,
+        paddingHorizontal: compact ? 16 : 24,
         backgroundColor: pressed ? t.cardAlt : "transparent",
         transform: [{ scale: pressed ? 0.996 : 1 }],
       })}
     >
-      <View style={{ width: 4, height: 44, borderRadius: 999, backgroundColor: quest.color }} />
-      <View style={{ flex: 1, minWidth: 220, gap: 5 }}>
+      <View style={{ width: 4, alignSelf: "stretch", minHeight: compact ? 64 : 44, borderRadius: 999, backgroundColor: quest.color }} />
+      <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <Text style={{ color: t.text, fontSize: 16, fontWeight: "900" }}>{quest.title}</Text>
+          <Text numberOfLines={compact ? 2 : 1} style={{ flexShrink: 1, color: t.text, fontSize: 16, fontWeight: "900" }}>{quest.title}</Text>
           {featuredDate ? (
             <View style={{ borderRadius: 999, backgroundColor: "rgba(168,85,247,0.14)", paddingHorizontal: 8, paddingVertical: 3 }}>
               <Text style={{ color: nova.violet, fontSize: 10, fontWeight: "900" }}>Featured {featuredDate}</Text>
@@ -784,22 +786,23 @@ function QuestRow({
           ) : null}
         </View>
         <Text numberOfLines={1} style={{ color: t.muted, fontSize: 13, fontWeight: "600" }}>{quest.description}</Text>
+        {compact ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            <Text style={{ color: t.muted, fontSize: 12, fontWeight: "800" }}>{quest.category}</Text>
+            <Text style={{ color: t.text, fontSize: 12, fontWeight: "900" }}>+{quest.xp} XP</Text>
+            <Text style={{ color: t.faint, fontSize: 12, fontWeight: "700" }}>{quest.timeLabel} · {quest.difficulty}</Text>
+          </View>
+        ) : null}
       </View>
-      <View style={{ width: 160 }}>
-        <Text style={{ color: t.muted, fontSize: 13, fontWeight: "800" }}>{quest.category}</Text>
-      </View>
-      <View style={{ width: 130 }}>
-        <Text style={{ color: t.text, fontSize: 14, fontWeight: "900" }}>+{quest.xp} XP</Text>
-        <Text style={{ color: t.faint, fontSize: 12, fontWeight: "700" }}>{quest.timeLabel}</Text>
-      </View>
-      <View style={{ width: 130 }}>
-        <Text style={{ color: t.text, fontSize: 13, fontWeight: "900" }}>{quest.difficulty}</Text>
-        <Text style={{ color: t.faint, fontSize: 12, fontWeight: "700" }}>{quest.createdByLabel}</Text>
-      </View>
-      <View style={{ width: 108 }}>
-        <StatusPill status={quest.status} t={t} />
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={t.faint} />
+      {!compact ? (
+        <>
+          <View style={{ width: 160 }}><Text style={{ color: t.muted, fontSize: 13, fontWeight: "800" }}>{quest.category}</Text></View>
+          <View style={{ width: 130 }}><Text style={{ color: t.text, fontSize: 14, fontWeight: "900" }}>+{quest.xp} XP</Text><Text style={{ color: t.faint, fontSize: 12, fontWeight: "700" }}>{quest.timeLabel}</Text></View>
+          <View style={{ width: 130 }}><Text style={{ color: t.text, fontSize: 13, fontWeight: "900" }}>{quest.difficulty}</Text><Text style={{ color: t.faint, fontSize: 12, fontWeight: "700" }}>{quest.createdByLabel}</Text></View>
+          <View style={{ width: 108 }}><StatusPill status={quest.status} t={t} /></View>
+        </>
+      ) : null}
+      {compact ? <StatusPill status={quest.status} t={t} /> : <Ionicons name="chevron-forward" size={18} color={t.faint} />}
     </Pressable>
   );
 }
@@ -874,11 +877,13 @@ function QuestPreviewCard({ form, t }: { form: QuestFormInput; t: Theme }) {
 
 function QuestForm({
   archived,
+  compact,
   form,
   onChange,
   t,
 }: {
   archived?: boolean;
+  compact: boolean;
   form: QuestFormInput;
   onChange: (form: QuestFormInput) => void;
   t: Theme;
@@ -907,8 +912,8 @@ function QuestForm({
       </View>
       <View style={{ gap: 10 }}>
         <FormSectionLabel t={t}>Quest details</FormSectionLabel>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14, alignItems: "flex-start" }}>
-          <View style={{ flex: 2, minWidth: 420, gap: 8 }}>
+        <View style={{ flexDirection: compact ? "column" : "row", flexWrap: compact ? undefined : "wrap", gap: 14, alignItems: "flex-start" }}>
+          <View style={{ flex: 2, width: compact ? "100%" : undefined, minWidth: compact ? undefined : 420, gap: 8 }}>
             <Text style={{ color: t.faint, fontSize: 11, fontWeight: "900", letterSpacing: 1.1, textTransform: "uppercase" }}>Difficulty</Text>
             <ChoiceGrid
               minItemWidth={112}
@@ -918,10 +923,10 @@ function QuestForm({
               onChange={(difficulty: QuestDifficulty) => onChange({ ...form, difficulty })}
             />
           </View>
-          <View style={{ flex: 1, minWidth: 180 }}>
+          <View style={{ flex: 1, width: compact ? "100%" : undefined, minWidth: compact ? undefined : 180 }}>
             <NumberField editable={editable} label="Time in minutes" t={t} value={form.timeMin} onChange={(timeMin) => onChange({ ...form, timeMin })} />
           </View>
-          <View style={{ flex: 1, minWidth: 180 }}>
+          <View style={{ flex: 1, width: compact ? "100%" : undefined, minWidth: compact ? undefined : 180 }}>
             <NumberField editable={editable} label="Experience points" t={t} value={form.xp} onChange={(xp) => onChange({ ...form, xp })} />
           </View>
         </View>
@@ -1150,6 +1155,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const [selectedReviewQuestId, setSelectedReviewQuestId] = useState<string | null>(null);
   const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readAdminSidebarCollapsedPreference());
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [denyQuest, setDenyQuest] = useState<Quest | null>(null);
   const [denyNote, setDenyNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -1158,6 +1164,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const [featuredDatesByQuest, setFeaturedDatesByQuest] = useState<Record<string, string>>({});
 
   const compact = width < 980;
+  const mobileNavigation = width < 640;
   const adventureSplitLayout = width >= 1180;
   const adventurePreviewInline = width >= 1600;
   const canViewPublished = hasPermission(membership, "quests.view_published");
@@ -1883,9 +1890,10 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     ...(canManageProfile ? [{ label: "Profile", icon: "person-circle-outline" as const, route: "/admin/profile", active: view === "profile" }] : []),
   ];
 
-  const collapsedRail = sidebarCollapsed && !compact;
-  const sidebarWidth = compact ? "100%" : collapsedRail ? 72 : 260;
-  const sidebarPaddingHorizontal = compact ? 18 : collapsedRail ? 12 : 24;
+  const collapsedRail = sidebarCollapsed && !mobileNavigation;
+  const iconOnlySidebarControl = collapsedRail;
+  const sidebarWidth = mobileNavigation ? 280 : collapsedRail ? 72 : 260;
+  const sidebarPaddingHorizontal = mobileNavigation ? 18 : collapsedRail ? 12 : 24;
 
   function renderNavItem(item: (typeof nav)[number]) {
     return (
@@ -1895,25 +1903,26 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
         accessibilityLabel={item.label}
         accessibilityState={{ selected: item.active }}
         onPress={() => {
+          if (mobileNavigation) setMobileMenuOpen(false);
           navigateAwayFromAdminDetail(item.route);
         }}
         style={{
           minHeight: 48,
-          width: collapsedRail ? 48 : "100%",
-          alignSelf: collapsedRail ? "center" : "stretch",
+          width: iconOnlySidebarControl ? 48 : "100%",
+          alignSelf: iconOnlySidebarControl ? "center" : "stretch",
           flexDirection: "row",
           alignItems: "center",
-          justifyContent: collapsedRail ? "center" : "flex-start",
-          gap: collapsedRail ? 0 : 12,
+          justifyContent: iconOnlySidebarControl ? "center" : "flex-start",
+          gap: iconOnlySidebarControl ? 0 : 12,
           borderRadius: 10,
           borderWidth: 1,
           borderColor: item.active ? nova.blue : "transparent",
           backgroundColor: item.active ? t.active : "transparent",
-          paddingHorizontal: collapsedRail ? 0 : 14,
+          paddingHorizontal: iconOnlySidebarControl ? 0 : 14,
         }}
       >
         <Ionicons name={item.icon} size={22} color={item.active ? nova.blue : t.muted} />
-        {collapsedRail ? null : (
+        {iconOnlySidebarControl ? null : (
           <Text style={{ color: item.active ? t.activeText : t.muted, fontSize: 16, fontWeight: "800" }}>{item.label}</Text>
         )}
       </Pressable>
@@ -1928,38 +1937,52 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
         onPress={onPress}
         style={{
           minHeight: 48,
-          width: collapsedRail ? 48 : "100%",
-          alignSelf: collapsedRail ? "center" : "stretch",
+          width: iconOnlySidebarControl ? 48 : "100%",
+          alignSelf: iconOnlySidebarControl ? "center" : "stretch",
           borderRadius: 10,
           borderWidth: 1,
           borderColor: t.border,
           backgroundColor: t.card,
           flexDirection: "row",
           alignItems: "center",
-          justifyContent: collapsedRail ? "center" : "flex-start",
-          gap: collapsedRail ? 0 : 10,
-          paddingHorizontal: collapsedRail ? 0 : 14,
+          justifyContent: iconOnlySidebarControl ? "center" : "flex-start",
+          gap: iconOnlySidebarControl ? 0 : 10,
+          paddingHorizontal: iconOnlySidebarControl ? 0 : 14,
         }}
       >
         <Ionicons name={icon} size={20} color={t.muted} />
-        {collapsedRail ? null : <Text style={{ color: t.muted, fontSize: 15, fontWeight: "900" }}>{label}</Text>}
+        {iconOnlySidebarControl ? null : <Text style={{ color: t.muted, fontSize: 15, fontWeight: "900" }}>{label}</Text>}
       </Pressable>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.page }}>
-      <View style={{ flex: 1, flexDirection: compact ? "column" : "row" }}>
-        <View
+    <View style={{ flex: 1, position: "relative", backgroundColor: t.page }}>
+      <View style={{ flex: 1, position: "relative", flexDirection: mobileNavigation ? "column" : "row" }}>
+        {mobileNavigation && mobileMenuOpen ? (
+          <Pressable
+            accessibilityLabel="Close navigation menu"
+            accessibilityRole="button"
+            onPress={() => setMobileMenuOpen(false)}
+            style={{ position: "absolute", inset: 0, zIndex: 10, backgroundColor: "rgba(5,6,8,0.48)" }}
+          />
+        ) : null}
+        {!mobileNavigation || mobileMenuOpen ? <View
           style={{
             width: sidebarWidth,
+            height: mobileNavigation ? "100%" : undefined,
+            position: mobileNavigation ? "absolute" : "relative",
+            top: mobileNavigation ? 0 : undefined,
+            bottom: mobileNavigation ? 0 : undefined,
+            left: mobileNavigation ? 0 : undefined,
+            zIndex: mobileNavigation ? 20 : undefined,
             flexShrink: 0,
             backgroundColor: t.sidebar,
-            borderRightWidth: compact ? 0 : 1,
+            borderRightWidth: 1,
             borderRightColor: t.border,
             paddingHorizontal: sidebarPaddingHorizontal,
-            paddingVertical: compact ? 16 : 18,
-            gap: compact ? 16 : 18,
+            paddingVertical: mobileNavigation ? 16 : 18,
+            gap: mobileNavigation ? 16 : 18,
             overflow: "hidden",
           }}
         >
@@ -1971,7 +1994,16 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
             ) : (
               <AdminLogo t={t} />
             )}
-            {!compact ? (
+            {mobileNavigation ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close navigation menu"
+                onPress={() => setMobileMenuOpen(false)}
+                style={{ width: 44, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: t.border, backgroundColor: t.card }}
+              >
+                <Ionicons name="close" size={20} color={t.muted} />
+              </Pressable>
+            ) : (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={collapsedRail ? "Expand sidebar" : "Collapse sidebar"}
@@ -1989,30 +2021,32 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
               >
                 <Ionicons name={sidebarCollapsed ? "chevron-forward" : "chevron-back"} size={18} color={t.muted} />
               </Pressable>
-            ) : null}
+            )}
           </View>
-          {compact ? (
-            <View style={{ gap: 8 }}>
-              {nav.map(renderNavItem)}
-            </View>
-          ) : (
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 8, paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
-              {nav.map(renderNavItem)}
-            </ScrollView>
-          )}
-          {!compact ? (
-            <View style={{ gap: 10, flexShrink: 0 }}>
-              {collapsedRail ? null : (
-                <Text style={{ color: t.muted, fontSize: 15, fontWeight: "800" }}>{membership ? `${membership.role} access` : checkingRole ? "Checking access" : "No access"}</Text>
-              )}
-              {renderSidebarAction(mode === "dark" ? "Light Mode" : "Dark Mode", mode === "dark" ? "sunny-outline" : "moon-outline", () => setMode((current) => current === "dark" ? "light" : "dark"))}
-              {renderSidebarAction("Logout", "log-out-outline", handleLogout)}
-            </View>
-          ) : null}
-        </View>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 8, paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+            {nav.map(renderNavItem)}
+          </ScrollView>
+          <View style={{ gap: 10, flexShrink: 0 }}>
+            {collapsedRail ? null : (
+              <Text style={{ color: t.muted, fontSize: 15, fontWeight: "800" }}>{membership ? `${membership.role} access` : checkingRole ? "Checking access" : "No access"}</Text>
+            )}
+            {renderSidebarAction(mode === "dark" ? "Light Mode" : "Dark Mode", mode === "dark" ? "sunny-outline" : "moon-outline", () => setMode((current) => current === "dark" ? "light" : "dark"))}
+            {renderSidebarAction("Logout", "log-out-outline", handleLogout)}
+          </View>
+        </View> : null}
 
         <View style={{ flex: 1 }}>
           <View style={{ minHeight: 74, borderBottomWidth: 1, borderBottomColor: t.border, backgroundColor: t.shell, paddingHorizontal: compact ? 18 : 30, flexDirection: "row", alignItems: "center", gap: 18 }}>
+            {mobileNavigation ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Open navigation menu"
+                onPress={() => setMobileMenuOpen(true)}
+                style={{ width: 44, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: t.border, backgroundColor: t.card }}
+              >
+                <Ionicons name="menu" size={22} color={t.muted} />
+              </Pressable>
+            ) : null}
             <View style={{ flex: 1, gap: 3 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <Text style={{ color: t.text, fontSize: 19, fontWeight: "900" }}>Welcome back,</Text>
@@ -2092,7 +2126,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                         </View>
                       </View>
                       {visibleQuests.length ? visibleQuests.map((quest) => (
-                        <QuestRow key={quest.id} quest={quest} t={t} featuredDate={featuredDatesByQuest[quest.id]} onPress={() => router.push(`/admin/quest/${quest.id}`)} />
+                        <QuestRow compact={compact} key={quest.id} quest={quest} t={t} featuredDate={featuredDatesByQuest[quest.id]} onPress={() => router.push(`/admin/quest/${quest.id}`)} />
                       )) : (
                         <View style={{ padding: 24 }}>
                           <EmptyPanel icon="search-outline" title="No quests found" body="Try another category or status filter." t={t} />
@@ -2109,7 +2143,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                   canCreateDraft ? (
                   <View style={{ flexDirection: compact ? "column" : "row", gap: 22, alignItems: "flex-start" }}>
                     <Panel t={t} style={{ flex: 1.4, padding: 24, gap: 22 }}>
-                      <QuestForm form={draftForm} onChange={setDraftForm} t={t} />
+                      <QuestForm compact={compact} form={draftForm} onChange={setDraftForm} t={t} />
                       <View style={{ flexDirection: compact ? "column" : "row", gap: 12 }}>
                         <View style={{ flex: 1 }}>
                           <ActionButton disabled={saving} icon="save-outline" label={saving ? "Saving..." : "Save Draft"} onPress={() => saveDraft(false)} secondary t={t} />
@@ -2153,7 +2187,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                             <Text style={{ color: t.muted, marginTop: 6, fontWeight: "700" }}>Move this quest back to draft before editing content.</Text>
                           </Panel>
                         ) : null}
-                        <QuestForm archived={selectedQuest.status === "archived"} form={detailForm} onChange={setDetailForm} t={t} />
+                        <QuestForm archived={selectedQuest.status === "archived"} compact={compact} form={detailForm} onChange={setDetailForm} t={t} />
                         <View style={{ gap: 12 }}>
                           <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.3, textTransform: "uppercase" }}>Status actions</Text>
                           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
