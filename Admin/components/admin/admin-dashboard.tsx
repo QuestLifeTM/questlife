@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
-import { PropsWithChildren, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, Switch, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
+import { AccessibilityInfo, Alert, Animated, Easing, Pressable, ScrollView, Switch, Text, TextInput, View, useWindowDimensions } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useContent } from "@/contexts/ContentContext";
@@ -68,7 +68,9 @@ type Mode = "dark" | "light";
 type AdminManagementMode = "list" | "detail" | "invite";
 
 const ADMIN_THEME_STORAGE_KEY = "questlife-admin-theme";
+const ADMIN_SIDEBAR_COLLAPSED_STORAGE_KEY = "questlife-admin-sidebar-collapsed";
 let adminThemeMemory: Mode = "dark";
+let adminSidebarCollapsedMemory = false;
 
 function isMode(value: string | null): value is Mode {
   return value === "dark" || value === "light";
@@ -101,6 +103,37 @@ function saveAdminThemePreference(nextMode: Mode) {
 
   try {
     window.localStorage.setItem(ADMIN_THEME_STORAGE_KEY, nextMode);
+  } catch {
+    // Keep the in-memory preference when browser storage is unavailable.
+  }
+}
+
+function readAdminSidebarCollapsedPreference() {
+  if (typeof window === "undefined") {
+    return adminSidebarCollapsedMemory;
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(ADMIN_SIDEBAR_COLLAPSED_STORAGE_KEY);
+    if (storedValue === "true" || storedValue === "false") {
+      adminSidebarCollapsedMemory = storedValue === "true";
+    }
+  } catch {
+    // Keep the in-memory preference when browser storage is unavailable.
+  }
+
+  return adminSidebarCollapsedMemory;
+}
+
+function saveAdminSidebarCollapsedPreference(nextValue: boolean) {
+  adminSidebarCollapsedMemory = nextValue;
+
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(ADMIN_SIDEBAR_COLLAPSED_STORAGE_KEY, String(nextValue));
   } catch {
     // Keep the in-memory preference when browser storage is unavailable.
   }
@@ -323,6 +356,96 @@ function Panel({
     >
       {children}
     </View>
+  );
+}
+
+function useReducedMotionPreference() {
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReducedMotion(enabled);
+    }).catch(() => undefined);
+
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReducedMotion);
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  return reducedMotion;
+}
+
+function MotionFrame({
+  children,
+  delay = 0,
+  motionKey,
+  reducedMotion,
+  style,
+}: PropsWithChildren<{
+  delay?: number;
+  motionKey: string;
+  reducedMotion: boolean;
+  style?: Record<string, unknown>;
+}>) {
+  const opacity = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const translateY = useRef(new Animated.Value(reducedMotion ? 0 : 8)).current;
+
+  useEffect(() => {
+    opacity.stopAnimation();
+    translateY.stopAnimation();
+
+    if (reducedMotion) {
+      opacity.setValue(1);
+      translateY.setValue(0);
+      return;
+    }
+
+    opacity.setValue(0);
+    translateY.setValue(8);
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 180, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 220, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, [delay, motionKey, opacity, reducedMotion, translateY]);
+
+  return <Animated.View style={[style, { opacity, transform: [{ translateY }] }]}>{children}</Animated.View>;
+}
+
+function LoadingPanel({ label, reducedMotion, t }: { label: string; reducedMotion: boolean; t: Theme }) {
+  const pulse = useRef(new Animated.Value(0.45)).current;
+
+  useEffect(() => {
+    if (reducedMotion) {
+      pulse.setValue(0.72);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.9, duration: 560, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.45, duration: 560, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [pulse, reducedMotion]);
+
+  return (
+    <Panel t={t} style={{ gap: 16, padding: 22 }}>
+      <View accessibilityLabel={label} accessibilityRole="progressbar" style={{ gap: 14 }}>
+        <Animated.View style={{ opacity: pulse, height: 18, width: "28%", borderRadius: 6, backgroundColor: t.border }} />
+        <Animated.View style={{ opacity: pulse, height: 12, width: "54%", borderRadius: 6, backgroundColor: t.border }} />
+        <View style={{ flexDirection: "row", gap: 12 }}>
+          {[0, 1, 2].map((item) => (
+            <Animated.View key={item} style={{ opacity: pulse, flex: 1, height: 126, borderRadius: 10, backgroundColor: t.cardAlt }} />
+          ))}
+        </View>
+      </View>
+      <Text style={{ color: t.muted, fontSize: 14, fontWeight: "800" }}>{label}</Text>
+    </Panel>
   );
 }
 
@@ -574,7 +697,7 @@ function ActionButton({
     <Pressable
       disabled={disabled}
       onPress={onPress}
-      style={{
+      style={({ pressed }) => ({
         minHeight: 48,
         alignItems: "center",
         justifyContent: "center",
@@ -585,7 +708,9 @@ function ActionButton({
         borderColor: secondary ? t.border : nova.blue,
         backgroundColor: disabled ? t.border : secondary ? t.card : nova.blue,
         paddingHorizontal: 18,
-      }}
+        opacity: disabled ? 0.68 : 1,
+        transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
+      })}
     >
       <Ionicons name={icon} size={18} color={secondary ? t.text : "#ffffff"} />
       <Text style={{ color: secondary ? t.text : "#ffffff", fontSize: 15, fontWeight: "900" }}>{label}</Text>
@@ -645,6 +770,7 @@ function QuestRow({
         minHeight: 86,
         paddingHorizontal: 24,
         backgroundColor: pressed ? t.cardAlt : "transparent",
+        transform: [{ scale: pressed ? 0.996 : 1 }],
       })}
     >
       <View style={{ width: 4, height: 44, borderRadius: 999, backgroundColor: quest.color }} />
@@ -991,6 +1117,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const { isConfigured, session } = useAuth();
   const { refresh: refreshMobileContent } = useContent();
   const { width } = useWindowDimensions();
+  const reducedMotion = useReducedMotionPreference();
   const [mode, setMode] = useState<Mode>(() => readAdminThemePreference());
   const t = themes[mode];
   const [membership, setMembership] = useState<AdminMembership | null>(null);
@@ -998,6 +1125,9 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const [adminInvites, setAdminInvites] = useState<AdminInvite[]>([]);
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [checkingRole, setCheckingRole] = useState(true);
+  const [loadingContent, setLoadingContent] = useState(true);
+  const [loadingOperations, setLoadingOperations] = useState(false);
+  const [loadingFeaturedBatch, setLoadingFeaturedBatch] = useState(false);
   const [quests, setQuests] = useState<Quest[]>([]);
   const [adventurePacks, setAdventurePacks] = useState<AdventurePack[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<"All" | QuestCategory>("All");
@@ -1019,7 +1149,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const [draftAdminPermissions, setDraftAdminPermissions] = useState<AdminPermission[]>([]);
   const [selectedReviewQuestId, setSelectedReviewQuestId] = useState<string | null>(null);
   const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readAdminSidebarCollapsedPreference());
   const [denyQuest, setDenyQuest] = useState<Quest | null>(null);
   const [denyNote, setDenyNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -1064,10 +1194,17 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const today = featuredDateKey(new Date());
   const featuredDateOptions = [-2, -1, 0, 1, 2, 3, 4, 5, 6].map((offset) => addDays(today, offset));
   const isFeaturedPast = featuredDate < today;
+  const adminMotionKey = `${view}:${adminManagementMode}`;
 
   useEffect(() => {
     saveAdminThemePreference(mode);
   }, [mode]);
+
+  function toggleSidebarCollapsed() {
+    const nextValue = !sidebarCollapsed;
+    saveAdminSidebarCollapsedPreference(nextValue);
+    setSidebarCollapsed(nextValue);
+  }
 
   const stats = useMemo(() => ({
     archived: quests.filter((quest) => quest.status === "archived").length,
@@ -1157,44 +1294,57 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   }, [hasUnsavedAdminPermissionChanges]);
 
   async function loadAdminContent() {
-    const [content, featuredBatches] = await Promise.all([
-      fetchContentLibrary({ admin: true }),
-      fetchFeaturedBatches(featuredDateKey(new Date()), featuredDateKey(new Date(Date.now() + 1000 * 60 * 60 * 24 * 30))),
-    ]);
-    setQuests(content.quests);
-    setAdventurePacks(content.adventurePacks);
+    setLoadingContent(true);
+    try {
+      const [content, featuredBatches] = await Promise.all([
+        fetchContentLibrary({ admin: true }),
+        fetchFeaturedBatches(featuredDateKey(new Date()), featuredDateKey(new Date(Date.now() + 1000 * 60 * 60 * 24 * 30))),
+      ]);
+      setQuests(content.quests);
+      setAdventurePacks(content.adventurePacks);
 
-    const nextFeaturedDates: Record<string, string> = {};
-    for (const batch of featuredBatches) {
-      for (const questId of batch.questIds) {
-        if (!nextFeaturedDates[questId]) nextFeaturedDates[questId] = batch.featuredOn;
+      const nextFeaturedDates: Record<string, string> = {};
+      for (const batch of featuredBatches) {
+        for (const questId of batch.questIds) {
+          if (!nextFeaturedDates[questId]) nextFeaturedDates[questId] = batch.featuredOn;
+        }
       }
+      setFeaturedDatesByQuest(nextFeaturedDates);
+    } finally {
+      setLoadingContent(false);
     }
-    setFeaturedDatesByQuest(nextFeaturedDates);
   }
 
   async function loadAdminOperations() {
-    const nextNotifications = canViewInbox ? await fetchAdminNotifications() : [];
-    setNotifications(nextNotifications);
+    setLoadingOperations(true);
+    try {
+      const nextNotifications = canViewInbox ? await fetchAdminNotifications() : [];
+      setNotifications(nextNotifications);
 
-    if (canManageAdmins) {
-      const [profiles, invites] = await Promise.all([
-        listAdminProfiles(),
-        listAdminInvites(),
-      ]);
-      setAdminProfiles(profiles);
-      setAdminInvites(invites);
+      if (canManageAdmins) {
+        const [profiles, invites] = await Promise.all([
+          listAdminProfiles(),
+          listAdminInvites(),
+        ]);
+        setAdminProfiles(profiles);
+        setAdminInvites(invites);
+      }
+    } finally {
+      setLoadingOperations(false);
     }
   }
 
   async function loadFeaturedBatch(date: string) {
     setError(null);
+    setLoadingFeaturedBatch(true);
     try {
       const batches = await fetchFeaturedBatches(date, date);
       setFeaturedQuestIds(batches[0]?.questIds ?? []);
     } catch (nextError) {
       setFeaturedQuestIds([]);
       setError(nextError instanceof Error ? nextError.message : "Unable to load featured batch.");
+    } finally {
+      setLoadingFeaturedBatch(false);
     }
   }
 
@@ -1256,6 +1406,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Unable to save quest.");
     } finally {
+      setLoadingFeaturedBatch(false);
       setSaving(false);
     }
   }
@@ -1824,7 +1975,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={collapsedRail ? "Expand sidebar" : "Collapse sidebar"}
-                onPress={() => setSidebarCollapsed((current) => !current)}
+                onPress={toggleSidebarCollapsed}
                 style={{
                   width: collapsedRail ? 48 : 36,
                   height: collapsedRail ? 44 : 36,
@@ -1888,7 +2039,8 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
             ) : null}
           </View>
 
-          <ScrollView contentContainerStyle={{ padding: compact ? 18 : 36, gap: 26, paddingBottom: 60 }}>
+          <ScrollView contentContainerStyle={{ padding: compact ? 18 : 36, paddingBottom: 60 }}>
+            <MotionFrame motionKey={adminMotionKey} reducedMotion={reducedMotion} style={{ gap: 26 }}>
             <View style={{ flexDirection: compact ? "column" : "row", justifyContent: "space-between", gap: 16 }}>
               <View style={{ gap: 8, flex: 1 }}>
                 <Text style={{ color: t.text, fontSize: compact ? 32 : 42, fontWeight: "900", letterSpacing: 0 }}>{currentTitle}</Text>
@@ -1902,26 +2054,29 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
               </View>
             </View>
 
+            {checkingRole ? <LoadingPanel label="Checking your admin access..." reducedMotion={reducedMotion} t={t} /> : null}
+
             {!checkingRole && !membership ? (
               <EmptyPanel icon="lock-closed-outline" title="Admin access required" body="This account is signed in but is not listed in admin_memberships." t={t} />
             ) : null}
 
-            {membership ? (
+            {membership && !checkingRole ? (
               <>
-                {view === "published" || view === "all" ? (
+                {(view === "published" || view === "all") && !loadingContent ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 18 }}>
-                  <QuestStatCard icon="rocket-outline" label="Published" value={stats.published} tint={nova.blue} t={t} />
-                  <QuestStatCard icon="document-text-outline" label="Drafts" value={stats.draft} tint={nova.orange} t={t} />
-                  <QuestStatCard icon="shield-checkmark-outline" label="In Review" value={stats.inReview} tint={nova.violet} t={t} />
-                  <QuestStatCard icon="archive-outline" label="Archived" value={stats.archived} tint={nova.red} t={t} />
+                  <MotionFrame motionKey={adminMotionKey} delay={0} reducedMotion={reducedMotion} style={{ flex: 1, minWidth: 210 }}><QuestStatCard icon="rocket-outline" label="Published" value={stats.published} tint={nova.blue} t={t} /></MotionFrame>
+                  <MotionFrame motionKey={adminMotionKey} delay={35} reducedMotion={reducedMotion} style={{ flex: 1, minWidth: 210 }}><QuestStatCard icon="document-text-outline" label="Drafts" value={stats.draft} tint={nova.orange} t={t} /></MotionFrame>
+                  <MotionFrame motionKey={adminMotionKey} delay={70} reducedMotion={reducedMotion} style={{ flex: 1, minWidth: 210 }}><QuestStatCard icon="shield-checkmark-outline" label="In Review" value={stats.inReview} tint={nova.violet} t={t} /></MotionFrame>
+                  <MotionFrame motionKey={adminMotionKey} delay={105} reducedMotion={reducedMotion} style={{ flex: 1, minWidth: 210 }}><QuestStatCard icon="archive-outline" label="Archived" value={stats.archived} tint={nova.red} t={t} /></MotionFrame>
                 </View>
                 ) : null}
 
-                {message ? <Text style={{ color: nova.green, fontWeight: "900" }}>{message}</Text> : null}
-                {error ? <Text style={{ color: nova.red, fontWeight: "900" }}>{error}</Text> : null}
+                {message ? <MotionFrame motionKey={`message:${message}`} reducedMotion={reducedMotion}><Text style={{ color: nova.green, fontWeight: "900" }}>{message}</Text></MotionFrame> : null}
+                {error ? <MotionFrame motionKey={`error:${error}`} reducedMotion={reducedMotion}><Text style={{ color: nova.red, fontWeight: "900" }}>{error}</Text></MotionFrame> : null}
 
                 {view === "published" || view === "all" ? (
                   (view === "published" ? canViewPublished : canViewAll) ? (
+                  loadingContent ? <LoadingPanel label="Loading quest library..." reducedMotion={reducedMotion} t={t} /> :
                   <View style={{ gap: 14 }}>
                     <View style={{ gap: 10 }}>
                       <FilterCarousel options={["All", ...categoryOptions]} t={t} value={categoryFilter} onChange={setCategoryFilter} />
@@ -1975,6 +2130,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
 
                 {view === "detail" ? (
                   canViewAll ? (
+                  loadingContent ? <LoadingPanel label="Loading quest details..." reducedMotion={reducedMotion} t={t} /> :
                   selectedQuest && detailForm ? (
                     <View style={{ flexDirection: compact ? "column" : "row", gap: 22, alignItems: "flex-start" }}>
                       <Panel t={t} style={{ flex: 1.4, padding: 24, gap: 20 }}>
@@ -2031,6 +2187,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
 
                 {view === "review" ? (
                   canReview ? (
+                    loadingContent ? <LoadingPanel label="Loading review requests..." reducedMotion={reducedMotion} t={t} /> :
                     <View style={{ gap: 18 }}>
                       {reviewQuests.length && selectedReviewQuest ? (
                         <View style={{ flexDirection: compact ? "column" : "row", gap: 18, alignItems: "flex-start" }}>
@@ -2107,6 +2264,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
 
                 {view === "adventurePacks" ? (
                   canViewPublished ? (
+                    loadingContent ? <LoadingPanel label="Loading adventure packs..." reducedMotion={reducedMotion} t={t} /> :
                     <View style={{ flexDirection: adventureSplitLayout ? "row" : "column", gap: 18, alignItems: "flex-start" }}>
                       <Panel t={t} style={{ width: adventureSplitLayout ? 340 : "100%", overflow: "hidden", flexShrink: 0 }}>
                         <View style={{ padding: 18, gap: 5 }}>
@@ -2246,6 +2404,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
 
                 {view === "featured" ? (
                   canViewPublished ? (
+                    loadingContent || loadingFeaturedBatch ? <LoadingPanel label="Loading featured quests..." reducedMotion={reducedMotion} t={t} /> :
                     <View style={{ gap: 18 }}>
                       <Panel t={t} style={{ padding: 18, gap: 14 }}>
                         <View style={{ flexDirection: compact ? "column" : "row", justifyContent: "space-between", gap: 14, alignItems: compact ? "flex-start" : "center" }}>
@@ -2370,6 +2529,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
 
                 {view === "admins" ? (
                   canManageAdmins ? (
+                    loadingOperations ? <LoadingPanel label="Loading admin users..." reducedMotion={reducedMotion} t={t} /> :
                     <View style={{ gap: 18, maxWidth: 1120 }}>
                       {adminManagementMode === "list" ? (
                         <Panel t={t} style={{ overflow: "hidden" }}>
@@ -2577,6 +2737,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
 
                 {view === "inbox" ? (
                   canViewInbox ? (
+                    loadingOperations ? <LoadingPanel label="Loading notifications..." reducedMotion={reducedMotion} t={t} /> :
                     <Panel t={t} style={{ overflow: "hidden" }}>
                       <View style={{ padding: 22, gap: 16 }}>
                         <View style={{ flexDirection: compact ? "column" : "row", justifyContent: "space-between", gap: 14, alignItems: compact ? "stretch" : "center" }}>
@@ -2758,6 +2919,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                 ) : null}
               </>
             ) : null}
+            </MotionFrame>
           </ScrollView>
         </View>
       </View>
