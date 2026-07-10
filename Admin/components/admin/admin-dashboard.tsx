@@ -481,6 +481,70 @@ function FilterCarousel<TValue extends string>({
   );
 }
 
+function FormSectionLabel({ children, t }: PropsWithChildren<{ t: Theme }>) {
+  return (
+    <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.3, textTransform: "uppercase" }}>
+      {children}
+    </Text>
+  );
+}
+
+function ChoiceGrid<TValue extends string>({
+  minItemWidth = 132,
+  options,
+  renderLabel,
+  t,
+  toneForValue,
+  value,
+  onChange,
+}: {
+  minItemWidth?: number;
+  options: readonly TValue[];
+  renderLabel?: (value: TValue) => string;
+  t: Theme;
+  toneForValue?: (value: TValue) => { bg: string; text: string };
+  value: TValue;
+  onChange: (value: TValue) => void;
+}) {
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+      {options.map((option) => {
+        const active = option === value;
+        const tone = toneForValue?.(option);
+        return (
+          <Pressable
+            key={option}
+            onPress={() => onChange(option)}
+            style={{
+              minHeight: 44,
+              minWidth: minItemWidth,
+              flexGrow: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: active ? tone?.text ?? nova.blue : t.border,
+              backgroundColor: active ? tone?.bg ?? (t.mode === "dark" ? "#1d2b4f" : nova.blueSoft) : t.input,
+              paddingHorizontal: 14,
+            }}
+          >
+            <Text
+              numberOfLines={1}
+              style={{
+                color: active ? tone?.text ?? (t.mode === "dark" ? "#bfdbfe" : "#1d4ed8") : t.muted,
+                fontSize: 13,
+                fontWeight: "900",
+              }}
+            >
+              {renderLabel ? renderLabel(option) : option}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 function ActionButton({
   disabled,
   icon,
@@ -605,67 +669,66 @@ function QuestRow({
 }
 
 function QuestPreviewCard({ form, t }: { form: QuestFormInput; t: Theme }) {
-  const steps = form.steps.map((step) => step.trim()).filter(Boolean);
   const categoryTone = questCategoryColors[form.category] ?? { text: form.color || nova.blue, bg: nova.blueSoft };
   const categoryAccent = categoryTone.text;
+  const difficultyTone =
+    form.difficulty === "EASY" ? { text: "#27ae60", bg: "rgba(39,174,96,0.12)" } :
+    form.difficulty === "MEDIUM" ? { text: "#c05621", bg: "#fff0db" } :
+    form.difficulty === "HARD" ? { text: "#ef4444", bg: "#ffecef" } :
+    { text: "#7f1d1d", bg: "rgba(127,29,29,0.12)" };
+  const timeLabel = form.timeMin < 60
+    ? `${form.timeMin} min`
+    : form.timeMin === 60
+      ? "1 hour"
+      : `${Number((form.timeMin / 60).toFixed(1))} hours`;
+
+  function PreviewTag({ label, tone }: { label: string; tone: { text: string; bg: string } }) {
+    return (
+      <View style={{ borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: tone.bg, alignSelf: "flex-start" }}>
+        <Text style={{ color: tone.text, fontSize: 12, lineHeight: 16, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>{label}</Text>
+      </View>
+    );
+  }
+
+  function PreviewMetaPill({ icon, text, color, bg }: { icon: keyof typeof Ionicons.glyphMap; text: string; color: string; bg: string }) {
+    return (
+      <View style={{ borderRadius: 99, backgroundColor: bg, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6 }}>
+        <Ionicons name={icon} size={12} color={color} />
+        <Text style={{ color, fontSize: 12, lineHeight: 16, fontWeight: "900" }}>{text}</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={{ gap: 16 }}>
       <Text style={{ color: t.text, fontSize: 18, fontWeight: "900" }}>Mobile Preview</Text>
-      <View style={{ borderRadius: 26, backgroundColor: "#f7f0df", borderWidth: 1, borderColor: "#eadfcb", padding: 14, gap: 14 }}>
-        <View style={{ borderRadius: 22, backgroundColor: "#fffaf0", borderWidth: 2, borderColor: "#f0dfbe", boxShadow: "0 14px 24px rgba(40,50,80,0.14)", overflow: "hidden" }}>
+      <View style={{ borderRadius: 28, backgroundColor: "#fffcf5", borderWidth: 1, borderColor: "#efe7dc", padding: 12 }}>
+        <View style={{ width: "100%", minHeight: form.description.length > 84 ? 198 : 172, borderRadius: 24, backgroundColor: "#ffffff", borderWidth: 2, borderColor: "#e8dfd5", boxShadow: "4px 4px 0px #e8dfd5", overflow: "hidden" }}>
           <View style={{ flexDirection: "row" }}>
-            <View style={{ width: 8, backgroundColor: categoryAccent }} />
-            <View style={{ flex: 1, padding: 16, gap: 12 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7, flex: 1 }}>
-                  <View style={{ borderRadius: 999, backgroundColor: categoryTone.bg, paddingHorizontal: 10, paddingVertical: 5 }}>
-                    <Text style={{ color: categoryTone.text, fontSize: 11, fontWeight: "900" }}>{form.category}</Text>
-                  </View>
-                  <View style={{ borderRadius: 999, backgroundColor: "#fff0db", paddingHorizontal: 10, paddingVertical: 5 }}>
-                    <Text style={{ color: "#c05621", fontSize: 11, fontWeight: "900" }}>{form.difficulty}</Text>
-                  </View>
+            <View style={{ width: 5, backgroundColor: categoryAccent }} />
+            <View style={{ flex: 1, padding: 16, gap: 8 }}>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+                <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  <PreviewTag label={form.category} tone={categoryTone} />
+                  <PreviewTag label={form.difficulty} tone={difficultyTone} />
                 </View>
-                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#eef4ff", alignItems: "center", justifyContent: "center" }}>
-                  <Ionicons name="bookmark-outline" size={17} color="#2563eb" />
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#fffcf5", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="bookmark-outline" size={16} color="#8a8186" />
                 </View>
               </View>
-              <Text style={{ color: "#152033", fontSize: 21, fontWeight: "900", lineHeight: 26 }}>{form.title || "Untitled quest"}</Text>
-              <Text numberOfLines={3} style={{ color: "#607087", fontSize: 13, fontWeight: "700", lineHeight: 19 }}>{form.description || "Quest description preview will appear here."}</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <Text style={{ color: "#3d3438", fontSize: 18, lineHeight: 23, fontWeight: "900" }} numberOfLines={2}>{form.title || "Untitled quest"}</Text>
+              <Text numberOfLines={2} style={{ color: "#8a8186", fontSize: 13, lineHeight: 19, fontWeight: "700" }}>{form.description || "Quest description preview will appear here."}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, flex: 1 }}>
-                  <View style={{ borderRadius: 999, backgroundColor: "#edf7ed", paddingHorizontal: 10, paddingVertical: 6 }}>
-                    <Text style={{ color: "#198754", fontWeight: "900", fontSize: 12 }}>+{form.xp} XP</Text>
-                  </View>
-                  <View style={{ borderRadius: 999, backgroundColor: "#eef4ff", paddingHorizontal: 10, paddingVertical: 6 }}>
-                    <Text style={{ color: "#2563eb", fontWeight: "900", fontSize: 12 }}>{form.timeMin} min</Text>
-                  </View>
+                  <PreviewMetaPill icon="flash" text={`+${form.xp} XP`} color="#4da8ff" bg="rgba(77,168,255,0.12)" />
+                  <PreviewMetaPill icon="time" text={timeLabel} color="#3d3438" bg="rgba(61,52,56,0.08)" />
                 </View>
-                <View style={{ borderRadius: 999, backgroundColor: "#2563eb", paddingHorizontal: 16, paddingVertical: 9 }}>
-                  <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "900" }}>Start</Text>
+                <View style={{ minWidth: 74, minHeight: 30, borderRadius: 16, backgroundColor: "#4da8ff", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 12 }}>
+                  <Text style={{ color: "#ffffff", fontSize: 13, fontWeight: "900" }}>Start</Text>
+                  <Ionicons name="chevron-forward" size={12} color="#ffffff" />
                 </View>
               </View>
             </View>
-          </View>
-        </View>
-
-        <View style={{ borderRadius: 22, backgroundColor: "#fffaf0", borderWidth: 1, borderColor: "#eddfc7", padding: 16, gap: 14 }}>
-          <View style={{ borderRadius: 18, backgroundColor: categoryTone.bg, height: 92, alignItems: "center", justifyContent: "center" }}>
-            <Ionicons name="sparkles-outline" size={30} color={categoryAccent} />
-          </View>
-          <View style={{ gap: 5 }}>
-            <Text style={{ color: "#152033", fontSize: 22, fontWeight: "900" }}>{form.title || "Untitled quest"}</Text>
-            <Text style={{ color: "#607087", fontWeight: "700", lineHeight: 20 }}>{form.description || "The full quest details will appear here."}</Text>
-          </View>
-          <View style={{ borderRadius: 18, backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#efe2cc", padding: 14, gap: 12 }}>
-            <Text style={{ color: "#152033", fontSize: 16, fontWeight: "900" }}>How it works</Text>
-            {(steps.length ? steps : ["Add the first step for this quest."]).slice(0, 4).map((step, index) => (
-              <View key={`${step}-${index}`} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
-                <View style={{ width: 25, height: 25, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: categoryAccent }}>
-                  <Text style={{ color: "#ffffff", fontWeight: "900", fontSize: 11 }}>{index + 1}</Text>
-                </View>
-                <Text style={{ color: "#607087", flex: 1, fontWeight: "700", lineHeight: 19 }}>{step}</Text>
-              </View>
-            ))}
           </View>
         </View>
       </View>
@@ -695,27 +758,41 @@ function QuestForm({
   return (
     <View style={{ gap: 18 }}>
       <Field editable={editable} label="Quest title" t={t} value={form.title} onChangeText={(title) => onChange({ ...form, title })} placeholder="e.g. Sunrise Photo Walk" />
-      <View style={{ gap: 8 }}>
-        <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.3, textTransform: "uppercase" }}>Category</Text>
-        <Segmented options={categoryOptions} t={t} value={form.category} onChange={(category) => onChange({ ...form, category, color: questCategoryColors[category].text })} />
+      <View style={{ gap: 10 }}>
+        <FormSectionLabel t={t}>Category</FormSectionLabel>
+        <ChoiceGrid
+          minItemWidth={150}
+          options={categoryOptions}
+          t={t}
+          toneForValue={(category) => questCategoryColors[category]}
+          value={form.category}
+          onChange={(category) => onChange({ ...form, category, color: questCategoryColors[category].text })}
+        />
       </View>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
-        <View style={{ flex: 1, minWidth: 180 }}>
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.3, textTransform: "uppercase" }}>Difficulty</Text>
-            <Segmented options={questDifficulties} t={t} value={form.difficulty} onChange={(difficulty: QuestDifficulty) => onChange({ ...form, difficulty })} />
+      <View style={{ gap: 10 }}>
+        <FormSectionLabel t={t}>Quest details</FormSectionLabel>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14, alignItems: "flex-start" }}>
+          <View style={{ flex: 2, minWidth: 420, gap: 8 }}>
+            <Text style={{ color: t.faint, fontSize: 11, fontWeight: "900", letterSpacing: 1.1, textTransform: "uppercase" }}>Difficulty</Text>
+            <ChoiceGrid
+              minItemWidth={112}
+              options={questDifficulties}
+              t={t}
+              value={form.difficulty}
+              onChange={(difficulty: QuestDifficulty) => onChange({ ...form, difficulty })}
+            />
           </View>
-        </View>
-        <View style={{ flex: 1, minWidth: 160 }}>
-          <NumberField editable={editable} label="Time in minutes" t={t} value={form.timeMin} onChange={(timeMin) => onChange({ ...form, timeMin })} />
-        </View>
-        <View style={{ flex: 1, minWidth: 160 }}>
-          <NumberField editable={editable} label="Experience points" t={t} value={form.xp} onChange={(xp) => onChange({ ...form, xp })} />
+          <View style={{ flex: 1, minWidth: 180 }}>
+            <NumberField editable={editable} label="Time in minutes" t={t} value={form.timeMin} onChange={(timeMin) => onChange({ ...form, timeMin })} />
+          </View>
+          <View style={{ flex: 1, minWidth: 180 }}>
+            <NumberField editable={editable} label="Experience points" t={t} value={form.xp} onChange={(xp) => onChange({ ...form, xp })} />
+          </View>
         </View>
       </View>
       <Field editable={editable} label="Description" multiline t={t} value={form.description} onChangeText={(description) => onChange({ ...form, description })} placeholder="Describe what the user should do and what completion means." />
       <View style={{ gap: 10 }}>
-        <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.3, textTransform: "uppercase" }}>Quest steps</Text>
+        <FormSectionLabel t={t}>Quest steps</FormSectionLabel>
         {form.steps.map((step, index) => (
           <View key={index} style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
             <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: categoryAccent, alignItems: "center", justifyContent: "center" }}>
