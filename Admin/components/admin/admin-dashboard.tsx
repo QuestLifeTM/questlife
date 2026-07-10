@@ -1015,6 +1015,8 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const [featuredDatesByQuest, setFeaturedDatesByQuest] = useState<Record<string, string>>({});
 
   const compact = width < 980;
+  const adventureSplitLayout = width >= 1180;
+  const adventurePreviewInline = width >= 1600;
   const canViewPublished = hasPermission(membership, "quests.view_published");
   const canViewAll = hasPermission(membership, "quests.view_all");
   const canCreateDraft = hasPermission(membership, "quests.create_draft");
@@ -1977,8 +1979,8 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
 
                 {view === "adventurePacks" ? (
                   canViewPublished ? (
-                    <View style={{ flexDirection: compact ? "column" : "row", gap: 18, alignItems: "flex-start" }}>
-                      <Panel t={t} style={{ width: compact ? "100%" : 330, overflow: "hidden" }}>
+                    <View style={{ flexDirection: adventureSplitLayout ? "row" : "column", gap: 18, alignItems: "flex-start" }}>
+                      <Panel t={t} style={{ width: adventureSplitLayout ? 340 : "100%", overflow: "hidden", flexShrink: 0 }}>
                         <View style={{ padding: 18, gap: 5 }}>
                           <Text style={{ color: t.text, fontSize: 20, fontWeight: "900" }}>Pack Library</Text>
                           <Text style={{ color: t.muted, fontWeight: "700" }}>{adventurePacks.length} collections</Text>
@@ -2027,73 +2029,87 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                         </View>
                       </Panel>
 
-                      <Panel t={t} style={{ flex: 1.25, padding: 22, gap: 16 }}>
-                        <View style={{ flexDirection: compact ? "column" : "row", gap: 14 }}>
-                          <View style={{ flex: 1 }}>
-                            <Field label="Title" t={t} value={packForm.title} onChangeText={(title) => setPackForm((current) => ({ ...current, title }))} placeholder="City Weekend Starter" />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Field label="Subtitle" t={t} value={packForm.subtitle} onChangeText={(subtitle) => setPackForm((current) => ({ ...current, subtitle }))} placeholder="A polished set of quests" />
-                          </View>
-                        </View>
-                        <Field label="Description" multiline t={t} value={packForm.description} onChangeText={(description) => setPackForm((current) => ({ ...current, description }))} placeholder="Describe the mood, promise, and use case for this pack." />
-                        <View style={{ flexDirection: compact ? "column" : "row", gap: 14 }}>
-                          <View style={{ flex: 1 }}>
-                            <Field label="Icon" t={t} value={packForm.icon} onChangeText={(icon) => setPackForm((current) => ({ ...current, icon }))} />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Field label="Accent color" t={t} value={packForm.color} onChangeText={(color) => setPackForm((current) => ({ ...current, color }))} />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Field label="Background color" t={t} value={packForm.bgColor} onChangeText={(bgColor) => setPackForm((current) => ({ ...current, bgColor }))} />
-                          </View>
-                        </View>
-                        <Field label="Cover image URL" t={t} value={packForm.coverImageUrl ?? ""} onChangeText={(coverImageUrl) => setPackForm((current) => ({ ...current, coverImageUrl }))} placeholder="https://..." />
-                        <View style={{ gap: 8 }}>
-                          <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.3, textTransform: "uppercase" }}>Status</Text>
-                          <Segmented options={questStatuses} t={t} value={packForm.status} onChange={(status) => setPackForm((current) => ({ ...current, status }))} renderLabel={statusLabel} />
-                        </View>
-                        <View style={{ gap: 10 }}>
-                          <View style={{ flexDirection: compact ? "column" : "row", justifyContent: "space-between", gap: 12 }}>
-                            <View>
-                              <Text style={{ color: t.text, fontSize: 18, fontWeight: "900" }}>Quests</Text>
-                              <Text style={{ color: t.muted, marginTop: 4, fontWeight: "700" }}>{packForm.questIds.length} selected from published quests</Text>
-                            </View>
-                            <View style={{ width: compact ? "100%" : 320 }}>
-                              <SearchField value={packSearch} onChangeText={setPackSearch} placeholder="Search quests..." t={t} />
-                            </View>
-                          </View>
-                          <Panel t={t} style={{ overflow: "hidden", maxHeight: 320 }}>
-                            <ScrollView nestedScrollEnabled>
-                              {filteredPackQuests.length ? filteredPackQuests.map((quest) => (
-                                <QuestPickRow
-                                  key={quest.id}
-                                  quest={quest}
-                                  selected={packForm.questIds.includes(quest.id)}
-                                  onPress={() => togglePackQuest(quest.id)}
-                                  t={t}
-                                />
-                              )) : (
-                                <View style={{ padding: 18 }}>
-                                  <Text style={{ color: t.muted, fontWeight: "700" }}>No published quests match that search.</Text>
+                      <View style={{ flex: 1, width: adventureSplitLayout ? undefined : "100%", gap: 18 }}>
+                        <View style={{ flexDirection: adventurePreviewInline ? "row" : "column", gap: 18, alignItems: "flex-start" }}>
+                          <Panel t={t} style={{ flex: 1, width: adventurePreviewInline ? undefined : "100%", padding: 22, gap: 20 }}>
+                            <View style={{ gap: 12 }}>
+                              <FormSectionLabel t={t}>Pack basics</FormSectionLabel>
+                              <View style={{ flexDirection: compact ? "column" : "row", gap: 14 }}>
+                                <View style={{ flex: 1, minWidth: compact ? undefined : 260 }}>
+                                  <Field label="Title" t={t} value={packForm.title} onChangeText={(title) => setPackForm((current) => ({ ...current, title }))} placeholder="City Weekend Starter" />
                                 </View>
-                              )}
-                            </ScrollView>
+                                <View style={{ flex: 1, minWidth: compact ? undefined : 260 }}>
+                                  <Field label="Subtitle" t={t} value={packForm.subtitle} onChangeText={(subtitle) => setPackForm((current) => ({ ...current, subtitle }))} placeholder="A polished set of quests" />
+                                </View>
+                              </View>
+                              <Field label="Description" multiline t={t} value={packForm.description} onChangeText={(description) => setPackForm((current) => ({ ...current, description }))} placeholder="Describe the mood, promise, and use case for this pack." />
+                            </View>
+
+                            <View style={{ gap: 12 }}>
+                              <FormSectionLabel t={t}>Visual identity</FormSectionLabel>
+                              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
+                                <View style={{ width: compact ? "100%" : 120 }}>
+                                  <Field label="Icon" t={t} value={packForm.icon} onChangeText={(icon) => setPackForm((current) => ({ ...current, icon }))} />
+                                </View>
+                                <View style={{ flex: 1, minWidth: compact ? undefined : 220 }}>
+                                  <Field label="Accent color" t={t} value={packForm.color} onChangeText={(color) => setPackForm((current) => ({ ...current, color }))} />
+                                </View>
+                                <View style={{ flex: 1, minWidth: compact ? undefined : 240 }}>
+                                  <Field label="Background color" t={t} value={packForm.bgColor} onChangeText={(bgColor) => setPackForm((current) => ({ ...current, bgColor }))} />
+                                </View>
+                              </View>
+                              <Field label="Cover image URL" t={t} value={packForm.coverImageUrl ?? ""} onChangeText={(coverImageUrl) => setPackForm((current) => ({ ...current, coverImageUrl }))} placeholder="https://..." />
+                            </View>
+
+                            <View style={{ gap: 10 }}>
+                              <FormSectionLabel t={t}>Status</FormSectionLabel>
+                              <Segmented options={questStatuses} t={t} value={packForm.status} onChange={(status) => setPackForm((current) => ({ ...current, status }))} renderLabel={statusLabel} />
+                            </View>
+
+                            <View style={{ gap: 12 }}>
+                              <View style={{ flexDirection: compact ? "column" : "row", justifyContent: "space-between", gap: 12, alignItems: compact ? "stretch" : "center" }}>
+                                <View style={{ flex: 1, gap: 4 }}>
+                                  <Text style={{ color: t.text, fontSize: 18, fontWeight: "900" }}>Quests</Text>
+                                  <Text style={{ color: t.muted, fontWeight: "700" }}>{packForm.questIds.length} selected from published quests</Text>
+                                </View>
+                                <View style={{ width: compact ? "100%" : 340, maxWidth: "100%" }}>
+                                  <SearchField value={packSearch} onChangeText={setPackSearch} placeholder="Search quests..." t={t} />
+                                </View>
+                              </View>
+                              <Panel t={t} style={{ overflow: "hidden", maxHeight: 380 }}>
+                                <ScrollView nestedScrollEnabled style={{ maxHeight: 380 }}>
+                                  {filteredPackQuests.length ? filteredPackQuests.map((quest) => (
+                                    <QuestPickRow
+                                      key={quest.id}
+                                      quest={quest}
+                                      selected={packForm.questIds.includes(quest.id)}
+                                      onPress={() => togglePackQuest(quest.id)}
+                                      t={t}
+                                    />
+                                  )) : (
+                                    <View style={{ padding: 18 }}>
+                                      <Text style={{ color: t.muted, fontWeight: "700" }}>No published quests match that search.</Text>
+                                    </View>
+                                  )}
+                                </ScrollView>
+                              </Panel>
+                            </View>
+
+                            <View style={{ flexDirection: compact ? "column" : "row", gap: 12 }}>
+                              <View style={{ flex: 1 }}>
+                                <ActionButton disabled={saving} icon="save-outline" label={saving ? "Saving..." : "Save Changes"} onPress={() => saveAdventurePack()} secondary t={t} />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <ActionButton disabled={saving || !packForm.title.trim()} icon="rocket-outline" label="Publish Pack" onPress={() => saveAdventurePack("published")} t={t} />
+                              </View>
+                            </View>
+                          </Panel>
+
+                          <Panel t={t} style={{ width: adventurePreviewInline ? 430 : "100%", padding: 22 }}>
+                            <AdventurePackPreviewCard form={packForm} previewQuests={packPreviewQuests} t={t} />
                           </Panel>
                         </View>
-                        <View style={{ flexDirection: compact ? "column" : "row", gap: 12 }}>
-                          <View style={{ flex: 1 }}>
-                            <ActionButton disabled={saving} icon="save-outline" label={saving ? "Saving..." : "Save Changes"} onPress={() => saveAdventurePack()} secondary t={t} />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <ActionButton disabled={saving || !packForm.title.trim()} icon="rocket-outline" label="Publish Pack" onPress={() => saveAdventurePack("published")} t={t} />
-                          </View>
-                        </View>
-                      </Panel>
-
-                      <Panel t={t} style={{ width: compact ? "100%" : 390, padding: 22 }}>
-                        <AdventurePackPreviewCard form={packForm} previewQuests={packPreviewQuests} t={t} />
-                      </Panel>
+                      </View>
                     </View>
                   ) : (
                     <EmptyPanel icon="lock-closed-outline" title="Published quest permission required" body="Adventure pack management is available to admins who can view published quests." t={t} />
