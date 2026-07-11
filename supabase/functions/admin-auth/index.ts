@@ -6,6 +6,7 @@ type AdminPermission =
   | "quests.create_draft"
   | "quests.submit_review"
   | "quests.review_publish"
+  | "content.delete"
   | "admins.manage"
   | "profile.manage"
   | "inbox.view";
@@ -38,6 +39,7 @@ const grantablePermissions: AdminPermission[] = [
   "quests.view_all",
   "quests.create_draft",
   "quests.submit_review",
+  "content.delete",
   "profile.manage",
   "inbox.view",
 ];

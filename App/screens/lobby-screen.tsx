@@ -2,13 +2,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import Svg, { Path } from "react-native-svg";
 
 import { LogLoreFlow } from "@/components/log-lore-flow";
 import { getLobbyLayout, lobbyDesign, resolveLobbyStates } from "@/components/lobby-design";
 import { QuestStartBlockSheet } from "@/components/quest-start-block";
 import { StreakPill } from "@/components/streak-pill";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
-import { Card, PillStat, Screen, Sheet, SoftButton, haptic } from "@/components/ui";
+import { Card, PillStat, Screen, Sheet, SoftButton, Tag, haptic } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
@@ -79,22 +80,32 @@ function LobbyBellButton({ onPress }: { onPress: () => void }) {
 
 function SectionHeader({
   icon,
+  leading,
   title,
   right,
 }: {
   icon?: keyof typeof Ionicons.glyphMap;
+  leading?: React.ReactNode;
   title: string;
   right?: React.ReactNode;
 }) {
   return (
     <View style={styles.sectionHeader}>
       <View style={styles.sectionTitleRow}>
-        {icon ? <Ionicons name={icon} size={18} color={T.blue} /> : null}
+        {leading ?? (icon ? <Ionicons name={icon} size={18} color={T.blue} /> : null)}
         <Text style={styles.sectionTitle}>{title}</Text>
       </View>
       {right}
     </View>
   );
+}
+
+function EnergyHeadingIcon() {
+  return <Svg width={24} height={24} viewBox="0 0 24 24" fill="none"><Path d="M13.4999 2L3.99994 13.2C3.62994 13.64 3.43994 13.86 3.43994 14.05C3.43994 14.21 3.51994 14.37 3.63994 14.47C3.79994 14.6 4.07994 14.6 4.63994 14.6H10.9999L10.4999 22L19.5599 10.8C19.9299 10.36 20.1199 10.14 20.1199 9.95C20.1199 9.79 20.0399 9.63 19.9199 9.53C19.7599 9.4 19.4799 9.4 18.9199 9.4H12.9999L13.4999 2Z" fill="#4DA8FF" stroke="#4DA8FF" strokeWidth={1.5} strokeLinejoin="round" /></Svg>;
+}
+
+function CompletedHeadingIcon() {
+  return <Svg width={17} height={12} viewBox="0 0 17 12" fill="none"><Path d="M15.5722 0.916016L5.49609 10.9922L0.916016 6.41212" stroke="#4DA8FF" strokeWidth={1.83203} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
 }
 
 function EnergyCard({
@@ -116,7 +127,10 @@ function EnergyCard({
     >
       <View style={styles.energyHeaderRow}>
         <View style={styles.energyCopy}>
-          <Text style={styles.energyTitle}>Daily Energy</Text>
+          <View style={styles.energyTitleRow}>
+            <EnergyHeadingIcon />
+            <Text style={styles.energyTitle}>Daily Energy</Text>
+          </View>
           <Text style={styles.energySubtitle}>
             {dailyUsed} of {dailyLimit} quests completed
           </Text>
@@ -144,58 +158,24 @@ function EnergyCard({
   );
 }
 
-function ActiveTag({ label, color, bg }: { label: string; color: string; bg: string }) {
-  return (
-    <View style={[styles.activeTag, { backgroundColor: bg }]}>
-      <Text style={[styles.activeTagText, { color }]}>{label}</Text>
-    </View>
-  );
+function ClockIcon() {
+  return <Svg width={18} height={18} viewBox="0 0 18 18" fill="none"><Path d="M9 16.5C13.1421 16.5 16.5 13.1421 16.5 9C16.5 4.85786 13.1421 1.5 9 1.5C4.85786 1.5 1.5 4.85786 1.5 9C1.5 13.1421 4.85786 16.5 9 16.5Z" stroke="#F39C12" strokeWidth={1.875} strokeLinecap="round" strokeLinejoin="round" /><Path d="M9 4.5V9L12 10.5" stroke="#F39C12" strokeWidth={1.875} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
 }
 
-function QuestMeta({ quest }: { quest: Quest }) {
-  const category = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
-  const difficulty = difficultyColor[quest.difficulty];
-
-  return (
-    <View style={styles.metaRow}>
-      <ActiveTag label={quest.category} color={category.text} bg={category.bg} />
-      <ActiveTag label={quest.difficulty} color={difficulty.text} bg={difficulty.bg} />
-    </View>
-  );
+function RewardIcon() {
+  return <Svg width={18} height={18} viewBox="0 0 18 18"><Path d="M8.64376 1.72117C8.67662 1.65477 8.7274 1.59887 8.79035 1.55979C8.85329 1.52071 8.92591 1.5 9.00001 1.5C9.0741 1.5 9.14672 1.52071 9.20967 1.55979C9.27262 1.59887 9.32339 1.65477 9.35626 1.72117L11.0888 5.23042C11.2029 5.4614 11.3714 5.66123 11.5797 5.81276C11.7881 5.96429 12.0301 6.063 12.285 6.10042L16.1595 6.66742C16.2329 6.67806 16.3019 6.70902 16.3586 6.75682C16.4154 6.80462 16.4576 6.86733 16.4805 6.93788C16.5035 7.00842 16.5062 7.08398 16.4884 7.156C16.4707 7.22802 16.4331 7.29363 16.38 7.34542L13.578 10.0739C13.3932 10.254 13.255 10.4763 13.1751 10.7216C13.0953 10.967 13.0763 11.2281 13.1198 11.4824L13.7813 15.3374C13.7942 15.4108 13.7863 15.4863 13.7584 15.5554C13.7305 15.6245 13.6837 15.6844 13.6234 15.7282C13.5631 15.772 13.4917 15.7979 13.4174 15.8031C13.3431 15.8083 13.2688 15.7924 13.203 15.7574L9.73951 13.9364C9.51129 13.8166 9.25739 13.754 8.99963 13.754C8.74187 13.754 8.48797 13.8166 8.25976 13.9364L4.79701 15.7574C4.73126 15.7922 4.65705 15.8079 4.58285 15.8026C4.50864 15.7973 4.4374 15.7713 4.37723 15.7276C4.31706 15.6838 4.27038 15.6241 4.2425 15.5551C4.21462 15.4861 4.20665 15.4107 4.21951 15.3374L4.88026 11.4832C4.9239 11.2287 4.90499 10.9675 4.82516 10.722C4.74533 10.4764 4.60696 10.254 4.42201 10.0739L1.62001 7.34617C1.56645 7.29444 1.5285 7.22872 1.51048 7.15648C1.49246 7.08423 1.49508 7.00838 1.51807 6.93756C1.54105 6.86674 1.58346 6.8038 1.64046 6.75591C1.69747 6.70801 1.76678 6.67709 1.84051 6.66667L5.71426 6.10042C5.96945 6.06329 6.2118 5.96471 6.42044 5.81316C6.62909 5.66161 6.79778 5.46162 6.91201 5.23042L8.64376 1.72117Z" fill="#A06BFF" stroke="#A06BFF" strokeWidth={1.875} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
 }
 
-function ActivePrimaryButton({ onPress }: { onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => {
-        haptic();
-        onPress();
-      }}
-      style={({ pressed }) => [styles.activePrimaryButton, pressed ? styles.pressed : null]}
-    >
-      <View style={styles.activePrimaryIcon}>
-        <Ionicons name="checkmark" size={19} color={T.blue} />
-      </View>
-      <Text style={styles.activePrimaryText}>Complete Quest</Text>
-    </Pressable>
-  );
+function CheckIcon() {
+  return <Svg width={22} height={22} viewBox="0 0 22 22" fill="none"><Path d="M18.3203 5.49609L8.24414 15.5723L3.66406 10.9922" stroke="white" strokeWidth={1.83203} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
 }
 
-function ActiveSecondaryButton({ onPress }: { onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => {
-        haptic();
-        onPress();
-      }}
-      style={({ pressed }) => [styles.activeSecondaryButton, pressed ? styles.pressed : null]}
-    >
-      <Ionicons name="bookmark" size={25} color={T.muted} />
-      <Text style={styles.activeSecondaryText}>Save For Later</Text>
-    </Pressable>
-  );
+function CloseIcon() {
+  return <Svg width={18} height={18} viewBox="0 0 18 18" fill="none"><Path d="M13.5 4.5L4.5 13.5M4.5 4.5L13.5 13.5" stroke="#8A8186" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
+}
+
+function BookmarkIcon() {
+  return <Svg width={24} height={24} viewBox="0 0 24 24"><Path fillRule="evenodd" clipRule="evenodd" d="M21 11.098V16.091C21 19.187 21 20.736 20.266 21.412C19.916 21.735 19.474 21.938 19.003 21.992C18.016 22.105 16.863 21.085 14.558 19.046C13.538 18.145 13.029 17.694 12.44 17.576C12.1497 17.5167 11.8503 17.5167 11.56 17.576C10.97 17.694 10.461 18.145 9.442 19.046C7.137 21.085 5.984 22.105 4.997 21.991C4.52527 21.9367 4.08299 21.734 3.734 21.412C3 20.736 3 19.188 3 16.091V11.097C3 6.81 3 4.666 4.318 3.333C5.636 2 7.758 2 12 2C16.242 2 18.364 2 19.682 3.332C21 4.664 21 6.81 21 11.098ZM8.25 6C8.25 5.58579 8.58579 5.25 9 5.25H15C15.4142 5.25 15.75 5.58579 15.75 6C15.75 6.41421 15.4142 6.75 15 6.75H9C8.58579 6.75 8.25 6.41421 8.25 6Z" fill="#8A8186" /></Svg>;
 }
 
 function ActiveQuestCard({
@@ -209,34 +189,30 @@ function ActiveQuestCard({
   onComplete: () => void;
   onSaveForLater: () => void;
 }) {
+  const category = categoryColor[activeQuest.category] ?? { text: activeQuest.color, bg: `${activeQuest.color}18` };
+  const difficulty = difficultyColor[activeQuest.difficulty];
+
   return (
     <View style={styles.activeWrap}>
-      <Card style={styles.activeCard}>
-      <QuestMeta quest={activeQuest} />
-      <View style={styles.activeTitleGroup}>
-        <Text style={styles.activeTitle}>{activeQuest.title}</Text>
-        <Text style={styles.activeDescription} numberOfLines={3}>
-          {activeQuest.description}
-        </Text>
-      </View>
-      <View style={styles.activeStats}>
-        <View style={styles.activeStatCell}>
-          <Text style={styles.statLabel}>Elapsed Time</Text>
-          <Text style={styles.statValue}>{elapsedLabel}</Text>
+      <View style={styles.activeCard}>
+        <View style={styles.activeTopRow}>
+          <View style={styles.metaRow}>
+            <Tag label={activeQuest.category} color={category.text} bg={category.bg} />
+            <Tag label={activeQuest.difficulty} color={difficulty.text} bg={difficulty.bg} />
+          </View>
+          <View style={styles.closeButton}><CloseIcon /></View>
         </View>
-        <View style={styles.statDivider} />
-        <View style={styles.activeStatCell}>
-          <Text style={styles.statLabel}>Reward</Text>
-          <Text style={styles.statValue}>+{activeQuest.xp} XP</Text>
+        <Text style={styles.activeTitle} numberOfLines={1}>{activeQuest.title}</Text>
+        <Text style={styles.activeDescription} numberOfLines={2}>{activeQuest.description}</Text>
+        <View style={styles.activeStats}>
+          <View style={styles.activeStatCell}><View style={styles.timeIconWrap}><ClockIcon /></View><View style={styles.statCopy}><Text style={[styles.statLabel, styles.timeLabel]}>Elapsed Time</Text><Text style={styles.statValue}>{elapsedLabel}</Text></View></View>
+          <View style={styles.statDivider} />
+          <View style={styles.activeStatCell}><View style={styles.rewardIconWrap}><RewardIcon /></View><View style={styles.statCopy}><Text style={[styles.statLabel, styles.rewardLabel]}>Reward</Text><Text style={styles.statValue}>+{activeQuest.xp} XP</Text></View></View>
         </View>
-      </View>
         <View style={styles.buttonStack}>
-          <ActivePrimaryButton onPress={onComplete} />
-          <ActiveSecondaryButton onPress={onSaveForLater} />
+          <Pressable accessibilityRole="button" onPress={() => { haptic(); onComplete(); }} style={({ pressed }) => [styles.activePrimaryButton, pressed ? styles.pressed : null]}><CheckIcon /><Text style={styles.activePrimaryText}>Complete Quest</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { haptic(); onSaveForLater(); }} style={({ pressed }) => [styles.activeSecondaryButton, pressed ? styles.pressed : null]}><BookmarkIcon /><Text style={styles.activeSecondaryText}>Save For Later</Text></Pressable>
         </View>
-      </Card>
-      <View style={styles.activeBadge}>
-        <Text style={styles.activeBadgeText}>ACTIVE!</Text>
       </View>
     </View>
   );
@@ -338,6 +314,7 @@ function CompletedSection({
     <View style={styles.section}>
       <SectionHeader
         title="Completed Today"
+        leading={<CompletedHeadingIcon />}
         right={
           completions.length ? (
             <Pressable
@@ -616,39 +593,44 @@ const styles = StyleSheet.create({
     boxShadow: `3px 3px 0px ${T.border}`,
   },
   energySection: {
-    gap: 13,
-    paddingTop: 4,
-    paddingBottom: 2,
+    gap: 8,
+    paddingTop: 3,
+    paddingBottom: 3,
   },
   energyHeaderRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 14,
+    gap: 12,
   },
   energyCopy: {
     flex: 1,
     minWidth: 0,
-    gap: 2,
+    gap: 3,
+  },
+  energyTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   energyTitle: {
     color: T.dark,
-    fontSize: 25,
-    lineHeight: 31,
+    fontSize: 20,
+    lineHeight: 25,
     fontWeight: "900",
   },
   energySubtitle: {
     color: T.muted,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: "800",
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
   },
   energyPill: {
-    minWidth: 118,
-    minHeight: 42,
+    minWidth: 104,
+    minHeight: 34,
     borderRadius: 99,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     backgroundColor: `${T.cyan}10`,
     alignItems: "center",
     justifyContent: "center",
@@ -659,10 +641,10 @@ const styles = StyleSheet.create({
   },
   energyPillText: {
     color: T.cyan,
-    fontSize: 13,
-    lineHeight: 17,
+    fontSize: 10,
+    lineHeight: 13,
     fontWeight: "900",
-    letterSpacing: 0.7,
+    letterSpacing: 0.8,
     textTransform: "uppercase",
   },
   energyPillTextDone: {
@@ -685,10 +667,10 @@ const styles = StyleSheet.create({
     boxShadow: "0px 2px 5px rgba(0,187,249,0.32)",
   },
   section: {
-    gap: 9,
+    gap: 12,
   },
   sectionHeader: {
-    minHeight: 28,
+    minHeight: 25,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -702,157 +684,178 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: T.dark,
-    fontSize: 18,
-    lineHeight: 23,
+    fontSize: 20,
+    lineHeight: 25,
     fontWeight: "900",
   },
   sectionLink: {
     color: T.blue,
     fontSize: 13,
+    lineHeight: 18,
     fontWeight: "900",
   },
   metaRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
     flexWrap: "wrap",
-  },
-  activeTag: {
-    borderRadius: 99,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignSelf: "flex-start",
-  },
-  activeTagText: {
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: "900",
-    letterSpacing: 1,
-    textTransform: "uppercase",
   },
   activeWrap: {
     position: "relative",
   },
   activeCard: {
-    borderRadius: radius.xl,
-    gap: 14,
-    paddingHorizontal: 16,
-    paddingBottom: 18,
-    paddingTop: 18,
-    boxShadow: `4px 5px 0px ${T.border}`,
+    height: 387,
+    position: "relative",
+    borderRadius: 32,
+    borderWidth: 1.5,
+    borderColor: T.border,
+    backgroundColor: T.white,
+    boxShadow: `4px 4px 0px ${T.border}`,
   },
-  activeTitleGroup: {
-    gap: 6,
+  activeTopRow: {
+    position: "absolute",
+    top: 24,
+    left: 24,
+    right: 15,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
   activeTitle: {
     color: T.dark,
-    fontSize: 21,
-    lineHeight: 27,
+    fontFamily: "RubikBlack",
     fontWeight: "900",
+    fontSize: 24,
+    lineHeight: 28,
+    letterSpacing: -0.5,
+    position: "absolute",
+    top: 63,
+    left: 24,
+    right: 24,
   },
   activeDescription: {
     color: T.muted,
-    fontSize: 14,
+    fontFamily: "Rubik",
+    fontWeight: "600",
+    fontSize: 16,
     lineHeight: 20,
-    fontWeight: "700",
+    position: "absolute",
+    top: 101,
+    left: 25,
+    right: 25,
+    height: 44,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(232,223,213,0.5)",
   },
   activeStats: {
+    position: "absolute",
+    top: 151,
+    left: 24,
+    right: 24,
     flexDirection: "row",
-    minHeight: 68,
+    alignItems: "center",
+    height: 66,
     borderRadius: radius.lg,
-    borderWidth: 2,
-    borderColor: T.border,
-    backgroundColor: "rgba(252,239,246,0.38)",
+    borderWidth: 1,
+    borderColor: "rgba(232,223,213,0.5)",
+    backgroundColor: "rgba(252,239,246,0.5)",
     overflow: "hidden",
   },
   activeStatCell: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+  },
+  statCopy: {
+    flexShrink: 1,
+  },
+  timeIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
+    backgroundColor: "rgba(243,156,18,0.12)",
+  },
+  rewardIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(160,107,255,0.12)",
   },
   statLabel: {
-    color: T.cyan,
-    fontSize: 10,
-    fontWeight: "900",
-    letterSpacing: 1.1,
+    fontFamily: "RubikBlack",
+    fontWeight: "600",
+    fontSize: 9,
+    lineHeight: 15,
+    letterSpacing: 0.88,
     textTransform: "uppercase",
   },
+  timeLabel: { color: T.orange },
+  rewardLabel: { color: "#a06bff" },
   statValue: {
     color: T.dark,
-    fontSize: 18,
-    lineHeight: 23,
+    fontFamily: "RubikBlack",
     fontWeight: "900",
+    fontSize: 18,
+    lineHeight: 26,
   },
   statDivider: {
-    width: 2,
-    height: 42,
+    width: 1,
+    height: 49,
     alignSelf: "center",
-    backgroundColor: T.border,
-  },
-  activeBadge: {
-    position: "absolute",
-    right: -8,
-    top: -12,
-    borderRadius: 16,
-    backgroundColor: T.yellow,
-    borderWidth: 2.5,
-    borderColor: T.white,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-    boxShadow: "0px 4px 8px rgba(61,52,56,0.18)",
-    transform: [{ rotate: "10deg" }],
-  },
-  activeBadgeText: {
-    color: T.dark,
-    fontSize: 11,
-    fontWeight: "900",
-    letterSpacing: 0.8,
+    backgroundColor: "rgba(232,223,213,0.5)",
   },
   buttonStack: {
-    gap: 10,
+    position: "absolute",
+    top: 238,
+    left: 24,
+    right: 24,
+    gap: 9,
   },
   activePrimaryButton: {
-    minHeight: 50,
-    borderRadius: 25,
+    height: 59,
+    borderRadius: 32,
     backgroundColor: T.blue,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 12,
-    boxShadow: "0px 6px 10px rgba(77,168,255,0.24)",
-  },
-  activePrimaryIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: T.white,
-    alignItems: "center",
-    justifyContent: "center",
+    boxShadow: "0px 4px 2px rgba(77,168,255,0.25)",
   },
   activePrimaryText: {
     color: T.white,
-    fontSize: 16,
-    lineHeight: 21,
-    fontWeight: "900",
+    fontFamily: "RubikBold",
+    fontWeight: "700",
+    fontSize: 18,
+    lineHeight: 27,
   },
   activeSecondaryButton: {
-    minHeight: 48,
-    borderRadius: 24,
+    height: 56,
+    borderRadius: 32,
     borderWidth: 2,
     borderColor: T.border,
     backgroundColor: T.white,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    gap: 12,
+    gap: 7,
   },
   activeSecondaryText: {
     color: T.muted,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: "900",
+    fontFamily: "RubikBold",
+    fontWeight: "700",
+    fontSize: 16,
+    lineHeight: 24,
   },
   emptyActiveCard: {
     borderRadius: radius.xl,
@@ -866,11 +869,11 @@ const styles = StyleSheet.create({
     padding: lobbyDesign.spacing.control,
   },
   emptyLoadingCard: {
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     alignItems: "center",
     gap: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
+    paddingHorizontal: 22,
+    paddingVertical: 22,
   },
   emptyQuestHeader: {
     flexDirection: "row",
@@ -896,35 +899,35 @@ const styles = StyleSheet.create({
   },
   emptyLoadingTitle: {
     color: T.dark,
-    fontSize: 17,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: "900",
     textAlign: "center",
   },
   emptyLoadingBody: {
     color: T.muted,
     fontSize: 13,
-    lineHeight: 19,
-    fontWeight: "700",
+    lineHeight: 18,
+    fontWeight: "600",
     textAlign: "center",
   },
   emptyQuestTitle: {
     color: T.dark,
-    fontSize: lobbyDesign.type.sectionTitle.fontSize,
-    lineHeight: lobbyDesign.type.sectionTitle.lineHeight,
+    fontSize: 16,
+    lineHeight: 20,
     fontWeight: "900",
   },
   emptyQuestBody: {
     color: T.muted,
-    fontSize: 14,
-    lineHeight: 19,
-    fontWeight: "700",
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
   },
   emptyActions: {
     alignSelf: "stretch",
   },
   nextQuestCard: {
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     flexDirection: "row",
     padding: 0,
     overflow: "hidden",
@@ -935,7 +938,7 @@ const styles = StyleSheet.create({
   },
   nextQuestContent: {
     flex: 1,
-    gap: 8,
+    gap: 7,
     padding: 14,
   },
   nextQuestTop: {
@@ -946,22 +949,23 @@ const styles = StyleSheet.create({
   },
   nextQuestLabel: {
     color: T.cyan,
-    fontSize: 11,
+    fontSize: 10,
+    lineHeight: 13,
     fontWeight: "900",
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
     textTransform: "uppercase",
   },
   nextQuestTitle: {
     color: T.dark,
-    fontSize: 18,
-    lineHeight: 23,
+    fontSize: 16,
+    lineHeight: 20,
     fontWeight: "900",
   },
   nextQuestBody: {
     color: T.muted,
     fontSize: 13,
-    lineHeight: 19,
-    fontWeight: "700",
+    lineHeight: 18,
+    fontWeight: "600",
   },
   nextQuestActions: {
     flexDirection: "row",
@@ -1006,14 +1010,14 @@ const styles = StyleSheet.create({
   completedEmptyTitle: {
     color: T.dark,
     fontSize: 16,
-    lineHeight: 21,
+    lineHeight: 20,
     fontWeight: "900",
   },
   completedEmptyBody: {
     color: T.muted,
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: "700",
+    fontWeight: "600",
   },
   completedList: {
     gap: 10,
@@ -1023,7 +1027,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     borderRadius: radius.lg,
-    paddingVertical: 12,
+    padding: 14,
+    height: 80,
   },
   completedStripe: {
     width: 5,
@@ -1036,12 +1041,15 @@ const styles = StyleSheet.create({
   },
   completedTitle: {
     color: T.dark,
+    fontSize: 16,
+    lineHeight: 20,
     fontWeight: "900",
   },
   completedMeta: {
     color: T.muted,
-    fontWeight: "700",
+    fontWeight: "600",
     fontSize: 12,
+    lineHeight: 18,
   },
   sheetContent: {
     paddingHorizontal: 24,

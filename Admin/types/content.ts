@@ -114,6 +114,7 @@ export const adminPermissions = [
   "quests.create_draft",
   "quests.submit_review",
   "quests.review_publish",
+  "content.delete",
   "admins.manage",
   "profile.manage",
   "inbox.view",

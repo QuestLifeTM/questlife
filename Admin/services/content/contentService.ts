@@ -715,6 +715,23 @@ export async function upsertAdventurePack(input: AdventurePackFormInput & { id?:
   return data;
 }
 
+export async function deleteAdventurePack(packId: string) {
+  assertSupabaseConfigured();
+
+  // The foreign key cascades the related quest assignments. Deleting the pack
+  // first keeps this operation atomic when row-level security rejects it.
+  const { data, error } = await supabase
+    .from("adventure_packs")
+    .delete()
+    .eq("id", packId)
+    .select("id")
+    .maybeSingle<{ id: string }>();
+  if (error) throw error;
+  if (!data) throw new Error("Adventure pack was not found or you do not have permission to delete it.");
+
+  await writeAudit("adventure_pack.deleted", "adventure_pack", packId, {});
+}
+
 export async function toggleSavedQuest(questId: string, saved: boolean) {
   assertSupabaseConfigured();
   const { data: userData, error: userError } = await supabase.auth.getUser();

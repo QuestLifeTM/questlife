@@ -14,7 +14,9 @@ export default function RootLayout() {
     GeistPixel: require("../assets/fonts/GeistPixel-Regular-Variable.ttf"),
     Rubik: require("../assets/fonts/Rubik-Regular.ttf"),
     RubikBold: require("../assets/fonts/Rubik-Bold.ttf"),
-    RubikBlack: require("../assets/fonts/Rubik-Black.ttf")
+    RubikBlack: require("../assets/fonts/Rubik-Black.ttf"),
+    "NunitoSans12pt-SemiBold": require("../assets/fonts/NunitoSans12pt-SemiBold.ttf"),
+    "NunitoSans12pt-ExtraBold": require("../assets/fonts/NunitoSans12pt-ExtraBold.ttf")
   });
 
   if (!fontsLoaded) {

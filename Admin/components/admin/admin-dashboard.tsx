@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useContent } from "@/contexts/ContentContext";
 import { signOut } from "@/services/auth/authService";
 import {
-  upsertAdventurePack,
+  deleteAdventurePack,
   deleteAdminNotifications,
   deleteQuest,
   fetchAdminNotifications,
@@ -22,6 +22,7 @@ import {
   notifyQuestReviewResult,
   updateAdminAccess,
   updateOwnAdminProfile,
+  upsertAdventurePack,
   upsertQuest,
   deleteAdmin,
 } from "@/services/content/contentService";
@@ -193,6 +194,7 @@ const grantableAdminPermissions = adminPermissions.filter(
   (permission) => permission !== "admins.manage" && permission !== "quests.review_publish",
 );
 const permissionLabels: Record<AdminPermission, string> = {
+  "content.delete": "Delete content",
   "admins.manage": "Manage admins",
   "inbox.view": "Inbox",
   "profile.manage": "Profile",
@@ -203,6 +205,7 @@ const permissionLabels: Record<AdminPermission, string> = {
   "quests.view_published": "View published",
 };
 const permissionDescriptions: Record<AdminPermission, string> = {
+  "content.delete": "Delete adventure packs and scheduled featured batches.",
   "admins.manage": "Invite admins and manage their access to dashboard tools.",
   "inbox.view": "Review admin notifications and publication decisions.",
   "profile.manage": "Update the admin's own display name and password.",
@@ -679,6 +682,7 @@ function ChoiceGrid<TValue extends string>({
 }
 
 function ActionButton({
+  danger,
   disabled,
   icon,
   label,
@@ -686,6 +690,7 @@ function ActionButton({
   secondary,
   t,
 }: {
+  danger?: boolean;
   disabled?: boolean;
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
@@ -705,15 +710,15 @@ function ActionButton({
         gap: 8,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: secondary ? t.border : nova.blue,
-        backgroundColor: disabled ? t.border : secondary ? t.card : nova.blue,
+        borderColor: danger ? (t.mode === "dark" ? "rgba(248,113,113,0.52)" : "rgba(220,38,38,0.42)") : secondary ? t.border : nova.blue,
+        backgroundColor: disabled ? t.border : danger ? (t.mode === "dark" ? "rgba(127,29,29,0.34)" : "#fff1f2") : secondary ? t.card : nova.blue,
         paddingHorizontal: 18,
         opacity: disabled ? 0.68 : 1,
         transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
       })}
     >
-      <Ionicons name={icon} size={18} color={secondary ? t.text : "#ffffff"} />
-      <Text style={{ color: secondary ? t.text : "#ffffff", fontSize: 15, fontWeight: "900" }}>{label}</Text>
+      <Ionicons name={icon} size={18} color={danger ? (t.mode === "dark" ? "#fecaca" : "#b91c1c") : secondary ? t.text : "#ffffff"} />
+      <Text style={{ color: danger ? (t.mode === "dark" ? "#fecaca" : "#b91c1c") : secondary ? t.text : "#ffffff", fontSize: 15, fontWeight: "900" }}>{label}</Text>
     </Pressable>
   );
 }
@@ -1144,6 +1149,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const [packSearch, setPackSearch] = useState("");
   const [featuredDate, setFeaturedDate] = useState(featuredDateKey(new Date()));
   const [featuredQuestIds, setFeaturedQuestIds] = useState<string[]>([]);
+  const [hasFeaturedBatch, setHasFeaturedBatch] = useState(false);
   const [featuredSearch, setFeaturedSearch] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [invitePermissions, setInvitePermissions] = useState<AdminPermission[]>(defaultAdminPermissions);
@@ -1171,6 +1177,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const canViewAll = hasPermission(membership, "quests.view_all");
   const canCreateDraft = hasPermission(membership, "quests.create_draft");
   const canSubmitReview = hasPermission(membership, "quests.submit_review");
+  const canDeleteContent = hasPermission(membership, "content.delete");
   const canReview = membership?.role === "super_admin" && hasPermission(membership, "quests.review_publish");
   const canManageAdmins = membership?.role === "super_admin";
   const canManageProfile = hasPermission(membership, "profile.manage");
@@ -1346,8 +1353,10 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     setLoadingFeaturedBatch(true);
     try {
       const batches = await fetchFeaturedBatches(date, date);
+      setHasFeaturedBatch(Boolean(batches[0]));
       setFeaturedQuestIds(batches[0]?.questIds ?? []);
     } catch (nextError) {
+      setHasFeaturedBatch(false);
       setFeaturedQuestIds([]);
       setError(nextError instanceof Error ? nextError.message : "Unable to load featured batch.");
     } finally {
@@ -1458,6 +1467,48 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     }
   }
 
+  function confirmDeleteAdventurePack() {
+    if (!canDeleteContent) {
+      setError("You do not have permission to delete content.");
+      return;
+    }
+
+    const pack = adventurePacks.find((item) => item.id === selectedPackId);
+    if (!pack) return;
+
+    Alert.alert(
+      "Delete adventure pack?",
+      `Delete “${pack.title}” and remove its ${pack.questCount} quest ${pack.questCount === 1 ? "assignment" : "assignments"}? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete pack", style: "destructive", onPress: () => void deleteSelectedAdventurePack(pack) },
+      ],
+    );
+  }
+
+  async function deleteSelectedAdventurePack(pack: AdventurePack) {
+    if (!canDeleteContent) {
+      setError("You do not have permission to delete content.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await deleteAdventurePack(pack.id);
+      await loadAdminContent();
+      await refreshMobileContent();
+      setSelectedPackId(null);
+      setPackForm(defaultAdventurePackForm);
+      setMessage(`Deleted “${pack.title}”.`);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Unable to delete adventure pack.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function toggleFeaturedQuest(id: string) {
     setFeaturedQuestIds((current) => {
       if (current.includes(id)) return current.filter((questId) => questId !== id);
@@ -1475,6 +1526,10 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
       setError("Featured batches need exactly 6 quests.");
       return;
     }
+    if (hasFeaturedBatch && !canDeleteContent) {
+      setError("You need the Delete content permission to edit an existing featured batch.");
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -1483,6 +1538,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
       await upsertFeaturedBatch(featuredDate, featuredQuestIds);
       await loadAdminContent();
       await refreshMobileContent();
+      setHasFeaturedBatch(true);
       setMessage(`Featured batch saved for ${featuredDate}.`);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Unable to save featured batch.");
@@ -1492,8 +1548,8 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   }
 
   async function clearFeaturedBatch() {
-    if (!canViewPublished) {
-      setError("You do not have permission to manage featured quests.");
+    if (!canDeleteContent) {
+      setError("You do not have permission to delete content.");
       return;
     }
 
@@ -1503,6 +1559,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     try {
       await deleteFeaturedBatch(featuredDate);
       setFeaturedQuestIds([]);
+      setHasFeaturedBatch(false);
       await loadAdminContent();
       await refreshMobileContent();
       setMessage(`Featured batch cleared for ${featuredDate}.`);
@@ -1511,6 +1568,47 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     } finally {
       setSaving(false);
     }
+  }
+
+  function confirmClearFeaturedBatch() {
+    if (!canDeleteContent) {
+      setError("You do not have permission to delete content.");
+      return;
+    }
+
+    if (!featuredQuestIds.length) return;
+
+    Alert.alert(
+      "Delete featured batch?",
+      `Remove all ${featuredQuestIds.length} featured quests scheduled for ${featuredDate}? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete batch", style: "destructive", onPress: () => void clearFeaturedBatch() },
+      ],
+    );
+  }
+
+  function confirmRemoveFeaturedQuest(quest: Quest) {
+    if (!canDeleteContent) {
+      setError("You do not have permission to delete content.");
+      return;
+    }
+
+    Alert.alert(
+      "Remove featured quest?",
+      `Remove “${quest.title}” from the ${featuredDate} lineup? Save the featured batch to publish this change.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            toggleFeaturedQuest(quest.id);
+            setMessage(`Removed “${quest.title}” from the pending lineup. Save the batch to publish this change.`);
+          },
+        },
+      ],
+    );
   }
 
   async function saveDraft(submitForReview: boolean) {
@@ -2422,6 +2520,11 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                               <View style={{ flex: 1 }}>
                                 <ActionButton disabled={saving || !packForm.title.trim()} icon="rocket-outline" label="Publish Pack" onPress={() => saveAdventurePack("published")} t={t} />
                               </View>
+                              {selectedPackId && canDeleteContent ? (
+                                <View style={{ flex: 1 }}>
+                                  <ActionButton danger disabled={saving} icon="trash-outline" label="Delete Pack" onPress={confirmDeleteAdventurePack} t={t} />
+                                </View>
+                              ) : null}
                             </View>
                           </Panel>
 
@@ -2494,9 +2597,21 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                                   <Text numberOfLines={1} style={{ color: t.text, fontSize: 15, fontWeight: "900" }}>{quest.title}</Text>
                                   <Text style={{ color: t.muted, fontSize: 12, fontWeight: "700" }}>{quest.category} · +{quest.xp} XP</Text>
                                 </View>
-                                {!isFeaturedPast ? (
-                                  <Pressable onPress={() => toggleFeaturedQuest(id)} style={{ width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center" }}>
-                                    <Ionicons name="close-circle" size={20} color={t.faint} />
+                                {!isFeaturedPast && canDeleteContent ? (
+                                  <Pressable
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Remove ${quest.title} from the featured lineup`}
+                                    onPress={() => confirmRemoveFeaturedQuest(quest)}
+                                    style={({ pressed }) => ({
+                                      width: 44,
+                                      height: 44,
+                                      borderRadius: 8,
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      backgroundColor: pressed ? (t.mode === "dark" ? "rgba(127,29,29,0.34)" : "#fff1f2") : "transparent",
+                                    })}
+                                  >
+                                    <Ionicons name="trash-outline" size={18} color={nova.red} />
                                   </Pressable>
                                 ) : null}
                               </View>
@@ -2531,7 +2646,10 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                                   key={quest.id}
                                   quest={quest}
                                   selected={featuredQuestIds.includes(quest.id)}
-                                  disabled={!featuredQuestIds.includes(quest.id) && featuredQuestIds.length >= 6}
+                                  disabled={
+                                    (!featuredQuestIds.includes(quest.id) && featuredQuestIds.length >= 6) ||
+                                    (featuredQuestIds.includes(quest.id) && !canDeleteContent)
+                                  }
                                   onPress={() => toggleFeaturedQuest(quest.id)}
                                   t={t}
                                 />
@@ -2546,12 +2664,21 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                       </View>
 
                       {!isFeaturedPast ? (
-                        <View style={{ flexDirection: compact ? "column" : "row", gap: 12 }}>
-                          <View style={{ flex: 1 }}>
-                            <ActionButton disabled={saving || featuredQuestIds.length !== 6} icon="save-outline" label={saving ? "Saving..." : "Save Featured Batch"} onPress={saveFeaturedBatch} t={t} />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <ActionButton disabled={saving} icon="trash-outline" label="Clear Batch" onPress={clearFeaturedBatch} secondary t={t} />
+                        <View style={{ gap: 10 }}>
+                          {hasFeaturedBatch && !canDeleteContent ? (
+                            <Text style={{ color: t.muted, fontSize: 13, fontWeight: "700" }}>
+                              Delete content permission is required to edit an existing featured batch.
+                            </Text>
+                          ) : null}
+                          <View style={{ flexDirection: compact ? "column" : "row", gap: 12 }}>
+                            <View style={{ flex: 1 }}>
+                              <ActionButton disabled={saving || featuredQuestIds.length !== 6 || (hasFeaturedBatch && !canDeleteContent)} icon="save-outline" label={saving ? "Saving..." : "Save Featured Batch"} onPress={saveFeaturedBatch} t={t} />
+                            </View>
+                            {canDeleteContent ? (
+                              <View style={{ flex: 1 }}>
+                                <ActionButton danger disabled={saving || !featuredQuestIds.length} icon="trash-outline" label="Delete Featured Batch" onPress={confirmClearFeaturedBatch} t={t} />
+                              </View>
+                            ) : null}
                           </View>
                         </View>
                       ) : null}
