@@ -5,12 +5,8 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { Alert, StyleSheet, Text, View } from "react-native";
 
 import {
-  AppleIcon,
   AuthInput,
   BackButton,
-  Divider,
-  GoogleIcon,
-  OutlineButton,
   PasswordToggle,
   PrimaryButton,
 } from "@/components/auth/AuthControls";
@@ -151,16 +147,9 @@ export default function RegisterScreen() {
     }
   }
 
-  function showOAuthSetup() {
-    Alert.alert(
-      "Provider setup required",
-      "Google and Apple sign in require provider credentials in Supabase before they can be enabled safely.",
-    );
-  }
-
   return (
     <AuthScaffold>
-      <BackButton onPress={() => router.replace("/(auth)/login")} />
+      <BackButton onPress={() => router.replace("/(auth)/auth-options")} />
       <AuthTitle>{"Let's get\nStarted"}</AuthTitle>
 
       <View style={styles.form}>
@@ -256,16 +245,6 @@ export default function RegisterScreen() {
         title={loading ? "Creating account..." : "Sign up"}
       />
 
-      <View style={styles.social}>
-        <Divider />
-        <OutlineButton title="Continue with Apple" onPress={showOAuthSetup}>
-          <AppleIcon />
-        </OutlineButton>
-        <OutlineButton title="Continue with Google" onPress={showOAuthSetup}>
-          <GoogleIcon />
-        </OutlineButton>
-      </View>
-
       <Text style={styles.footer}>
         Already have an account?{" "}
         <Text style={styles.link} onPress={() => router.push("/(auth)/login")}>
@@ -284,18 +263,14 @@ const styles = StyleSheet.create({
   passwordGroup: {
     gap: 10,
   },
-  social: {
-    gap: 14,
-    marginBottom: 24,
-    marginTop: 22,
-  },
   footer: {
     color: T.muted,
     fontSize: 13,
+    marginTop: 22,
     textAlign: "center",
   },
   link: {
-    color: "rgba(255,255,255,0.78)",
-    fontWeight: "800",
+    color: T.blue,
+    fontWeight: "900",
   },
 });

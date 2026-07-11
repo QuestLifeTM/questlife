@@ -59,7 +59,7 @@ export default function OnboardingWelcomeScreen() {
     haptic();
 
     if (!session) {
-      router.replace("/(auth)/login");
+      router.replace("/(auth)/auth-options");
       return;
     }
 

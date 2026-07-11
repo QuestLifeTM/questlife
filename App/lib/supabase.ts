@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import "react-native-url-polyfill/auto";
+import "@/lib/urlPolyfill";
 
 import { getSupabaseEnv } from "@/lib/env";
 import { secureAuthStorage } from "@/lib/secureAuthStorage";
