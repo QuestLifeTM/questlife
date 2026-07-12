@@ -89,7 +89,7 @@ QuestLife should make choosing an activity feel easy, completing it feel rewardi
 ### Social rules
 
 - Friend requests, quest shares, quest challenges, party invitations, and duo streak invites are limited to authenticated users and enforce friendship/participant checks in the backend.
-- Party modes are **together** (co-op) and **relay**. Parties have members, a quest list, and per-member quest completion visibility.
+- Party modes are **Everyone Together** (the host runs a shared quest clock and locks speed bonuses) and **Free for All** (members independently earn base quest XP). Parties retain member history, private media, invite codes, rules, and grouped Journal rankings.
 
 ## 7. Primary user journeys
 

@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleProp, StyleSheet, Text, TextStyle, View, useWindowDimensions } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { LogLoreFlow } from "@/components/log-lore-flow";
@@ -16,6 +16,86 @@ import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useStreaks } from "@/contexts/StreaksContext";
 import { useQuestStart } from "@/hooks/useQuestStart";
 import { Quest } from "@/types/content";
+
+function useReducedMotionPreference() {
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReducedMotion(enabled);
+    });
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReducedMotion);
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  return reducedMotion;
+}
+
+function LobbyReveal({
+  children,
+  motionKey,
+  delay = 0,
+  reducedMotion,
+}: PropsWithChildren<{ motionKey: string; delay?: number; reducedMotion: boolean }>) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(10)).current;
+
+  useEffect(() => {
+    opacity.stopAnimation();
+    translateY.stopAnimation();
+
+    if (reducedMotion) {
+      opacity.setValue(1);
+      translateY.setValue(0);
+      return;
+    }
+
+    opacity.setValue(0);
+    translateY.setValue(10);
+    const animation = Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 220, delay, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 260, delay, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [delay, motionKey, opacity, reducedMotion, translateY]);
+
+  return <Animated.View style={{ opacity, transform: [{ translateY }] }}>{children}</Animated.View>;
+}
+
+function LobbySwapText({ text, style, reducedMotion }: { text: string; style: StyleProp<TextStyle>; reducedMotion: boolean }) {
+  const [displayed, setDisplayed] = useState(text);
+  const opacity = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (text === displayed) return;
+    if (reducedMotion) {
+      setDisplayed(text);
+      opacity.setValue(1);
+      translateY.setValue(0);
+      return;
+    }
+
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 0, duration: 110, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: -6, duration: 110, useNativeDriver: true }),
+    ]).start(() => {
+      setDisplayed(text);
+      translateY.setValue(7);
+      Animated.parallel([
+        Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.spring(translateY, { toValue: 0, damping: 18, stiffness: 220, mass: 0.7, useNativeDriver: true }),
+      ]).start();
+    });
+  }, [displayed, opacity, reducedMotion, text, translateY]);
+
+  return <Animated.Text style={[style, { opacity, transform: [{ translateY }] }]}>{displayed}</Animated.Text>;
+}
 
 function msToLabel(startedAt: string) {
   const mins = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 60000));
@@ -111,9 +191,11 @@ function CompletedHeadingIcon() {
 function EnergyCard({
   dailyLimit,
   dailyUsed,
+  reducedMotion,
 }: {
   dailyLimit: number;
   dailyUsed: number;
+  reducedMotion: boolean;
 }) {
   const limitReached = dailyLimit > 0 && dailyUsed >= dailyLimit;
   const percent = dailyLimit > 0 ? Math.max(0, Math.min(100, (dailyUsed / dailyLimit) * 100)) : 0;
@@ -131,14 +213,10 @@ function EnergyCard({
             <EnergyHeadingIcon />
             <Text style={styles.energyTitle}>Daily Energy</Text>
           </View>
-          <Text style={styles.energySubtitle}>
-            {dailyUsed} of {dailyLimit} quests completed
-          </Text>
+          <LobbySwapText text={`${dailyUsed} of ${dailyLimit} quests completed`} style={styles.energySubtitle} reducedMotion={reducedMotion} />
         </View>
         <View style={[styles.energyPill, limitReached ? styles.energyPillDone : null]}>
-          <Text style={[styles.energyPillText, limitReached ? styles.energyPillTextDone : null]} numberOfLines={1}>
-            {limitReached ? "Limit reached" : resetLabel}
-          </Text>
+          <LobbySwapText text={limitReached ? "Limit reached" : resetLabel} style={[styles.energyPillText, limitReached ? styles.energyPillTextDone : null]} reducedMotion={reducedMotion} />
         </View>
       </View>
       <View style={styles.energyTrack}>
@@ -178,23 +256,57 @@ function BookmarkIcon() {
   return <Svg width={24} height={24} viewBox="0 0 24 24"><Path fillRule="evenodd" clipRule="evenodd" d="M21 11.098V16.091C21 19.187 21 20.736 20.266 21.412C19.916 21.735 19.474 21.938 19.003 21.992C18.016 22.105 16.863 21.085 14.558 19.046C13.538 18.145 13.029 17.694 12.44 17.576C12.1497 17.5167 11.8503 17.5167 11.56 17.576C10.97 17.694 10.461 18.145 9.442 19.046C7.137 21.085 5.984 22.105 4.997 21.991C4.52527 21.9367 4.08299 21.734 3.734 21.412C3 20.736 3 19.188 3 16.091V11.097C3 6.81 3 4.666 4.318 3.333C5.636 2 7.758 2 12 2C16.242 2 18.364 2 19.682 3.332C21 4.664 21 6.81 21 11.098ZM8.25 6C8.25 5.58579 8.58579 5.25 9 5.25H15C15.4142 5.25 15.75 5.58579 15.75 6C15.75 6.41421 15.4142 6.75 15 6.75H9C8.58579 6.75 8.25 6.41421 8.25 6Z" fill="#8A8186" /></Svg>;
 }
 
+function LobbyLoadingCard({ reducedMotion }: { reducedMotion: boolean }) {
+  const pulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (reducedMotion) {
+      pulse.setValue(1);
+      return;
+    }
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.55, duration: 520, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 520, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [pulse, reducedMotion]);
+
+  return (
+    <LobbyReveal motionKey="lobby-loading" reducedMotion={reducedMotion}>
+      <Animated.View style={{ opacity: pulse }}>
+        <Card style={styles.emptyLoadingCard}>
+          <Text style={styles.emptyEmoji}>⏳</Text>
+          <Text style={styles.emptyLoadingTitle}>Checking your quest status</Text>
+          <Text style={styles.emptyLoadingBody}>QuestLife is catching up with your latest adventure.</Text>
+        </Card>
+      </Animated.View>
+    </LobbyReveal>
+  );
+}
+
 function ActiveQuestCard({
   activeQuest,
   elapsedLabel,
   onComplete,
   onSaveForLater,
+  reducedMotion,
 }: {
   activeQuest: Quest;
   elapsedLabel: string;
   onComplete: () => void;
   onSaveForLater: () => void;
+  reducedMotion: boolean;
 }) {
   const category = categoryColor[activeQuest.category] ?? { text: activeQuest.color, bg: `${activeQuest.color}18` };
   const difficulty = difficultyColor[activeQuest.difficulty];
 
   return (
-    <View style={styles.activeWrap}>
-      <View style={styles.activeCard}>
+    <LobbyReveal motionKey={`active-quest-${activeQuest.id}`} reducedMotion={reducedMotion}>
+      <View style={styles.activeWrap}>
+        <View style={styles.activeCard}>
         <View style={styles.activeTopRow}>
           <View style={styles.metaRow}>
             <Tag label={activeQuest.category} color={category.text} bg={category.bg} />
@@ -213,8 +325,9 @@ function ActiveQuestCard({
           <Pressable accessibilityRole="button" onPress={() => { haptic(); onComplete(); }} style={({ pressed }) => [styles.activePrimaryButton, pressed ? styles.pressed : null]}><CheckIcon /><Text style={styles.activePrimaryText}>Complete Quest</Text></Pressable>
           <Pressable accessibilityRole="button" onPress={() => { haptic(); onSaveForLater(); }} style={({ pressed }) => [styles.activeSecondaryButton, pressed ? styles.pressed : null]}><BookmarkIcon /><Text style={styles.activeSecondaryText}>Save For Later</Text></Pressable>
         </View>
+        </View>
       </View>
-    </View>
+    </LobbyReveal>
   );
 }
 
@@ -224,26 +337,23 @@ function EmptyActiveQuest({
   onExplore,
   onStartPlan,
   starting,
+  reducedMotion,
 }: {
   loading: boolean;
   nextQuest: Quest | null;
   onExplore: () => void;
   onStartPlan: () => void;
   starting: boolean;
+  reducedMotion: boolean;
 }) {
   if (loading) {
-    return (
-      <Card style={styles.emptyLoadingCard}>
-        <Text style={styles.emptyEmoji}>⏳</Text>
-        <Text style={styles.emptyLoadingTitle}>Checking your quest status</Text>
-        <Text style={styles.emptyLoadingBody}>QuestLife is catching up with your latest adventure.</Text>
-      </Card>
-    );
+    return <LobbyLoadingCard reducedMotion={reducedMotion} />;
   }
 
   if (nextQuest) {
     return (
-      <Card style={styles.nextQuestCard}>
+      <LobbyReveal motionKey={`planned-quest-${nextQuest.id}`} reducedMotion={reducedMotion}>
+        <Card style={styles.nextQuestCard}>
         <View style={styles.nextQuestAccent} />
         <View style={styles.nextQuestContent}>
           <View style={styles.nextQuestTop}>
@@ -277,12 +387,14 @@ function EmptyActiveQuest({
             </Pressable>
           </View>
         </View>
-      </Card>
+        </Card>
+      </LobbyReveal>
     );
   }
 
   return (
-    <Card style={styles.emptyActiveCard}>
+    <LobbyReveal motionKey="empty-active-quest" reducedMotion={reducedMotion}>
+      <Card style={styles.emptyActiveCard}>
       <View style={styles.emptyQuestHeader}>
         <View style={styles.emptyQuestPlus}>
           <Ionicons name="add" size={22} color={T.blue} />
@@ -295,7 +407,8 @@ function EmptyActiveQuest({
       <View style={styles.emptyActions}>
         <SoftButton label="Explore quests" icon="compass" onPress={onExplore} style={styles.flexButton} />
       </View>
-    </Card>
+      </Card>
+    </LobbyReveal>
   );
 }
 
@@ -303,10 +416,12 @@ function CompletedSection({
   completions,
   getQuest,
   onOpenJournal,
+  reducedMotion,
 }: {
   completions: { completionId: string; questId: string; xpAwarded: number; logged: boolean; completedAt: string }[];
   getQuest: (id?: string) => Quest | null;
   onOpenJournal: () => void;
+  reducedMotion: boolean;
 }) {
   const visibleCompletions = completions.slice(0, 3);
 
@@ -331,32 +446,36 @@ function CompletedSection({
         }
       />
       {completions.length === 0 ? (
-        <Card style={styles.completedEmpty}>
-          <View style={styles.completedEmptyIcon}>
-            <Text style={styles.completedEmptyEmoji}>📋</Text>
-          </View>
-          <View style={styles.completedEmptyCopy}>
-            <Text style={styles.completedEmptyTitle}>Nothing completed yet</Text>
-            <Text style={styles.completedEmptyBody}>Finish a quest and it will land here.</Text>
-          </View>
-        </Card>
+        <LobbyReveal motionKey="completed-empty" reducedMotion={reducedMotion}>
+          <Card style={styles.completedEmpty}>
+            <View style={styles.completedEmptyIcon}>
+              <Text style={styles.completedEmptyEmoji}>📋</Text>
+            </View>
+            <View style={styles.completedEmptyCopy}>
+              <Text style={styles.completedEmptyTitle}>Nothing completed yet</Text>
+              <Text style={styles.completedEmptyBody}>Finish a quest and it will land here.</Text>
+            </View>
+          </Card>
+        </LobbyReveal>
       ) : (
         <View style={styles.completedList}>
-          {visibleCompletions.map((completion) => {
+          {visibleCompletions.map((completion, index) => {
             const quest = getQuest(completion.questId);
             return (
-              <Card key={completion.completionId} style={styles.completedItem}>
-                <View style={[styles.completedStripe, { backgroundColor: quest?.color ?? T.blue }]} />
-                <View style={styles.completedCopy}>
-                  <Text style={styles.completedTitle} numberOfLines={1}>
-                    {quest?.title ?? "Quest"}
-                  </Text>
-                  <Text style={styles.completedMeta}>
-                    {formatTime(completion.completedAt)} · {completion.logged ? "Logged" : "Skipped lore"}
-                  </Text>
-                </View>
-                <PillStat icon="flash" text={`+${completion.xpAwarded}`} />
-              </Card>
+              <LobbyReveal key={completion.completionId} motionKey={`completion-${completion.completionId}`} delay={index * 45} reducedMotion={reducedMotion}>
+                <Card style={styles.completedItem}>
+                  <View style={[styles.completedStripe, { backgroundColor: quest?.color ?? T.blue }]} />
+                  <View style={styles.completedCopy}>
+                    <Text style={styles.completedTitle} numberOfLines={1}>
+                      {quest?.title ?? "Quest"}
+                    </Text>
+                    <Text style={styles.completedMeta}>
+                      {formatTime(completion.completedAt)} · {completion.logged ? "Logged" : "Skipped lore"}
+                    </Text>
+                  </View>
+                  <PillStat icon="flash" text={`+${completion.xpAwarded}`} />
+                </Card>
+              </LobbyReveal>
             );
           })}
         </View>
@@ -368,6 +487,7 @@ function CompletedSection({
 export function LobbyScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const reducedMotion = useReducedMotionPreference();
   const { user } = useAuth();
   const { error: contentError, getQuest, loading, quests } = useContent();
   const { engine, error: engineError, loading: engineLoading, refresh, saveActiveForLater, todayPlan } = useQuestEngine();
@@ -419,10 +539,11 @@ export function LobbyScreen() {
 
   return (
     <Screen padded={false} contentStyle={styles.screenContent}>
-      <View
-        style={[styles.container, { width: contentWidth, paddingHorizontal: horizontalInset }]}
-        testID={`lobby-${lobbyStates.request}-${lobbyStates.activity}-${lobbyStates.plan}-${lobbyStates.history}-${lobbyStates.feedback}`}
-      >
+      <LobbyReveal motionKey="lobby-page" reducedMotion={reducedMotion}>
+        <View
+          style={[styles.container, { width: contentWidth, paddingHorizontal: horizontalInset }]}
+          testID={`lobby-${lobbyStates.request}-${lobbyStates.activity}-${lobbyStates.plan}-${lobbyStates.history}-${lobbyStates.feedback}`}
+        >
         <View style={styles.header}>
           <LobbyAvatar />
           <View style={styles.headerCopy}>
@@ -444,7 +565,7 @@ export function LobbyScreen() {
           </View>
         </View>
 
-        <EnergyCard dailyLimit={dailyLimit} dailyUsed={dailyUsed} />
+        <EnergyCard dailyLimit={dailyLimit} dailyUsed={dailyUsed} reducedMotion={reducedMotion} />
 
         <View style={styles.section}>
           <SectionHeader icon="sparkles" title="Active Quest" />
@@ -454,22 +575,25 @@ export function LobbyScreen() {
               elapsedLabel={msToLabel(engine.activeSession.startedAt)}
               onComplete={() => setLogQuest(activeQuest)}
               onSaveForLater={handleSaveForLater}
+              reducedMotion={reducedMotion}
             />
           ) : (
             <EmptyActiveQuest
-              loading={loading}
+              loading={loading || engineLoading}
               nextQuest={planQuests[0] ?? null}
               onExplore={() => router.push("/explore")}
               onStartPlan={() => {
                 if (planQuests[0]) startPlannedQuest(planQuests[0]);
               }}
               starting={starting}
+              reducedMotion={reducedMotion}
             />
           )}
         </View>
 
-        <CompletedSection completions={completions} getQuest={getQuest} onOpenJournal={() => router.push("/journal")} />
-      </View>
+        <CompletedSection completions={completions} getQuest={getQuest} onOpenJournal={() => router.push("/journal")} reducedMotion={reducedMotion} />
+        </View>
+      </LobbyReveal>
 
       <LogLoreFlow
         visible={logQuest !== null}

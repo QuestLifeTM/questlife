@@ -11,7 +11,13 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "QuestLife uses your photos when you choose a Party photo or share a Party completion."
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": false,

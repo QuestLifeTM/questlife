@@ -225,17 +225,20 @@ export function IconButton({
   onPress,
   color = T.muted,
   bg = T.white,
-  badge
+  badge,
+  label
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   onPress?: () => void;
   color?: string;
   bg?: string;
   badge?: string | number;
+  label?: string;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
       onPress={() => {
         haptic();
         onPress?.();
@@ -292,15 +295,19 @@ export function Sheet({
   visible,
   onClose,
   children,
-  maxHeight = "82%"
-}: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"] }>) {
+  maxHeight = "82%",
+  fillHeight = false
+}: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"]; fillHeight?: boolean }>) {
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(61,52,56,0.42)", justifyContent: "flex-end" }}>
-        <Pressable
+      <View style={{ flex: 1, backgroundColor: "rgba(61,52,56,0.42)", justifyContent: "flex-end" }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={onClose} style={{ flex: 1 }} />
+        <View
+          accessibilityViewIsModal
           style={{
             maxHeight,
+            ...(fillHeight ? { height: maxHeight } : null),
             backgroundColor: T.white,
             borderTopLeftRadius: radius.sheet,
             borderTopRightRadius: radius.sheet,
@@ -315,8 +322,8 @@ export function Sheet({
             <View style={{ width: 36, height: 4, borderRadius: 99, backgroundColor: T.border }} />
           </View>
           {children}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }

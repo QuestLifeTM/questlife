@@ -89,6 +89,7 @@ function AppLayout() {
         <Stack.Screen name="plan/pick-quests" options={{ presentation: "card" }} />
         <Stack.Screen name="plan/save-pack" options={{ presentation: "card" }} />
         <Stack.Screen name="streak" options={{ presentation: "card" }} />
+        <Stack.Screen name="party/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="notifications" options={{ presentation: "card" }} />
       </Stack>
     </GestureHandlerRootView>

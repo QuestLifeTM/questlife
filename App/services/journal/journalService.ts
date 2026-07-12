@@ -1,7 +1,7 @@
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { Quest } from "@/types/content";
-import { JournalData, JournalEntry, JournalMemory, JournalMood, journalMoods } from "@/types/journal";
+import { JournalData, JournalEntry, JournalMemory, JournalMood, PartyJournalCard, journalMoods } from "@/types/journal";
 
 type CompletionQuestRow = {
   title: string;
@@ -93,7 +93,7 @@ export async function fetchJournalData(): Promise<JournalData> {
 
   const userId = userData.user.id;
 
-  const [{ data: profileRow }, { data: completionRows, error: completionsError }, entriesByDate] =
+  const [{ data: profileRow }, { data: completionRows, error: completionsError }, entriesByDate, partyHistoryResult] =
     await Promise.all([
       supabase.from("profiles").select("created_at").eq("id", userId).maybeSingle<{ created_at: string }>(),
       supabase
@@ -103,6 +103,7 @@ export async function fetchJournalData(): Promise<JournalData> {
         .order("created_at", { ascending: true })
         .returns<CompletionRow[]>(),
       fetchJournalEntries(userId),
+      supabase.rpc("get_party_journal_history"),
     ]);
 
   if (completionsError) throw completionsError;
@@ -120,7 +121,7 @@ export async function fetchJournalData(): Promise<JournalData> {
   const earliestCompletion = completionRows?.[0]?.created_at;
   const joinedAt = profileRow?.created_at ?? earliestCompletion ?? new Date().toISOString();
 
-  return { joinedAt, memoriesByDate, entriesByDate };
+  return { joinedAt, memoriesByDate, entriesByDate, partyHistory: (partyHistoryResult.data ?? []) as PartyJournalCard[] };
 }
 
 export async function fetchJournalMemory(completionId: string): Promise<JournalMemory | null> {

@@ -19,9 +19,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AvatarPile } from "@/components/avatar-pile";
 import { StreakPill } from "@/components/streak-pill";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
-import { Card, EmptyState, Entrance, Header, Screen, Sheet, SoftButton, haptic } from "@/components/ui";
+import { Card, EmptyState, Entrance, Header, Screen, Sheet, SoftButton, Tag, haptic } from "@/components/ui";
 import { fetchJournalData, toLocalDateKey, upsertJournalEntry } from "@/services/journal/journalService";
-import { JournalData, JournalEntry, JournalMemory, JournalMood } from "@/types/journal";
+import { JournalData, JournalEntry, JournalMemory, JournalMood, PartyJournalCard } from "@/types/journal";
 
 type JournalTab = "journal" | "growth";
 type CalendarMode = "week" | "month";
@@ -711,6 +711,19 @@ function BeforeJoinMarker({ joinDate }: { joinDate: Date }) {
   );
 }
 
+function PartyHistoryCard({ party, onOpen }: { party: PartyJournalCard; onOpen: () => void }) {
+  const leaders = party.rankings.slice(0, 3);
+  return (
+    <Card pressable onPress={onOpen} style={{ borderRadius: radius.lg, gap: 10, backgroundColor: `${T.purple}0b`, borderColor: `${T.purple}35` }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 16, fontWeight: "900" }}>{party.name}</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "800", marginTop: 2 }}>{party.status === "ended" ? "Final Party rankings" : "Live Party rankings"}</Text></View>
+        {party.leftEarly ? <Tag label="Left early" color={T.orange} bg={`${T.orange}18`} /> : <Tag label={party.status === "ended" ? "Ended" : "Live"} color={party.status === "ended" ? T.muted : T.green} bg={`${party.status === "ended" ? T.muted : T.green}18`} />}
+      </View>
+      <View style={{ flexDirection: "row", gap: 8 }}>{leaders.length ? leaders.map((entry) => <View key={entry.rank} style={{ flex: 1, borderRadius: 14, backgroundColor: T.white, paddingVertical: 8, alignItems: "center", gap: 2 }}><Text style={{ fontSize: 17 }}>{entry.emoji}</Text><Text style={{ color: T.dark, fontSize: 11, fontWeight: "900" }} numberOfLines={1}>#{entry.rank} {entry.name}</Text><Text style={{ color: T.blue, fontSize: 10, fontWeight: "900" }}>{entry.xp} XP</Text></View>) : <Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>No completed Party quests yet.</Text>}</View>
+    </Card>
+  );
+}
+
 // ── Screen ───────────────────────────────────────────────────────────────────
 
 export function JournalScreen() {
@@ -915,6 +928,7 @@ export function JournalScreen() {
                 </Card>
               ) : (
                 <Entrance delay={120}>
+                  {data?.partyHistory.length ? <View style={{ marginTop: 18, gap: 10 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>Party chapters</Text>{data.partyHistory.map((party) => <PartyHistoryCard key={party.partyId} party={party} onOpen={() => router.push(`/party/${party.partyId}`)} />)}</View> : null}
                   {sections}
                   <BeforeJoinMarker joinDate={join} />
                 </Entrance>

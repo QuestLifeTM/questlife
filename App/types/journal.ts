@@ -40,9 +40,20 @@ export type JournalEntry = {
   mood: JournalMood | null;
 };
 
+export type PartyJournalCard = {
+  partyId: string;
+  name: string;
+  status: "active" | "ended";
+  endedAt: string | null;
+  leftEarly: boolean;
+  members: { name: string; emoji: string; color: string }[];
+  rankings: { name: string; emoji: string; xp: number; rank: number }[];
+};
+
 export type JournalData = {
   /** ISO timestamp of profiles.created_at — Day 1 of the archive. */
   joinedAt: string;
   memoriesByDate: Record<string, JournalMemory[]>;
   entriesByDate: Record<string, JournalEntry>;
+  partyHistory: PartyJournalCard[];
 };

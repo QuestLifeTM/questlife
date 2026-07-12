@@ -71,6 +71,7 @@ export type PartyMember = {
   emoji: string;
   avatarColor: string;
   role: "leader" | "member";
+  status: "active" | "left";
 };
 
 export type PartyQuest = {
@@ -79,18 +80,110 @@ export type PartyQuest = {
   xp: number;
   color: string;
   position: number;
-  completedBy: string[];
+  description?: string;
+  suggestionCount?: number;
+  myCompletion?: boolean;
+  fastest?: { name: string; elapsedSeconds: number } | null;
 };
+
+export type PartyMode = "everyone_together" | "free_for_all";
+export type PartyLocationType = "online" | "nearby" | "specific_place" | "flexible";
 
 export type Party = {
   id: string;
   name: string;
-  emoji: string;
-  accentColor: string;
-  gameMode: "together" | "relay";
-  createdAt: string;
+  code: string;
+  goal: string | null;
+  photoPath: string | null;
+  gameMode: PartyMode;
+  status: "active" | "ended";
+  memberCount: number;
+  maxMembers: number | null;
+  endedAt: string | null;
+  viewerLeftEarly: boolean;
+  myRank: number | null;
   members: PartyMember[];
+};
+
+export type PartyTemplate = {
+  id: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  icon: string;
+  accentColor: string;
+  questIds: string[];
+};
+
+export type PartyHub = {
+  templates: PartyTemplate[];
+  active: Party[];
+  past: Party[];
+};
+
+export type PartyRound = {
+  id: string;
+  questId: string;
+  startedAt: string;
+  status: "active" | "ended";
+};
+
+export type PartyLeaderboardEntry = {
+  userId: string;
+  displayName: string;
+  emoji: string;
+  avatarColor: string;
+  xp: number;
+  rank: number;
+};
+
+export type PartyFeedReaction = { emoji: string; count: number; reacted: boolean };
+
+export type PartyFeedPost = {
+  id: string;
+  questId: string;
+  questTitle: string;
+  userName: string;
+  userEmoji: string;
+  caption: string | null;
+  photoPaths: string[];
+  createdAt: string;
+  reactions: PartyFeedReaction[];
+};
+
+export type PartyDetail = Party & {
+  isHost: boolean;
+  memberInvitesEnabled: boolean;
+  photoProofRequired: boolean;
+  locationType: PartyLocationType;
+  locationLabel: string | null;
+  rules: string[];
   quests: PartyQuest[];
+  activeRound: PartyRound | null;
+  leaderboard: PartyLeaderboardEntry[];
+  feed: PartyFeedPost[];
+};
+
+export type CreatePartyInput = {
+  name: string;
+  goal?: string;
+  photoPath?: string | null;
+  maxMembers: number | null;
+  memberInvitesEnabled: boolean;
+  photoProofRequired: boolean;
+  gameMode: PartyMode;
+  locationType: PartyLocationType;
+  locationLabel?: string;
+  rules: string[];
+  questIds: string[];
+};
+
+export type PartyCompletionResult = {
+  completionId: string;
+  xpAwarded: number;
+  dailyUsed: number;
+  dailyLimit: number;
+  fastest: { name: string; emoji?: string; elapsedSeconds: number } | null;
 };
 
 export type SocialOverview = {

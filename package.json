@@ -15,5 +15,8 @@
     "admin": "npm --workspace @questlife/admin run start",
     "admin:web": "npm --workspace @questlife/admin run web",
     "admin:typecheck": "npm --workspace @questlife/admin run typecheck"
+  },
+  "dependencies": {
+    "expo-image-picker": "~17.0.11"
   }
 }

@@ -140,7 +140,7 @@ function ExploreSearch({
         <TextInput
           value={value}
           onChangeText={onChangeText}
-          placeholder="Search quests, categories, keywords..."
+          placeholder="Search Quests"
           placeholderTextColor={T.muted}
           style={{ flex: 1, color: T.dark, fontSize: 14, lineHeight: 19, fontWeight: "800", padding: 0 }}
         />
