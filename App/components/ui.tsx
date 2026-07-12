@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { PropsWithChildren, useEffect, useRef } from "react";
 import {
   Animated,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -13,10 +14,37 @@ import {
   TextInput,
   TextStyle,
   View,
-  ViewStyle
+  ViewStyle,
+  useWindowDimensions
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { radius, shadow, T } from "@/components/theme";
+
+const MIN_SCREEN_GUTTER = 16;
+const MAX_SCREEN_GUTTER = 24;
+const DEFAULT_CONTENT_MAX_WIDTH = 520;
+
+export function responsiveScreenGutter(width: number) {
+  return Math.round(Math.min(MAX_SCREEN_GUTTER, Math.max(MIN_SCREEN_GUTTER, width * 0.05)));
+}
+
+/**
+ * Shared layout values for screens that need to manage their own horizontal
+ * content container. This keeps custom screens aligned with `Screen`.
+ */
+export function useResponsiveScreenLayout(maxContentWidth = DEFAULT_CONTENT_MAX_WIDTH) {
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const safeWidth = Math.max(0, width - insets.left - insets.right);
+  const contentWidth = Math.min(safeWidth, maxContentWidth);
+
+  return {
+    contentWidth,
+    horizontalPadding: responsiveScreenGutter(contentWidth),
+    safeAreaOffset: (insets.left - insets.right) / 2,
+    insets
+  };
+}
 
 export function haptic() {
   if (process.env.EXPO_OS === "ios") {
@@ -31,12 +59,14 @@ export function Screen({
   contentStyle
 }: PropsWithChildren<{ scroll?: boolean; padded?: boolean; contentStyle?: StyleProp<ViewStyle> }>) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const topPadding = Math.max(insets.top + 8, 20);
+  const horizontalPadding = responsiveScreenGutter(width);
   if (!scroll) {
     return (
       <View style={{ flex: 1, backgroundColor: T.bg }}>
         <AmbientGlow />
-        <View style={[{ flex: 1, paddingTop: topPadding }, padded && { paddingHorizontal: 24 }, contentStyle]}>
+        <View style={[{ flex: 1, paddingTop: topPadding }, padded && { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }, contentStyle]}>
           {children}
         </View>
       </View>
@@ -50,7 +80,7 @@ export function Screen({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           { paddingTop: topPadding, paddingBottom: insets.bottom + 112, gap: 18 },
-          padded && { paddingHorizontal: 24 },
+          padded && { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding },
           contentStyle
         ]}
       >
@@ -296,11 +326,13 @@ export function Sheet({
   onClose,
   children,
   maxHeight = "82%",
-  fillHeight = false
-}: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"]; fillHeight?: boolean }>) {
+  fillHeight = false,
+  keyboardAvoiding = true
+}: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"]; fillHeight?: boolean; keyboardAvoiding?: boolean }>) {
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView enabled={keyboardAvoiding} behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
       <View style={{ flex: 1, backgroundColor: "rgba(61,52,56,0.42)", justifyContent: "flex-end" }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={onClose} style={{ flex: 1 }} />
         <View
@@ -324,6 +356,7 @@ export function Sheet({
           {children}
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

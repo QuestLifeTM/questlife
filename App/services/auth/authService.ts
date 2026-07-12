@@ -254,7 +254,10 @@ export async function updatePassword(password: string) {
 
 export async function signOut() {
   assertSupabaseConfigured();
-  const { error } = await supabase.auth.signOut();
+  // A device-level logout is the expected behavior for the in-app account action.
+  // It clears this app's persisted session without unexpectedly ending sessions on
+  // the user's other phones, tablets, or browsers.
+  const { error } = await supabase.auth.signOut({ scope: "local" });
 
   if (error) {
     throw error;

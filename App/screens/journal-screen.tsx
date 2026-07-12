@@ -12,14 +12,13 @@ import {
   Text,
   TextInput,
   TextStyle,
-  View,
-  useWindowDimensions
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AvatarPile } from "@/components/avatar-pile";
 import { StreakPill } from "@/components/streak-pill";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
-import { Card, EmptyState, Entrance, Header, Screen, Sheet, SoftButton, Tag, haptic } from "@/components/ui";
+import { Card, EmptyState, Entrance, Header, IconButton, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { fetchJournalData, toLocalDateKey, upsertJournalEntry } from "@/services/journal/journalService";
 import { JournalData, JournalEntry, JournalMemory, JournalMood, PartyJournalCard } from "@/types/journal";
 
@@ -729,8 +728,7 @@ function PartyHistoryCard({ party, onOpen }: { party: PartyJournalCard; onOpen: 
 export function JournalScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const contentWidth = Math.min(width, 430);
+  const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
 
   const [tab, setTab] = useState<JournalTab>("journal");
   const [mode, setMode] = useState<CalendarMode>("week");
@@ -738,6 +736,7 @@ export function JournalScreen() {
   const [entries, setEntries] = useState<Record<string, JournalEntry>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [partyCollection, setPartyCollection] = useState<PartyJournalCard | null>(null);
 
   const todayKey = toLocalDateKey(new Date());
   const [activeKey, setActiveKey] = useState(todayKey);
@@ -884,7 +883,7 @@ export function JournalScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 112 }}
       >
         <View style={{ alignItems: "center" }}>
-          <View style={{ width: contentWidth, paddingHorizontal: 20, gap: 14, paddingBottom: 14 }}>
+          <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 14, paddingBottom: 14, transform: [{ translateX: safeAreaOffset }] }}>
             <Entrance>
               <JournalHeader tab={tab} />
             </Entrance>
@@ -899,7 +898,7 @@ export function JournalScreen() {
             onLayout={(event) => (calendarHeight.current = event.nativeEvent.layout.height)}
             style={{ backgroundColor: T.bg, alignItems: "center", borderBottomWidth: 1, borderBottomColor: T.border, paddingBottom: 8 }}
           >
-            <View style={{ width: contentWidth, paddingHorizontal: 20 }}>
+            <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>
               <Entrance delay={80}>
                 <JournalCalendar
                   mode={mode}
@@ -917,7 +916,7 @@ export function JournalScreen() {
 
         {tab === "journal" ? (
           <View onLayout={(event) => (sectionsBaseY.current = event.nativeEvent.layout.y)} style={{ alignItems: "center" }}>
-            <View style={{ width: contentWidth, paddingHorizontal: 20 }}>
+            <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>
               {loading ? (
                 <Card style={{ marginTop: 18, borderRadius: radius.lg }}>
                   <EmptyState emoji="⏳" title="Opening your journal" body="Gathering your quests, memories, and days." />
@@ -928,7 +927,7 @@ export function JournalScreen() {
                 </Card>
               ) : (
                 <Entrance delay={120}>
-                  {data?.partyHistory.length ? <View style={{ marginTop: 18, gap: 10 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>Party chapters</Text>{data.partyHistory.map((party) => <PartyHistoryCard key={party.partyId} party={party} onOpen={() => router.push(`/party/${party.partyId}`)} />)}</View> : null}
+                  {data?.partyHistory.length ? <View style={{ marginTop: 18, gap: 10 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>Party chapters</Text>{data.partyHistory.map((party) => <PartyHistoryCard key={party.partyId} party={party} onOpen={() => setPartyCollection(party)} />)}</View> : null}
                   {sections}
                   <BeforeJoinMarker joinDate={join} />
                 </Entrance>
@@ -937,7 +936,7 @@ export function JournalScreen() {
           </View>
         ) : (
           <View style={{ alignItems: "center" }}>
-            <Entrance style={{ width: contentWidth, paddingHorizontal: 20, marginTop: 6 }}>
+            <Entrance style={{ width: contentWidth, paddingHorizontal: horizontalPadding, marginTop: 6, transform: [{ translateX: safeAreaOffset }] }}>
               <Card style={{ borderRadius: radius.xl }}>
                 <EmptyState
                   emoji="🌱"
@@ -949,6 +948,13 @@ export function JournalScreen() {
           </View>
         )}
       </ScrollView>
+
+      <Sheet visible={partyCollection !== null} onClose={() => setPartyCollection(null)} maxHeight="88%">
+        <View style={{ padding: 24, gap: 14 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><View style={{ flex: 1, gap: 3 }}><Text style={{ color: T.dark, fontSize: 21, fontWeight: "900" }}>{partyCollection?.name}</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "800" }}>{partyCollection?.entryCount ?? 0} private Party memories</Text></View><IconButton icon="close" label="Close Party memories" onPress={() => setPartyCollection(null)} /></View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 10 }}>{partyCollection ? Object.values(data?.memoriesByDate ?? {}).flat().filter((memory) => memory.partyId === partyCollection.partyId).sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()).map((memory) => <MemoryCard key={memory.completionId} memory={memory} onPress={() => router.push(`/memory/${memory.completionId}`)} />) : null}</ScrollView>
+        </View>
+      </Sheet>
 
       <Sheet visible={editingTitle} onClose={() => setEditingTitle(false)}>
         <View style={{ padding: 24, gap: 14 }}>

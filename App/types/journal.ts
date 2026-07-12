@@ -18,6 +18,8 @@ export type JournalMemory = {
   difficulty: QuestDifficulty;
   color: string;
   timeMin: number;
+  partyId: string | null;
+  photoPaths: string[];
   /**
    * Party Mode co-participants. There is no co-participant table in the
    * current schema, so this is always empty from the backend today —
@@ -48,6 +50,7 @@ export type PartyJournalCard = {
   leftEarly: boolean;
   members: { name: string; emoji: string; color: string }[];
   rankings: { name: string; emoji: string; xp: number; rank: number }[];
+  entryCount: number;
 };
 
 export type JournalData = {

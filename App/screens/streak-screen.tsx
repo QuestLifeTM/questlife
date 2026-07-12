@@ -1,10 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Image, Pressable, Text, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Image, Pressable, Text, View } from "react-native";
 import { AnimatedFlame } from "@/components/animated-flame";
 import { T } from "@/components/theme";
-import { Card, EmptyState, Header, IconButton, Screen, Sheet, SoftButton, haptic } from "@/components/ui";
+import { Card, EmptyState, Header, IconButton, Screen, Sheet, SoftButton, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { useStreaks } from "@/contexts/StreaksContext";
 import { toLocalDateKey } from "@/services/journal/journalService";
 import { DuoStreak, IncomingDuoInvite, OutgoingDuoInvite, StreakFriend } from "@/types/streaks";
@@ -1064,8 +1064,7 @@ function FriendsStreakContent() {
 export function StreakScreen({ onBack }: { onBack: () => void }) {
   const { error, loading, overview, refresh } = useStreaks();
   const [activeTab, setActiveTab] = useState<StreakTab>("personal");
-  const { width } = useWindowDimensions();
-  const contentWidth = Math.min(width, 430);
+  const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
 
   // Streak data goes stale as quests are completed elsewhere in the app, so
   // re-fetch whenever the screen is opened.
@@ -1076,7 +1075,7 @@ export function StreakScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <Screen padded={false} contentStyle={{ alignItems: "center", gap: 22 }}>
-      <View style={{ width: contentWidth, paddingHorizontal: 20, gap: 22 }}>
+      <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 22, transform: [{ translateX: safeAreaOffset }] }}>
         <Header title="Streak" subtitle="Keep the chain alive" right={<IconButton icon="chevron-back" onPress={onBack} bg={T.white} />} animated={false} />
 
         <StreakTabs

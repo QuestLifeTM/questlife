@@ -38,11 +38,12 @@ export async function fetchProfileOverview(userId?: string): Promise<ProfileOver
     p_today: today(),
   });
   if (error) throw error;
-  const payload = data as ProfileOverview;
+  const payload = data as ProfileOverview | null;
+  if (!payload) throw new Error("Profile overview is unavailable.");
   return {
     isSelf: payload.isSelf,
     isFriend: payload.isFriend,
-    profile: payload.profile,
+    profile: payload.profile ?? null,
     stats: payload.stats,
     posts: payload.posts ?? [],
     recentCompletions: payload.recentCompletions ?? [],

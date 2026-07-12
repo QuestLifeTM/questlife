@@ -1,3 +1,5 @@
+import type { QuestCategory } from "@/types/content";
+
 export type SocialProfile = {
   userId: string;
   username: string | null;
@@ -86,8 +88,30 @@ export type PartyQuest = {
   fastest?: { name: string; elapsedSeconds: number } | null;
 };
 
+export type PartyQuestSuggestion = {
+  questId: string;
+  title: string;
+  description: string;
+  xp: number;
+  color: string;
+  category: QuestCategory;
+  count: number;
+};
+
+export type PartyCompletedQuest = {
+  id: string;
+  questId: string;
+  title: string;
+  category: QuestCategory;
+  color: string;
+  xp: number;
+  completedAt: string;
+  completedCount: number;
+};
+
 export type PartyMode = "everyone_together" | "free_for_all";
 export type PartyLocationType = "online" | "nearby" | "specific_place" | "flexible";
+export type PartyProofMode = "disabled" | "optional" | "required";
 
 export type Party = {
   id: string;
@@ -126,6 +150,9 @@ export type PartyRound = {
   questId: string;
   startedAt: string;
   status: "active" | "ended";
+  completedCount?: number;
+  totalMembers?: number;
+  topFinishers?: { userId: string; name: string; emoji: string; elapsedSeconds: number; rank: number }[];
 };
 
 export type PartyLeaderboardEntry = {
@@ -148,18 +175,28 @@ export type PartyFeedPost = {
   caption: string | null;
   photoPaths: string[];
   createdAt: string;
+  postType: "activity" | "adventure" | "proof";
+  elapsedSeconds: number | null;
   reactions: PartyFeedReaction[];
 };
 
 export type PartyDetail = Party & {
   isHost: boolean;
+  showWelcomeBriefing: boolean;
+  questsEnabled: boolean;
   memberInvitesEnabled: boolean;
-  photoProofRequired: boolean;
+  photoProofMode: PartyProofMode;
   locationType: PartyLocationType;
   locationLabel: string | null;
   rules: string[];
   quests: PartyQuest[];
+  suggestedQuests: PartyQuestSuggestion[];
+  completedQuests: PartyCompletedQuest[];
+  mySuggestedQuestIds: string[];
   activeRound: PartyRound | null;
+  myActiveQuestId: string | null;
+  unreadFeedCount: number;
+  unreadLeaderboardCount: number;
   leaderboard: PartyLeaderboardEntry[];
   feed: PartyFeedPost[];
 };
@@ -170,7 +207,7 @@ export type CreatePartyInput = {
   photoPath?: string | null;
   maxMembers: number | null;
   memberInvitesEnabled: boolean;
-  photoProofRequired: boolean;
+  photoProofMode: PartyProofMode;
   gameMode: PartyMode;
   locationType: PartyLocationType;
   locationLabel?: string;
@@ -184,6 +221,18 @@ export type PartyCompletionResult = {
   dailyUsed: number;
   dailyLimit: number;
   fastest: { name: string; emoji?: string; elapsedSeconds: number } | null;
+  topFinishers: { name: string; emoji: string; elapsedSeconds: number; rank: number }[];
+  proofMode: PartyProofMode;
+  feedShared: boolean;
+  elapsedSeconds: number;
+};
+
+export type PartyCompletionInput = {
+  reflection?: string;
+  journalPhotoPaths: string[];
+  shareToFeed: boolean;
+  feedCaption?: string;
+  sharedPhotoPaths: string[];
 };
 
 export type SocialOverview = {

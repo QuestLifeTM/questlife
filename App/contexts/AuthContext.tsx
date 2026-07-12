@@ -1,5 +1,4 @@
 import { Session, User } from "@supabase/supabase-js";
-import { SplashScreen } from "expo-router";
 import {
   createContext,
   PropsWithChildren,
@@ -10,14 +9,13 @@ import {
 } from "react";
 
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { isUserEmailVerified } from "@/services/auth/authService";
-
-SplashScreen.preventAutoHideAsync().catch(() => undefined);
+import { isUserEmailVerified, signOut as signOutFromService } from "@/services/auth/authService";
 
 type AuthContextValue = {
   initializing: boolean;
   isConfigured: boolean;
   isEmailVerified: boolean;
+  signOut: () => Promise<void>;
   session: Session | null;
   user: User | null;
 };
@@ -26,6 +24,7 @@ const AuthContext = createContext<AuthContextValue>({
   initializing: true,
   isConfigured: isSupabaseConfigured,
   isEmailVerified: false,
+  signOut: async () => undefined,
   session: null,
   user: null,
 });
@@ -39,7 +38,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     if (!isSupabaseConfigured) {
       setInitializing(false);
-      SplashScreen.hideAsync().catch(() => undefined);
       return () => {
         mounted = false;
       };
@@ -55,7 +53,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       .finally(() => {
         if (mounted) {
           setInitializing(false);
-          SplashScreen.hideAsync().catch(() => undefined);
         }
       });
 
@@ -81,6 +78,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       isEmailVerified: session?.user
         ? isUserEmailVerified(session.user)
         : false,
+      signOut: async () => {
+        await signOutFromService();
+        // Supabase emits SIGNED_OUT, but update synchronously as well so the
+        // protected-route boundary and user-scoped providers clear immediately.
+        setSession(null);
+      },
       session,
       user: session?.user ?? null,
     }),

@@ -1,5 +1,6 @@
 import { useFonts } from "expo-font";
 import { Redirect, Stack, useSegments } from "expo-router";
+import { PropsWithChildren } from "react";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { T } from "@/components/theme";
@@ -25,17 +26,26 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <ContentProvider>
-        <QuestEngineProvider>
-          <StreaksProvider>
-            <SocialProvider>
-              <AppLayout />
-            </SocialProvider>
-          </StreaksProvider>
-        </QuestEngineProvider>
-      </ContentProvider>
+      <SessionDataProviders>
+        <AppLayout />
+      </SessionDataProviders>
     </AuthProvider>
   );
+}
+
+function SessionDataProviders({ children }: PropsWithChildren) {
+  const { session } = useAuth();
+
+  // User-scoped providers hold loaded data in memory. Remount them when the
+  // account changes so a signed-out user (or the next user) never sees stale
+  // data while the new session is loading.
+  return <ContentProvider key={session?.user.id ?? "signed-out"}>
+    <QuestEngineProvider>
+      <StreaksProvider>
+        <SocialProvider>{children}</SocialProvider>
+      </StreaksProvider>
+    </QuestEngineProvider>
+  </ContentProvider>;
 }
 
 function AppLayout() {

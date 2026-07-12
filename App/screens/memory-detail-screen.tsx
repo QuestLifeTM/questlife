@@ -1,18 +1,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Image, ScrollView, Text, View } from "react-native";
 import { AvatarPile } from "@/components/avatar-pile";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
-import { Card, EmptyState, GradientBand, IconButton, PillStat, Screen, SoftButton, Tag } from "@/components/ui";
-import { fetchJournalMemory } from "@/services/journal/journalService";
+import { Card, EmptyState, GradientBand, IconButton, PillStat, Screen, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
+import { fetchJournalMemory, resolveJournalMedia } from "@/services/journal/journalService";
 import { JournalMemory } from "@/types/journal";
 
 export function MemoryDetailScreen({ completionId, onBack }: { completionId?: string; onBack: () => void }) {
   const router = useRouter();
+  const { horizontalPadding, insets } = useResponsiveScreenLayout();
+  const edgePadding = { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding };
   const [memory, setMemory] = useState<JournalMemory | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -34,6 +37,13 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
       mounted = false;
     };
   }, [completionId]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!memory?.photoPaths.length) { setPhotoUrls([]); return; }
+    resolveJournalMedia(memory.photoPaths).then((urls) => { if (mounted) setPhotoUrls(urls); }).catch(() => { if (mounted) setPhotoUrls([]); });
+    return () => { mounted = false; };
+  }, [memory?.photoPaths]);
 
   if (!memory) {
     return (
@@ -59,7 +69,7 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
   return (
     <Screen contentStyle={{ paddingHorizontal: 0, gap: 0 }}>
       <GradientBand color={memory.color}>
-        <View style={{ paddingHorizontal: 24, gap: 16 }}>
+        <View style={{ ...edgePadding, gap: 16 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <IconButton icon="chevron-back" onPress={onBack} />
             <Text style={{ color: T.muted, fontSize: 12, fontWeight: "900", letterSpacing: 0.7, textTransform: "uppercase" }}>Journal Memory</Text>
@@ -79,7 +89,7 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
         </View>
       </GradientBand>
 
-      <View style={{ padding: 24, gap: 18 }}>
+      <View style={{ paddingTop: 24, paddingBottom: 24, ...edgePadding, gap: 18 }}>
         <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
           <PillStat icon="flash" text={`+${memory.xp} XP`} />
           <PillStat icon="time" text={`~${memory.timeMin} min`} color={T.dark} />
@@ -94,6 +104,8 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
             </Text>
           </Card>
         ) : null}
+
+        {photoUrls.length ? <View style={{ gap: 10 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>Your photos</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{photoUrls.map((uri) => <Image key={uri} source={{ uri }} style={{ width: 180, height: 132, borderRadius: radius.lg, backgroundColor: T.border }} />)}</ScrollView></View> : null}
 
         <View style={{ gap: 10 }}>
           <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>Your reflection</Text>

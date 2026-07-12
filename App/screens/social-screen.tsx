@@ -7,13 +7,13 @@ import { AccessibilityInfo, Alert, Animated, Easing, Image, Modal, Pressable, Sc
 import Reanimated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
 import { categoryColor, T } from "@/components/theme";
-import { Card, EmptyState, haptic, Header, IconButton, PillStat, Screen, Sheet, SoftButton, Tag } from "@/components/ui";
+import { Card, EmptyState, haptic, Header, IconButton, PillStat, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { categories, sortOptions } from "@/data/questlife";
 import { uploadPartyMedia } from "@/services/social/socialService";
 import { Quest, QuestDifficulty, questDifficulties } from "@/types/content";
-import { CreatePartyInput, Party, PartyLocationType, PartyMode, PartyTemplate, SocialFriend } from "@/types/social";
+import { CreatePartyInput, Party, PartyLocationType, PartyMode, PartyProofMode, PartyTemplate, SocialFriend } from "@/types/social";
 
 type Tab = "friends" | "parties";
 type CreatorStep = "source" | "quests" | "details";
@@ -138,6 +138,13 @@ function Field({ label, value, onChangeText, placeholder, multiline = false }: {
 
 const PARTY_NAME_IDEAS = ["Weekend Wanderers", "Sunset Seekers", "The Quest Crew", "Sidequest Society", "Roam Together"];
 
+const PARTY_NAME_TEXT = {
+  fontFamily: "RubikBold" as const,
+  fontSize: 18,
+  lineHeight: 24,
+  letterSpacing: 0
+};
+
 function PartyNameField({ value, onChangeText }: { value: string; onChangeText: (text: string) => void }) {
   const [focused, setFocused] = useState(false);
   const [ideaIndex, setIdeaIndex] = useState(0);
@@ -158,14 +165,16 @@ function PartyNameField({ value, onChangeText }: { value: string; onChangeText: 
   }, []);
 
   useEffect(() => {
-    cursorOpacity.value = reduceMotion ? 1 : withRepeat(withTiming(0.2, { duration: 520 }), -1, true);
+    cursorOpacity.value = reduceMotion ? 1 : withRepeat(withTiming(0.18, { duration: 560 }), -1, true);
   }, [cursorOpacity, reduceMotion]);
 
   useEffect(() => {
     if (!displaySuggestion || reduceMotion) return;
     const atEnd = characterCount === idea.length;
     const atStart = characterCount === 0;
-    const delay = deleting ? (atStart ? 260 : 36) : (atEnd ? 900 : 68);
+    // Let each suggestion read like a useful example, then remove it quickly
+    // enough that the loop never holds up someone who is ready to type.
+    const delay = deleting ? (atStart ? 320 : 34) : (atEnd ? 1200 : 58);
     const timeout = setTimeout(() => {
       if (deleting) {
         if (atStart) {
@@ -193,17 +202,25 @@ function PartyNameField({ value, onChangeText }: { value: string; onChangeText: 
   return (
     <View style={{ gap: 7 }}>
       <Text style={{ color: T.muted, fontWeight: "900", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.7 }}>Party name</Text>
-      <View style={{ minHeight: 52, position: "relative", justifyContent: "center" }}>
+      <View style={{ minHeight: 56, position: "relative", justifyContent: "center" }}>
         <TextInput
           value={value}
           onChangeText={onChangeText}
           onFocus={handleFocus}
           onBlur={() => setFocused(false)}
           placeholder=""
+          accessibilityLabel="Party name"
+          accessibilityHint="Enter a name for your Party"
+          maxLength={50}
           selectionColor={T.blue}
-          style={{ minHeight: 52, borderWidth: 2, borderColor: T.border, borderRadius: 16, paddingHorizontal: 14, color: T.dark, fontFamily: "RubikBold", fontSize: 16, lineHeight: 20, letterSpacing: 0, backgroundColor: T.white }}
+          style={{ minHeight: 56, borderWidth: 2, borderColor: T.border, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 0, color: T.dark, backgroundColor: T.white, ...PARTY_NAME_TEXT }}
         />
-        {displaySuggestion ? <View pointerEvents="none" style={{ position: "absolute", left: 16, right: 16, alignItems: "flex-start", flexDirection: "row" }}><Text numberOfLines={1} style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 16, lineHeight: 20, letterSpacing: 0 }}>{displayedText}</Text>{reduceMotion ? null : <Reanimated.Text style={[{ color: T.blue, fontFamily: "RubikBold", fontSize: 16, lineHeight: 20 }, cursorStyle]}>|</Reanimated.Text>}</View> : null}
+        {displaySuggestion ? (
+          <View pointerEvents="none" style={{ position: "absolute", left: 20, right: 20, flexDirection: "row", alignItems: "center" }}>
+            <Text numberOfLines={1} style={{ ...PARTY_NAME_TEXT, color: T.muted }}>{displayedText}</Text>
+            {reduceMotion ? null : <Reanimated.Text style={[{ ...PARTY_NAME_TEXT, color: T.blue }, cursorStyle]}>|</Reanimated.Text>}
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -320,7 +337,7 @@ function CreatePartySheet({ visible, onClose }: { visible: boolean; onClose: () 
   const [locationLabel, setLocationLabel] = useState("");
   const [maxMembers, setMaxMembers] = useState<number | null>(6);
   const [memberInvites, setMemberInvites] = useState(false);
-  const [photoProofRequired, setPhotoProofRequired] = useState(false);
+  const [photoProofMode, setPhotoProofMode] = useState<PartyProofMode>("disabled");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
@@ -362,7 +379,7 @@ function CreatePartySheet({ visible, onClose }: { visible: boolean; onClose: () 
     if (!name.trim() || !questIds.length) return;
     setSaving(true);
     try {
-      const input: CreatePartyInput = { name: name.trim(), goal, maxMembers, memberInvitesEnabled: memberInvites, photoProofRequired, gameMode, locationType, locationLabel, rules, questIds };
+      const input: CreatePartyInput = { name: name.trim(), goal, maxMembers, memberInvitesEnabled: memberInvites, photoProofMode, gameMode, locationType, locationLabel, rules, questIds };
       const created = await startParty(input);
       if (photoUri) {
         const photoPath = await uploadPartyMedia(created.id, photoUri);
@@ -383,7 +400,7 @@ function CreatePartySheet({ visible, onClose }: { visible: boolean; onClose: () 
     <>
     <Sheet visible={visible && createdParty === null} onClose={cleanUp} maxHeight="92%" fillHeight>
       <View style={{ flex: 1, minHeight: 0 }}>
-      <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 24, paddingBottom: step === "quests" ? 28 : 24, gap: 18 }}>
+      <ScrollView style={{ flex: 1 }} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 24, paddingBottom: step === "quests" ? 28 : 24, gap: 18 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}><View style={{ width: 44, height: 44, borderRadius: 16, backgroundColor: `${stage.color}18`, alignItems: "center", justifyContent: "center" }}><Ionicons name={stage.icon} size={21} color={stage.color} /></View><View><Text style={{ color: T.dark, fontSize: 23, fontWeight: "900" }}>Create a Party</Text><Text style={{ color: stage.color, fontSize: 11, fontWeight: "900", marginTop: 3, letterSpacing: 0.5, textTransform: "uppercase" }}>Step {stage.number} of 3 · {stage.label}</Text></View></View>
           <IconButton icon="close" label="Close create party" onPress={cleanUp} color={T.muted} />
@@ -452,7 +469,7 @@ function CreatePartySheet({ visible, onClose }: { visible: boolean; onClose: () 
             </View>
           </SetupSection>
 
-          <DetailsReveal delay={140}><View style={{ gap: 8 }}><View style={{ minHeight: 58, borderRadius: 18, paddingHorizontal: 15, flexDirection: "row", alignItems: "center", backgroundColor: memberInvites ? `${activeModeColor}10` : T.white, borderWidth: 2, borderColor: memberInvites ? activeModeColor : T.border }}><Text style={{ color: T.dark, flex: 1, fontSize: 15, fontWeight: "900" }}>Members can invite friends</Text><PartyToggle value={memberInvites} color={activeModeColor} label="Members can invite friends" onPress={() => setMemberInvites((enabled) => !enabled)} /></View><View style={{ minHeight: 58, borderRadius: 18, paddingHorizontal: 15, flexDirection: "row", alignItems: "center", backgroundColor: photoProofRequired ? `${activeModeColor}10` : T.white, borderWidth: 2, borderColor: photoProofRequired ? activeModeColor : T.border }}><Text style={{ color: T.dark, flex: 1, fontSize: 15, fontWeight: "900" }}>Require photo proof</Text><PartyToggle value={photoProofRequired} color={activeModeColor} label="Require photo proof" onPress={() => setPhotoProofRequired((required) => !required)} /></View></View></DetailsReveal>
+          <DetailsReveal delay={140}><View style={{ gap: 8 }}><View style={{ minHeight: 58, borderRadius: 18, paddingHorizontal: 15, flexDirection: "row", alignItems: "center", backgroundColor: memberInvites ? `${activeModeColor}10` : T.white, borderWidth: 2, borderColor: memberInvites ? activeModeColor : T.border }}><Text style={{ color: T.dark, flex: 1, fontSize: 15, fontWeight: "900" }}>Members can invite friends</Text><PartyToggle value={memberInvites} color={activeModeColor} label="Members can invite friends" onPress={() => setMemberInvites((enabled) => !enabled)} /></View><View style={{ gap: 9, padding: 14, borderRadius: 18, backgroundColor: T.white, borderWidth: 2, borderColor: photoProofMode === "required" ? T.orange : T.border }}><View><Text style={{ color: T.dark, fontSize: 15, fontWeight: "900" }}>Photo proof</Text><Text style={{ color: T.muted, marginTop: 2, fontSize: 12, fontWeight: "700" }}>Required proof is shared to the Party Feed.</Text></View><View style={{ flexDirection: "row", gap: 7 }}>{(["disabled", "optional", "required"] as PartyProofMode[]).map((mode) => { const selected = photoProofMode === mode; return <Pressable key={mode} accessibilityRole="radio" accessibilityState={{ selected }} onPress={() => setPhotoProofMode(mode)} style={({ pressed }) => [{ flex: 1, minHeight: 38, borderRadius: 13, borderWidth: 2, borderColor: selected ? T.orange : T.border, borderBottomWidth: selected ? 4 : 2, borderBottomColor: selected ? "#cf7500" : T.border, alignItems: "center", justifyContent: "center", backgroundColor: T.white, transform: [{ translateY: pressed ? 2 : 0 }] }]}><Text style={{ color: selected ? T.orange : T.muted, fontSize: 10, fontWeight: "900", textTransform: "capitalize" }}>{mode}</Text></Pressable>; })}</View></View></View></DetailsReveal>
 
           <SetupSection title="Choose your Party rules" kind="rules" color={T.red} delay={175}>
             {rules.map((rule, index) => <View key={index} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><View style={{ flex: 1, minHeight: 52, borderWidth: 2, borderColor: T.border, borderRadius: 16, backgroundColor: T.white, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }}><Ionicons name="checkmark-circle" size={16} color={T.red} /><TextInput value={rule} onChangeText={(text) => setRules((previous) => previous.map((item, itemIndex) => itemIndex === index ? text : item))} placeholder="Add a rule" placeholderTextColor={T.muted} style={{ flex: 1, color: T.dark, fontWeight: "800" }} /></View><IconButton icon="close" label="Remove rule" color={T.muted} onPress={() => setRules((previous) => previous.filter((_, itemIndex) => itemIndex !== index))} /></View>)}
@@ -475,6 +492,7 @@ function CreatePartySheet({ visible, onClose }: { visible: boolean; onClose: () 
 
 export function SocialScreen() {
   const router = useRouter();
+  const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
   const { quests } = useContent();
   const { overview, partyHub, loading, error, refresh, searchUsers, addFriend, respondRequest, challengeFriend, shareQuestWith, respondToPartyInvite, joinPartyWithCode } = useSocial();
   const [tab, setTab] = useState<Tab>("friends");
@@ -489,11 +507,20 @@ export function SocialScreen() {
   const [actionQuest, setActionQuest] = useState<string>("");
 
   const runSearch = async (text: string) => { setQuery(text); if (text.trim().length < 2) { setResults([]); return; } setResults(await searchUsers(text)); };
+  const sendFriendRequest = async (userId: string) => {
+    try {
+      await addFriend(userId);
+      setResults((current) => current.map((result) => result.userId === userId ? { ...result, requestStatus: "pending:outgoing" } : result));
+    } catch {
+      // SocialContext records the actionable error; catching here prevents a button
+      // press from becoming an unhandled promise rejection in React Native.
+    }
+  };
   const join = async () => { try { const partyId = await joinPartyWithCode(code); setCodeOpen(false); setCode(""); router.push(`/party/${partyId}`); } catch (nextError) { Alert.alert("Couldn’t join Party", nextError instanceof Error ? nextError.message : "Check the code and try again."); } };
 
   return (
     <Screen padded={false} contentStyle={{ alignItems: "center" }}>
-      <View style={{ width: "100%", maxWidth: 430, paddingHorizontal: 24, gap: 16 }}>
+      <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
         <Header title="Social" subtitle={tab === "parties" ? "Party up" : "Friends & parties"} animated={false} right={tab === "parties" ? <IconButton icon="information-circle-outline" label="How Parties work" onPress={() => setInfoOpen(true)} color={T.blue} /> : undefined} />
         <View style={{ flexDirection: "row", padding: 4, borderRadius: 24, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }}>
           {(["friends", "parties"] as Tab[]).map((item) => <Pressable key={item} onPress={() => setTab(item)} style={{ flex: 1, minHeight: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: tab === item ? T.dark : "transparent" }}><Text style={{ color: tab === item ? T.white : T.muted, fontSize: 13, fontWeight: "900", textTransform: "capitalize" }}>{item}</Text></Pressable>)}
@@ -503,7 +530,7 @@ export function SocialScreen() {
         {tab === "friends" ? <View style={{ gap: 14 }}>
           <View style={{ height: 48, borderRadius: 24, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, flexDirection: "row", alignItems: "center", paddingHorizontal: 14, gap: 8 }}><Ionicons name="search" size={16} color={T.muted} /><TextInput value={query} onChangeText={runSearch} placeholder="Search friends by username..." placeholderTextColor={T.muted} style={{ flex: 1, color: T.dark, fontWeight: "700" }} /></View>
           {overview?.incomingRequests.length ? <View style={{ gap: 10 }}><SectionTitle title="Friend requests" />{overview.incomingRequests.map((request) => <Card key={request.id} style={{ borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 10, padding: 12, boxShadow: "none" }}><Avatar emoji={request.emoji} color={request.avatarColor} size={36} /><Text style={{ flex: 1, color: T.dark, fontWeight: "900" }}>{request.displayName}</Text><SoftButton label="Accept" onPress={() => respondRequest(request.id, true)} color={T.green} style={{ minHeight: 35, paddingHorizontal: 10 }} /></Card>)}</View> : null}
-          {results.length ? <View style={{ gap: 8 }}><SectionTitle title="Search results" />{results.map((result) => <Card key={result.userId} style={{ borderRadius: 20, padding: 12, flexDirection: "row", alignItems: "center", gap: 10, boxShadow: "none" }}><Avatar emoji={result.emoji} color={result.avatarColor} size={36} /><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontWeight: "900" }}>{result.displayName}</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>@{result.username}</Text></View>{result.isFriend ? <Tag label="Friends" color={T.green} bg={`${T.green}18`} /> : result.requestStatus ? <Tag label="Pending" color={T.blue} bg={`${T.blue}18`} /> : <SoftButton label="Add" onPress={() => addFriend(result.userId)} color={T.blue} style={{ minHeight: 35, paddingHorizontal: 12 }} />}</Card>)}</View> : null}
+          {results.length ? <View style={{ gap: 8 }}><SectionTitle title="Search results" />{results.map((result) => <Card key={result.userId} style={{ borderRadius: 20, padding: 12, flexDirection: "row", alignItems: "center", gap: 10, boxShadow: "none" }}><Avatar emoji={result.emoji} color={result.avatarColor} size={36} /><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontWeight: "900" }}>{result.displayName}</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>@{result.username}</Text></View>{result.isFriend ? <Tag label="Friends" color={T.green} bg={`${T.green}18`} /> : result.requestStatus ? <Tag label="Pending" color={T.blue} bg={`${T.blue}18`} /> : <SoftButton label="Add" onPress={() => { void sendFriendRequest(result.userId); }} color={T.blue} style={{ minHeight: 35, paddingHorizontal: 12 }} />}</Card>)}</View> : null}
           <SectionTitle title={`Friends (${overview?.friends.length ?? 0})`} />
           {loading && !overview ? <EmptyState emoji="⏳" title="Loading friends" body="Finding your crew…" /> : overview?.friends.length ? overview.friends.map((friend) => <FriendRow key={friend.userId} friend={friend} onShare={() => setActionFriend(friend)} onChallenge={() => setActionFriend(friend)} />) : <EmptyState emoji="🤝" title="No friends yet" body="Search above to add your first adventure buddy." />}
         </View> : <View style={{ gap: 18 }}>

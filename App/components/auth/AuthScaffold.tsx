@@ -2,10 +2,11 @@ import { PropsWithChildren } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { radius, shadow, T } from "@/components/theme";
-import { AmbientGlow } from "@/components/ui";
+import { AmbientGlow, useResponsiveScreenLayout } from "@/components/ui";
 
 export function AuthScaffold({ children }: PropsWithChildren) {
   const insets = useSafeAreaInsets();
+  const { horizontalPadding } = useResponsiveScreenLayout();
 
   return (
     <View style={styles.root}>
@@ -17,7 +18,9 @@ export function AuthScaffold({ children }: PropsWithChildren) {
             styles.content,
             {
               paddingTop: Math.max(insets.top + 16, 28),
-              paddingBottom: Math.max(insets.bottom + 24, 36)
+              paddingBottom: Math.max(insets.bottom + 24, 36),
+              paddingLeft: insets.left + horizontalPadding,
+              paddingRight: insets.right + horizontalPadding
             }
           ]}
           keyboardShouldPersistTaps="handled"
@@ -40,8 +43,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: 22
+    justifyContent: "center"
   },
   card: {
     width: "100%",

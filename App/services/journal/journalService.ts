@@ -17,6 +17,8 @@ type CompletionRow = {
   quest_id: string;
   reflection: string | null;
   created_at: string;
+  party_id: string | null;
+  photo_urls: string[] | null;
   quests: CompletionQuestRow | null;
 };
 
@@ -57,6 +59,8 @@ function mapMemory(row: CompletionRow): JournalMemory | null {
     difficulty: row.quests.difficulty,
     color: row.quests.accent_color,
     timeMin: row.quests.estimated_minutes,
+    partyId: row.party_id,
+    photoPaths: row.photo_urls ?? [],
     participants: [],
   };
 }
@@ -98,7 +102,7 @@ export async function fetchJournalData(): Promise<JournalData> {
       supabase.from("profiles").select("created_at").eq("id", userId).maybeSingle<{ created_at: string }>(),
       supabase
         .from("quest_completions")
-        .select("id, quest_id, reflection, created_at, quests(title, category, experience_points, difficulty, accent_color, estimated_minutes)")
+        .select("id, quest_id, reflection, created_at, party_id, photo_urls, quests(title, category, experience_points, difficulty, accent_color, estimated_minutes)")
         .eq("user_id", userId)
         .order("created_at", { ascending: true })
         .returns<CompletionRow[]>(),
@@ -132,7 +136,7 @@ export async function fetchJournalMemory(completionId: string): Promise<JournalM
 
   const { data, error } = await supabase
     .from("quest_completions")
-    .select("id, quest_id, reflection, created_at, quests(title, category, experience_points, difficulty, accent_color, estimated_minutes)")
+    .select("id, quest_id, reflection, created_at, party_id, photo_urls, quests(title, category, experience_points, difficulty, accent_color, estimated_minutes)")
     .eq("id", completionId)
     .eq("user_id", userData.user.id)
     .maybeSingle<CompletionRow>();
@@ -140,6 +144,14 @@ export async function fetchJournalMemory(completionId: string): Promise<JournalM
   if (error) throw error;
   if (!data) return null;
   return mapMemory(data);
+}
+
+export async function resolveJournalMedia(paths: string[]) {
+  if (!paths.length) return [];
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.storage.from("journal-media").createSignedUrls(paths, 60 * 30);
+  if (error) throw error;
+  return data.map((item) => item.signedUrl).filter((url): url is string => Boolean(url));
 }
 
 export async function upsertJournalEntry(input: {

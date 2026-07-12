@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { categoryColor, difficultyColor, T } from "@/components/theme";
-import { Card, EmptyState, Header, Screen, Sheet, SoftButton } from "@/components/ui";
+import { Card, EmptyState, Header, Screen, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { categories, sortOptions } from "@/data/questlife";
@@ -12,11 +12,6 @@ import { AdventurePack, Quest, QuestDifficulty, questDifficulties } from "@/type
 interface Filters {
   duration: string | null;
   difficulty: QuestDifficulty | null;
-}
-
-function horizontalGap(width: number) {
-  if (width < 380) return 16;
-  return 24;
 }
 
 function sortQuests(list: Quest[], sortBy: string) {
@@ -343,7 +338,7 @@ function QuestFeedCard({ quest, onSave }: { quest: Quest; onSave: () => void }) 
 
 export function ExploreScreen() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { contentWidth, horizontalPadding: sideGap, safeAreaOffset } = useResponsiveScreenLayout();
   const { adventurePacks, error, loading, quests, refresh, toggleSave } = useContent();
   const { featuredQuestIds } = useQuestEngine();
   const [search, setSearch] = useState("");
@@ -352,9 +347,7 @@ export function ExploreScreen() {
   const [filters, setFilters] = useState<Filters>({ duration: null, difficulty: null });
   const [sortVisible, setSortVisible] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
-  const contentWidth = Math.min(width, 402);
-  const sideGap = horizontalGap(width);
-  const feedCardWidth = Math.min(350, contentWidth - sideGap * 2);
+  const feedCardWidth = contentWidth - sideGap * 2;
 
   const activeFilters = [filters.duration, filters.difficulty].filter(Boolean).length;
   const feed = useMemo(() => {
@@ -388,7 +381,7 @@ export function ExploreScreen() {
 
   return (
     <Screen padded={false} contentStyle={{ alignItems: "center", gap: 0 }}>
-      <View style={{ width: contentWidth, paddingHorizontal: sideGap, gap: 16 }}>
+      <View style={{ width: contentWidth, paddingHorizontal: sideGap, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
         <Header title="Explore" subtitle="Find your next adventure" right={<ExploreIconButton icon="folder-open-outline" onPress={() => router.push("/saved")} />} animated={false} />
 
         <ExploreSearch
@@ -402,7 +395,7 @@ export function ExploreScreen() {
       </View>
 
       {showDiscoverySections ? (
-        <View style={{ width: contentWidth, gap: 13, marginTop: 20 }}>
+        <View style={{ width: contentWidth, gap: 13, marginTop: 20, transform: [{ translateX: safeAreaOffset }] }}>
           {featured.length ? (
             <FeaturedTodaySection featured={featured} sideGap={sideGap} width={contentWidth} onSave={toggleSave} />
           ) : null}
@@ -431,7 +424,7 @@ export function ExploreScreen() {
         </View>
       ) : null}
 
-      <View style={{ width: contentWidth, gap: 14, marginTop: showDiscoverySections ? 11 : 20, paddingHorizontal: sideGap }}>
+      <View style={{ width: contentWidth, gap: 14, marginTop: showDiscoverySections ? 11 : 20, paddingHorizontal: sideGap, transform: [{ translateX: safeAreaOffset }] }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 0, paddingBottom: 4 }}>
           {categories.map((item) => {
             const active = category === item;

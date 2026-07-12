@@ -3,6 +3,7 @@ import { PropsWithChildren, createContext, useCallback, useContext, useEffect, u
 import { useAuth } from "@/contexts/AuthContext";
 import {
   cancelFriendRequest,
+  dismissPartyBriefing,
   completePartyQuest,
   createParty,
   endParty,
@@ -13,6 +14,7 @@ import {
   inviteToParty,
   leaveParty,
   joinPartyByCode,
+  markPartyNotificationsRead,
   removeFriend,
   respondFriendRequest,
   respondPartyInvite,
@@ -22,13 +24,14 @@ import {
   sendFriendRequest,
   sendQuestChallenge,
   setPartyQuests,
+  setPartyQuestsEnabled,
   shareQuest,
   addPartyQuests,
   startPartyQuest,
   suggestPartyQuests,
   updateParty,
 } from "@/services/social/socialService";
-import { CreatePartyInput, PartyCompletionResult, PartyDetail, PartyHub, ProfileSearchResult, SocialOverview } from "@/types/social";
+import { CreatePartyInput, PartyCompletionInput, PartyCompletionResult, PartyDetail, PartyHub, ProfileSearchResult, SocialOverview } from "@/types/social";
 
 type SocialContextValue = {
   overview: SocialOverview | null;
@@ -56,9 +59,12 @@ type SocialContextValue = {
   addQuestsToParty: (partyId: string, questIds: string[]) => Promise<void>;
   suggestQuestsForParty: (partyId: string, questIds: string[]) => Promise<void>;
   beginPartyQuest: (partyId: string, questId: string) => Promise<void>;
-  completePartyQuest: (partyId: string, questId: string, reflection?: string, photoPaths?: string[]) => Promise<PartyCompletionResult>;
+  setPartyQuestsEnabled: (partyId: string, enabled: boolean) => Promise<void>;
+  completePartyQuest: (partyId: string, questId: string, input: PartyCompletionInput) => Promise<PartyCompletionResult>;
   finishPartyQuest: (partyId: string, questId?: string) => Promise<void>;
   reactToPartyFeed: (postId: string, emoji: string) => Promise<void>;
+  markPartyNotificationsRead: (partyId: string, kind: "feed" | "leaderboard") => Promise<void>;
+  dismissPartyBriefing: (partyId: string) => Promise<void>;
 };
 
 const SocialContext = createContext<SocialContextValue>({
@@ -87,9 +93,12 @@ const SocialContext = createContext<SocialContextValue>({
   addQuestsToParty: async () => undefined,
   suggestQuestsForParty: async () => undefined,
   beginPartyQuest: async () => undefined,
-  completePartyQuest: async () => ({ completionId: "", xpAwarded: 0, dailyUsed: 0, dailyLimit: 5, fastest: null }),
+  setPartyQuestsEnabled: async () => undefined,
+  completePartyQuest: async () => ({ completionId: "", xpAwarded: 0, dailyUsed: 0, dailyLimit: 5, fastest: null, topFinishers: [], proofMode: "disabled", feedShared: false, elapsedSeconds: 0 }),
   finishPartyQuest: async () => undefined,
   reactToPartyFeed: async () => undefined,
+  markPartyNotificationsRead: async () => undefined,
+  dismissPartyBriefing: async () => undefined,
 });
 
 export function SocialProvider({ children }: PropsWithChildren) {
@@ -177,13 +186,17 @@ export function SocialProvider({ children }: PropsWithChildren) {
       addQuestsToParty: (partyId: string, questIds: string[]) => runAndRefresh(() => addPartyQuests(partyId, questIds), "Unable to add quests."),
       suggestQuestsForParty: (partyId: string, questIds: string[]) => runAndRefresh(() => suggestPartyQuests(partyId, questIds), "Unable to suggest quests."),
       beginPartyQuest: (partyId: string, questId: string) => runAndRefresh(() => startPartyQuest(partyId, questId).then(() => undefined), "Unable to start this party quest."),
-      completePartyQuest: async (partyId: string, questId: string, reflection?: string, photoPaths?: string[]) => {
-        const result = await completePartyQuest(partyId, questId, reflection, photoPaths);
+      setPartyQuestsEnabled: (partyId: string, enabled: boolean) => runAndRefresh(() => setPartyQuestsEnabled(partyId, enabled), "Unable to update Party quests."),
+      completePartyQuest: async (partyId: string, questId: string, input: PartyCompletionInput) => {
+        const result = await completePartyQuest(partyId, questId, input);
         await refresh();
         return result;
       },
       finishPartyQuest: (partyId: string, questId?: string) => runAndRefresh(() => endPartyRound(partyId, questId), "Unable to end this shared quest."),
       reactToPartyFeed: (postId: string, emoji: string) => runAndRefresh(() => reactToPartyPost(postId, emoji), "Unable to add that reaction."),
+      markPartyNotificationsRead: (partyId: string, kind: "feed" | "leaderboard") =>
+        runAndRefresh(() => markPartyNotificationsRead(partyId, kind), "Unable to update Party notifications."),
+      dismissPartyBriefing: (partyId: string) => runAndRefresh(() => dismissPartyBriefing(partyId), "Unable to save the Party briefing."),
     }),
     [overview, partyHub, loading, error, refresh, runAndRefresh],
   );

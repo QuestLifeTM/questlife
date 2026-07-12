@@ -4,12 +4,14 @@ import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { categoryColor, T } from "@/components/theme";
-import { Card, EmptyState, GradientBand, IconButton, PillStat, ProgressBar, Screen, Sheet, SoftButton, Tag } from "@/components/ui";
+import { Card, EmptyState, GradientBand, IconButton, PillStat, ProgressBar, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
 import { useStreaks } from "@/contexts/StreaksContext";
 import { Quest } from "@/types/content";
 
 export function AdventurePackDetailScreen({ id, onBack }: { id?: string; onBack: () => void }) {
+  const { horizontalPadding, insets } = useResponsiveScreenLayout();
+  const edgePadding = { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding };
   const { adventurePacks, completeQuest, getAdventurePack, loading, quests } = useContent();
   const { refresh: refreshStreaks } = useStreaks();
   const pack = getAdventurePack(id) ?? adventurePacks[0] ?? null;
@@ -63,7 +65,7 @@ export function AdventurePackDetailScreen({ id, onBack }: { id?: string; onBack:
   return (
     <Screen contentStyle={{ paddingHorizontal: 0, gap: 0 }}>
       <GradientBand color={pack.color}>
-        <View style={{ paddingHorizontal: 24, gap: 16 }}>
+        <View style={{ ...edgePadding, gap: 16 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <IconButton icon="chevron-back" onPress={onBack} />
             <View style={{ flexDirection: "row", gap: 9 }}>
@@ -85,7 +87,7 @@ export function AdventurePackDetailScreen({ id, onBack }: { id?: string; onBack:
         </View>
       </GradientBand>
 
-      <View style={{ padding: 24, gap: 18 }}>
+      <View style={{ paddingTop: 24, paddingBottom: 24, ...edgePadding, gap: 18 }}>
         <Card style={{ gap: 12 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <View>

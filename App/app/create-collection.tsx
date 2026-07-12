@@ -1,17 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Text, View, useWindowDimensions } from "react-native";
-import { Card, IconButton, Screen, SoftButton } from "@/components/ui";
+import { Text, View } from "react-native";
+import { Card, IconButton, Screen, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { T } from "@/components/theme";
 
 export default function CreateCollectionRoute() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const contentWidth = Math.min(width, 430);
+  const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
 
   return (
     <Screen padded={false} contentStyle={{ alignItems: "center", gap: 22, paddingTop: 38 }}>
-      <View style={{ width: contentWidth, paddingHorizontal: 20, gap: 24 }}>
+      <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 24, transform: [{ translateX: safeAreaOffset }] }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <IconButton icon="chevron-back" onPress={() => router.back()} />
           <Text style={{ color: T.muted, fontSize: 12, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>Adventure Packs</Text>

@@ -1,19 +1,24 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Link, useRouter } from "expo-router";
+import { Link } from "expo-router";
 import { useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { T } from "@/components/theme";
-import { Card, EmptyState, Header, IconButton, PillStat, Screen, Sheet, SoftButton } from "@/components/ui";
+import { Card, EmptyState, Header, IconButton, PillStat, Screen, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
+import { useAuth } from "@/contexts/AuthContext";
 import { createQuestPost, fetchProfileOverview, togglePostLike, updateProfile } from "@/services/profile/profileService";
 import { ProfileOverview, QuestPost, levelForXp } from "@/types/profile";
 
 export function ProfileScreen() {
-  const router = useRouter();
+  const { signOut } = useAuth();
+  const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
   const [overview, setOverview] = useState<ProfileOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<QuestPost | null>(null);
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ displayName: "", username: "", bio: "", emoji: "😊", title: "" });
   const [postForm, setPostForm] = useState({ questId: "", caption: "", visibility: "friends" as "public" | "friends" | "private" });
 
@@ -21,6 +26,11 @@ export function ProfileScreen() {
     setLoading(true);
     try {
       const data = await fetchProfileOverview();
+      if (!data.profile) {
+        setOverview(null);
+        return;
+      }
+
       setOverview(data);
       setEditForm({
         displayName: data.profile.displayName,
@@ -36,7 +46,7 @@ export function ProfileScreen() {
 
   useEffect(() => { load(); }, []);
 
-  const level = overview ? levelForXp(overview.profile.totalXp) : { level: 1, progress: 0, intoLevel: 0, toNext: 500 };
+  const level = overview?.profile ? levelForXp(overview.profile.totalXp) : { level: 1, progress: 0, intoLevel: 0, toNext: 500 };
 
   async function saveProfile() {
     await updateProfile(editForm);
@@ -57,6 +67,21 @@ export function ProfileScreen() {
     await load();
   }
 
+  async function confirmSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setSignOutError(null);
+    try {
+      await signOut();
+      setSignOutOpen(false);
+      // The root auth guard redirects to Login after the session is cleared.
+    } catch (error) {
+      setSignOutError(error instanceof Error ? error.message : "We couldn't sign you out. Please try again.");
+    } finally {
+      setSigningOut(false);
+    }
+  }
+
   if (loading && !overview) {
     return (
       <Screen>
@@ -65,7 +90,7 @@ export function ProfileScreen() {
     );
   }
 
-  if (!overview) {
+  if (!overview?.profile) {
     return (
       <Screen>
         <EmptyState emoji="!" title="Profile unavailable" body="Sign in to view your profile." />
@@ -77,7 +102,7 @@ export function ProfileScreen() {
 
   return (
     <Screen padded={false} contentStyle={{ alignItems: "center" }}>
-      <View style={{ width: "100%", maxWidth: 430, paddingHorizontal: 24, gap: 18 }}>
+      <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 18, transform: [{ translateX: safeAreaOffset }] }}>
         <Header title="Profile" subtitle="Your quest identity" right={<IconButton icon="settings-outline" onPress={() => setEditOpen(true)} />} animated={false} />
 
         <Card style={{ borderRadius: 28, gap: 16 }}>
@@ -151,7 +176,22 @@ export function ProfileScreen() {
             />
           ))}
           <SoftButton label="Save" icon="checkmark" onPress={saveProfile} />
+          <View style={{ marginTop: 8, paddingTop: 14, borderTopWidth: 2, borderTopColor: T.border, gap: 8 }}>
+            <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>Account</Text>
+            <SoftButton label="Sign out" icon="log-out-outline" inverse color={T.red} onPress={() => { setEditOpen(false); setSignOutOpen(true); }} />
+          </View>
         </ScrollView>
+      </Sheet>
+
+      <Sheet visible={signOutOpen} onClose={() => !signingOut && setSignOutOpen(false)}>
+        <View style={{ padding: 24, gap: 14 }}>
+          <View style={{ width: 48, height: 48, borderRadius: 17, backgroundColor: `${T.red}16`, alignItems: "center", justifyContent: "center" }}><Ionicons name="log-out-outline" size={24} color={T.red} /></View>
+          <Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>Sign out?</Text>
+          <Text style={{ color: T.muted, fontSize: 14, lineHeight: 20, fontWeight: "700" }}>You’ll be signed out on this device. Your quests, memories, and Party progress stay safely in your account.</Text>
+          {signOutError ? <Text accessibilityRole="alert" style={{ color: T.red, fontSize: 12, lineHeight: 18, fontWeight: "800" }}>{signOutError}</Text> : null}
+          <SoftButton label={signingOut ? "Signing out…" : "Sign out"} icon="log-out-outline" inverse color={T.red} onPress={confirmSignOut} />
+          <SoftButton label="Stay signed in" inverse color={T.muted} onPress={() => { if (!signingOut) setSignOutOpen(false); }} />
+        </View>
       </Sheet>
 
       <Sheet visible={createOpen} onClose={() => setCreateOpen(false)} maxHeight="88%">

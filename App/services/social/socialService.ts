@@ -3,6 +3,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { toLocalDateKey } from "@/services/journal/journalService";
 import {
   CreatePartyInput,
+  PartyCompletionInput,
   PartyCompletionResult,
   PartyDetail,
   PartyHub,
@@ -102,13 +103,13 @@ export async function respondQuestChallenge(challengeId: string, accept: boolean
 
 export async function createParty(input: CreatePartyInput) {
   assertSupabaseConfigured();
-  const { data, error } = await supabase.rpc("create_party_v2", {
+  const { data, error } = await supabase.rpc("create_party_v3", {
     p_name: input.name,
     p_goal: input.goal ?? "",
     p_photo_path: input.photoPath ?? "",
     p_max_members: input.maxMembers,
     p_member_invites_enabled: input.memberInvitesEnabled,
-    p_photo_proof_required: input.photoProofRequired,
+    p_photo_proof_mode: input.photoProofMode,
     p_game_mode: input.gameMode,
     p_location_type: input.locationType,
     p_location_label: input.locationLabel ?? "",
@@ -128,14 +129,14 @@ export async function joinPartyByCode(code: string) {
 
 export async function updateParty(partyId: string, input: CreatePartyInput) {
   assertSupabaseConfigured();
-  const { error } = await supabase.rpc("update_party_v2", {
+  const { error } = await supabase.rpc("update_party_v3", {
     p_party_id: partyId,
     p_name: input.name,
     p_goal: input.goal ?? "",
     p_photo_path: input.photoPath ?? "",
     p_max_members: input.maxMembers,
     p_member_invites_enabled: input.memberInvitesEnabled,
-    p_photo_proof_required: input.photoProofRequired,
+    p_photo_proof_mode: input.photoProofMode,
     p_game_mode: input.gameMode,
     p_location_type: input.locationType,
     p_location_label: input.locationLabel ?? "",
@@ -193,14 +194,23 @@ export async function startPartyQuest(partyId: string, questId: string) {
   return data as { roundId?: string; sessionId?: string; startedAt: string };
 }
 
-export async function completePartyQuest(partyId: string, questId: string, reflection?: string, photoPaths: string[] = []) {
+export async function setPartyQuestsEnabled(partyId: string, enabled: boolean) {
   assertSupabaseConfigured();
-  const { data, error } = await supabase.rpc("complete_party_quest", {
+  const { error } = await supabase.rpc("set_party_quests_enabled", { p_party_id: partyId, p_enabled: enabled });
+  if (error) throw error;
+}
+
+export async function completePartyQuest(partyId: string, questId: string, input: PartyCompletionInput) {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("complete_party_quest_v2", {
     p_party_id: partyId,
     p_quest_id: questId,
     p_today: today(),
-    p_reflection: reflection ?? null,
-    p_photo_paths: photoPaths,
+    p_reflection: input.reflection ?? null,
+    p_journal_photo_paths: input.journalPhotoPaths,
+    p_share_to_feed: input.shareToFeed,
+    p_feed_caption: input.feedCaption ?? null,
+    p_shared_photo_paths: input.sharedPhotoPaths,
   });
   if (error) throw error;
   return data as PartyCompletionResult;
@@ -218,6 +228,18 @@ export async function reactToPartyPost(postId: string, emoji: string) {
   if (error) throw error;
 }
 
+export async function markPartyNotificationsRead(partyId: string, kind: "feed" | "leaderboard") {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("mark_party_notifications_read", { p_party_id: partyId, p_kind: kind });
+  if (error) throw error;
+}
+
+export async function dismissPartyBriefing(partyId: string) {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("dismiss_party_briefing", { p_party_id: partyId });
+  if (error) throw error;
+}
+
 export async function uploadPartyMedia(partyId: string, localUri: string): Promise<string> {
   assertSupabaseConfigured();
   const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -228,6 +250,20 @@ export async function uploadPartyMedia(partyId: string, localUri: string): Promi
   const extension = localUri.split(".").pop()?.toLowerCase() || "jpg";
   const path = `${partyId}/${userData.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
   const { error } = await supabase.storage.from("party-media").upload(path, blob, { contentType: extension === "png" ? "image/png" : "image/jpeg" });
+  if (error) throw error;
+  return path;
+}
+
+export async function uploadJournalMedia(localUri: string): Promise<string> {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+  const response = await fetch(localUri);
+  const blob = await response.arrayBuffer();
+  const extension = localUri.split(".").pop()?.toLowerCase() || "jpg";
+  const path = `${userData.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+  const { error } = await supabase.storage.from("journal-media").upload(path, blob, { contentType: extension === "png" ? "image/png" : "image/jpeg" });
   if (error) throw error;
   return path;
 }

@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { T } from "@/components/theme";
-import { Card, EmptyState, Header, IconButton, Screen } from "@/components/ui";
+import { Card, EmptyState, Header, IconButton, Screen, useResponsiveScreenLayout } from "@/components/ui";
 
 type NotificationCategory = "All" | "Quests" | "Progress" | "Social" | "Friends" | "System";
 type NotificationPeriod = "today" | "earlier";
@@ -333,9 +333,8 @@ function FeedSection({ title, items }: { title: "Today" | "Earlier"; items: Ques
 }
 
 export function NotificationsScreen({ onBack }: { onBack: () => void }) {
-  const { width } = useWindowDimensions();
+  const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
   const [selectedCategory, setSelectedCategory] = useState<NotificationCategory>("All");
-  const contentWidth = Math.min(width, 430);
 
   const filtered = useMemo(() => {
     const visible = selectedCategory === "All"
@@ -349,8 +348,8 @@ export function NotificationsScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <Screen padded={false} contentStyle={{ alignItems: "center", gap: 22 }}>
-      <View style={{ width: contentWidth, gap: 22 }}>
-        <View style={{ paddingHorizontal: 20, gap: 18 }}>
+      <View style={{ width: contentWidth, gap: 22, transform: [{ translateX: safeAreaOffset }] }}>
+        <View style={{ paddingHorizontal: horizontalPadding, gap: 18 }}>
           <Header title="Notifications" subtitle="QuestLife activity" right={<IconButton icon="chevron-back" onPress={onBack} />} animated={false} />
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 4 }}>
@@ -365,7 +364,7 @@ export function NotificationsScreen({ onBack }: { onBack: () => void }) {
           </ScrollView>
         </View>
 
-        <View style={{ paddingHorizontal: 20, gap: 24 }}>
+        <View style={{ paddingHorizontal: horizontalPadding, gap: 24 }}>
           <FeedSection title="Today" items={today} />
           <FeedSection title="Earlier" items={earlier} />
         </View>

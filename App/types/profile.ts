@@ -46,7 +46,7 @@ export type ProfileOverview = {
     totalXp: number;
     joinedAt: string;
     streakVisibility: "public" | "private";
-  };
+  } | null;
   stats: {
     totalQuests: number;
     currentStreak: number;
@@ -74,4 +74,3 @@ export function levelForXp(totalXp: number) {
   const intoLevel = totalXp % perLevel;
   return { level, intoLevel, toNext: perLevel, progress: intoLevel / perLevel };
 }
-

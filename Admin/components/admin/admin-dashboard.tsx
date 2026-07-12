@@ -12,6 +12,7 @@ import {
   deleteQuest,
   fetchAdminNotifications,
   fetchContentLibrary,
+  getDailyQuestLimitEnabled,
   getAdminMembership,
   inviteAdmin,
   listAdminInvites,
@@ -22,6 +23,7 @@ import {
   notifyQuestReviewResult,
   updateAdminAccess,
   updateOwnAdminProfile,
+  setDailyQuestLimitEnabled,
   upsertAdventurePack,
   upsertQuest,
   deleteAdmin,
@@ -1161,6 +1163,8 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const [selectedReviewQuestId, setSelectedReviewQuestId] = useState<string | null>(null);
   const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readAdminSidebarCollapsedPreference());
+  const [dailyQuestLimitEnabled, setDailyQuestLimitEnabled] = useState(true);
+  const [updatingDailyQuestLimit, setUpdatingDailyQuestLimit] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [denyQuest, setDenyQuest] = useState<Quest | null>(null);
   const [denyNote, setDenyNote] = useState("");
@@ -1336,12 +1340,14 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
       setNotifications(nextNotifications);
 
       if (canManageAdmins) {
-        const [profiles, invites] = await Promise.all([
+        const [profiles, invites, dailyLimitEnabled] = await Promise.all([
           listAdminProfiles(),
           listAdminInvites(),
+          getDailyQuestLimitEnabled(),
         ]);
         setAdminProfiles(profiles);
         setAdminInvites(invites);
+        setDailyQuestLimitEnabled(dailyLimitEnabled);
       }
     } finally {
       setLoadingOperations(false);
@@ -1952,6 +1958,22 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     }
   }
 
+  async function handleDailyQuestLimitToggle() {
+    if (!canManageAdmins || updatingDailyQuestLimit) return;
+    const nextValue = !dailyQuestLimitEnabled;
+    setUpdatingDailyQuestLimit(true);
+    setError(null);
+    try {
+      const persistedValue = await setDailyQuestLimitEnabled(nextValue);
+      setDailyQuestLimitEnabled(persistedValue);
+      setMessage(persistedValue ? "Daily quest limit enabled for all users." : "Daily quest limit disabled for all users.");
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Unable to update the daily quest limit.");
+    } finally {
+      setUpdatingDailyQuestLimit(false);
+    }
+  }
+
   const currentTitle =
     view === "published" ? "Published Quests" :
     view === "all" ? "All Quests" :
@@ -2125,6 +2147,31 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
             {nav.map(renderNavItem)}
           </ScrollView>
           <View style={{ gap: 10, flexShrink: 0 }}>
+            {canManageAdmins ? <Pressable
+              accessibilityRole="switch"
+              accessibilityLabel="Daily quest limit"
+              accessibilityState={{ checked: dailyQuestLimitEnabled, disabled: updatingDailyQuestLimit }}
+              disabled={updatingDailyQuestLimit}
+              onPress={handleDailyQuestLimitToggle}
+              style={({ pressed }) => ({
+                minHeight: 52,
+                width: iconOnlySidebarControl ? 48 : "100%",
+                alignSelf: iconOnlySidebarControl ? "center" : "stretch",
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: dailyQuestLimitEnabled ? nova.blue : t.border,
+                backgroundColor: dailyQuestLimitEnabled ? t.active : t.card,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: iconOnlySidebarControl ? "center" : "space-between",
+                gap: 10,
+                paddingHorizontal: iconOnlySidebarControl ? 0 : 12,
+                opacity: updatingDailyQuestLimit ? 0.6 : pressed ? 0.86 : 1,
+              })}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}><Ionicons name="speedometer-outline" size={20} color={dailyQuestLimitEnabled ? nova.blue : t.muted} />{iconOnlySidebarControl ? null : <View><Text style={{ color: t.text, fontSize: 13, fontWeight: "900" }}>Daily quest limit</Text><Text style={{ color: t.muted, fontSize: 11, fontWeight: "700" }}>{dailyQuestLimitEnabled ? "On · 5 per day" : "Off · unlimited"}</Text></View>}</View>
+              {iconOnlySidebarControl ? null : <View style={{ width: 34, height: 20, borderRadius: 10, padding: 2, justifyContent: "center", alignItems: dailyQuestLimitEnabled ? "flex-end" : "flex-start", backgroundColor: dailyQuestLimitEnabled ? nova.blue : t.border }}><View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: "#ffffff" }} /></View>}
+            </Pressable> : null}
             {collapsedRail ? null : (
               <Text style={{ color: t.muted, fontSize: 15, fontWeight: "800" }}>{membership ? `${membership.role} access` : checkingRole ? "Checking access" : "No access"}</Text>
             )}

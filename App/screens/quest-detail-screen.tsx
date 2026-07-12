@@ -6,7 +6,7 @@ import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { LogLoreFlow } from "@/components/log-lore-flow";
 import { QuestStartBlockModal } from "@/components/quest-start-block";
 import { categoryColor, difficultyColor, T } from "@/components/theme";
-import { Card, EmptyState, GradientBand, IconButton, PillStat, Screen, Sheet, SoftButton, Tag } from "@/components/ui";
+import { Card, EmptyState, GradientBand, IconButton, PillStat, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useSocial } from "@/contexts/SocialContext";
@@ -16,6 +16,8 @@ import { QuestReviewData } from "@/types/engine";
 
 export function QuestDetailScreen({ id, onBack }: { id?: string; onBack: () => void }) {
   const router = useRouter();
+  const { horizontalPadding, insets } = useResponsiveScreenLayout();
+  const edgePadding = { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding };
   const { getQuest, loading, quests, toggleSave } = useContent();
   const { engine, refresh, saveActiveForLater } = useQuestEngine();
   const { overview, shareQuestWith, challengeFriend } = useSocial();
@@ -96,7 +98,7 @@ export function QuestDetailScreen({ id, onBack }: { id?: string; onBack: () => v
   return (
     <Screen contentStyle={{ paddingHorizontal: 0, gap: 0 }}>
       <GradientBand color={quest.color}>
-        <View style={{ paddingHorizontal: 24, gap: 16 }}>
+        <View style={{ ...edgePadding, gap: 16 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <IconButton icon="chevron-back" onPress={onBack} />
             <View style={{ flexDirection: "row", gap: 9 }}>
@@ -114,7 +116,7 @@ export function QuestDetailScreen({ id, onBack }: { id?: string; onBack: () => v
         </View>
       </GradientBand>
 
-      <View style={{ padding: 24, gap: 18 }}>
+      <View style={{ paddingTop: 24, paddingBottom: 24, ...edgePadding, gap: 18 }}>
         <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
           <PillStat icon="flash" text={`+${quest.xp} XP`} />
           <PillStat icon="time" text={quest.timeLabel} color={T.dark} />

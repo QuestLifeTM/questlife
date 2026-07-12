@@ -385,6 +385,20 @@ export async function getAdminMembership(): Promise<AdminMembership | null> {
   };
 }
 
+export async function getDailyQuestLimitEnabled(): Promise<boolean> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("get_daily_quest_limit_enabled");
+  if (error) throw error;
+  return data !== false;
+}
+
+export async function setDailyQuestLimitEnabled(enabled: boolean): Promise<boolean> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("set_daily_quest_limit_enabled", { p_enabled: enabled });
+  if (error) throw error;
+  return data === true;
+}
+
 export async function listAdminProfiles(): Promise<AdminProfile[]> {
   assertSupabaseConfigured();
 

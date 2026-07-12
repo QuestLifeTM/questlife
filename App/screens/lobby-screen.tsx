@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, Pressable, StyleProp, StyleSheet, Text, TextStyle, View, useWindowDimensions } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleProp, StyleSheet, Text, TextStyle, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { LogLoreFlow } from "@/components/log-lore-flow";
@@ -9,7 +9,7 @@ import { getLobbyLayout, lobbyDesign, resolveLobbyStates } from "@/components/lo
 import { QuestStartBlockSheet } from "@/components/quest-start-block";
 import { StreakPill } from "@/components/streak-pill";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
-import { Card, PillStat, Screen, Sheet, SoftButton, Tag, haptic } from "@/components/ui";
+import { Card, PillStat, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
@@ -204,7 +204,7 @@ function EnergyCard({
 
   return (
     <View
-      accessibilityLabel={`Daily Energy. ${dailyUsed} of ${dailyLimit} quests completed. ${resetLabel}.`}
+      accessibilityLabel={dailyLimit > 0 ? `Daily Energy. ${dailyUsed} of ${dailyLimit} quests completed. ${resetLabel}.` : `Daily Energy. ${dailyUsed} quests completed today. No daily limit.`}
       style={styles.energySection}
     >
       <View style={styles.energyHeaderRow}>
@@ -213,10 +213,10 @@ function EnergyCard({
             <EnergyHeadingIcon />
             <Text style={styles.energyTitle}>Daily Energy</Text>
           </View>
-          <LobbySwapText text={`${dailyUsed} of ${dailyLimit} quests completed`} style={styles.energySubtitle} reducedMotion={reducedMotion} />
+          <LobbySwapText text={dailyLimit > 0 ? `${dailyUsed} of ${dailyLimit} quests completed` : `${dailyUsed} quests completed · Unlimited`} style={styles.energySubtitle} reducedMotion={reducedMotion} />
         </View>
         <View style={[styles.energyPill, limitReached ? styles.energyPillDone : null]}>
-          <LobbySwapText text={limitReached ? "Limit reached" : resetLabel} style={[styles.energyPillText, limitReached ? styles.energyPillTextDone : null]} reducedMotion={reducedMotion} />
+          <LobbySwapText text={dailyLimit > 0 ? (limitReached ? "Limit reached" : resetLabel) : "No limit"} style={[styles.energyPillText, limitReached ? styles.energyPillTextDone : null]} reducedMotion={reducedMotion} />
         </View>
       </View>
       <View style={styles.energyTrack}>
@@ -486,7 +486,7 @@ function CompletedSection({
 
 export function LobbyScreen() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
   const reducedMotion = useReducedMotionPreference();
   const { user } = useAuth();
   const { error: contentError, getQuest, loading, quests } = useContent();
@@ -497,7 +497,7 @@ export function LobbyScreen() {
   const [logQuest, setLogQuest] = useState<Quest | null>(null);
   const [savedSheet, setSavedSheet] = useState(false);
 
-  const { contentWidth, horizontalInset, isCompact: compact } = getLobbyLayout(width);
+  const { isCompact: compact } = getLobbyLayout(contentWidth);
   const now = new Date();
   const metadata = user?.user_metadata ?? {};
   const displayName =
@@ -541,7 +541,7 @@ export function LobbyScreen() {
     <Screen padded={false} contentStyle={styles.screenContent}>
       <LobbyReveal motionKey="lobby-page" reducedMotion={reducedMotion}>
         <View
-          style={[styles.container, { width: contentWidth, paddingHorizontal: horizontalInset }]}
+          style={[styles.container, { width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }]}
           testID={`lobby-${lobbyStates.request}-${lobbyStates.activity}-${lobbyStates.plan}-${lobbyStates.history}-${lobbyStates.feedback}`}
         >
         <View style={styles.header}>
