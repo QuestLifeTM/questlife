@@ -23,7 +23,7 @@ import {
   notifyQuestReviewResult,
   updateAdminAccess,
   updateOwnAdminProfile,
-  setDailyQuestLimitEnabled,
+  setDailyQuestLimitEnabled as saveDailyQuestLimitEnabled,
   upsertAdventurePack,
   upsertQuest,
   deleteAdmin,
@@ -1163,7 +1163,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const [selectedReviewQuestId, setSelectedReviewQuestId] = useState<string | null>(null);
   const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readAdminSidebarCollapsedPreference());
-  const [dailyQuestLimitEnabled, setDailyQuestLimitEnabled] = useState(true);
+  const [dailyQuestLimitEnabled, setDailyQuestLimitEnabledState] = useState(true);
   const [updatingDailyQuestLimit, setUpdatingDailyQuestLimit] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [denyQuest, setDenyQuest] = useState<Quest | null>(null);
@@ -1347,7 +1347,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
         ]);
         setAdminProfiles(profiles);
         setAdminInvites(invites);
-        setDailyQuestLimitEnabled(dailyLimitEnabled);
+        setDailyQuestLimitEnabledState(dailyLimitEnabled);
       }
     } finally {
       setLoadingOperations(false);
@@ -1962,12 +1962,14 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     if (!canManageAdmins || updatingDailyQuestLimit) return;
     const nextValue = !dailyQuestLimitEnabled;
     setUpdatingDailyQuestLimit(true);
+    setDailyQuestLimitEnabledState(nextValue);
     setError(null);
     try {
-      const persistedValue = await setDailyQuestLimitEnabled(nextValue);
-      setDailyQuestLimitEnabled(persistedValue);
+      const persistedValue = await saveDailyQuestLimitEnabled(nextValue);
+      setDailyQuestLimitEnabledState(persistedValue);
       setMessage(persistedValue ? "Daily quest limit enabled for all users." : "Daily quest limit disabled for all users.");
     } catch (nextError) {
+      setDailyQuestLimitEnabledState(!nextValue);
       setError(nextError instanceof Error ? nextError.message : "Unable to update the daily quest limit.");
     } finally {
       setUpdatingDailyQuestLimit(false);

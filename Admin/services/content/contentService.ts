@@ -389,14 +389,20 @@ export async function getDailyQuestLimitEnabled(): Promise<boolean> {
   assertSupabaseConfigured();
   const { data, error } = await supabase.rpc("get_daily_quest_limit_enabled");
   if (error) throw error;
-  return data !== false;
+  return parseBooleanRpcValue(data);
 }
 
 export async function setDailyQuestLimitEnabled(enabled: boolean): Promise<boolean> {
   assertSupabaseConfigured();
   const { data, error } = await supabase.rpc("set_daily_quest_limit_enabled", { p_enabled: enabled });
   if (error) throw error;
-  return data === true;
+  return parseBooleanRpcValue(data);
+}
+
+function parseBooleanRpcValue(value: unknown): boolean {
+  if (value === true || value === "true" || value === 1 || value === "1") return true;
+  if (value === false || value === "false" || value === 0 || value === "0") return false;
+  throw new Error("The quest-limit setting returned an invalid value.");
 }
 
 export async function listAdminProfiles(): Promise<AdminProfile[]> {

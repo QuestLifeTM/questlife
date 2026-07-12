@@ -32,6 +32,15 @@ function formatDuration(seconds?: number | null) {
   return minutes ? `${minutes}m ${remainder}s` : `${remainder}s`;
 }
 
+function messageFromError(error: unknown, fallback = "Please try again.") {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+}
+
 type QuestPickerSort = "Recommended" | "Most XP" | "Shortest" | "Longest";
 
 function sortPickerQuests(quests: Quest[], sort: QuestPickerSort) {
@@ -380,7 +389,7 @@ export function PartyDetailScreen() {
     setLaunchingQuestId(quest.questId);
     try { await beginPartyQuest(partyId, quest.questId); await load(); }
     catch (nextError) {
-      const message = nextError instanceof Error ? nextError.message : "Please try again.";
+      const message = messageFromError(nextError);
       if (message.includes("two active members")) Alert.alert("Invite one more adventurer", "Parties need two active members to begin. Invite a friend from Party Info, then have them accept the Party invite.");
       else Alert.alert("Couldn’t start quest", message);
     }
@@ -414,7 +423,7 @@ export function PartyDetailScreen() {
       setCompleteQuest(null);
       await load();
       setCompletionCelebration({ quest: completeQuest, result });
-    } catch (nextError) { Alert.alert("Couldn’t complete quest", nextError instanceof Error ? nextError.message : "Please try again."); }
+    } catch (nextError) { Alert.alert("Couldn’t complete quest", messageFromError(nextError)); }
   };
 
   const confirmEndRound = async () => {
