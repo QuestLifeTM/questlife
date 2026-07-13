@@ -3,6 +3,7 @@ import { Link, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { categoryColor, difficultyColor, T } from "@/components/theme";
+import { PartyCategoryIcon } from "@/components/party-category-icon";
 import { Card, EmptyState, Header, Screen, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
@@ -137,7 +138,7 @@ function ExploreSearch({
           onChangeText={onChangeText}
           placeholder="Search Quests"
           placeholderTextColor={T.muted}
-          style={{ flex: 1, color: T.dark, fontSize: 14, lineHeight: 19, fontWeight: "800", padding: 0 }}
+          style={{ flex: 1, color: T.dark, fontFamily: "Rubik", fontSize: 15, lineHeight: 20, paddingVertical: 0, includeFontPadding: false, textAlignVertical: "center" }}
         />
       </View>
       <ExploreIconButton icon="swap-vertical" onPress={onSort} color={activeSort ? T.blue : T.muted} bg={activeSort ? `${T.blue}16` : T.white} />
@@ -443,7 +444,10 @@ export function ExploreScreen() {
                   boxShadow: active ? "none" : `2px 2px 0px ${T.border}`
                 }}
               >
-                <Text style={{ color: active ? T.white : tone?.text ?? T.muted, fontWeight: "900", fontSize: 13 }}>{item}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  {item === "All" ? <Ionicons name="apps" size={15} color={active ? T.white : T.muted} /> : <PartyCategoryIcon category={item} size={16} color={active ? T.white : tone?.text} />}
+                  <Text style={{ color: active ? T.white : tone?.text ?? T.muted, fontWeight: "900", fontSize: 13 }}>{item}</Text>
+                </View>
               </Pressable>
             );
           })}

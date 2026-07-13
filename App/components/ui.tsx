@@ -378,7 +378,7 @@ export function SearchInput({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={T.muted}
-        style={{ flex: 1, color: T.dark, fontWeight: "700", fontSize: 13, padding: 0 }}
+        style={{ flex: 1, color: T.dark, fontFamily: "Rubik", fontSize: 15, lineHeight: 20, paddingVertical: 0, includeFontPadding: false, textAlignVertical: "center" }}
       />
       {value ? (
         <Pressable onPress={() => onChangeText("")}>

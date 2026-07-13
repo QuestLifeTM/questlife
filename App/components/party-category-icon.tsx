@@ -4,6 +4,7 @@ import { QuestCategory } from "@/types/content";
 type PartyCategoryIconProps = {
   category: QuestCategory;
   size?: number;
+  color?: string;
 };
 
 const iconColors: Record<QuestCategory, string> = {
@@ -18,8 +19,8 @@ const iconColors: Record<QuestCategory, string> = {
   "WILD CARD": "#D14DFF"
 };
 
-export function PartyCategoryIcon({ category, size = 22 }: PartyCategoryIconProps) {
-  const color = iconColors[category];
+export function PartyCategoryIcon({ category, size = 22, color: colorOverride }: PartyCategoryIconProps) {
+  const color = colorOverride ?? iconColors[category];
   const stroke = { stroke: color, strokeWidth: 1.9, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
   return (
