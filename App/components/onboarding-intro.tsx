@@ -1,10 +1,10 @@
 import * as Haptics from "expo-haptics";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type IntroPhase = "blank" | "prelude" | "time" | "passed" | "cta" | "vision" | "prompt";
+type IntroPhase = "blank" | "prelude" | "time" | "passed" | "cta" | "vision" | "prompt" | "skip";
 
 const INTRO_FONT = "GeistPixel";
 const WORDS_PER_MINUTE = 200;
@@ -17,6 +17,7 @@ const VISION_LINES = [
   "In places you've never been.",
   "Doing things you'll never forget."
 ];
+const SKIP_MESSAGE = "You skipped the intro.";
 const PRELUDE_SCREENS = [
   {
     text: "Hi there!",
@@ -69,9 +70,12 @@ function animateOpacity(value: Animated.Value, toValue: number) {
 export function OnboardingIntro({ onDone }: { onDone: () => void }) {
   const insets = useSafeAreaInsets();
   const mounted = useRef(true);
+  const runId = useRef(0);
+  const skipStarted = useRef(false);
   const contentOpacity = useRef(new Animated.Value(1)).current;
   const preludeOpacity = useRef(new Animated.Value(0)).current;
   const [phase, setPhase] = useState<IntroPhase>("blank");
+  const [isSkipping, setIsSkipping] = useState(false);
   const [preludeText, setPreludeText] = useState("");
   const [timeTexts, setTimeTexts] = useState(["", "", ""]);
   const [passedText, setPassedText] = useState("");
@@ -80,13 +84,40 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
   const [visionTexts, setVisionTexts] = useState(["", "", ""]);
   const [visionFading, setVisionFading] = useState(false);
   const [promptText, setPromptText] = useState("");
+  const [skipText, setSkipText] = useState("");
+
+  function skipIntro() {
+    if (skipStarted.current) return;
+
+    skipStarted.current = true;
+    // Invalidate the current scripted sequence immediately, rather than
+    // allowing it to continue until React processes this state update.
+    runId.current += 1;
+    contentOpacity.stopAnimation();
+    preludeOpacity.stopAnimation();
+    contentOpacity.setValue(1);
+    preludeOpacity.setValue(0);
+    setPreludeText("");
+    setTimeTexts(["", "", ""]);
+    setPassedText("");
+    setCtaFirst("");
+    setCtaSecond("");
+    setVisionTexts(["", "", ""]);
+    setVisionFading(false);
+    setPromptText("");
+    setSkipText("");
+    setIsSkipping(true);
+  }
 
   useEffect(() => {
+    const currentRun = runId.current + 1;
+    runId.current = currentRun;
     mounted.current = true;
+    const isCurrentRun = () => mounted.current && runId.current === currentRun;
 
     async function typeInto(text: string, update: (value: string) => void) {
       for (let index = 1; index <= text.length; index += 1) {
-        if (!mounted.current) return;
+        if (!isCurrentRun()) return;
 
         const char = text[index - 1];
         update(text.slice(0, index));
@@ -142,7 +173,7 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
     }
 
     async function showPreludeScreen(screen: (typeof PRELUDE_SCREENS)[number]) {
-      if (!mounted.current) return;
+      if (!isCurrentRun()) return;
 
       setPhase("prelude");
       setPreludeText("");
@@ -150,7 +181,7 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
       await typeInto(screen.text, setPreludeText);
       await wait(screen.holdMs);
 
-      if (!mounted.current) return;
+      if (!isCurrentRun()) return;
       await animateOpacity(preludeOpacity, 0);
       setPreludeText("");
       setPhase("blank");
@@ -158,10 +189,10 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
     }
 
     async function moveTo(nextPhase: IntroPhase, gapMs = 950) {
-      if (!mounted.current) return;
+      if (!isCurrentRun()) return;
       setPhase("blank");
       await wait(gapMs);
-      if (!mounted.current) return;
+      if (!isCurrentRun()) return;
       setPhase(nextPhase);
       await wait(360);
     }
@@ -171,7 +202,7 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
         await showPreludeScreen(screen);
       }
 
-      if (!mounted.current) return;
+      if (!isCurrentRun()) return;
       await moveTo("time", 200);
       await typeTimeLine(0, TIME_PHRASES[0]);
       await wait(500);
@@ -182,24 +213,24 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
       setTimeLine(2, TIME_PHRASES[2]);
       tapForCharacter("?");
       await wait(800);
-      if (!mounted.current) return;
+      if (!isCurrentRun()) return;
       await fadeCurrentScreenToBlank();
 
-      if (!mounted.current) return;
+      if (!isCurrentRun()) return;
       await moveTo("passed", 0);
       await typeInto("And before you know it...\nthat moment has passed.", setPassedText);
       await wait(800);
-      if (!mounted.current) return;
+      if (!isCurrentRun()) return;
       await fadeCurrentScreenToBlank();
 
-      if (!mounted.current) return;
+      if (!isCurrentRun()) return;
       await moveTo("cta", 800);
       await typeInto("You can't get those moments back.", setCtaFirst);
       await wait(800);
       await typeInto("But you can create new ones.", setCtaSecond);
       await wait(1500);
 
-      if (!mounted.current) return;
+      if (!isCurrentRun()) return;
       await moveTo("vision", 800);
       await typeVisionLine(0, VISION_LINES[0]);
       await wait(800);
@@ -207,33 +238,55 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
       await wait(800);
       await typeVisionLine(2, VISION_LINES[2]);
       await wait(2200);
-      if (!mounted.current) return;
+      if (!isCurrentRun()) return;
       setVisionFading(true);
       await wait(820);
 
-      if (!mounted.current) return;
+      if (!isCurrentRun()) return;
       await moveTo("prompt", 800);
       await typeInto("But where do you start?", setPromptText);
       await wait(1000);
       await fadeOutIntro();
       await wait(600);
 
-      if (mounted.current) {
+      if (isCurrentRun()) {
         onDone();
       }
     }
 
-    runIntro();
+    async function runSkipSequence() {
+      setPhase("skip");
+      await typeInto(SKIP_MESSAGE, setSkipText);
+      await wait(900);
+      if (!isCurrentRun()) return;
+      await fadeOutIntro();
+      await wait(350);
+
+      if (isCurrentRun()) {
+        onDone();
+      }
+    }
+
+    if (isSkipping) {
+      runSkipSequence();
+    } else {
+      runIntro();
+    }
 
     return () => {
-      mounted.current = false;
+      if (runId.current === currentRun) {
+        mounted.current = false;
+        runId.current += 1;
+      }
     };
-  }, [contentOpacity, onDone, preludeOpacity]);
+  }, [contentOpacity, isSkipping, onDone, preludeOpacity]);
 
   return (
-    <View
+    <Pressable
       accessible
       accessibilityLabel="QuestLife memory intro"
+      disabled={isSkipping}
+      onPress={skipIntro}
       style={styles.root}
     >
       <StatusBar style="light" />
@@ -280,9 +333,10 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
           ) : null}
 
           {phase === "prompt" ? <IntroText text={promptText} /> : null}
+          {phase === "skip" ? <IntroText text={skipText} /> : null}
         </Stage>
       </Animated.View>
-    </View>
+    </Pressable>
   );
 }
 

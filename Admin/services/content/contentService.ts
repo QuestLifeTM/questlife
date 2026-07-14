@@ -2,6 +2,7 @@ import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import {
   adminPermissions,
+  AppAnnouncement,
   AdminInvite,
   AdminMembership,
   AdminNotification,
@@ -98,6 +99,14 @@ type AdminNotificationRow = {
   type: AdminNotification["type"];
 };
 
+type AppAnnouncementRow = {
+  body: string;
+  created_at: string | null;
+  id: string;
+  is_active: boolean;
+  title: string;
+};
+
 function assertSupabaseConfigured() {
   if (!isSupabaseConfigured) {
     throw new Error(SUPABASE_CONFIG_ERROR);
@@ -153,6 +162,16 @@ function mapNotification(row: AdminNotificationRow): AdminNotification {
     relatedQuestId: row.related_quest_id,
     title: row.title,
     type: row.type,
+  };
+}
+
+function mapAppAnnouncement(row: AppAnnouncementRow): AppAnnouncement {
+  return {
+    body: row.body,
+    createdAt: row.created_at,
+    id: row.id,
+    isActive: row.is_active,
+    title: row.title,
   };
 }
 
@@ -397,6 +416,55 @@ export async function setDailyQuestLimitEnabled(enabled: boolean): Promise<boole
   const { data, error } = await supabase.rpc("set_daily_quest_limit_enabled", { p_enabled: enabled });
   if (error) throw error;
   return parseBooleanRpcValue(data);
+}
+
+export async function getIntroEnabled(): Promise<boolean> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("get_intro_enabled");
+  if (error) throw error;
+  return parseBooleanRpcValue(data);
+}
+
+export async function setIntroEnabled(enabled: boolean): Promise<boolean> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("set_intro_enabled", { p_enabled: enabled });
+  if (error) throw error;
+  return parseBooleanRpcValue(data);
+}
+
+export async function listAppAnnouncements(): Promise<AppAnnouncement[]> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase
+    .from("app_announcements")
+    .select("id, title, body, is_active, created_at")
+    .order("created_at", { ascending: false })
+    .returns<AppAnnouncementRow[]>();
+
+  if (error) throw error;
+  return (data ?? []).map(mapAppAnnouncement);
+}
+
+export async function publishAppAnnouncement(input: { title: string; body: string }): Promise<AppAnnouncement> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("publish_app_announcement", {
+    p_body: input.body.trim(),
+    p_title: input.title.trim(),
+  });
+
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object") throw new Error("The announcement could not be created.");
+  return mapAppAnnouncement(row as AppAnnouncementRow);
+}
+
+export async function deactivateAppAnnouncement(id: string) {
+  assertSupabaseConfigured();
+  const { error } = await supabase
+    .from("app_announcements")
+    .update({ is_active: false })
+    .eq("id", id);
+
+  if (error) throw error;
 }
 
 function parseBooleanRpcValue(value: unknown): boolean {

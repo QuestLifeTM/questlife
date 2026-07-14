@@ -156,6 +156,14 @@ export type AdminNotification = {
   type: "quest_approved" | "quest_denied" | "admin_invite" | "system";
 };
 
+export type AppAnnouncement = {
+  body: string;
+  createdAt?: string | null;
+  id: string;
+  isActive: boolean;
+  title: string;
+};
+
 export type AdminProfile = {
   bio?: string | null;
   email?: string | null;

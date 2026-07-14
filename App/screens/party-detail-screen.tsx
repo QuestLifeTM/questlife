@@ -3,7 +3,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import Reanimated, { FadeIn, FadeInDown, FadeOutUp, ZoomIn, useReducedMotion } from "react-native-reanimated";
+import Reanimated, { Easing, FadeIn, FadeInDown, FadeOutUp, ZoomIn, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
 import { T } from "@/components/theme";
 import { EmptyState, IconButton, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
@@ -12,7 +12,7 @@ import { useSocial } from "@/contexts/SocialContext";
 import { supabase } from "@/lib/supabase";
 import { resolvePartyMedia, uploadJournalMedia, uploadPartyMedia } from "@/services/social/socialService";
 import { Quest, questCategories, QuestCategory, questCategoryColors } from "@/types/content";
-import { PartyCompletedQuest, PartyCompletionResult, PartyDetail, PartyFeedPost, PartyQuest, PartyQuestSuggestion } from "@/types/social";
+import { PartyCompletedQuest, PartyCompletionResult, PartyDetail, PartyFeedPost, PartyLeaderboardEntry, PartyQuest, PartyQuestSuggestion } from "@/types/social";
 
 type EndRoundPrompt = { completed: number; total: number } | null;
 type PartyTab = "quests" | "feed" | "leaderboard";
@@ -55,8 +55,16 @@ function Avatar({ emoji, color, size = 40 }: { emoji: string; color: string; siz
   return <View style={{ width: size, height: size, borderRadius: size / 2, alignItems: "center", justifyContent: "center", backgroundColor: `${color}1b`, borderWidth: 2, borderColor: T.white }}><Text style={{ fontSize: size * 0.44 }}>{emoji}</Text></View>;
 }
 
+function darkerButtonEdge(color: string) {
+  const match = /^#([\da-f]{6})$/i.exec(color);
+  if (!match) return color;
+
+  const toChannel = (offset: number) => Math.round(parseInt(match[1].slice(offset, offset + 2), 16) * 0.78).toString(16).padStart(2, "0");
+  return `#${toChannel(0)}${toChannel(2)}${toChannel(4)}`;
+}
+
 function PartyButton({ label, icon, color = T.blue, onPress, disabled = false, compact = false }: { label: string; icon?: keyof typeof Ionicons.glyphMap; color?: string; onPress?: () => void; disabled?: boolean; compact?: boolean }) {
-  const lowerEdge = color === T.blue ? "#258fd8" : color === T.purple ? "#7973c7" : color === T.green ? "#20894d" : color === T.red ? "#d73b57" : "#bd7b08";
+  const lowerEdge = color === T.blue ? "#258fd8" : color === T.purple ? "#7973c7" : color === T.green ? "#20894d" : color === T.red ? "#d73b57" : darkerButtonEdge(color);
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={() => { if (!disabled) haptic(); onPress?.(); }} style={({ pressed }) => ({ minHeight: compact ? 44 : 58, paddingHorizontal: compact ? 14 : 18, borderRadius: compact ? 16 : 20, backgroundColor: disabled ? T.border : color, borderBottomWidth: compact ? 4 : 6, borderBottomColor: disabled ? "#d7cec2" : lowerEdge, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, opacity: disabled ? 0.6 : 1, transform: [{ translateY: pressed && !disabled ? 3 : 0 }] })}>
     {icon ? <Ionicons name={icon} size={compact ? 16 : 19} color={T.white} /> : null}
     <Text style={{ color: T.white, fontSize: compact ? 12 : 15, fontWeight: "900", letterSpacing: compact ? 0.42 : 0.5, textTransform: "uppercase" }}>{label}</Text>
@@ -138,7 +146,7 @@ function ActiveQuestCard({ party, quest, category, onComplete, onEnd, remoteStar
     </View>
     {isShared && party.activeRound ? <View style={{ flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 14, backgroundColor: `${T.purple}10`, gap: 7 }}><Ionicons name="people" size={17} color={T.purple} /><Text style={{ flex: 1, color: T.purple, fontSize: 12, fontWeight: "900" }}>{party.activeRound.completedCount ?? 0}/{party.activeRound.totalMembers ?? party.memberCount} finished</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "800" }}>Top 3 earn a bonus</Text></View> : null}
     {isShared && finishers.length ? <View style={{ gap: 6 }}><Text style={{ color: T.muted, fontSize: 10, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" }}>Fastest so far</Text>{finishers.slice(0, 3).map((finisher) => <View key={finisher.userId} style={{ minHeight: 31, paddingHorizontal: 9, borderRadius: 11, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: `${finisher.rank === 1 ? T.orange : T.purple}10` }}><Text style={{ color: finisher.rank === 1 ? T.orange : T.purple, fontSize: 12, fontWeight: "900" }}>#{finisher.rank}</Text><Text style={{ fontSize: 14 }}>{finisher.emoji}</Text><Text style={{ flex: 1, color: T.dark, fontSize: 12, fontWeight: "800" }}>{finisher.name}</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{formatDuration(finisher.elapsedSeconds)}</Text></View>)}{viewerFinish && viewerFinish.rank > 3 ? <View style={{ minHeight: 31, paddingHorizontal: 9, borderRadius: 11, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: `${T.blue}10` }}><Text style={{ color: T.blue, fontSize: 12, fontWeight: "900" }}>#{viewerFinish.rank}</Text><Text style={{ fontSize: 14 }}>{viewerFinish.emoji}</Text><Text style={{ flex: 1, color: T.dark, fontSize: 12, fontWeight: "800" }}>Your time</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{formatDuration(viewerFinish.elapsedSeconds)}</Text></View> : null}</View> : null}
-    {isComplete ? <View style={{ minHeight: 46, borderRadius: 15, backgroundColor: `${T.green}15`, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 }}><Ionicons name="checkmark-circle" size={20} color={T.green} /><Text style={{ color: T.green, fontSize: 13, fontWeight: "900" }}>Completed — cheering on the crew</Text></View> : <PartyButton label="Complete Quest" icon="checkmark" color={T.green} onPress={onComplete} />}
+    {isComplete ? <View style={{ minHeight: 46, borderRadius: 15, backgroundColor: `${T.green}15`, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 }}><Ionicons name="checkmark-circle" size={20} color={T.green} /><Text style={{ color: T.green, fontSize: 13, fontWeight: "900" }}>Completed — cheering on the crew</Text></View> : <PartyButton label="Complete Quest" icon="checkmark" color={quest.color} onPress={onComplete} />}
     {party.isHost && isShared ? <SoftButton label="End quest" icon="flag" inverse color={T.purple} onPress={onEnd} style={{ minHeight: 44 }} /> : null}
   </Reanimated.View>;
 }
@@ -149,11 +157,13 @@ function QuestRow({ quest, party, category, launching, onStart }: { quest: Party
   const freePlayPaused = party.gameMode === "free_for_all" && !party.questsEnabled;
   return <Reanimated.View exiting={launching && !reducedMotion ? FadeOutUp.duration(180) : undefined} style={{ borderRadius: 19, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#e6ddd2", backgroundColor: T.white, padding: 13, gap: 10 }}>
     <View style={{ flexDirection: "row", gap: 11, alignItems: "center" }}>
-      <View style={{ width: 42, height: 42, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: `${quest.color}18` }}><PartyCategoryIcon category={category} size={22} color={quest.color} /></View>
-      <View style={{ flex: 1, gap: 3 }}><Text style={{ color: T.dark, fontSize: 16, fontWeight: "900" }} numberOfLines={1}>{quest.title}</Text><Text style={{ color: T.muted, fontSize: 11, lineHeight: 16, fontWeight: "800" }} numberOfLines={1}>+{quest.xp} XP · {quest.description}</Text></View>
-      <Tag label={`+${quest.xp}`} color={quest.color} bg={`${quest.color}18`} />
+      <View style={{ width: 58, height: 58, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: `${quest.color}18` }}><PartyCategoryIcon category={category} size={27} color={quest.color} /></View>
+      <View style={{ flex: 1, gap: 3 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><Text style={{ flex: 1, color: T.dark, fontSize: 16, fontWeight: "900" }} numberOfLines={1}>{quest.title}</Text><Tag label={`+${quest.xp}`} color={quest.color} bg={`${quest.color}18`} /></View>
+        <Text style={{ color: T.muted, fontSize: 11, lineHeight: 16, fontWeight: "800" }}>+{quest.xp} XP</Text>
+        <Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }} numberOfLines={2}>{quest.description}</Text>
+      </View>
     </View>
-    {quest.fastest ? <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}><Ionicons name="flash" size={13} color={T.orange} /><Text style={{ color: T.muted, fontSize: 11, fontWeight: "800" }}>{quest.fastest.name} holds the fastest time · {formatDuration(quest.fastest.elapsedSeconds)}</Text></View> : null}
     {quest.suggestionCount ? <Text style={{ color: T.purple, fontSize: 11, fontWeight: "900" }}>{quest.suggestionCount}× suggested by the crew</Text> : null}
     {waitingForHost || freePlayPaused ? <View style={{ minHeight: 40, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: T.bg }}><Text style={{ color: T.muted, fontSize: 12, fontWeight: "900" }}>{waitingForHost ? "Waiting for host to start" : "Quest list opens when your host is ready"}</Text></View> : <PartyButton compact label={party.gameMode === "everyone_together" ? "Start shared quest" : "Start quest"} icon={party.gameMode === "everyone_together" ? "play" : "rocket"} color={party.gameMode === "everyone_together" ? T.purple : T.blue} onPress={onStart} />}
   </Reanimated.View>;
@@ -167,40 +177,129 @@ function CompletedQuestRow({ quest, shared }: { quest: PartyCompletedQuest; shar
   </View>;
 }
 
+function FeedSkeletonBlock({ width = "100%", height, radius = 9 }: { width?: number | `${number}%`; height: number; radius?: number }) {
+  const reducedMotion = useReducedMotion();
+  const opacity = useSharedValue(0.56);
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  useEffect(() => {
+    opacity.value = reducedMotion ? 0.56 : withRepeat(withTiming(0.28, { duration: 850, easing: Easing.inOut(Easing.quad) }), -1, true);
+  }, [opacity, reducedMotion]);
+
+  return <Reanimated.View style={[{ width, height, borderRadius: radius, backgroundColor: T.border }, pulseStyle]} />;
+}
+
+function FeedPostSkeleton({ media = true }: { media?: boolean }) {
+  return <View accessibilityRole="progressbar" accessibilityLabel="Loading Party post" style={{ borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 4, borderBottomColor: "#e6ddd2", backgroundColor: T.white, padding: 18, gap: 13 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <FeedSkeletonBlock width={42} height={42} radius={21} />
+      <View style={{ flex: 1, gap: 7 }}><FeedSkeletonBlock width="46%" height={14} /><FeedSkeletonBlock width="31%" height={11} /></View>
+      <FeedSkeletonBlock width={20} height={20} radius={10} />
+    </View>
+    <View style={{ gap: 7 }}><FeedSkeletonBlock width="91%" height={13} /><FeedSkeletonBlock width="58%" height={13} /></View>
+    {media ? <FeedSkeletonBlock height={218} radius={16} /> : null}
+    <View style={{ gap: 9 }}><FeedSkeletonBlock width="20%" height={11} /><FeedSkeletonBlock width={58} height={20} radius={10} /></View>
+  </View>;
+}
+
+function PartyFeedLoading() {
+  return <View accessibilityLabel="Loading Party Feed" style={{ gap: 11 }}><FeedPostSkeleton /><FeedPostSkeleton media={false} /></View>;
+}
+
 function FeedPostCard({ post, onReact }: { post: PartyFeedPost; onReact: (emoji: string) => void }) {
   const [urls, setUrls] = useState<string[]>([]);
   const reducedMotion = useReducedMotion();
+  const photoPathsKey = post.photoPaths.join("\u0001");
   useEffect(() => {
     let mounted = true;
-    if (!post.photoPaths.length) { setUrls([]); return; }
-    resolvePartyMedia(post.photoPaths).then((next) => { if (mounted) setUrls(next.filter((url): url is string => Boolean(url))); }).catch(() => { if (mounted) setUrls([]); });
+    const photoPaths = photoPathsKey ? photoPathsKey.split("\u0001") : [];
+    if (!photoPaths.length) { setUrls((current) => current.length ? [] : current); return; }
+    resolvePartyMedia(photoPaths).then((next) => {
+      if (!mounted) return;
+      const nextUrls = next.filter((url): url is string => Boolean(url));
+      setUrls((current) => current.length === nextUrls.length && current.every((url, index) => url === nextUrls[index]) ? current : nextUrls);
+    }).catch(() => { if (mounted) setUrls((current) => current.length ? [] : current); });
     return () => { mounted = false; };
-  }, [post.photoPaths]);
-  const activityCopy = `${post.userName} completed “${post.questTitle}”`;
-  return <Reanimated.View entering={reducedMotion ? FadeIn.duration(1) : FadeInDown.duration(180)} style={{ borderRadius: 19, borderWidth: 2, borderColor: T.border, borderBottomWidth: 4, borderBottomColor: "#e6ddd2", backgroundColor: T.white, overflow: "hidden" }}>
-    <View style={{ padding: 14, gap: 9 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}><View style={{ width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: `${T.blue}14` }}><Text style={{ fontSize: 18 }}>{post.userEmoji}</Text></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 14, fontWeight: "900" }}>{post.userName}</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "700" }}>{post.questTitle} · {formatDuration(post.elapsedSeconds)}</Text></View><Ionicons name={post.postType === "proof" ? "shield-checkmark" : post.postType === "adventure" ? "images" : "checkmark-circle"} size={18} color={post.postType === "proof" ? T.orange : post.postType === "adventure" ? T.blue : T.green} /></View>
-      {post.postType === "activity" ? <Text style={{ color: T.dark, fontSize: 14, lineHeight: 20, fontWeight: "800" }}>{activityCopy}</Text> : null}
-      {post.caption ? <Text style={{ color: T.dark, fontSize: 14, lineHeight: 20, fontWeight: "700" }}>{post.caption}</Text> : null}
+  }, [photoPathsKey]);
+  const bodyCopy = post.caption?.trim() || (post.postType === "activity" ? `Completed “${post.questTitle}”` : null);
+  const heart = post.reactions.find((reaction) => reaction.emoji === "💙");
+  const secondsSincePosting = Math.max(0, Math.floor((Date.now() - new Date(post.createdAt).getTime()) / 1000));
+  const minutesSincePosting = Math.floor(secondsSincePosting / 60);
+  const postedLabel = minutesSincePosting < 1 ? "Just now" : minutesSincePosting < 60 ? `${minutesSincePosting} min ago` : minutesSincePosting < 1440 ? `${Math.floor(minutesSincePosting / 60)} hr ago` : `${Math.floor(minutesSincePosting / 1440)} days ago`;
+
+  return <Reanimated.View entering={reducedMotion ? FadeIn.duration(1) : FadeInDown.duration(180)} style={{ borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 4, borderBottomColor: "#e6ddd2", backgroundColor: T.white, overflow: "hidden" }}>
+    <View style={{ padding: 18, gap: 13 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <View style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: T.bg, borderWidth: 2, borderColor: T.border }}><Text style={{ fontSize: 21 }}>{post.userEmoji}</Text></View>
+        <View style={{ flex: 1, gap: 1 }}>
+          <Text style={{ color: T.dark, fontSize: 16, lineHeight: 20, fontWeight: "900" }} numberOfLines={1}>{post.userName}</Text>
+          <Text style={{ color: T.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" }} numberOfLines={1}>{post.questTitle} · {formatDuration(post.elapsedSeconds)}</Text>
+        </View>
+        <Ionicons name={post.postType === "proof" ? "shield-checkmark" : "checkmark-circle"} size={20} color={post.postType === "proof" ? T.orange : T.green} />
+      </View>
+
+      {bodyCopy ? <Text style={{ color: T.dark, fontSize: 15, lineHeight: 22, fontWeight: "700" }}>{bodyCopy}</Text> : null}
+
+      {photoPathsKey && !urls.length ? <FeedSkeletonBlock height={218} radius={16} /> : null}
+      {urls.length === 1 ? <Image source={{ uri: urls[0], cache: "force-cache" }} style={{ width: "100%", height: 218, borderRadius: 16, backgroundColor: T.border }} resizeMode="cover" /> : null}
+      {urls.length > 1 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 4 }}>{urls.map((url) => <Image key={url} source={{ uri: url, cache: "force-cache" }} style={{ width: 188, height: 144, borderRadius: 16, backgroundColor: T.border }} resizeMode="cover" />)}</ScrollView> : null}
+
+      <View style={{ gap: 7 }}>
+        <Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>{postedLabel}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={heart?.reacted ? "Unlike this Party post" : "Like this Party post"} accessibilityState={{ selected: Boolean(heart?.reacted) }} onPress={() => onReact("💙")} style={({ pressed }) => ({ alignSelf: "flex-start", minHeight: 44, paddingHorizontal: 2, flexDirection: "row", alignItems: "center", gap: 7, opacity: pressed ? 0.72 : 1 })}>
+          <Ionicons name={heart?.reacted ? "heart" : "heart-outline"} size={23} color={heart?.reacted ? T.pink : T.muted} />
+          <Text style={{ color: heart?.reacted ? T.pink : T.muted, fontSize: 13, fontWeight: "900" }}>{heart?.count ? heart.count : "Like"}</Text>
+        </Pressable>
+      </View>
     </View>
-    {urls.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 14, paddingBottom: 12 }}>{urls.map((url) => <Image key={url} source={{ uri: url }} style={{ width: 126, height: 100, borderRadius: 13, backgroundColor: T.border }} />)}</ScrollView> : null}
-    <View style={{ paddingHorizontal: 14, paddingBottom: 13, flexDirection: "row", gap: 8 }}>{["👏", "🔥", "💙"].map((emoji) => { const reaction = post.reactions.find((item) => item.emoji === emoji); return <Pressable key={emoji} onPress={() => onReact(emoji)} style={({ pressed }) => ({ minHeight: 32, paddingHorizontal: 9, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: reaction?.reacted ? `${T.blue}18` : T.bg, borderWidth: 1, borderColor: reaction?.reacted ? `${T.blue}58` : "transparent", transform: [{ scale: pressed ? 0.94 : 1 }] })}><Text style={{ fontSize: 13 }}>{emoji}{reaction?.count ? ` ${reaction.count}` : ""}</Text></Pressable>; })}</View>
   </Reanimated.View>;
+}
+
+function PodiumPlayer({ entry, rank }: { entry?: PartyLeaderboardEntry; rank: 1 | 2 | 3 }) {
+  const accent = rank === 1 ? T.orange : rank === 2 ? T.blue : T.purple;
+  const pedestalHeight = rank === 1 ? 120 : rank === 2 ? 88 : 70;
+  const avatarSize = rank === 1 ? 62 : 52;
+
+  return <View style={{ flex: 1, minWidth: 0, alignItems: "center", justifyContent: "flex-end" }}>
+    {entry ? <View style={{ width: "100%", alignItems: "center", gap: 4, paddingHorizontal: 2 }}>
+      <View style={{ position: "relative" }}>
+        <Avatar emoji={entry.emoji} color={entry.avatarColor} size={avatarSize} />
+        <View style={{ position: "absolute", right: -6, top: -5, width: 25, height: 25, borderRadius: 13, backgroundColor: accent, borderWidth: 2, borderColor: T.white, alignItems: "center", justifyContent: "center" }}><Text style={{ color: T.white, fontSize: 12, fontWeight: "900" }}>{rank}</Text></View>
+      </View>
+      <Text style={{ maxWidth: "100%", color: T.dark, fontSize: rank === 1 ? 14 : 13, fontWeight: "900" }} numberOfLines={1}>{entry.displayName}</Text>
+      <View style={{ minHeight: 25, paddingHorizontal: 8, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: `${T.purple}18` }}><Ionicons name="flash" size={12} color={T.purple} /><Text style={{ color: T.purple, fontSize: 12, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{entry.xp}</Text></View>
+    </View> : <View style={{ height: 96 }} />}
+    <View style={{ width: "100%", height: pedestalHeight, marginTop: 10, borderTopLeftRadius: 16, borderTopRightRadius: 16, borderWidth: 2, borderBottomWidth: 0, borderColor: `${accent}52`, backgroundColor: `${accent}18`, alignItems: "center", justifyContent: "center" }}><Text style={{ color: `${accent}7d`, fontFamily: "RubikBlack", fontSize: rank === 1 ? 68 : 52, lineHeight: rank === 1 ? 75 : 58 }}>{rank}</Text></View>
+  </View>;
 }
 
 function Leaderboard({ party, stampSelf }: { party: PartyDetail; stampSelf: boolean }) {
   const reducedMotion = useReducedMotion();
   const viewerId = party.members[0]?.userId;
-  const copy = party.gameMode === "free_for_all" ? "Base quest XP decides the Party ranking. Fastest times are just for bragging rights." : "Base XP is awarded now. The host locks 1st +50%, 2nd +25%, and 3rd +10% when the shared quest ends.";
-  return <View style={{ gap: 10 }}>
-    <View style={{ borderRadius: 18, padding: 14, backgroundColor: `${party.gameMode === "free_for_all" ? T.pink : T.purple}11`, borderWidth: 2, borderColor: `${party.gameMode === "free_for_all" ? T.pink : T.purple}40`, gap: 4 }}><Text style={{ color: T.dark, fontSize: 14, fontWeight: "900" }}>{party.gameMode === "free_for_all" ? "Your own quest, your own pace" : "Race together, rank together"}</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 18, fontWeight: "700" }}>{copy}</Text></View>
-    {party.leaderboard.map((entry) => {
-      const isViewer = entry.userId === viewerId;
-      const medalColor = entry.rank === 1 ? T.orange : entry.rank === 2 ? T.blue : entry.rank === 3 ? T.purple : T.muted;
-      return <Reanimated.View key={entry.userId} entering={stampSelf && isViewer && !reducedMotion ? ZoomIn.springify().damping(17).stiffness(220) : FadeInDown.duration(reducedMotion ? 1 : 170)} style={{ borderRadius: 19, borderWidth: 2, borderColor: isViewer ? `${T.blue}64` : T.border, borderBottomWidth: 4, borderBottomColor: isViewer ? `${T.blue}88` : "#e6ddd2", backgroundColor: T.white, padding: 12, flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <View style={{ width: 27, alignItems: "center" }}><Text style={{ color: medalColor, fontSize: 16, fontWeight: "900" }}>#{entry.rank}</Text></View><Avatar emoji={entry.emoji} color={entry.avatarColor} size={36} /><Text style={{ flex: 1, color: T.dark, fontSize: 15, fontWeight: "900" }}>{entry.displayName}</Text><Text style={{ color: T.blue, fontSize: 14, fontWeight: "900" }}>{entry.xp} XP</Text>
-      </Reanimated.View>;
-    })}
+  const podiumEntries = [1, 2, 3].map((rank) => party.leaderboard.find((entry) => entry.rank === rank));
+  const remainingEntries = party.leaderboard.filter((entry) => entry.rank > 3);
+
+  return <View style={{ gap: 12 }}>
+    <View style={{ overflow: "hidden", borderRadius: 23, borderWidth: 2, borderColor: `${T.purple}3d`, backgroundColor: `${T.purple}0a`, paddingTop: 18 }}>
+      <View style={{ paddingHorizontal: 16, marginBottom: 9, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: T.dark, fontSize: 13, fontWeight: "900" }}>Top adventurers</Text><View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><Ionicons name="flash" size={14} color={T.purple} /><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900" }}>Party XP</Text></View></View>
+      <View style={{ height: 244, paddingHorizontal: 10, flexDirection: "row", alignItems: "flex-end" }}>
+        <PodiumPlayer rank={2} entry={podiumEntries[1]} />
+        <PodiumPlayer rank={1} entry={podiumEntries[0]} />
+        <PodiumPlayer rank={3} entry={podiumEntries[2]} />
+      </View>
+    </View>
+
+    {remainingEntries.length ? <View style={{ overflow: "hidden", borderRadius: 21, borderWidth: 2, borderColor: T.border, backgroundColor: T.white }}>
+      {remainingEntries.map((entry, index) => {
+        const isViewer = entry.userId === viewerId;
+        return <Reanimated.View key={entry.userId} entering={stampSelf && isViewer && !reducedMotion ? ZoomIn.springify().damping(17).stiffness(220) : FadeInDown.delay(index * (reducedMotion ? 0 : 45)).duration(reducedMotion ? 1 : 170)} style={{ minHeight: 68, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 10, borderTopWidth: index ? 1 : 0, borderTopColor: T.border, backgroundColor: isViewer ? `${T.blue}0b` : T.white }}>
+          <Text style={{ width: 22, color: isViewer ? T.blue : T.muted, fontSize: 15, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{entry.rank}</Text>
+          <Avatar emoji={entry.emoji} color={entry.avatarColor} size={38} />
+          <Text style={{ flex: 1, color: T.dark, fontSize: 15, fontWeight: "900" }} numberOfLines={1}>{entry.displayName}</Text>
+          <View style={{ minHeight: 28, paddingHorizontal: 9, borderRadius: 14, flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: `${T.purple}18` }}><Ionicons name="flash" size={13} color={T.purple} /><Text style={{ color: T.purple, fontSize: 13, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{entry.xp}</Text></View>
+        </Reanimated.View>;
+      })}
+    </View> : null}
   </View>;
 }
 
@@ -343,7 +442,7 @@ export function PartyDetailScreen() {
     if (!partyId) return;
     const refreshSoon = () => {
       if (liveRefreshTimer.current) clearTimeout(liveRefreshTimer.current);
-      liveRefreshTimer.current = setTimeout(() => load(true), 140);
+      liveRefreshTimer.current = setTimeout(() => load(true), 400);
     };
     const channel = supabase
       .channel(`party-live:${partyId}`)
@@ -355,13 +454,12 @@ export function PartyDetailScreen() {
       .on("postgres_changes", { event: "*", schema: "public", table: "party_quest_sessions", filter: `party_id=eq.${partyId}` }, refreshSoon)
       .on("postgres_changes", { event: "*", schema: "public", table: "party_completions", filter: `party_id=eq.${partyId}` }, refreshSoon)
       .on("postgres_changes", { event: "*", schema: "public", table: "party_feed_posts", filter: `party_id=eq.${partyId}` }, refreshSoon)
-      .on("postgres_changes", { event: "*", schema: "public", table: "party_member_notifications", filter: `party_id=eq.${partyId}` }, refreshSoon)
       .subscribe();
     return () => { if (liveRefreshTimer.current) clearTimeout(liveRefreshTimer.current); supabase.removeChannel(channel); };
   }, [load, partyId]);
   useEffect(() => {
     if (!party || party.status !== "active") return;
-    const interval = setInterval(() => load(true), 30000);
+    const interval = setInterval(() => load(true), 120000);
     return () => clearInterval(interval);
   }, [load, party?.status]);
 
@@ -461,7 +559,7 @@ export function PartyDetailScreen() {
           {visibleQuests.length ? visibleQuests.map((quest) => <QuestRow key={quest.questId} quest={quest} party={party} category={categoryForQuest(quest.questId)} launching={launchingQuestId === quest.questId} onStart={() => startQuest(quest)} />) : <EmptyState emoji="✨" title="All caught up" body="Start another quest or let the host add more." />}
           {party.completedQuests.length ? <View style={{ gap: 10, marginTop: 5 }}><View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>Completed quests</Text><Text style={{ color: T.green, fontSize: 11, fontWeight: "900" }}>{party.completedQuests.length} done</Text></View>{party.completedQuests.map((quest) => <CompletedQuestRow key={quest.id} quest={quest} shared={party.gameMode === "everyone_together"} />)}</View> : null}
         </View> : null}
-        {tab === "feed" ? <View style={{ gap: 11 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Party Feed</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700", marginTop: 3 }}>Your crew’s adventures, just for this Party.</Text></View>{party.feed.length ? party.feed.map((post) => <FeedPostCard key={post.id} post={post} onReact={(emoji) => reactToPartyFeed(post.id, emoji).then(() => load(true))} />) : <EmptyState emoji="📸" title="No Party posts yet" body="Your first completed quest will show up here." />}</View> : null}
+        {tab === "feed" ? <View style={{ gap: 11 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Party Feed</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700", marginTop: 3 }}>Your crew’s adventures, just for this Party.</Text></View>{loading ? <PartyFeedLoading /> : party.feed.length ? party.feed.map((post) => <FeedPostCard key={post.id} post={post} onReact={(emoji) => reactToPartyFeed(post.id, emoji).then(() => load(true))} />) : <EmptyState emoji="📸" title="No Party posts yet" body="Your first completed quest will show up here." />}</View> : null}
         {tab === "leaderboard" ? <View style={{ gap: 11 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Leaderboard</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700", marginTop: 3 }}>{party.gameMode === "free_for_all" ? "Total quest XP decides the order." : "Live order updates until the host locks the round."}</Text></View><Leaderboard party={party} stampSelf={stampLeaderboard} /></View> : null}
       </ScrollView>
       {tab === "quests" && party.status === "active" ? <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingTop: 16, paddingBottom: 16, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, backgroundColor: T.white, borderTopWidth: 2, borderTopColor: T.border }}><PartyButton label={party.isHost ? "Add quests" : "Suggest quests"} icon="add" onPress={() => setPickerOpen(true)} /></View> : null}

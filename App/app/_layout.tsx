@@ -4,6 +4,7 @@ import { PropsWithChildren } from "react";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { T } from "@/components/theme";
+import { GlobalAnnouncement } from "@/components/global-announcement";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ContentProvider } from "@/contexts/ContentContext";
 import { QuestEngineProvider } from "@/contexts/QuestEngineContext";
@@ -45,6 +46,7 @@ function SessionDataProviders({ children }: PropsWithChildren) {
         <SocialProvider>{children}</SocialProvider>
       </StreaksProvider>
     </QuestEngineProvider>
+    <GlobalAnnouncement />
   </ContentProvider>;
 }
 

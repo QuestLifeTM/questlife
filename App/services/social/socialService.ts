@@ -19,6 +19,9 @@ function today() {
   return toLocalDateKey(new Date());
 }
 
+const PARTY_MEDIA_URL_TTL_MS = 25 * 60 * 1000;
+const partyMediaUrlCache = new Map<string, { url: string; expiresAt: number }>();
+
 export async function fetchSocialOverview(): Promise<SocialOverview> {
   assertSupabaseConfigured();
   const { data, error } = await supabase.rpc("get_social_overview", { p_today: today() });
@@ -271,7 +274,23 @@ export async function uploadJournalMedia(localUri: string): Promise<string> {
 export async function resolvePartyMedia(paths: string[]) {
   if (!paths.length) return [];
   assertSupabaseConfigured();
-  const { data, error } = await supabase.storage.from("party-media").createSignedUrls(paths, 60 * 30);
-  if (error) throw error;
-  return data.map((item) => item.signedUrl);
+
+  const now = Date.now();
+  const missingPaths = paths.filter((path) => {
+    const cached = partyMediaUrlCache.get(path);
+    return !cached || cached.expiresAt <= now;
+  });
+
+  if (missingPaths.length) {
+    const { data, error } = await supabase.storage.from("party-media").createSignedUrls(missingPaths, 60 * 30);
+    if (error) throw error;
+    data.forEach((item, index) => {
+      if (item.signedUrl) partyMediaUrlCache.set(missingPaths[index], { url: item.signedUrl, expiresAt: now + PARTY_MEDIA_URL_TTL_MS });
+    });
+  }
+
+  return paths.flatMap((path) => {
+    const cached = partyMediaUrlCache.get(path);
+    return cached ? [cached.url] : [];
+  });
 }

@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { OnboardingIntro } from "@/components/onboarding-intro";
 import { haptic } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
+import { getIntroEnabled } from "@/services/announcements/announcementService";
 
 const welcomeArtwork = require("../assets/onboarding/screen-one.png");
 const chooseYourselfArtwork = require("../assets/onboarding/choose-yourself-girl-cropped.png");
@@ -27,6 +28,7 @@ const QUEST_BLUE_SHADOW = "#2588D8";
 export default function OnboardingWelcomeScreen() {
   const { isEmailVerified, session, user } = useAuth();
   const [introComplete, setIntroComplete] = useState(false);
+  const [introEnabled, setIntroEnabled] = useState<boolean | null>(null);
   const [welcomeStep, setWelcomeStep] = useState<"welcome" | "choose">("welcome");
   const welcomeOpacity = useRef(new Animated.Value(0)).current;
   const chooseOpacity = useRef(new Animated.Value(0)).current;
@@ -55,6 +57,25 @@ export default function OnboardingWelcomeScreen() {
     }).start();
   }, [chooseOpacity, welcomeStep]);
 
+  useEffect(() => {
+    let active = true;
+
+    getIntroEnabled()
+      .then((enabled) => {
+        if (!active) return;
+        setIntroEnabled(enabled);
+        if (!enabled) setIntroComplete(true);
+      })
+      .catch(() => {
+        // Preserve the existing intro if settings cannot be reached.
+        if (active) setIntroEnabled(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   function continueToApp() {
     haptic();
 
@@ -79,7 +100,11 @@ export default function OnboardingWelcomeScreen() {
     setWelcomeStep("choose");
   }
 
-  if (!introComplete) {
+  if (!introComplete && introEnabled === null) {
+    return <View style={styles.root} />;
+  }
+
+  if (!introComplete && introEnabled) {
     return <OnboardingIntro onDone={() => setIntroComplete(true)} />;
   }
 

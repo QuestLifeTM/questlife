@@ -8,22 +8,27 @@ import { useContent } from "@/contexts/ContentContext";
 import { signOut } from "@/services/auth/authService";
 import {
   deleteAdventurePack,
+  deactivateAppAnnouncement,
   deleteAdminNotifications,
   deleteQuest,
   fetchAdminNotifications,
   fetchContentLibrary,
   getDailyQuestLimitEnabled,
+  getIntroEnabled,
   getAdminMembership,
   inviteAdmin,
   listAdminInvites,
+  listAppAnnouncements,
   listAdminProfiles,
   markAdminNotificationsRead,
   markAdminNotificationRead,
   markAllAdminNotificationsRead,
+  publishAppAnnouncement,
   notifyQuestReviewResult,
   updateAdminAccess,
   updateOwnAdminProfile,
   setDailyQuestLimitEnabled as saveDailyQuestLimitEnabled,
+  setIntroEnabled as saveIntroEnabled,
   upsertAdventurePack,
   upsertQuest,
   deleteAdmin,
@@ -38,6 +43,7 @@ import { updatePassword } from "@/services/auth/authService";
 import {
   adminPermissions,
   AdventurePack,
+  AppAnnouncement,
   AdventurePackFormInput,
   AdminInvite,
   AdminMembership,
@@ -66,7 +72,8 @@ type AdminView =
   | "detail"
   | "admins"
   | "profile"
-  | "inbox";
+  | "inbox"
+  | "announcements";
 type Mode = "dark" | "light";
 type AdminManagementMode = "list" | "detail" | "invite";
 
@@ -457,6 +464,7 @@ function LoadingPanel({ label, reducedMotion, t }: { label: string; reducedMotio
 function Field({
   editable = true,
   label,
+  maxLength,
   multiline,
   onChangeText,
   placeholder,
@@ -465,6 +473,7 @@ function Field({
 }: {
   editable?: boolean;
   label: string;
+  maxLength?: number;
   multiline?: boolean;
   onChangeText: (value: string) => void;
   placeholder?: string;
@@ -476,6 +485,7 @@ function Field({
       <Text style={{ color: t.faint, fontSize: 12, fontWeight: "900", letterSpacing: 1.3, textTransform: "uppercase" }}>{label}</Text>
       <TextInput
         editable={editable}
+        maxLength={maxLength}
         multiline={multiline}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -1165,6 +1175,11 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readAdminSidebarCollapsedPreference());
   const [dailyQuestLimitEnabled, setDailyQuestLimitEnabledState] = useState(true);
   const [updatingDailyQuestLimit, setUpdatingDailyQuestLimit] = useState(false);
+  const [introEnabled, setIntroEnabledState] = useState(true);
+  const [updatingIntro, setUpdatingIntro] = useState(false);
+  const [announcements, setAnnouncements] = useState<AppAnnouncement[]>([]);
+  const [announcementTitle, setAnnouncementTitle] = useState("");
+  const [announcementBody, setAnnouncementBody] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [denyQuest, setDenyQuest] = useState<Quest | null>(null);
   const [denyNote, setDenyNote] = useState("");
@@ -1340,14 +1355,18 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
       setNotifications(nextNotifications);
 
       if (canManageAdmins) {
-        const [profiles, invites, dailyLimitEnabled] = await Promise.all([
+        const [profiles, invites, dailyLimitEnabled, nextIntroEnabled, nextAnnouncements] = await Promise.all([
           listAdminProfiles(),
           listAdminInvites(),
           getDailyQuestLimitEnabled(),
+          getIntroEnabled(),
+          listAppAnnouncements(),
         ]);
         setAdminProfiles(profiles);
         setAdminInvites(invites);
         setDailyQuestLimitEnabledState(dailyLimitEnabled);
+        setIntroEnabledState(nextIntroEnabled);
+        setAnnouncements(nextAnnouncements);
       }
     } finally {
       setLoadingOperations(false);
@@ -1976,6 +1995,58 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     }
   }
 
+  async function handleIntroToggle() {
+    if (!canManageAdmins || updatingIntro) return;
+    const nextValue = !introEnabled;
+    setUpdatingIntro(true);
+    setIntroEnabledState(nextValue);
+    setError(null);
+    try {
+      const persistedValue = await saveIntroEnabled(nextValue);
+      setIntroEnabledState(persistedValue);
+      setMessage(persistedValue ? "Intro enabled for new app sessions." : "Intro disabled for new app sessions.");
+    } catch (nextError) {
+      setIntroEnabledState(!nextValue);
+      setError(nextError instanceof Error ? nextError.message : "Unable to update the intro setting.");
+    } finally {
+      setUpdatingIntro(false);
+    }
+  }
+
+  async function handlePublishAnnouncement() {
+    if (!canManageAdmins || !announcementTitle.trim() || !announcementBody.trim()) return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await publishAppAnnouncement({ body: announcementBody, title: announcementTitle });
+      setAnnouncementTitle("");
+      setAnnouncementBody("");
+      await loadAdminOperations();
+      setMessage("Announcement published to everyone currently using QuestLife.");
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Unable to publish the announcement.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeactivateAnnouncement(id: string) {
+    if (!canManageAdmins) return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await deactivateAppAnnouncement(id);
+      await loadAdminOperations();
+      setMessage("Announcement ended.");
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Unable to end the announcement.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const currentTitle =
     view === "published" ? "Published Quests" :
     view === "all" ? "All Quests" :
@@ -1983,6 +2054,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     view === "review" ? "Publication Review" :
     view === "adventurePacks" ? "Adventure Packs" :
     view === "featured" ? "Featured Quests" :
+    view === "announcements" ? "Announcements" :
     view === "admins" ? "Admin Tools" :
     view === "profile" ? "Profile" :
     view === "inbox" ? "Inbox" :
@@ -1995,6 +2067,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     view === "review" ? "Approve requests for publication or return them with a clear report." :
     view === "adventurePacks" ? "Build official quest collections with ordering, cover art, and app-ready previews." :
     view === "featured" ? "Schedule the daily six-quest lineup for the Explore carousel." :
+    view === "announcements" ? "Publish a single app-wide popup that appears instantly for active QuestLife members." :
     view === "admins" ? "Manage admin access, review account details, and invite people into the dashboard." :
     view === "profile" ? "Manage your admin identity, password, and granted permissions." :
     view === "inbox" ? "Review publication decisions and admin tool notifications." :
@@ -2007,6 +2080,7 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
     ...(canReview ? [{ label: "Review", icon: "checkmark-done-outline" as const, route: "/admin/review", active: view === "review" }] : []),
     ...(canViewPublished ? [{ label: "Adventure Packs", icon: "albums-outline" as const, route: "/admin/adventure-packs", active: view === "adventurePacks" }] : []),
     ...(canViewPublished ? [{ label: "Featured", icon: "sparkles-outline" as const, route: "/admin/featured", active: view === "featured" }] : []),
+    ...(canManageAdmins ? [{ label: "Announcements", icon: "megaphone-outline" as const, route: "/admin/announcements", active: view === "announcements" }] : []),
     ...(canManageAdmins ? [{ label: "Admins", icon: "people-outline" as const, route: "/admin/admins", active: view === "admins" }] : []),
     ...(canViewInbox ? [{ label: "Inbox", icon: "notifications-outline" as const, route: "/admin/inbox", active: view === "inbox" }] : []),
     ...(canManageProfile ? [{ label: "Profile", icon: "person-circle-outline" as const, route: "/admin/profile", active: view === "profile" }] : []),
@@ -2174,6 +2248,31 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
               <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}><Ionicons name="speedometer-outline" size={20} color={dailyQuestLimitEnabled ? nova.blue : t.muted} />{iconOnlySidebarControl ? null : <View><Text style={{ color: t.text, fontSize: 13, fontWeight: "900" }}>Daily quest limit</Text><Text style={{ color: t.muted, fontSize: 11, fontWeight: "700" }}>{dailyQuestLimitEnabled ? "On · 5 per day" : "Off · unlimited"}</Text></View>}</View>
               {iconOnlySidebarControl ? null : <View style={{ width: 34, height: 20, borderRadius: 10, padding: 2, justifyContent: "center", alignItems: dailyQuestLimitEnabled ? "flex-end" : "flex-start", backgroundColor: dailyQuestLimitEnabled ? nova.blue : t.border }}><View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: "#ffffff" }} /></View>}
             </Pressable> : null}
+            {canManageAdmins ? <Pressable
+              accessibilityRole="switch"
+              accessibilityLabel="Intro animation"
+              accessibilityState={{ checked: introEnabled, disabled: updatingIntro }}
+              disabled={updatingIntro}
+              onPress={handleIntroToggle}
+              style={({ pressed }) => ({
+                minHeight: 52,
+                width: iconOnlySidebarControl ? 48 : "100%",
+                alignSelf: iconOnlySidebarControl ? "center" : "stretch",
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: introEnabled ? nova.blue : t.border,
+                backgroundColor: introEnabled ? t.active : t.card,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: iconOnlySidebarControl ? "center" : "space-between",
+                gap: 10,
+                paddingHorizontal: iconOnlySidebarControl ? 0 : 12,
+                opacity: updatingIntro ? 0.6 : pressed ? 0.86 : 1,
+              })}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}><Ionicons name="play-circle-outline" size={20} color={introEnabled ? nova.blue : t.muted} />{iconOnlySidebarControl ? null : <View><Text style={{ color: t.text, fontSize: 13, fontWeight: "900" }}>App intro</Text><Text style={{ color: t.muted, fontSize: 11, fontWeight: "700" }}>{introEnabled ? "On · shown at launch" : "Off · skipped at launch"}</Text></View>}</View>
+              {iconOnlySidebarControl ? null : <View style={{ width: 34, height: 20, borderRadius: 10, padding: 2, justifyContent: "center", alignItems: introEnabled ? "flex-end" : "flex-start", backgroundColor: introEnabled ? nova.blue : t.border }}><View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: "#ffffff" }} /></View>}
+            </Pressable> : null}
             {collapsedRail ? null : (
               <Text style={{ color: t.muted, fontSize: 15, fontWeight: "800" }}>{membership ? `${membership.role} access` : checkingRole ? "Checking access" : "No access"}</Text>
             )}
@@ -2284,6 +2383,41 @@ export function AdminDashboardScreen({ questId, view }: { questId?: string; view
                   ) : (
                     <EmptyPanel icon="lock-closed-outline" title="Quest library permission required" body="Your admin account does not have access to this quest library." t={t} />
                   )
+                ) : null}
+
+                {view === "announcements" ? (
+                  canManageAdmins ? (
+                    <View style={{ flexDirection: compact ? "column" : "row", gap: 18, alignItems: "flex-start" }}>
+                      <Panel t={t} style={{ flex: 1, padding: 22, gap: 16 }}>
+                        <View style={{ gap: 5 }}>
+                          <Text style={{ color: t.text, fontSize: 21, fontWeight: "900" }}>New announcement</Text>
+                          <Text style={{ color: t.muted, fontWeight: "700", lineHeight: 20 }}>Publishing replaces the current announcement and opens a dismissible popup for people using the mobile app.</Text>
+                        </View>
+                        <Field label="Title" maxLength={90} onChangeText={setAnnouncementTitle} placeholder="A quick update for QuestLife" t={t} value={announcementTitle} />
+                        <Field label="Message" maxLength={900} multiline onChangeText={setAnnouncementBody} placeholder="Write the announcement everyone should see." t={t} value={announcementBody} />
+                        <ActionButton disabled={saving || !announcementTitle.trim() || !announcementBody.trim()} icon="megaphone-outline" label={saving ? "Publishing..." : "Publish to everyone"} onPress={handlePublishAnnouncement} t={t} />
+                      </Panel>
+                      <Panel t={t} style={{ flex: 1, padding: 0, overflow: "hidden" }}>
+                        <View style={{ padding: 22, gap: 5 }}>
+                          <Text style={{ color: t.text, fontSize: 21, fontWeight: "900" }}>Announcement history</Text>
+                          <Text style={{ color: t.muted, fontWeight: "700" }}>{announcements.length ? `${announcements.length} published` : "No announcements yet"}</Text>
+                        </View>
+                        {announcements.length ? announcements.map((announcement) => (
+                          <View key={announcement.id} style={{ borderTopWidth: 1, borderTopColor: t.border, padding: 18, gap: 8 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                              <Text numberOfLines={1} style={{ color: t.text, flex: 1, fontSize: 16, fontWeight: "900" }}>{announcement.title}</Text>
+                              <Text style={{ color: announcement.isActive ? nova.greenText : t.faint, fontSize: 11, fontWeight: "900", textTransform: "uppercase" }}>{announcement.isActive ? "Live" : "Ended"}</Text>
+                            </View>
+                            <Text style={{ color: t.muted, fontWeight: "700", lineHeight: 20 }}>{announcement.body}</Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                              <Text style={{ color: t.faint, fontSize: 12, fontWeight: "700" }}>{formatDate(announcement.createdAt)}</Text>
+                              {announcement.isActive ? <Pressable accessibilityRole="button" disabled={saving} onPress={() => handleDeactivateAnnouncement(announcement.id)} style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: "rgba(239,68,68,0.38)" }}><Text style={{ color: nova.red, fontSize: 12, fontWeight: "900" }}>End</Text></Pressable> : null}
+                            </View>
+                          </View>
+                        )) : <View style={{ padding: 22 }}><Text style={{ color: t.muted, fontWeight: "700" }}>Your published announcements will appear here.</Text></View>}
+                      </Panel>
+                    </View>
+                  ) : <EmptyPanel icon="lock-closed-outline" title="Announcement access required" body="Only super admins can publish an app-wide announcement." t={t} />
                 ) : null}
 
                 {view === "create" ? (

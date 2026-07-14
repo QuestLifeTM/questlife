@@ -6,12 +6,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Alert, Animated, Easing, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import Reanimated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
-import { categoryColor, T } from "@/components/theme";
+import { categoryColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, haptic, Header, IconButton, PillStat, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { categories, sortOptions } from "@/data/questlife";
-import { uploadPartyMedia } from "@/services/social/socialService";
+import { resolvePartyMedia, uploadPartyMedia } from "@/services/social/socialService";
 import { Quest, QuestDifficulty, questDifficulties } from "@/types/content";
 import { CreatePartyInput, Party, PartyLocationType, PartyMode, PartyProofMode, PartyTemplate, SocialFriend } from "@/types/social";
 
@@ -70,26 +70,84 @@ function FriendRow({ friend, onChallenge, onShare }: { friend: SocialFriend; onC
   );
 }
 
+function partyDateLabel(endedAt: string | null) {
+  if (!endedAt) return "Party in progress";
+
+  const date = new Date(endedAt);
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
 function PartyCard({ party }: { party: Party }) {
   const router = useRouter();
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const isPast = party.status === "ended" || party.viewerLeftEarly;
+  const statusLabel = party.status === "ended" ? "Ended" : "Still active";
+  const statusColor = party.status === "ended" ? T.muted : T.blue;
+  const modeLabel = party.gameMode === "everyone_together" ? "Together" : "Free play";
+  const memberLabel = party.maxMembers ? `${party.memberCount}/${party.maxMembers}` : `${party.memberCount} ${party.memberCount === 1 ? "member" : "members"}`;
+  const dateLabel = partyDateLabel(party.endedAt);
+  const contextColor = isPast ? T.muted : T.blue;
+
+  useEffect(() => {
+    let mounted = true;
+    if (!party.photoPath) { setPhotoUrl(null); return; }
+
+    resolvePartyMedia([party.photoPath])
+      .then(([url]) => { if (mounted) setPhotoUrl(url ?? null); })
+      .catch(() => { if (mounted) setPhotoUrl(null); });
+
+    return () => { mounted = false; };
+  }, [party.photoPath]);
+
   return (
-    <Card pressable onPress={() => router.push(`/party/${party.id}`)} style={{ borderRadius: 20, padding: 15, gap: 11, boxShadow: "none", borderBottomWidth: 5, borderBottomColor: T.border }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: `${T.blue}18`, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-          {party.photoPath ? <Ionicons name="images" size={22} color={T.blue} /> : <Ionicons name="people" size={22} color={T.blue} />}
+    <Card
+      pressable
+      onPress={() => router.push(`/party/${party.id}`)}
+      style={{
+        borderRadius: radius.md,
+        padding: 14,
+        gap: 10,
+        boxShadow: "none",
+        borderColor: isPast ? T.border : `${T.blue}66`,
+        borderBottomWidth: isPast ? 4 : 5,
+        borderBottomColor: isPast ? T.border : "#a8d8ff"
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <View style={{ width: 44, height: 44, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", ...(photoUrl ? { backgroundColor: T.white, borderWidth: 2, borderColor: T.blue, padding: 2 } : { backgroundColor: isPast ? T.bg : contextColor, borderBottomWidth: isPast ? 0 : 3, borderBottomColor: "#258fd8" }) }}>
+          {photoUrl ? <Image source={{ uri: photoUrl }} style={{ width: "100%", height: "100%", borderRadius: 10 }} resizeMode="cover" /> : <Ionicons name="people" size={22} color={isPast ? T.muted : T.white} />}
         </View>
-        <View style={{ flex: 1, gap: 3 }}>
-          <Text style={{ color: T.dark, fontSize: 17, fontWeight: "900" }} numberOfLines={1}>{party.name}</Text>
-          <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.4, textTransform: "uppercase" }}>
-            {party.memberCount} {party.memberCount === 1 ? "member" : "members"} · {party.gameMode === "everyone_together" ? "together" : "free play"}
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ color: T.dark, fontSize: 17, lineHeight: 21, fontWeight: "900" }} numberOfLines={1}>{party.name}</Text>
+          <Text style={{ color: T.muted, fontSize: 10, fontWeight: "900", letterSpacing: 0.55, textTransform: "uppercase" }}>
+            {modeLabel}
           </Text>
         </View>
-        {isPast ? <Tag label={party.viewerLeftEarly ? "Left early" : `Finished #${party.myRank ?? "–"}`} color={T.muted} bg={`${T.muted}16`} /> : <Ionicons name="chevron-forward" size={19} color={T.muted} />}
+        {isPast ? <Tag label={statusLabel} color={statusColor} bg={`${statusColor}16`} /> : <Ionicons name="chevron-forward" size={21} color={T.muted} />}
       </View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-        {party.members.slice(0, 5).map((member) => <Avatar key={member.userId} emoji={member.emoji} color={member.avatarColor} size={28} />)}
-        {party.maxMembers ? <Text style={{ color: T.muted, fontSize: 11, fontWeight: "800", marginLeft: 4 }}>{party.memberCount}/{party.maxMembers}</Text> : null}
+
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <View style={{ flex: 1, gap: 5 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Ionicons name={party.endedAt ? "calendar-outline" : "pulse-outline"} size={14} color={contextColor} />
+            <Text style={{ flex: 1, color: T.muted, fontSize: 11, fontWeight: "700" }} numberOfLines={1}>{dateLabel}</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Ionicons name="people-outline" size={15} color={contextColor} />
+            <Text style={{ flex: 1, color: T.muted, fontSize: 11, fontWeight: "700" }} numberOfLines={1}>{memberLabel}</Text>
+          </View>
+        </View>
+        <View style={{ alignItems: "flex-end", gap: 4 }}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            {party.members.slice(0, 4).map((member, index) => (
+              <View key={member.userId} style={{ marginLeft: index ? -8 : 0, zIndex: 4 - index }}>
+                <Avatar emoji={member.emoji} color={member.avatarColor} size={28} />
+              </View>
+            ))}
+          </View>
+        </View>
       </View>
     </Card>
   );
