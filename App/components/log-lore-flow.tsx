@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Animated, Pressable, Text, TextInput, View } from "react-native";
 import { T } from "@/components/theme";
 import { PillStat, Sheet, SoftButton } from "@/components/ui";
+import { useNotifications } from "@/contexts/NotificationsContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useStreaks } from "@/contexts/StreaksContext";
 import { uploadQuestPhoto } from "@/services/engine/questEngineService";
@@ -35,6 +36,7 @@ export function LogLoreFlow({
 }) {
   const router = useRouter();
   const { completeQuest } = useQuestEngine();
+  const { refreshNotifications } = useNotifications();
   const { refresh: refreshStreaks } = useStreaks();
   const [phase, setPhase] = useState<Phase>("celebrate");
   const [reflection, setReflection] = useState("");
@@ -76,6 +78,7 @@ export function LogLoreFlow({
         reviewPublic: true,
         photoUrls: [],
       });
+      await refreshNotifications();
       setResult(completion);
       refreshStreaks();
       onFinished(completion);

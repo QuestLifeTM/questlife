@@ -31,7 +31,7 @@ type QuestEngineContextValue = {
   completeQuest: (input: CompleteQuestInput) => Promise<CompletionResult>;
   savePlan: (questIds: string[], sourcePackId?: string | null) => Promise<void>;
   clearPlan: () => Promise<void>;
-  saveUserPack: (input: { id?: string; title: string; description?: string | null; icon: string; accentColor: string; questIds: string[] }) => Promise<void>;
+  saveUserPack: (input: { id?: string; title: string; description?: string | null; icon: string; accentColor: string; coverImageUrl?: string | null; questIds: string[] }) => Promise<void>;
   removeUserPack: (packId: string) => Promise<void>;
 };
 
@@ -135,7 +135,7 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
   }, []);
 
   const saveUserPack = useCallback(
-    async (input: { id?: string; title: string; description?: string | null; icon: string; accentColor: string; questIds: string[] }) => {
+    async (input: { id?: string; title: string; description?: string | null; icon: string; accentColor: string; coverImageUrl?: string | null; questIds: string[] }) => {
       await upsertUserPack(input);
       setUserPacks(await fetchUserPacks());
     },

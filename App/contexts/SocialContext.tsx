@@ -27,6 +27,7 @@ import {
   setPartyQuestsEnabled,
   shareQuest,
   addPartyQuests,
+  abandonPartyQuest,
   startPartyQuest,
   suggestPartyQuests,
   updateParty,
@@ -59,6 +60,7 @@ type SocialContextValue = {
   addQuestsToParty: (partyId: string, questIds: string[]) => Promise<void>;
   suggestQuestsForParty: (partyId: string, questIds: string[]) => Promise<void>;
   beginPartyQuest: (partyId: string, questId: string) => Promise<void>;
+  abandonPartyQuest: (partyId: string) => Promise<void>;
   setPartyQuestsEnabled: (partyId: string, enabled: boolean) => Promise<void>;
   completePartyQuest: (partyId: string, questId: string, input: PartyCompletionInput) => Promise<PartyCompletionResult>;
   finishPartyQuest: (partyId: string, questId?: string) => Promise<void>;
@@ -93,6 +95,7 @@ const SocialContext = createContext<SocialContextValue>({
   addQuestsToParty: async () => undefined,
   suggestQuestsForParty: async () => undefined,
   beginPartyQuest: async () => undefined,
+  abandonPartyQuest: async () => undefined,
   setPartyQuestsEnabled: async () => undefined,
   completePartyQuest: async () => ({ completionId: "", xpAwarded: 0, dailyUsed: 0, dailyLimit: 5, fastest: null, topFinishers: [], proofMode: "disabled", feedShared: false, elapsedSeconds: 0 }),
   finishPartyQuest: async () => undefined,
@@ -186,6 +189,7 @@ export function SocialProvider({ children }: PropsWithChildren) {
       addQuestsToParty: (partyId: string, questIds: string[]) => runAndRefresh(() => addPartyQuests(partyId, questIds), "Unable to add quests."),
       suggestQuestsForParty: (partyId: string, questIds: string[]) => runAndRefresh(() => suggestPartyQuests(partyId, questIds), "Unable to suggest quests."),
       beginPartyQuest: (partyId: string, questId: string) => runAndRefresh(() => startPartyQuest(partyId, questId).then(() => undefined), "Unable to start this party quest."),
+      abandonPartyQuest: (partyId: string) => runAndRefresh(() => abandonPartyQuest(partyId), "Unable to abandon this Party quest."),
       setPartyQuestsEnabled: (partyId: string, enabled: boolean) => runAndRefresh(() => setPartyQuestsEnabled(partyId, enabled), "Unable to update Party quests."),
       completePartyQuest: async (partyId: string, questId: string, input: PartyCompletionInput) => {
         const result = await completePartyQuest(partyId, questId, input);

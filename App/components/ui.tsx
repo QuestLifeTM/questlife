@@ -6,6 +6,7 @@ import {
   Animated,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -330,12 +331,34 @@ export function Sheet({
   keyboardAvoiding = true
 }: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"]; fillHeight?: boolean; keyboardAvoiding?: boolean }>) {
   const insets = useSafeAreaInsets();
+  const dragY = useRef(new Animated.Value(0)).current;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const dragResponder = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+    onPanResponderMove: (_, gesture) => dragY.setValue(Math.max(0, gesture.dy)),
+    onPanResponderRelease: (_, gesture) => {
+      if (gesture.dy > 88 || gesture.vy > 0.85) {
+        Animated.timing(dragY, { toValue: 360, duration: 160, useNativeDriver: true }).start(({ finished }) => {
+          if (finished) onCloseRef.current();
+        });
+        return;
+      }
+      Animated.spring(dragY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 240 }).start();
+    },
+    onPanResponderTerminate: () => Animated.spring(dragY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 240 }).start(),
+  })).current;
+
+  useEffect(() => {
+    if (visible) dragY.setValue(0);
+  }, [dragY, visible]);
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView enabled={keyboardAvoiding} behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
       <View style={{ flex: 1, backgroundColor: "rgba(61,52,56,0.42)", justifyContent: "flex-end" }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={onClose} style={{ flex: 1 }} />
-        <View
+        <Animated.View
           accessibilityViewIsModal
           style={{
             maxHeight,
@@ -347,14 +370,15 @@ export function Sheet({
             borderColor: T.border,
             borderBottomWidth: 0,
             paddingBottom: insets.bottom + 8,
-            overflow: "hidden"
+            overflow: "hidden",
+            transform: [{ translateY: dragY }],
           }}
         >
-          <View style={{ alignItems: "center", paddingTop: 12, paddingBottom: 6 }}>
+          <View {...dragResponder.panHandlers} accessibilityLabel="Drag down to dismiss" style={{ alignItems: "center", paddingTop: 12, paddingBottom: 12 }}>
             <View style={{ width: 36, height: 4, borderRadius: 99, backgroundColor: T.border }} />
           </View>
           {children}
-        </View>
+        </Animated.View>
       </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -389,9 +413,20 @@ export function SearchInput({
   );
 }
 
-export function GradientBand({ color, children }: PropsWithChildren<{ color: string }>) {
+export function GradientBand({ color, children, bleedTop = false }: PropsWithChildren<{ color: string; bleedTop?: boolean }>) {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top + 8, 20);
+
   return (
-    <LinearGradient colors={[`${color}22`, "rgba(255,255,255,0)"]} style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: `${color}28` }}>
+    <LinearGradient
+      colors={[`${color}22`, "rgba(255,255,255,0)"]}
+      style={{
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: `${color}28`,
+        ...(bleedTop ? { marginTop: -topPadding, paddingTop: topPadding + 16 } : {})
+      }}
+    >
       {children}
     </LinearGradient>
   );

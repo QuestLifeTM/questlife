@@ -128,6 +128,33 @@ export async function uploadQuestPhoto(localUri: string): Promise<string> {
   return data.publicUrl;
 }
 
+export async function uploadCollectionCover(localUri: string): Promise<string> {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  const response = await fetch(localUri);
+  const blob = await response.arrayBuffer();
+  const extension = localUri.split(".").pop()?.toLowerCase() || "jpg";
+  const contentType = extension === "png" ? "image/png" : extension === "webp" ? "image/webp" : "image/jpeg";
+  const path = `${userData.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+
+  let bucket = "collection-covers";
+  let { error } = await supabase.storage.from(bucket).upload(path, blob, { contentType });
+
+  // Older QuestLife projects predate the dedicated collection-covers bucket.
+  // Keep optional cover photos from blocking collection creation during rollout.
+  if (error && /bucket not found/i.test(error.message)) {
+    bucket = "quest-photos";
+    ({ error } = await supabase.storage.from(bucket).upload(path, blob, { contentType }));
+  }
+  if (error) throw error;
+
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return data.publicUrl;
+}
+
 // ---------------------------------------------------------------------------
 // User adventure packs
 // ---------------------------------------------------------------------------
@@ -138,18 +165,24 @@ type UserPackRow = {
   description: string | null;
   icon: string;
   accent_color: string;
+  cover_image_url: string | null;
   created_at: string;
 };
+
+function isMissingCollectionCoverColumn(error: unknown) {
+  const message = error instanceof Error ? error.message : typeof error === "object" && error !== null && "message" in error ? String(error.message) : String(error);
+  return /cover_image_url/i.test(message) && /(column|schema cache)/i.test(message);
+}
 
 export async function fetchUserPacks(): Promise<UserPack[]> {
   assertSupabaseConfigured();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return [];
 
-  const [{ data: packRows, error: packError }, { data: questRows, error: questError }] = await Promise.all([
+  const [packResult, { data: questRows, error: questError }] = await Promise.all([
     supabase
       .from("user_adventure_packs")
-      .select("id, title, description, icon, accent_color, created_at")
+      .select("id, title, description, icon, accent_color, cover_image_url, created_at")
       .eq("user_id", userData.user.id)
       .order("created_at", { ascending: false })
       .returns<UserPackRow[]>(),
@@ -158,6 +191,19 @@ export async function fetchUserPacks(): Promise<UserPack[]> {
       .select("user_pack_id, quest_id, position")
       .order("position", { ascending: true }),
   ]);
+
+  let packRows = packResult.data;
+  let packError = packResult.error;
+  if (packError && isMissingCollectionCoverColumn(packError)) {
+    const legacyResult = await supabase
+      .from("user_adventure_packs")
+      .select("id, title, description, icon, accent_color, created_at")
+      .eq("user_id", userData.user.id)
+      .order("created_at", { ascending: false })
+      .returns<Omit<UserPackRow, "cover_image_url">[]>();
+    packRows = (legacyResult.data ?? []).map((row) => ({ ...row, cover_image_url: null }));
+    packError = legacyResult.error;
+  }
 
   if (packError) throw packError;
   if (questError) throw questError;
@@ -175,6 +221,7 @@ export async function fetchUserPacks(): Promise<UserPack[]> {
     description: row.description,
     icon: row.icon,
     accentColor: row.accent_color,
+    coverImageUrl: row.cover_image_url,
     questIds: questsByPack.get(row.id) ?? [],
     createdAt: row.created_at,
   }));
@@ -186,6 +233,7 @@ export async function upsertUserPack(input: {
   description?: string | null;
   icon: string;
   accentColor: string;
+  coverImageUrl?: string | null;
   questIds: string[];
 }): Promise<string> {
   assertSupabaseConfigured();
@@ -198,15 +246,23 @@ export async function upsertUserPack(input: {
     description: input.description?.trim() || null,
     icon: input.icon || "🎒",
     accent_color: input.accentColor,
+    cover_image_url: input.coverImageUrl ?? null,
     user_id: userData.user.id,
   };
 
-  const query = input.id
-    ? supabase.from("user_adventure_packs").update(payload).eq("id", input.id)
-    : supabase.from("user_adventure_packs").insert(payload);
+  const runUpsert = (nextPayload: typeof payload | Omit<typeof payload, "cover_image_url">) => {
+    const query = input.id
+      ? supabase.from("user_adventure_packs").update(nextPayload).eq("id", input.id)
+      : supabase.from("user_adventure_packs").insert(nextPayload);
+    return query.select("id").single<{ id: string }>();
+  };
 
-  const { data, error } = await query.select("id").single<{ id: string }>();
-  if (error) throw error;
+  let { data, error } = await runUpsert(payload);
+  if (error && isMissingCollectionCoverColumn(error)) {
+    const { cover_image_url: _coverImageUrl, ...legacyPayload } = payload;
+    ({ data, error } = await runUpsert(legacyPayload));
+  }
+  if (error || !data) throw error ?? new Error("Unable to save this collection.");
 
   const { error: deleteError } = await supabase
     .from("user_adventure_pack_quests")

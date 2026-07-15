@@ -15,16 +15,22 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "QuestLife uses your photos when you choose a Party photo or share a Party completion."
+          "photosPermission": "QuestLife uses your photos when you choose a Party photo, share a Party completion, or add a collection cover."
         }
       ]
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.agentatom.questlife-native"
+      "bundleIdentifier": "com.agentatom.questlife-native",
+      "infoPlist": {
+        "NSCameraUsageDescription": "QuestLife uses your camera to scan a friend's QR code.",
+        "NSContactsUsageDescription": "QuestLife uses your contacts to help you find friends already on QuestLife."
+      }
     },
     "android": {
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
+      "permissions": ["android.permission.CAMERA", "android.permission.READ_CONTACTS"]
     }
   }
 }

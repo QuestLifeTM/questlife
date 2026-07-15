@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -16,6 +16,7 @@ import {
   EmailNotVerifiedError,
   signInWithEmail,
 } from "@/services/auth/authService";
+import { getRememberedEmail } from "@/services/auth/rememberedEmail";
 import { LoginForm, loginSchema } from "@/validation/authSchemas";
 
 export default function LoginScreen() {
@@ -24,7 +25,9 @@ export default function LoginScreen() {
   const {
     control,
     formState: { errors, isValid },
+    getValues,
     handleSubmit,
+    setValue,
   } = useForm<LoginForm>({
     defaultValues: {
       email: "",
@@ -33,6 +36,24 @@ export default function LoginScreen() {
     mode: "onChange",
     resolver: zodResolver(loginSchema),
   });
+
+  useEffect(() => {
+    let active = true;
+
+    getRememberedEmail()
+      .then((email) => {
+        if (active && email && !getValues("email")) {
+          setValue("email", email, { shouldValidate: true });
+        }
+      })
+      .catch(() => {
+        // The login form remains usable when device storage is unavailable.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [getValues, setValue]);
 
   async function onSubmit(values: LoginForm) {
     try {

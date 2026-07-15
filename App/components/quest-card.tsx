@@ -3,6 +3,8 @@ import { Link } from "expo-router";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { categoryColor, difficultyColor, T } from "@/components/theme";
 import { Card, PillStat, Tag, haptic } from "@/components/ui";
+import { useQuestSave } from "@/contexts/QuestSaveContext";
+import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { Quest } from "@/types/content";
 
 export function QuestCard({
@@ -14,8 +16,11 @@ export function QuestCard({
   compact?: boolean;
   onSave?: () => void;
 }) {
+  const { openQuestSave } = useQuestSave();
+  const { userPacks } = useQuestEngine();
   const cat = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
   const diff = difficultyColor[quest.difficulty];
+  const savedAnywhere = quest.saved || userPacks.some((pack) => pack.questIds.includes(quest.id));
   return (
     <Link href={`/quest/${quest.id}`} asChild>
       <Pressable onPress={haptic} style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.985 : 1 }] })}>
@@ -31,11 +36,15 @@ export function QuestCard({
                 onPress={(event) => {
                   event.stopPropagation();
                   haptic();
-                  onSave?.();
+                  if (onSave) {
+                    onSave();
+                  } else {
+                    void openQuestSave(quest.id);
+                  }
                 }}
-                style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: quest.saved ? `${T.blue}1f` : T.border, alignItems: "center", justifyContent: "center" }}
+                style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: savedAnywhere ? `${T.blue}1f` : T.border, alignItems: "center", justifyContent: "center" }}
               >
-                <Ionicons name={quest.saved ? "bookmark" : "bookmark-outline"} size={16} color={quest.saved ? T.blue : T.muted} />
+                <Ionicons name={savedAnywhere ? "bookmark" : "bookmark-outline"} size={16} color={savedAnywhere ? T.blue : T.muted} />
               </Pressable>
             </View>
             <Text style={{ color: T.dark, fontSize: compact ? 20 : 16, lineHeight: compact ? 25 : 21, fontWeight: "900" }}>

@@ -1,21 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { categoryColor, difficultyColor, T } from "@/components/theme";
-import { Card, EmptyState, Header, IconButton, PillStat, Screen, SearchInput, Sheet, SoftButton, Tag } from "@/components/ui";
+import { Card, EmptyState, Header, IconButton, PillStat, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
-import { sortOptions } from "@/data/questlife";
 import { Quest, QuestDifficulty, questDifficulties } from "@/types/content";
+import { UserPack } from "@/types/engine";
 
-interface Filters {
-  duration: string | null;
-  difficulty: QuestDifficulty | null;
-}
-
+interface Filters { duration: string | null; difficulty: QuestDifficulty | null; }
 const emptyFilters: Filters = { duration: null, difficulty: null };
+const savedSortOptions = ["Best Match", "Most XP", "Least XP", "Easiest", "Hardest", "Shortest", "Longest"];
 
 function applyFilters(list: Quest[], filters: Filters) {
   return list.filter((quest) => {
@@ -23,211 +20,97 @@ function applyFilters(list: Quest[], filters: Filters) {
     if (filters.duration === "30-60min" && (quest.timeMin < 30 || quest.timeMin > 60)) return false;
     if (filters.duration === "1-2h" && (quest.timeMin < 60 || quest.timeMin > 120)) return false;
     if (filters.duration === "2h+" && quest.timeMin <= 120) return false;
-    if (filters.difficulty && quest.difficulty !== filters.difficulty) return false;
-    return true;
+    return !filters.difficulty || quest.difficulty === filters.difficulty;
   });
 }
 
 function sortSaved(list: Quest[], sortBy: string) {
-  const d: Record<QuestDifficulty, number> = { EASY: 0, MEDIUM: 1, HARD: 2, FORMIDABLE: 3 };
+  const rank: Record<QuestDifficulty, number> = { EASY: 0, MEDIUM: 1, HARD: 2, FORMIDABLE: 3 };
   const copy = [...list];
   if (sortBy === "Most XP") return copy.sort((a, b) => b.xp - a.xp);
   if (sortBy === "Least XP") return copy.sort((a, b) => a.xp - b.xp);
-  if (sortBy === "Easiest") return copy.sort((a, b) => d[a.difficulty] - d[b.difficulty]);
-  if (sortBy === "Hardest") return copy.sort((a, b) => d[b.difficulty] - d[a.difficulty]);
+  if (sortBy === "Easiest") return copy.sort((a, b) => rank[a.difficulty] - rank[b.difficulty]);
+  if (sortBy === "Hardest") return copy.sort((a, b) => rank[b.difficulty] - rank[a.difficulty]);
   if (sortBy === "Shortest") return copy.sort((a, b) => a.timeMin - b.timeMin);
   if (sortBy === "Longest") return copy.sort((a, b) => b.timeMin - a.timeMin);
   return copy;
 }
 
+function CollectionThumb({ pack, size = 54 }: { pack: UserPack; size?: number }) {
+  return <View style={{ width: size, height: size, borderRadius: Math.round(size * 0.28), overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: `${pack.accentColor}18` }}>
+    {pack.coverImageUrl ? <Image source={{ uri: pack.coverImageUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" /> : <Ionicons name="bookmarks" size={Math.round(size * 0.45)} color={pack.accentColor} />}
+  </View>;
+}
+
+function CollectionPreview({ pack, onPress, width }: { pack: UserPack; onPress: () => void; width: number }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Open ${pack.title} collection`} onPress={onPress} style={({ pressed }) => ({ width, flexDirection: "row", gap: 8, alignItems: "center", opacity: pressed ? 0.68 : 1 })}>
+    <CollectionThumb pack={pack} size={50} />
+    <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+      <Text numberOfLines={1} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 13 }}>{pack.title}</Text>
+      <View style={{ flexDirection: "row", gap: 3, alignItems: "center" }}><Ionicons name="lock-closed" size={11} color={T.muted} /><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 11 }}>Private</Text></View>
+    </View>
+  </Pressable>;
+}
+
 function QuestRow({ quest, onOpen, onRemove }: { quest: Quest; onOpen: () => void; onRemove: () => void }) {
   const cat = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
   const diff = difficultyColor[quest.difficulty];
-  return (
-    <Pressable onPress={onOpen} style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.985 : 1 }] })}>
-      <Card style={{ padding: 0, overflow: "hidden" }}>
-        <View style={{ flexDirection: "row" }}>
-          <View style={{ width: 5, backgroundColor: quest.color }} />
-          <View style={{ flex: 1, padding: 16, gap: 9 }}>
-            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-              <View style={{ flex: 1, flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
-                <Tag label={quest.category} color={cat.text} bg={cat.bg} />
-                <Tag label={quest.difficulty} color={diff.text} bg={diff.bg} />
-              </View>
-              <Pressable onPress={onRemove} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: `${T.blue}1f`, alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name="bookmark" size={15} color={T.blue} />
-              </Pressable>
-            </View>
-            <Text style={{ color: T.dark, fontSize: 16, lineHeight: 21, fontWeight: "900" }}>{quest.title}</Text>
-            <Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "600" }} numberOfLines={3}>{quest.description}</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", flex: 1 }}>
-                <PillStat icon="flash" text={`+${quest.xp} XP`} />
-                <PillStat icon="time" text={quest.timeLabel} color={T.dark} />
-              </View>
-              <Link href={`/quest/${quest.id}`} asChild>
-                <Pressable style={{ flexDirection: "row", gap: 4, alignItems: "center", backgroundColor: T.blue, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 99 }}>
-                  <Text style={{ color: T.white, fontWeight: "900", fontSize: 12 }}>Start</Text>
-                  <Ionicons name="chevron-forward" size={12} color={T.white} />
-                </Pressable>
-              </Link>
-            </View>
-          </View>
-        </View>
-      </Card>
-    </Pressable>
-  );
+  return <Pressable onPress={onOpen} style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.985 : 1 }] })}>
+    <Card style={{ padding: 0, overflow: "hidden" }}><View style={{ flexDirection: "row" }}>
+      <View style={{ width: 5, backgroundColor: quest.color }} />
+      <View style={{ flex: 1, padding: 16, gap: 9 }}>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}><View style={{ flex: 1, flexDirection: "row", gap: 6, flexWrap: "wrap" }}><Tag label={quest.category} color={cat.text} bg={cat.bg} /><Tag label={quest.difficulty} color={diff.text} bg={diff.bg} /></View><Pressable onPress={onRemove} accessibilityLabel={`Unsave ${quest.title}`} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: `${T.blue}1f`, alignItems: "center", justifyContent: "center" }}><Ionicons name="bookmark" size={15} color={T.blue} /></Pressable></View>
+        <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 16, lineHeight: 21 }}>{quest.title}</Text>
+        <Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 17 }} numberOfLines={2}>{quest.description}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}><View style={{ flexDirection: "row", gap: 8, flex: 1 }}><PillStat icon="flash" text={`+${quest.xp} XP`} /><PillStat icon="time" text={quest.timeLabel} color={T.dark} /></View><Link href={`/quest/${quest.id}`} asChild><Pressable style={{ flexDirection: "row", gap: 4, alignItems: "center", backgroundColor: T.blue, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 99 }}><Text style={{ color: T.white, fontFamily: "RubikBold", fontSize: 12 }}>Start</Text><Ionicons name="chevron-forward" size={12} color={T.white} /></Pressable></Link></View>
+      </View>
+    </View></Card>
+  </Pressable>;
+}
+
+function SavedSearch({ value, onChangeText, onFilter, activeControls }: { value: string; onChangeText: (text: string) => void; onFilter: () => void; activeControls: boolean }) {
+  return <View style={{ height: 56, borderRadius: 28, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, flexDirection: "row", alignItems: "center", gap: 12, paddingLeft: 18, paddingRight: 6, boxShadow: `3px 3px 0px ${T.border}` }}><Ionicons name="search" size={20} color={T.dark} /><TextInput value={value} onChangeText={onChangeText} placeholder="Search Quests" placeholderTextColor={T.muted} accessibilityLabel="Search saved quests" style={{ flex: 1, minWidth: 0, color: T.dark, fontFamily: "RubikBold", fontSize: 16, lineHeight: 21, paddingVertical: 0, includeFontPadding: false, textAlignVertical: "center" }} />{value ? <Pressable onPress={() => onChangeText("")} hitSlop={8} style={{ width: 36, height: 44, alignItems: "center", justifyContent: "center" }}><Ionicons name="close-circle" size={18} color={T.muted} /></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel="Sort and filter saved quests" onPress={onFilter} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: activeControls ? `${T.blue}18` : T.bg, transform: [{ scale: pressed ? 0.92 : 1 }] })}><Ionicons name="options-outline" size={21} color={activeControls ? T.blue : T.dark} /></Pressable></View>;
+}
+
+function SavedFilterChoice({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return <Pressable accessibilityRole="radio" accessibilityState={{ selected }} onPress={onPress} style={({ pressed }) => ({ minHeight: 40, borderRadius: 14, borderWidth: 2, borderColor: selected ? T.blue : T.border, backgroundColor: selected ? `${T.blue}0f` : T.white, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, opacity: pressed ? 0.8 : 1 })}><Text style={{ color: selected ? T.blue : T.muted, fontFamily: "RubikBold", fontSize: 12, textAlign: "center" }}>{label}</Text></Pressable>;
 }
 
 export function SavedScreen({ onBack }: { onBack: () => void }) {
   const router = useRouter();
+  const { contentWidth, horizontalPadding } = useResponsiveScreenLayout();
   const { loading, quests, toggleSave } = useContent();
-  const { userPacks, removeUserPack } = useQuestEngine();
+  const { userPacks } = useQuestEngine();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("Best Match");
   const [filters, setFilters] = useState<Filters>(emptyFilters);
-  const [showSort, setShowSort] = useState(false);
-  const [showFilter, setShowFilter] = useState(false);
+  const [filterVisible, setFilterVisible] = useState(false);
   const [openQuest, setOpenQuest] = useState<Quest | null>(null);
   const activeFilterCount = [filters.duration, filters.difficulty].filter(Boolean).length;
-
+  // `Screen` adds horizontal gutters, so use its inner content width. This
+  // keeps the first four collection previews in a true 2 × 2 grid.
+  const collectionWidth = (contentWidth - horizontalPadding * 2 - 12) / 2;
+  const filedQuestIds = useMemo(() => new Set(userPacks.flatMap((pack) => pack.questIds)), [userPacks]);
   const filtered = useMemo(() => {
-    let result = quests.filter((quest) => quest.saved);
-    if (search.trim()) {
-      const query = search.toLowerCase();
-      result = result.filter((quest) => `${quest.title} ${quest.description} ${quest.category}`.toLowerCase().includes(query));
-    }
-    result = applyFilters(result, filters);
-    return sortSaved(result, sortBy);
-  }, [filters, quests, search, sortBy]);
+    let result = quests.filter((quest) => quest.saved && !filedQuestIds.has(quest.id));
+    if (search.trim()) { const query = search.toLowerCase(); result = result.filter((quest) => `${quest.title} ${quest.description} ${quest.category}`.toLowerCase().includes(query)); }
+    return sortSaved(applyFilters(result, filters), sortBy);
+  }, [filedQuestIds, filters, quests, search, sortBy]);
+  const resetFilters = () => { setSearch(""); setFilters(emptyFilters); setSortBy("Best Match"); };
 
-  function resetFilters() {
-    setSearch("");
-    setFilters(emptyFilters);
-    setSortBy("Best Match");
-  }
-
-  return (
-    <Screen>
-      <Header eyebrow="My Stuff" title="Saved" right={<IconButton icon="chevron-back" onPress={onBack} />} />
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        <SearchInput value={search} onChangeText={setSearch} placeholder="Search saved quests..." />
-        <IconButton icon="swap-vertical" onPress={() => setShowSort(true)} color={sortBy !== "Best Match" ? T.blue : T.muted} bg={sortBy !== "Best Match" ? `${T.blue}1f` : T.white} />
-        <IconButton icon="options-outline" onPress={() => setShowFilter(true)} color={activeFilterCount ? T.cyan : T.muted} bg={activeFilterCount ? `${T.cyan}1f` : T.white} badge={activeFilterCount || undefined} />
-      </View>
-
-      {userPacks.length ? (
-        <View style={{ gap: 12 }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={{ color: T.dark, fontSize: 18, fontWeight: "900" }}>My Adventure Packs</Text>
-            <Pressable onPress={() => router.push("/pack-library")}>
-              <Text style={{ color: T.cyan, fontWeight: "900", fontSize: 13 }}>See all</Text>
-            </Pressable>
-          </View>
-          {userPacks.map((pack) => (
-            <Card key={pack.id} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <Text style={{ fontSize: 28 }}>{pack.icon}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: T.dark, fontWeight: "900" }}>{pack.title}</Text>
-                <Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>{pack.questIds.length} quests</Text>
-              </View>
-              <Pressable onPress={() => removeUserPack(pack.id)} style={{ padding: 8 }}>
-                <Ionicons name="trash-outline" size={18} color={T.muted} />
-              </Pressable>
-            </Card>
-          ))}
-        </View>
-      ) : null}
-
-      <View style={{ gap: 12 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Text style={{ color: T.dark, fontSize: 18, fontWeight: "900" }}>Saved Quests</Text>
-          <Text style={{ color: T.muted, fontWeight: "800", fontSize: 12 }}>{filtered.length} quests</Text>
-        </View>
-        {loading ? (
-          <Card>
-            <EmptyState emoji="⏳" title="Loading saved quests" body="Finding the quests you saved." />
-          </Card>
-        ) : filtered.length ? filtered.map((quest) => (
-          <QuestRow key={quest.id} quest={quest} onOpen={() => setOpenQuest(quest)} onRemove={() => toggleSave(quest.id)} />
-        )) : (
-          <EmptyState
-            emoji={search || activeFilterCount ? "🔍" : "📭"}
-            title={search || activeFilterCount ? "No matches found" : "No saved quests yet"}
-            body={search || activeFilterCount ? "Try adjusting your search, filters, or sorting." : "Save quests from Explore to see them here."}
-            action={search || activeFilterCount || sortBy !== "Best Match" ? <SoftButton label="Reset all filters" icon="refresh" onPress={resetFilters} /> : undefined}
-          />
-        )}
-      </View>
-
-      <Sheet visible={!!openQuest} onClose={() => setOpenQuest(null)}>
-        {openQuest ? (
-          <View style={{ paddingHorizontal: 24, paddingBottom: 24, gap: 14 }}>
-            <Text style={{ color: T.dark, fontSize: 24, lineHeight: 29, fontWeight: "900" }}>{openQuest.title}</Text>
-            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              <Tag label={openQuest.category} color={(categoryColor[openQuest.category] ?? { text: openQuest.color }).text} bg={(categoryColor[openQuest.category] ?? { bg: `${openQuest.color}18` }).bg} />
-              <Tag label={openQuest.difficulty} color={difficultyColor[openQuest.difficulty].text} bg={difficultyColor[openQuest.difficulty].bg} />
-              <PillStat icon="flash" text={`+${openQuest.xp} XP`} />
-              <PillStat icon="time" text={openQuest.timeLabel} color={T.dark} />
-            </View>
-            <Text style={{ color: T.muted, fontWeight: "600", lineHeight: 21 }}>{openQuest.description}</Text>
-            <Link href={`/quest/${openQuest.id}`} asChild>
-              <Pressable>
-                <SoftButton label="Start Quest" icon="play" />
-              </Pressable>
-            </Link>
-            <SoftButton label="Remove from saved" icon="trash-outline" color={T.red} onPress={() => { toggleSave(openQuest.id); setOpenQuest(null); }} />
-          </View>
-        ) : null}
-      </Sheet>
-
-      <Sheet visible={showSort} onClose={() => setShowSort(false)}>
-        <View style={{ paddingHorizontal: 24, paddingBottom: 24 }}>
-          <Text style={{ color: T.dark, fontSize: 20, fontWeight: "900", marginBottom: 10 }}>Sort by</Text>
-          {sortOptions.map((option) => (
-            <Pressable key={option} onPress={() => { setSortBy(option); setShowSort(false); }} style={{ minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={{ color: option === sortBy ? T.blue : T.dark, fontWeight: option === sortBy ? "900" : "700", fontSize: 16 }}>{option}</Text>
-              {option === sortBy ? <Ionicons name="checkmark-circle" size={22} color={T.blue} /> : null}
-            </Pressable>
-          ))}
-        </View>
-      </Sheet>
-
-      <Sheet visible={showFilter} onClose={() => setShowFilter(false)}>
-        <View style={{ paddingHorizontal: 24, paddingBottom: 24, gap: 18 }}>
-          <Text style={{ color: T.dark, fontSize: 20, fontWeight: "900" }}>Filters</Text>
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: T.muted, fontWeight: "900", fontSize: 11, letterSpacing: 0.8, textTransform: "uppercase" }}>Duration</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {["Under 30min", "30-60min", "1-2h", "2h+"].map((value) => {
-                const active = filters.duration === value;
-                return (
-                  <Pressable key={value} onPress={() => setFilters((prev) => ({ ...prev, duration: active ? null : value }))} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 99, backgroundColor: active ? `${T.cyan}1f` : T.white, borderWidth: 2, borderColor: active ? T.cyan : T.border }}>
-                    <Text style={{ color: active ? T.cyan : T.muted, fontWeight: "900" }}>{value}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: T.muted, fontWeight: "900", fontSize: 11, letterSpacing: 0.8, textTransform: "uppercase" }}>Difficulty</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {questDifficulties.map((value) => {
-                const active = filters.difficulty === value;
-                return (
-                  <Pressable key={value} onPress={() => setFilters((prev) => ({ ...prev, difficulty: active ? null : value }))} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 99, backgroundColor: active ? `${T.blue}1f` : T.white, borderWidth: 2, borderColor: active ? T.blue : T.border }}>
-                    <Text style={{ color: active ? T.blue : T.muted, fontWeight: "900" }}>{value}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <SoftButton label="Reset" inverse color={T.muted} onPress={() => setFilters(emptyFilters)} style={{ flex: 1 }} />
-            <SoftButton label="Apply" onPress={() => setShowFilter(false)} style={{ flex: 1 }} />
-          </View>
-        </View>
-      </Sheet>
-    </Screen>
-  );
+  return <Screen>
+    <Header eyebrow="My Stuff" title="Saved" right={<IconButton icon="chevron-back" onPress={onBack} />} />
+    <SavedSearch value={search} onChangeText={setSearch} onFilter={() => setFilterVisible(true)} activeControls={sortBy !== "Best Match" || activeFilterCount > 0} />
+    <View style={{ gap: 13 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>Collections</Text><Pressable onPress={() => router.push("/quest-collections")} hitSlop={8}><Text style={{ color: T.blue, fontFamily: "RubikBold", fontSize: 13 }}>See all</Text></Pressable></View>
+      {userPacks.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 16, columnGap: 12 }}>{userPacks.slice(0, 4).map((pack) => <CollectionPreview key={pack.id} pack={pack} width={collectionWidth} onPress={() => router.push(`/collection/${pack.id}`)} />)}</View> : <Card style={{ padding: 16, flexDirection: "row", alignItems: "center", gap: 12 }}><View style={{ width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${T.blue}16` }}><Ionicons name="bookmarks-outline" size={21} color={T.blue} /></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 14 }}>Group quests you want to do</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, marginTop: 3 }}>Create a collection from Saved.</Text></View><Pressable onPress={() => router.push("/quest-collections")}><Ionicons name="add-circle" size={25} color={T.blue} /></Pressable></Card>}
+    </View>
+    <View style={{ gap: 12 }}><View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>Saved Quests</Text><Pressable onPress={() => router.push("/manage-saved")} hitSlop={8}><Text style={{ color: T.blue, fontFamily: "RubikBold", fontSize: 13 }}>Manage</Text></Pressable></View>
+      {loading ? <Card><EmptyState emoji="⏳" title="Loading saved quests" body="Finding the quests you saved." /></Card> : filtered.length ? filtered.map((quest) => <QuestRow key={quest.id} quest={quest} onOpen={() => setOpenQuest(quest)} onRemove={() => void toggleSave(quest.id)} />) : <EmptyState emoji={search || activeFilterCount ? "🔍" : "📭"} title={search || activeFilterCount ? "No matches found" : "No unfiled saved quests"} body={search || activeFilterCount ? "Try adjusting your search, filters, or sorting." : "Quests added to a collection live inside that collection."} action={search || activeFilterCount || sortBy !== "Best Match" ? <SoftButton label="Reset all filters" icon="refresh" onPress={resetFilters} /> : undefined} />}
+    </View>
+    <Sheet visible={!!openQuest} onClose={() => setOpenQuest(null)}>{openQuest ? <View style={{ paddingHorizontal: 24, paddingBottom: 24, gap: 14 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 23 }}>{openQuest.title}</Text><Text style={{ color: T.muted, fontFamily: "Rubik", lineHeight: 21 }}>{openQuest.description}</Text><Link href={`/quest/${openQuest.id}`} asChild><Pressable><SoftButton label="Start Quest" icon="play" /></Pressable></Link><SoftButton label="Remove from saved" icon="trash-outline" color={T.red} onPress={() => { void toggleSave(openQuest.id); setOpenQuest(null); }} /></View> : null}</Sheet>
+    <Sheet visible={filterVisible} onClose={() => setFilterVisible(false)} maxHeight="90%" fillHeight><View style={{ flex: 1 }}><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 2, paddingBottom: 18, gap: 16 }}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}><View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: T.bg, alignItems: "center", justifyContent: "center" }}><Ionicons name="options-outline" size={23} color={T.dark} /></View><View style={{ flex: 1, gap: 2 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>Sort & Filter</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12 }}>Customize your saved quests</Text></View></View><Pressable onPress={() => { setSortBy("Best Match"); setFilters(emptyFilters); }}><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12 }}>Reset</Text></Pressable></View><FilterGroup title="Sort by">{savedSortOptions.map((option) => <SavedFilterChoice key={option} label={option} selected={option === sortBy} onPress={() => setSortBy(option)} />)}</FilterGroup><FilterGroup title="Duration"><SavedFilterChoice label="Any duration" selected={!filters.duration} onPress={() => setFilters((prev) => ({ ...prev, duration: null }))} />{[["Under 30min", "Under 30 min"], ["30-60min", "30–60 min"], ["1-2h", "1–2 hours"], ["2h+", "2+ hours"]].map(([value, label]) => <SavedFilterChoice key={value} label={label} selected={filters.duration === value} onPress={() => setFilters((prev) => ({ ...prev, duration: value }))} />)}</FilterGroup><FilterGroup title="Difficulty"><SavedFilterChoice label="Any difficulty" selected={!filters.difficulty} onPress={() => setFilters((prev) => ({ ...prev, difficulty: null }))} />{questDifficulties.map((value) => <SavedFilterChoice key={value} label={value[0] + value.slice(1).toLowerCase()} selected={filters.difficulty === value} onPress={() => setFilters((prev) => ({ ...prev, difficulty: value }))} />)}</FilterGroup></ScrollView><View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4, borderTopWidth: 1, borderTopColor: T.border, backgroundColor: T.white }}><Pressable onPress={() => setFilterVisible(false)} style={({ pressed }) => ({ minHeight: 58, borderRadius: 20, backgroundColor: T.blue, borderBottomWidth: 6, borderBottomColor: "#258fd8", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontFamily: "RubikBold", fontSize: 16 }}>Done</Text><Ionicons name="checkmark-circle-outline" size={20} color={T.white} /></Pressable></View></View></Sheet>
+  </Screen>;
 }
+
+function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) { return <View style={{ gap: 9, paddingTop: title === "Sort by" ? 0 : 14, borderTopWidth: title === "Sort by" ? 0 : 1, borderTopColor: T.border }}><Text style={{ color: T.muted, fontFamily: "RubikBold", textTransform: "uppercase", fontSize: 11, letterSpacing: 0.8 }}>{title}</Text><View accessibilityRole="radiogroup" style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{children}</View></View>; }

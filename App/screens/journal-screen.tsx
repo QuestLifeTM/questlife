@@ -20,6 +20,7 @@ import { StreakPill } from "@/components/streak-pill";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, Entrance, Header, IconButton, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { fetchJournalData, toLocalDateKey, upsertJournalEntry } from "@/services/journal/journalService";
+import { useNotifications } from "@/contexts/NotificationsContext";
 import { JournalData, JournalEntry, JournalMemory, JournalMood, PartyJournalCard } from "@/types/journal";
 
 type JournalTab = "journal" | "growth";
@@ -729,6 +730,7 @@ export function JournalScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
+  const { markJournalRead } = useNotifications();
 
   const [tab, setTab] = useState<JournalTab>("journal");
   const [mode, setMode] = useState<CalendarMode>("week");
@@ -767,7 +769,8 @@ export function JournalScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+      void markJournalRead();
+    }, [load, markJournalRead])
   );
 
   const joinKey = useMemo(() => {

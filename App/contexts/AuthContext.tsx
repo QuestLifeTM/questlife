@@ -10,6 +10,7 @@ import {
 
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { isUserEmailVerified, signOut as signOutFromService } from "@/services/auth/authService";
+import { rememberEmail } from "@/services/auth/rememberedEmail";
 
 type AuthContextValue = {
   initializing: boolean;
@@ -45,9 +46,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     supabase.auth
       .getSession()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (mounted) {
           setSession(data.session);
+        }
+
+        if (data.session?.user.email) {
+          await rememberEmail(data.session.user.email).catch(() => {
+            // A secure-storage failure must not block restoration of a valid session.
+          });
         }
       })
       .finally(() => {
@@ -62,6 +69,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       // Ignore late auth events after the provider unmounts during reloads.
       if (mounted) {
         setSession(nextSession);
+      }
+
+      if (nextSession?.user.email) {
+        rememberEmail(nextSession.user.email).catch(() => {
+          // Remembering an email is optional and must never interrupt auth.
+        });
       }
     });
 

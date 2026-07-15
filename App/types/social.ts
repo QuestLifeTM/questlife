@@ -184,6 +184,8 @@ export type PartyDetail = Party & {
   isHost: boolean;
   showWelcomeBriefing: boolean;
   questsEnabled: boolean;
+  /** When the Party-level live clock began: quest-list unlock for Free for All, active-round start for Together. */
+  partyStartedAt?: string | null;
   memberInvitesEnabled: boolean;
   photoProofMode: PartyProofMode;
   locationType: PartyLocationType;

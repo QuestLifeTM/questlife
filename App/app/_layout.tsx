@@ -7,7 +7,9 @@ import { T } from "@/components/theme";
 import { GlobalAnnouncement } from "@/components/global-announcement";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ContentProvider } from "@/contexts/ContentContext";
+import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { QuestEngineProvider } from "@/contexts/QuestEngineContext";
+import { QuestSaveProvider } from "@/contexts/QuestSaveContext";
 import { SocialProvider } from "@/contexts/SocialContext";
 import { StreaksProvider } from "@/contexts/StreaksContext";
 
@@ -43,7 +45,11 @@ function SessionDataProviders({ children }: PropsWithChildren) {
   return <ContentProvider key={session?.user.id ?? "signed-out"}>
     <QuestEngineProvider>
       <StreaksProvider>
-        <SocialProvider>{children}</SocialProvider>
+        <SocialProvider>
+          <NotificationsProvider>
+            <QuestSaveProvider>{children}</QuestSaveProvider>
+          </NotificationsProvider>
+        </SocialProvider>
       </StreaksProvider>
     </QuestEngineProvider>
     <GlobalAnnouncement />
@@ -97,12 +103,16 @@ function AppLayout() {
         <Stack.Screen name="collection/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="create-collection" options={{ presentation: "card" }} />
         <Stack.Screen name="saved" options={{ presentation: "card" }} />
+        <Stack.Screen name="quest-collections" options={{ presentation: "card" }} />
+        <Stack.Screen name="manage-saved" options={{ presentation: "card" }} />
         <Stack.Screen name="pack-library" options={{ presentation: "card" }} />
         <Stack.Screen name="plan/pick-quests" options={{ presentation: "card" }} />
         <Stack.Screen name="plan/save-pack" options={{ presentation: "card" }} />
         <Stack.Screen name="streak" options={{ presentation: "card" }} />
         <Stack.Screen name="party/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="notifications" options={{ presentation: "card" }} />
+        <Stack.Screen name="add-friends" options={{ presentation: "card" }} />
+        <Stack.Screen name="add-friend/[userId]" options={{ presentation: "card" }} />
       </Stack>
     </GestureHandlerRootView>
   );

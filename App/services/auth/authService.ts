@@ -7,6 +7,7 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import { supabase } from "@/lib/supabase";
 import { upsertOwnProfile } from "@/services/profile/profileService";
 import { AuthProviderName } from "@/types/auth";
+import { rememberEmail } from "@/services/auth/rememberedEmail";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -116,6 +117,8 @@ export async function signInWithEmail(email: string, password: string) {
     await resendSignupConfirmationLink(normalizedEmail);
     throw new EmailNotVerifiedError(normalizedEmail);
   }
+
+  await rememberEmail(normalizedEmail);
 }
 
 export async function getRegistrationAccountState(email: string): Promise<RegistrationAccountState> {
@@ -201,6 +204,7 @@ export async function exchangeAuthCodeForSession(code: string) {
   }
 
   if (data.user?.email && isUserEmailVerified(data.user)) {
+    await rememberEmail(data.user.email);
     await upsertOwnProfile({
       email: normalizeEmail(data.user.email),
       id: data.user.id,

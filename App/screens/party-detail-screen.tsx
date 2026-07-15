@@ -25,6 +25,15 @@ function elapsed(iso: string) {
   return hours ? `${hours}h ${minutes % 60}m` : `${minutes}m ${seconds % 60}s`;
 }
 
+function partyElapsed(iso: string) {
+  const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  const days = Math.floor(seconds / 86_400);
+  const hours = Math.floor((seconds % 86_400) / 3_600);
+  const minutes = Math.floor((seconds % 3_600) / 60);
+  const remainder = seconds % 60;
+  return days ? `${days}d ${hours}h ${minutes}m ${remainder}s` : hours ? `${hours}h ${minutes}m ${remainder}s` : `${minutes}m ${remainder}s`;
+}
+
 function formatDuration(seconds?: number | null) {
   if (seconds == null) return "—";
   const minutes = Math.floor(seconds / 60);
@@ -63,9 +72,9 @@ function darkerButtonEdge(color: string) {
   return `#${toChannel(0)}${toChannel(2)}${toChannel(4)}`;
 }
 
-function PartyButton({ label, icon, color = T.blue, onPress, disabled = false, compact = false }: { label: string; icon?: keyof typeof Ionicons.glyphMap; color?: string; onPress?: () => void; disabled?: boolean; compact?: boolean }) {
+function PartyButton({ label, icon, color = T.blue, onPress, disabled = false, compact = false, muted = false }: { label: string; icon?: keyof typeof Ionicons.glyphMap; color?: string; onPress?: () => void; disabled?: boolean; compact?: boolean; muted?: boolean }) {
   const lowerEdge = color === T.blue ? "#258fd8" : color === T.purple ? "#7973c7" : color === T.green ? "#20894d" : color === T.red ? "#d73b57" : darkerButtonEdge(color);
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={() => { if (!disabled) haptic(); onPress?.(); }} style={({ pressed }) => ({ minHeight: compact ? 44 : 58, paddingHorizontal: compact ? 14 : 18, borderRadius: compact ? 16 : 20, backgroundColor: disabled ? T.border : color, borderBottomWidth: compact ? 4 : 6, borderBottomColor: disabled ? "#d7cec2" : lowerEdge, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, opacity: disabled ? 0.6 : 1, transform: [{ translateY: pressed && !disabled ? 3 : 0 }] })}>
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={() => { if (!disabled) haptic(); onPress?.(); }} style={({ pressed }) => ({ minHeight: compact ? 44 : 58, paddingHorizontal: compact ? 14 : 18, borderRadius: compact ? 16 : 20, backgroundColor: disabled ? T.border : muted ? "#a9c9e7" : color, borderBottomWidth: compact ? 4 : 6, borderBottomColor: disabled ? "#d7cec2" : muted ? "#86afd5" : lowerEdge, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, opacity: disabled ? 0.6 : 1, transform: [{ translateY: pressed && !disabled ? 3 : 0 }] })}>
     {icon ? <Ionicons name={icon} size={compact ? 16 : 19} color={T.white} /> : null}
     <Text style={{ color: T.white, fontSize: compact ? 12 : 15, fontWeight: "900", letterSpacing: compact ? 0.42 : 0.5, textTransform: "uppercase" }}>{label}</Text>
   </Pressable>;
@@ -89,22 +98,37 @@ function PartyTabs({ active, unreadFeed, unreadLeaderboard, onChange }: { active
 }
 
 function PartyHeader({ party, onBack, onInfo }: { party: PartyDetail; onBack: () => void; onInfo: () => void }) {
-  return <View style={{ gap: 12 }}>
-    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+  const [, tick] = useState(0);
+  const accent = party.gameMode === "everyone_together" ? T.purple : T.pink;
+  const liveStartedAt = party.status === "active" ? party.partyStartedAt ?? (party.gameMode === "everyone_together" ? party.activeRound?.startedAt ?? null : null) : null;
+  const waitingCopy = party.status === "ended" ? "This Party has ended" : party.gameMode === "everyone_together" ? "Waiting for the host to start a quest" : party.questsEnabled ? "Quest list is open" : "Waiting for the host to open quests";
+
+  useEffect(() => {
+    if (!liveStartedAt) return;
+    const interval = setInterval(() => tick((value) => value + 1), 1_000);
+    return () => clearInterval(interval);
+  }, [liveStartedAt]);
+
+  return <View style={{ gap: 13 }}>
+    <View style={{ minHeight: 68, flexDirection: "row", alignItems: "center", gap: 10 }}>
       <IconButton icon="arrow-back" label="Back to Parties" color={T.muted} onPress={onBack} />
-      <Pressable accessibilityRole="button" accessibilityLabel="Party Info" onPress={onInfo} style={({ pressed }) => ({ minHeight: 42, paddingHorizontal: 13, borderRadius: 21, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: T.white, borderWidth: 2, borderBottomWidth: 4, borderColor: `${T.blue}4a`, borderBottomColor: `${T.blue}78`, transform: [{ translateY: pressed ? 2 : 0 }] })}>
-        <Ionicons name="information-circle" size={17} color={T.blue} /><Text style={{ color: T.blue, fontSize: 12, fontWeight: "900" }}>Party Info</Text>
+      <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
+        <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 24, lineHeight: 29 }} numberOfLines={2}>{party.name}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+          <View style={{ flexDirection: "row", paddingLeft: 2 }}>{party.members.slice(0, 4).map((member, index) => <View key={member.userId} style={{ marginLeft: index ? -9 : 0 }}><Avatar emoji={member.emoji} color={member.avatarColor} size={27} /></View>)}</View>
+          <Text style={{ color: T.muted, fontSize: 12, fontWeight: "900" }}>{party.memberCount} {party.memberCount === 1 ? "member" : "members"}</Text>
+          <Tag label={party.gameMode === "everyone_together" ? "Together" : "Free for all"} color={accent} bg={`${accent}18`} />
+        </View>
+      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Party Info" onPress={() => { haptic(); onInfo(); }} style={({ pressed }) => ({ minHeight: 40, paddingHorizontal: 11, borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: T.white, borderWidth: 2, borderBottomWidth: 4, borderColor: `${T.blue}4a`, borderBottomColor: `${T.blue}78`, transform: [{ translateY: pressed ? 2 : 0 }] })}>
+        <Ionicons name="information-circle" size={16} color={T.blue} /><Text style={{ color: T.blue, fontSize: 11, fontWeight: "900" }}>Party info</Text>
       </Pressable>
     </View>
-    <View style={{ gap: 7 }}>
-      <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 28, lineHeight: 34 }} numberOfLines={2}>{party.name}</Text>
-      {party.goal ? <Text style={{ color: T.muted, fontSize: 14, lineHeight: 20, fontWeight: "700" }} numberOfLines={2}>{party.goal}</Text> : null}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 2 }}>
-        <View style={{ flexDirection: "row", paddingLeft: 3 }}>{party.members.slice(0, 6).map((member, index) => <View key={member.userId} style={{ marginLeft: index ? -10 : 0 }}><Avatar emoji={member.emoji} color={member.avatarColor} size={34} /></View>)}</View>
-        <Text style={{ color: T.muted, fontSize: 12, fontWeight: "900" }}>{party.memberCount} {party.memberCount === 1 ? "member" : "members"}</Text>
-        <Tag label={party.gameMode === "everyone_together" ? "Together" : "Free for all"} color={party.gameMode === "everyone_together" ? T.purple : T.pink} bg={`${party.gameMode === "everyone_together" ? T.purple : T.pink}18`} />
-      </View>
-    </View>
+    {party.goal ? <Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }} numberOfLines={2}>{party.goal}</Text> : null}
+    {liveStartedAt ? <View accessibilityLiveRegion="polite" accessibilityLabel={`Party live for ${partyElapsed(liveStartedAt)}`} style={{ minHeight: 62, borderRadius: 17, paddingHorizontal: 14, backgroundColor: `${accent}14`, flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+      <View style={{ position: "absolute", left: 14, flexDirection: "row", alignItems: "center", gap: 7 }}><View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: accent }} /><Text style={{ color: accent, fontSize: 11, fontWeight: "900", letterSpacing: 1.1 }}>LIVE</Text></View>
+      <Text style={{ color: T.dark, fontSize: 20, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{partyElapsed(liveStartedAt)}</Text>
+    </View> : <View style={{ minHeight: 52, borderRadius: 16, paddingHorizontal: 14, backgroundColor: `${accent}0d`, flexDirection: "row", alignItems: "center", gap: 8 }}><Ionicons name={party.status === "ended" ? "flag-outline" : "lock-closed-outline"} size={17} color={accent} /><Text style={{ color: T.muted, fontSize: 12, fontWeight: "800" }}>{waitingCopy}</Text></View>}
   </View>;
 }
 
@@ -120,7 +144,7 @@ function EmptyActiveQuest({ party, onOpenQuestList, onInvite }: { party: PartyDe
   </View>;
 }
 
-function ActiveQuestCard({ party, quest, category, onComplete, onEnd, remoteStart }: { party: PartyDetail; quest: PartyQuest; category: QuestCategory; onComplete: () => void; onEnd: () => void; remoteStart: boolean }) {
+function ActiveQuestCard({ party, quest, category, onComplete, onEnd, onAbandon, remoteStart }: { party: PartyDetail; quest: PartyQuest; category: QuestCategory; onComplete: () => void; onEnd: () => void; onAbandon: () => void; remoteStart: boolean }) {
   const [, tick] = useState(0);
   const reducedMotion = useReducedMotion();
   const startedAt = party.activeRound?.startedAt;
@@ -146,12 +170,12 @@ function ActiveQuestCard({ party, quest, category, onComplete, onEnd, remoteStar
     </View>
     {isShared && party.activeRound ? <View style={{ flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 14, backgroundColor: `${T.purple}10`, gap: 7 }}><Ionicons name="people" size={17} color={T.purple} /><Text style={{ flex: 1, color: T.purple, fontSize: 12, fontWeight: "900" }}>{party.activeRound.completedCount ?? 0}/{party.activeRound.totalMembers ?? party.memberCount} finished</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "800" }}>Top 3 earn a bonus</Text></View> : null}
     {isShared && finishers.length ? <View style={{ gap: 6 }}><Text style={{ color: T.muted, fontSize: 10, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" }}>Fastest so far</Text>{finishers.slice(0, 3).map((finisher) => <View key={finisher.userId} style={{ minHeight: 31, paddingHorizontal: 9, borderRadius: 11, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: `${finisher.rank === 1 ? T.orange : T.purple}10` }}><Text style={{ color: finisher.rank === 1 ? T.orange : T.purple, fontSize: 12, fontWeight: "900" }}>#{finisher.rank}</Text><Text style={{ fontSize: 14 }}>{finisher.emoji}</Text><Text style={{ flex: 1, color: T.dark, fontSize: 12, fontWeight: "800" }}>{finisher.name}</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{formatDuration(finisher.elapsedSeconds)}</Text></View>)}{viewerFinish && viewerFinish.rank > 3 ? <View style={{ minHeight: 31, paddingHorizontal: 9, borderRadius: 11, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: `${T.blue}10` }}><Text style={{ color: T.blue, fontSize: 12, fontWeight: "900" }}>#{viewerFinish.rank}</Text><Text style={{ fontSize: 14 }}>{viewerFinish.emoji}</Text><Text style={{ flex: 1, color: T.dark, fontSize: 12, fontWeight: "800" }}>Your time</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{formatDuration(viewerFinish.elapsedSeconds)}</Text></View> : null}</View> : null}
-    {isComplete ? <View style={{ minHeight: 46, borderRadius: 15, backgroundColor: `${T.green}15`, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 }}><Ionicons name="checkmark-circle" size={20} color={T.green} /><Text style={{ color: T.green, fontSize: 13, fontWeight: "900" }}>Completed — cheering on the crew</Text></View> : <PartyButton label="Complete Quest" icon="checkmark" color={quest.color} onPress={onComplete} />}
+    {isComplete ? <View style={{ minHeight: 46, borderRadius: 15, backgroundColor: `${T.green}15`, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 }}><Ionicons name="checkmark-circle" size={20} color={T.green} /><Text style={{ color: T.green, fontSize: 13, fontWeight: "900" }}>Completed — cheering on the crew</Text></View> : <><PartyButton label="Complete Quest" icon="checkmark" color={quest.color} onPress={onComplete} />{!isShared ? <SoftButton label="Abandon quest" icon="close-circle" inverse color={T.red} onPress={onAbandon} style={{ minHeight: 44 }} /> : null}</>}
     {party.isHost && isShared ? <SoftButton label="End quest" icon="flag" inverse color={T.purple} onPress={onEnd} style={{ minHeight: 44 }} /> : null}
   </Reanimated.View>;
 }
 
-function QuestRow({ quest, party, category, launching, onStart }: { quest: PartyQuest; party: PartyDetail; category: QuestCategory; launching: boolean; onStart: () => void }) {
+function QuestRow({ quest, party, category, launching, locked, onStart, onLocked }: { quest: PartyQuest; party: PartyDetail; category: QuestCategory; launching: boolean; locked: boolean; onStart: () => void; onLocked: () => void }) {
   const reducedMotion = useReducedMotion();
   const waitingForHost = party.gameMode === "everyone_together" && !party.isHost;
   const freePlayPaused = party.gameMode === "free_for_all" && !party.questsEnabled;
@@ -165,7 +189,7 @@ function QuestRow({ quest, party, category, launching, onStart }: { quest: Party
       </View>
     </View>
     {quest.suggestionCount ? <Text style={{ color: T.purple, fontSize: 11, fontWeight: "900" }}>{quest.suggestionCount}× suggested by the crew</Text> : null}
-    {waitingForHost || freePlayPaused ? <View style={{ minHeight: 40, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: T.bg }}><Text style={{ color: T.muted, fontSize: 12, fontWeight: "900" }}>{waitingForHost ? "Waiting for host to start" : "Quest list opens when your host is ready"}</Text></View> : <PartyButton compact label={party.gameMode === "everyone_together" ? "Start shared quest" : "Start quest"} icon={party.gameMode === "everyone_together" ? "play" : "rocket"} color={party.gameMode === "everyone_together" ? T.purple : T.blue} onPress={onStart} />}
+    {waitingForHost || freePlayPaused ? <View style={{ minHeight: 40, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: T.bg }}><Text style={{ color: T.muted, fontSize: 12, fontWeight: "900" }}>{waitingForHost ? "Waiting for host to start" : "Quest list opens when your host is ready"}</Text></View> : <PartyButton compact muted={locked} label={locked ? "Finish current quest first" : party.gameMode === "everyone_together" ? "Start shared quest" : "Start quest"} icon={locked ? "lock-closed" : party.gameMode === "everyone_together" ? "play" : "rocket"} color={party.gameMode === "everyone_together" ? T.purple : T.blue} onPress={locked ? onLocked : onStart} />}
   </Reanimated.View>;
 }
 
@@ -255,48 +279,64 @@ function FeedPostCard({ post, onReact }: { post: PartyFeedPost; onReact: (emoji:
   </Reanimated.View>;
 }
 
-function PodiumPlayer({ entry, rank }: { entry?: PartyLeaderboardEntry; rank: 1 | 2 | 3 }) {
-  const accent = rank === 1 ? T.orange : rank === 2 ? T.blue : T.purple;
-  const pedestalHeight = rank === 1 ? 120 : rank === 2 ? 88 : 70;
-  const avatarSize = rank === 1 ? 62 : 52;
+function LeaderboardConfetti() {
+  const pieces: { left: `${number}%`; top: number; color: string; width: number; height: number; rotate: string }[] = [
+    { left: "3%", top: 47, color: T.green, width: 26, height: 3, rotate: "-45deg" },
+    { left: "16%", top: 18, color: T.orange, width: 9, height: 9, rotate: "0deg" },
+    { left: "30%", top: 43, color: T.red, width: 18, height: 3, rotate: "35deg" },
+    { left: "66%", top: 16, color: T.yellow, width: 9, height: 9, rotate: "0deg" },
+    { left: "78%", top: 49, color: T.purple, width: 20, height: 3, rotate: "-25deg" },
+    { left: "91%", top: 28, color: T.red, width: 26, height: 3, rotate: "-12deg" },
+  ];
+  return <View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, height: 104, overflow: "hidden" }}>{pieces.map((piece, index) => <View key={index} style={{ position: "absolute", left: piece.left, top: piece.top, width: piece.width, height: piece.height, borderRadius: piece.height, backgroundColor: piece.color, transform: [{ rotate: piece.rotate }] }} />)}</View>;
+}
 
-  return <View style={{ flex: 1, minWidth: 0, alignItems: "center", justifyContent: "flex-end" }}>
-    {entry ? <View style={{ width: "100%", alignItems: "center", gap: 4, paddingHorizontal: 2 }}>
-      <View style={{ position: "relative" }}>
-        <Avatar emoji={entry.emoji} color={entry.avatarColor} size={avatarSize} />
-        <View style={{ position: "absolute", right: -6, top: -5, width: 25, height: 25, borderRadius: 13, backgroundColor: accent, borderWidth: 2, borderColor: T.white, alignItems: "center", justifyContent: "center" }}><Text style={{ color: T.white, fontSize: 12, fontWeight: "900" }}>{rank}</Text></View>
-      </View>
-      <Text style={{ maxWidth: "100%", color: T.dark, fontSize: rank === 1 ? 14 : 13, fontWeight: "900" }} numberOfLines={1}>{entry.displayName}</Text>
-      <View style={{ minHeight: 25, paddingHorizontal: 8, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: `${T.purple}18` }}><Ionicons name="flash" size={12} color={T.purple} /><Text style={{ color: T.purple, fontSize: 12, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{entry.xp}</Text></View>
-    </View> : <View style={{ height: 96 }} />}
-    <View style={{ width: "100%", height: pedestalHeight, marginTop: 10, borderTopLeftRadius: 16, borderTopRightRadius: 16, borderWidth: 2, borderBottomWidth: 0, borderColor: `${accent}52`, backgroundColor: `${accent}18`, alignItems: "center", justifyContent: "center" }}><Text style={{ color: `${accent}7d`, fontFamily: "RubikBlack", fontSize: rank === 1 ? 68 : 52, lineHeight: rank === 1 ? 75 : 58 }}>{rank}</Text></View>
+function PodiumPlayer({ entry, placement }: { entry?: PartyLeaderboardEntry; placement: 1 | 2 | 3 }) {
+  const accent = placement === 1 ? T.yellow : placement === 2 ? T.blue : T.red;
+  const avatarSize = placement === 1 ? 92 : 68;
+  const podiumHeight = placement === 1 ? 82 : placement === 2 ? 62 : 52;
+  const rank = entry?.rank ?? placement;
+  if (!entry) return <View style={{ flex: 1, minWidth: 0, height: 282 }} />;
+  return <View style={{ flex: 1, minWidth: 0, height: 282, alignItems: "center", justifyContent: "flex-end" }}>
+    <View style={{ position: "relative", marginTop: placement === 1 ? 25 : 0 }}>
+      {placement === 1 ? <Text style={{ position: "absolute", top: -34, left: 0, right: 0, textAlign: "center", fontSize: 31, lineHeight: 34 }}>👑</Text> : null}
+      <View style={{ width: avatarSize + 8, height: avatarSize + 8, borderRadius: (avatarSize + 8) / 2, padding: 4, backgroundColor: `${accent}25`, borderWidth: 3, borderColor: accent }}><Avatar emoji={entry.emoji} color={entry.avatarColor} size={avatarSize} /></View>
+    </View>
+    <Text style={{ width: "100%", marginTop: 10, paddingHorizontal: 3, color: T.dark, fontSize: placement === 1 ? 15 : 13, lineHeight: 18, fontWeight: "900", textAlign: "center" }} numberOfLines={1}>{entry.displayName}</Text>
+    <Text style={{ marginTop: 2, color: "#655a60", fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"] }}>{entry.xp} XP</Text>
+    <View style={{ width: "100%", height: podiumHeight, marginTop: 16, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderTopWidth: 2, borderColor: `${accent}70`, backgroundColor: `${accent}18`, alignItems: "center", justifyContent: "center" }}>
+      <View accessibilityLabel={`Rank ${rank}`} style={{ position: "absolute", top: -20, width: 40, height: 40, borderRadius: 20, backgroundColor: accent, borderWidth: 3, borderColor: T.bg, alignItems: "center", justifyContent: "center" }}><Text style={{ color: T.dark, fontSize: 16, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{rank}</Text></View>
+      {placement === 1 ? <Ionicons name="trophy" size={20} color={T.orange} /> : <Ionicons name="ribbon-outline" size={19} color={placement === 2 ? T.blue : T.red} />}
+    </View>
   </View>;
 }
 
 function Leaderboard({ party, stampSelf }: { party: PartyDetail; stampSelf: boolean }) {
   const reducedMotion = useReducedMotion();
   const viewerId = party.members[0]?.userId;
-  const podiumEntries = [1, 2, 3].map((rank) => party.leaderboard.find((entry) => entry.rank === rank));
-  const remainingEntries = party.leaderboard.filter((entry) => entry.rank > 3);
+  const mutedText = "#655a60";
+  const podiumEntries = party.leaderboard.slice(0, 3);
+  const remainingEntries = party.leaderboard.slice(3);
+  const viewerEntry = party.leaderboard.find((entry) => entry.userId === viewerId);
+  const modeCopy = party.gameMode === "free_for_all" ? "Party XP from completed quests" : "XP and locked shared-quest bonuses";
 
-  return <View style={{ gap: 12 }}>
-    <View style={{ overflow: "hidden", borderRadius: 23, borderWidth: 2, borderColor: `${T.purple}3d`, backgroundColor: `${T.purple}0a`, paddingTop: 18 }}>
-      <View style={{ paddingHorizontal: 16, marginBottom: 9, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: T.dark, fontSize: 13, fontWeight: "900" }}>Top adventurers</Text><View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><Ionicons name="flash" size={14} color={T.purple} /><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900" }}>Party XP</Text></View></View>
-      <View style={{ height: 244, paddingHorizontal: 10, flexDirection: "row", alignItems: "flex-end" }}>
-        <PodiumPlayer rank={2} entry={podiumEntries[1]} />
-        <PodiumPlayer rank={1} entry={podiumEntries[0]} />
-        <PodiumPlayer rank={3} entry={podiumEntries[2]} />
-      </View>
+  return <View style={{ gap: 16 }}>
+    <View style={{ paddingTop: 10, paddingHorizontal: 4 }}>
+      {stampSelf ? <LeaderboardConfetti /> : null}
+      <View style={{ paddingHorizontal: 14, marginBottom: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 23 }}>Party standings</Text><View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><Ionicons name="flash" size={15} color={T.purple} /><Text style={{ color: mutedText, fontSize: 11, fontWeight: "900" }}>LIVE XP</Text></View></View>
+      <View style={{ flexDirection: "row", alignItems: "flex-end" }}><PodiumPlayer placement={2} entry={podiumEntries[1]} /><PodiumPlayer placement={1} entry={podiumEntries[0]} /><PodiumPlayer placement={3} entry={podiumEntries[2]} /></View>
     </View>
 
-    {remainingEntries.length ? <View style={{ overflow: "hidden", borderRadius: 21, borderWidth: 2, borderColor: T.border, backgroundColor: T.white }}>
+    {viewerEntry ? <Reanimated.View entering={stampSelf && !reducedMotion ? ZoomIn.springify().damping(17).stiffness(220) : FadeIn.duration(reducedMotion ? 1 : 180)} style={{ minHeight: 76, paddingHorizontal: 17, borderRadius: 18, backgroundColor: `${T.purple}16`, flexDirection: "row", alignItems: "center", gap: 12 }}><View style={{ width: 39, height: 39, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: `${T.purple}28` }}><Ionicons name="trophy" size={19} color={T.purple} /></View><View style={{ flex: 1, gap: 2 }}><Text style={{ color: T.dark, fontSize: 15, fontWeight: "900" }}>Your standing</Text><Text style={{ color: mutedText, fontSize: 11, fontWeight: "800" }}>{modeCopy}</Text></View><View style={{ alignItems: "flex-end" }}><Text style={{ color: T.purple, fontSize: 21, lineHeight: 24, fontWeight: "900", fontVariant: ["tabular-nums"] }}>#{viewerEntry.rank}</Text><Text style={{ color: T.purple, fontSize: 11, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{viewerEntry.xp} XP</Text></View></Reanimated.View> : null}
+
+    {remainingEntries.length ? <View style={{ gap: 11 }}>
+      <View style={{ paddingHorizontal: 4, flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}><Text style={{ color: T.dark, fontSize: 17, fontWeight: "900" }}>More adventurers</Text><Text style={{ color: mutedText, fontSize: 11, fontWeight: "800" }}>{remainingEntries.length} ranked</Text></View>
       {remainingEntries.map((entry, index) => {
         const isViewer = entry.userId === viewerId;
-        return <Reanimated.View key={entry.userId} entering={stampSelf && isViewer && !reducedMotion ? ZoomIn.springify().damping(17).stiffness(220) : FadeInDown.delay(index * (reducedMotion ? 0 : 45)).duration(reducedMotion ? 1 : 170)} style={{ minHeight: 68, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 10, borderTopWidth: index ? 1 : 0, borderTopColor: T.border, backgroundColor: isViewer ? `${T.blue}0b` : T.white }}>
-          <Text style={{ width: 22, color: isViewer ? T.blue : T.muted, fontSize: 15, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{entry.rank}</Text>
-          <Avatar emoji={entry.emoji} color={entry.avatarColor} size={38} />
-          <Text style={{ flex: 1, color: T.dark, fontSize: 15, fontWeight: "900" }} numberOfLines={1}>{entry.displayName}</Text>
-          <View style={{ minHeight: 28, paddingHorizontal: 9, borderRadius: 14, flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: `${T.purple}18` }}><Ionicons name="flash" size={13} color={T.purple} /><Text style={{ color: T.purple, fontSize: 13, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{entry.xp}</Text></View>
+        return <Reanimated.View key={entry.userId} entering={stampSelf && isViewer && !reducedMotion ? ZoomIn.springify().damping(17).stiffness(220) : FadeInDown.delay(index * (reducedMotion ? 0 : 45)).duration(reducedMotion ? 1 : 170)} style={{ minHeight: 78, paddingHorizontal: 15, borderRadius: 18, backgroundColor: isViewer ? `${T.blue}14` : "#f2eef2", flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Avatar emoji={entry.emoji} color={entry.avatarColor} size={48} />
+          <View style={{ flex: 1, minWidth: 0, gap: 3 }}><Text style={{ color: T.dark, fontSize: 15, lineHeight: 19, fontWeight: "900" }} numberOfLines={1}>{entry.displayName}</Text><View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><Ionicons name="flash" size={13} color={T.purple} /><Text style={{ color: mutedText, fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] }}>{entry.xp} Party XP</Text></View></View>
+          <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: `${isViewer ? T.blue : T.white}b8` }}><Text style={{ color: isViewer ? T.blue : T.muted, fontSize: 14, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{entry.rank}</Text></View>
         </Reanimated.View>;
       })}
     </View> : null}
@@ -381,7 +421,7 @@ function QuestPicker({ party, contentQuests, selectedIds, onToggle, onClose, onC
       {filterOpen ? <View style={{ borderRadius: 17, padding: 11, gap: 10, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }}><View><Text style={{ color: T.muted, fontSize: 10, fontWeight: "900", letterSpacing: 0.45 }}>DURATION</Text><View style={{ flexDirection: "row", gap: 7, marginTop: 7 }}>{(["quick", "long"] as const).map((item) => <Pressable key={item} onPress={() => setDuration((value) => value === item ? null : item)} style={{ minHeight: 36, paddingHorizontal: 12, borderRadius: 12, justifyContent: "center", backgroundColor: duration === item ? `${T.green}16` : T.bg, borderWidth: 1.5, borderColor: duration === item ? T.green : "transparent" }}><Text style={{ color: duration === item ? T.green : T.muted, fontSize: 11, fontWeight: "900" }}>{item === "quick" ? "Up to 30 min" : "60+ min"}</Text></Pressable>)}</View></View><View><Text style={{ color: T.muted, fontSize: 10, fontWeight: "900", letterSpacing: 0.45 }}>DIFFICULTY</Text><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 7 }}>{(["EASY", "MEDIUM", "HARD", "FORMIDABLE"] as Quest["difficulty"][]).map((item) => <Pressable key={item} onPress={() => setDifficulty((value) => value === item ? null : item)} style={{ minHeight: 36, paddingHorizontal: 11, borderRadius: 12, justifyContent: "center", backgroundColor: difficulty === item ? `${T.green}16` : T.bg, borderWidth: 1.5, borderColor: difficulty === item ? T.green : "transparent" }}><Text style={{ color: difficulty === item ? T.green : T.muted, fontSize: 11, fontWeight: "900" }}>{item}</Text></Pressable>)}</View></View>{activeFilters ? <Pressable onPress={() => { setDuration(null); setDifficulty(null); }}><Text style={{ alignSelf: "flex-start", color: T.red, fontSize: 11, fontWeight: "900" }}>Clear filters</Text></Pressable> : null}</View> : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>{questCategories.map((item) => { const selected = category === item; const tone = item === "All" ? { text: T.dark, bg: T.white } : questCategoryColors[item]; const itemColor = item === "All" ? (selected ? T.white : T.dark) : tone.text; return <Pressable key={item} onPress={() => setCategory(item)} style={({ pressed }) => ({ minHeight: 39, paddingHorizontal: 12, borderRadius: 15, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: selected ? tone.bg : T.white, borderWidth: 2, borderColor: selected ? tone.text : T.border, borderBottomWidth: 4, borderBottomColor: selected ? `${tone.text}9a` : "#e6ddd2", transform: [{ translateY: pressed ? 2 : 0 }] })}>{item !== "All" ? <PartyCategoryIcon category={item} size={16} color={itemColor} /> : <Ionicons name="apps" size={15} color={itemColor} />}<Text style={{ color: selected ? itemColor : T.muted, fontSize: 11, fontWeight: "900" }}>{item === "FOOD AND DRINKS" ? "Food & Drinks" : item}</Text></Pressable>; })}</ScrollView>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>{category === "All" ? "All quests" : category}</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900" }}>{choices.length} found</Text></View>
-      {choices.length ? choices.map((quest) => { const selected = selectedIds.includes(quest.id); const tone = questCategoryColors[quest.category]; return <Pressable key={quest.id} accessibilityRole="checkbox" accessibilityState={{ checked: selected }} onPress={() => onToggle(quest.id)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 11, padding: 13, borderRadius: 18, borderWidth: 2, borderColor: selected ? T.blue : T.border, borderBottomWidth: selected ? 5 : 3, borderBottomColor: selected ? "#258fd8" : "#e6ddd2", backgroundColor: T.white, transform: [{ translateY: pressed ? 2 : 0 }] })}><View style={{ width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: tone.bg }}><PartyCategoryIcon category={quest.category} size={21} /></View><View style={{ flex: 1, gap: 3 }}><Text style={{ color: T.dark, fontSize: 15, fontWeight: "900" }} numberOfLines={1}>{quest.title}</Text><Text style={{ color: tone.text, fontSize: 10, fontWeight: "900" }}>{quest.category} <Text style={{ color: T.muted }}>+{quest.xp} XP · {quest.timeMin} min</Text></Text></View><Ionicons name={selected ? "checkbox" : "add-circle-outline"} size={23} color={selected ? T.blue : T.muted} /></Pressable>; }) : <EmptyState emoji="🔎" title="No quests found" body="Try another category or clear a filter." />}
+      {choices.length ? choices.map((quest) => { const selected = selectedIds.includes(quest.id); const tone = questCategoryColors[quest.category]; return <Pressable key={quest.id} accessibilityRole="checkbox" accessibilityState={{ checked: selected }} onPress={() => onToggle(quest.id)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 11, padding: 13, borderRadius: 18, borderWidth: 2, borderColor: selected ? T.blue : T.border, borderBottomWidth: selected ? 5 : 3, borderBottomColor: selected ? "#258fd8" : "#e6ddd2", backgroundColor: T.white, transform: [{ translateY: pressed ? 2 : 0 }] })}><View style={{ width: 6, alignSelf: "stretch", borderRadius: 99, backgroundColor: tone.text }} /><View style={{ flex: 1, gap: 3 }}><Text style={{ color: T.dark, fontSize: 15, fontWeight: "900" }} numberOfLines={1}>{quest.title}</Text><Text style={{ color: tone.text, fontSize: 10, fontWeight: "900" }}>{quest.category} <Text style={{ color: T.muted }}>+{quest.xp} XP · {quest.timeMin} min</Text></Text></View><Ionicons name={selected ? "checkbox" : "add-circle-outline"} size={23} color={selected ? T.blue : T.muted} /></Pressable>; }) : <EmptyState emoji="🔎" title="No quests found" body="Try another category or clear a filter." />}
     </ScrollView>
     <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, backgroundColor: T.white, borderTopWidth: 2, borderTopColor: T.border }}><PartyButton label={party.isHost ? `Add selected (${selectedIds.length})` : `Suggest selected (${selectedIds.length})`} icon="add" disabled={!selectedIds.length} onPress={onConfirm} /></View>
   </Reanimated.View>;
@@ -393,7 +433,7 @@ export function PartyDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const partyId = String(params.id ?? "");
   const { quests: contentQuests } = useContent();
-  const { overview, getParty, beginPartyQuest, setPartyQuestsEnabled, completePartyQuest, finishPartyQuest, finishParty, addQuestsToParty, suggestQuestsForParty, reactToPartyFeed, inviteFriendToParty, exitParty, markPartyNotificationsRead, dismissPartyBriefing } = useSocial();
+  const { overview, getParty, beginPartyQuest, abandonPartyQuest, setPartyQuestsEnabled, completePartyQuest, finishPartyQuest, finishParty, addQuestsToParty, suggestQuestsForParty, reactToPartyFeed, inviteFriendToParty, exitParty, markPartyNotificationsRead, dismissPartyBriefing } = useSocial();
   const [party, setParty] = useState<PartyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -486,14 +526,33 @@ export function PartyDetailScreen() {
   };
 
   const startQuest = async (quest: PartyQuest) => {
+    if (party?.gameMode === "free_for_all" && party.myActiveQuestId) {
+      Alert.alert("Finish your active quest", "Complete or abandon your current quest before starting another one.");
+      return;
+    }
     setLaunchingQuestId(quest.questId);
     try { await beginPartyQuest(partyId, quest.questId); await load(); }
     catch (nextError) {
       const message = messageFromError(nextError);
       if (message.includes("two active members")) Alert.alert("Invite one more adventurer", "Parties need two active members to begin. Invite a friend from Party Info, then have them accept the Party invite.");
+      else if (message.includes("ACTIVE_PARTY_SESSION_EXISTS")) Alert.alert("Finish your active quest", "Complete or abandon your current quest before starting another one.");
       else Alert.alert("Couldn’t start quest", message);
     }
     finally { setLaunchingQuestId(null); }
+  };
+
+  const abandonActiveQuest = () => {
+    if (!party || party.gameMode !== "free_for_all") return;
+    Alert.alert("Abandon this quest?", "Your progress on this quest won’t count, and you can start another Party quest afterward.", [
+      { text: "Keep quest", style: "cancel" },
+      {
+        text: "Abandon quest",
+        style: "destructive",
+        onPress: () => abandonPartyQuest(partyId)
+          .then(() => load())
+          .catch((nextError) => Alert.alert("Couldn’t abandon quest", messageFromError(nextError))),
+      },
+    ]);
   };
 
   const openQuestList = async () => {
@@ -552,15 +611,15 @@ export function PartyDetailScreen() {
         <PartyHeader party={party} onBack={() => router.back()} onInfo={() => setInfoOpen(true)} />
         <PartyTabs active={tab} unreadFeed={party.unreadFeedCount ?? 0} unreadLeaderboard={party.unreadLeaderboardCount ?? 0} onChange={selectTab} />
         {tab === "quests" ? <View style={{ gap: 13 }}>
-          <View style={{ gap: 5 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Active quest</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>{party.gameMode === "everyone_together" ? "One quest, one shared clock." : "Choose a Party quest whenever you’re ready."}</Text></View>
-          {activeQuest ? <ActiveQuestCard party={party} quest={activeQuest} category={categoryForQuest(activeQuest.questId)} remoteStart={remoteRound} onComplete={() => setCompleteQuest(activeQuest)} onEnd={() => setEndPrompt({ completed: party.activeRound?.completedCount ?? 0, total: party.activeRound?.totalMembers ?? party.memberCount })} /> : <EmptyActiveQuest party={party} onOpenQuestList={openQuestList} onInvite={() => { setInfoView("invite"); setInfoOpen(true); }} />}
+          <View style={{ gap: 5 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Active quest</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>{party.gameMode === "everyone_together" ? "One quest, one shared clock." : activeQuest ? "Complete or abandon your active quest before starting another." : "Choose a Party quest whenever you’re ready."}</Text></View>
+          {activeQuest ? <ActiveQuestCard party={party} quest={activeQuest} category={categoryForQuest(activeQuest.questId)} remoteStart={remoteRound} onComplete={() => setCompleteQuest(activeQuest)} onEnd={() => setEndPrompt({ completed: party.activeRound?.completedCount ?? 0, total: party.activeRound?.totalMembers ?? party.memberCount })} onAbandon={abandonActiveQuest} /> : <EmptyActiveQuest party={party} onOpenQuestList={openQuestList} onInvite={() => { setInfoView("invite"); setInfoOpen(true); }} />}
           {party.isHost && party.suggestedQuests.length ? <View style={{ borderRadius: 20, borderWidth: 2, borderColor: `${T.purple}48`, borderBottomWidth: 5, borderBottomColor: `${T.purple}65`, backgroundColor: T.white, overflow: "hidden" }}><Pressable onPress={() => setRecommendationsOpen((open) => !open)} style={({ pressed }) => ({ minHeight: 58, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: pressed ? `${T.purple}08` : T.white })}><View style={{ width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: `${T.purple}17` }}><Ionicons name="people" size={18} color={T.purple} /></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 15, fontWeight: "900" }}>Recommended by the crew</Text><Text style={{ color: T.muted, fontSize: 10, fontWeight: "800", marginTop: 2 }}>Review ideas before adding them</Text></View><View style={{ minWidth: 27, height: 27, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${T.purple}16` }}><Text style={{ color: T.purple, fontSize: 12, fontWeight: "900" }}>{party.suggestedQuests.length}</Text></View><Ionicons name={recommendationsOpen ? "chevron-up" : "chevron-down"} size={18} color={T.muted} /></Pressable>{recommendationsOpen ? <View style={{ padding: 11, paddingTop: 0, gap: 9 }}>{party.suggestedQuests.map((suggestion) => <View key={suggestion.questId} style={{ minHeight: 64, borderRadius: 16, padding: 10, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: T.bg }}><View style={{ width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${suggestion.color}18` }}><PartyCategoryIcon category={suggestion.category} size={21} /></View><View style={{ flex: 1, gap: 3 }}><Text style={{ color: T.dark, fontSize: 13, fontWeight: "900" }} numberOfLines={1}>{suggestion.title}</Text><Text style={{ color: T.muted, fontSize: 10, fontWeight: "800" }}>{suggestion.count}× suggested · +{suggestion.xp} XP</Text></View><Pressable accessibilityLabel={`Add ${suggestion.title}`} onPress={() => acceptSuggestion(suggestion)} style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: T.purple, borderBottomWidth: 3, borderBottomColor: "#7973c7", transform: [{ translateY: pressed ? 2 : 0 }] })}><Ionicons name="add" size={21} color={T.white} /></Pressable></View>)}</View> : null}</View> : null}
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 4 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Party quests</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "900" }}>{party.quests.length} total</Text></View>
-          {visibleQuests.length ? visibleQuests.map((quest) => <QuestRow key={quest.questId} quest={quest} party={party} category={categoryForQuest(quest.questId)} launching={launchingQuestId === quest.questId} onStart={() => startQuest(quest)} />) : <EmptyState emoji="✨" title="All caught up" body="Start another quest or let the host add more." />}
+          {visibleQuests.length ? visibleQuests.map((quest) => <QuestRow key={quest.questId} quest={quest} party={party} category={categoryForQuest(quest.questId)} launching={launchingQuestId === quest.questId} locked={party.gameMode === "free_for_all" && Boolean(activeQuest)} onStart={() => startQuest(quest)} onLocked={() => Alert.alert("Finish your active quest", `Complete or abandon “${activeQuest?.title ?? "your current quest"}” before starting another one.`)} />) : <EmptyState emoji="✨" title="All caught up" body="Start another quest or let the host add more." />}
           {party.completedQuests.length ? <View style={{ gap: 10, marginTop: 5 }}><View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>Completed quests</Text><Text style={{ color: T.green, fontSize: 11, fontWeight: "900" }}>{party.completedQuests.length} done</Text></View>{party.completedQuests.map((quest) => <CompletedQuestRow key={quest.id} quest={quest} shared={party.gameMode === "everyone_together"} />)}</View> : null}
         </View> : null}
         {tab === "feed" ? <View style={{ gap: 11 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Party Feed</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700", marginTop: 3 }}>Your crew’s adventures, just for this Party.</Text></View>{loading ? <PartyFeedLoading /> : party.feed.length ? party.feed.map((post) => <FeedPostCard key={post.id} post={post} onReact={(emoji) => reactToPartyFeed(post.id, emoji).then(() => load(true))} />) : <EmptyState emoji="📸" title="No Party posts yet" body="Your first completed quest will show up here." />}</View> : null}
-        {tab === "leaderboard" ? <View style={{ gap: 11 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Leaderboard</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700", marginTop: 3 }}>{party.gameMode === "free_for_all" ? "Total quest XP decides the order." : "Live order updates until the host locks the round."}</Text></View><Leaderboard party={party} stampSelf={stampLeaderboard} /></View> : null}
+        {tab === "leaderboard" ? <Leaderboard party={party} stampSelf={stampLeaderboard} /> : null}
       </ScrollView>
       {tab === "quests" && party.status === "active" ? <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingTop: 16, paddingBottom: 16, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, backgroundColor: T.white, borderTopWidth: 2, borderTopColor: T.border }}><PartyButton label={party.isHost ? "Add quests" : "Suggest quests"} icon="add" onPress={() => setPickerOpen(true)} /></View> : null}
       {pickerOpen ? <QuestPicker party={party} contentQuests={contentQuests} selectedIds={selectedQuestIds} onToggle={(id) => setSelectedQuestIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id])} onClose={() => setPickerOpen(false)} onConfirm={addOrSuggest} /> : null}

@@ -21,6 +21,7 @@ function today() {
 
 const PARTY_MEDIA_URL_TTL_MS = 25 * 60 * 1000;
 const partyMediaUrlCache = new Map<string, { url: string; expiresAt: number }>();
+let partyLiveDetailRpcAvailable: boolean | null = null;
 
 export async function fetchSocialOverview(): Promise<SocialOverview> {
   assertSupabaseConfigured();
@@ -50,9 +51,23 @@ export async function fetchPartyHub(): Promise<PartyHub> {
 
 export async function fetchPartyDetail(partyId: string): Promise<PartyDetail> {
   assertSupabaseConfigured();
-  const { data, error } = await supabase.rpc("get_party_detail", { p_party_id: partyId });
-  if (error) throw error;
-  return data as PartyDetail;
+  // `get_party_detail_live` is introduced with the Party header clock migration.
+  // Fall back to the long-standing detail RPC so a client update never makes
+  // existing Parties inaccessible while that migration is being deployed.
+  if (partyLiveDetailRpcAvailable !== false) {
+    const live = await supabase.rpc("get_party_detail_live", { p_party_id: partyId });
+    if (!live.error) {
+      partyLiveDetailRpcAvailable = true;
+      return live.data as PartyDetail;
+    }
+    // PostgREST's function-not-found response means this client is talking to a
+    // database that has not run the header-clock migration yet.
+    if (live.error.code === "PGRST202") partyLiveDetailRpcAvailable = false;
+  }
+
+  const fallback = await supabase.rpc("get_party_detail", { p_party_id: partyId });
+  if (fallback.error) throw fallback.error;
+  return fallback.data as PartyDetail;
 }
 
 export async function searchProfiles(query: string): Promise<ProfileSearchResult[]> {
@@ -60,6 +75,29 @@ export async function searchProfiles(query: string): Promise<ProfileSearchResult
   const { data, error } = await supabase.rpc("search_profiles", { p_query: query });
   if (error) throw error;
   return (data ?? []) as ProfileSearchResult[];
+}
+
+export async function fetchFriendSuggestions(): Promise<ProfileSearchResult[]> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("get_friend_suggestions");
+  if (error) throw error;
+  return (data ?? []) as ProfileSearchResult[];
+}
+
+export async function findProfilesByContactEmails(emails: string[]): Promise<ProfileSearchResult[]> {
+  assertSupabaseConfigured();
+  if (!emails.length) return [];
+  const { data, error } = await supabase.rpc("find_profiles_by_contact_emails", { p_emails: emails });
+  if (error) throw error;
+  return (data ?? []) as ProfileSearchResult[];
+}
+
+export async function fetchFriendProfile(userId: string): Promise<ProfileSearchResult> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("get_friend_profile", { p_user: userId });
+  if (error) throw error;
+  if (!data) throw new Error("This adventurer is no longer available.");
+  return data as ProfileSearchResult;
 }
 
 export async function sendFriendRequest(userId: string) {
@@ -195,6 +233,12 @@ export async function startPartyQuest(partyId: string, questId: string) {
   const { data, error } = await supabase.rpc("start_party_quest", { p_party_id: partyId, p_quest_id: questId });
   if (error) throw error;
   return data as { roundId?: string; sessionId?: string; startedAt: string };
+}
+
+export async function abandonPartyQuest(partyId: string) {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("abandon_party_quest_session", { p_party_id: partyId });
+  if (error) throw error;
 }
 
 export async function setPartyQuestsEnabled(partyId: string, enabled: boolean) {

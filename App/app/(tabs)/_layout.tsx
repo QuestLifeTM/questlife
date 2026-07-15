@@ -2,10 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { View } from "react-native";
 import { T } from "@/components/theme";
+import { useNotifications } from "@/contexts/NotificationsContext";
 
 const tabIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   index: "home",
-  explore: "location-sharp",
+  explore: "compass",
   social: "people",
   journal: "book",
   profile: "person",
@@ -13,6 +14,7 @@ const tabIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
 
 function TabIcon({ routeName, focused, color }: { routeName: string; focused: boolean; color: string }) {
   const icon = tabIcons[routeName] ?? "ellipse";
+  const { hasUnreadJournal } = useNotifications();
   return (
     <View
       style={{
@@ -24,13 +26,10 @@ function TabIcon({ routeName, focused, color }: { routeName: string; focused: bo
         justifyContent: "center",
       }}
     >
-      {focused && routeName === "index" ? (
-        <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: T.blue, alignItems: "center", justifyContent: "center" }}>
-          <Ionicons name="home" size={19} color={T.white} />
-        </View>
-      ) : (
+      <View>
         <Ionicons name={icon} size={30} color={focused ? color : T.muted} />
-      )}
+        {routeName === "journal" && hasUnreadJournal ? <View style={{ position: "absolute", top: -2, right: -4, width: 9, height: 9, borderRadius: 5, backgroundColor: T.red, borderWidth: 1.5, borderColor: T.white }} /> : null}
+      </View>
     </View>
   );
 }
@@ -60,9 +59,9 @@ export default function TabLayout() {
         tabBarIcon: ({ color, focused }) => <TabIcon routeName={route.name} focused={focused} color={color} />,
       })}
     >
-      <Tabs.Screen name="index" options={{ title: "Lobby" }} />
-      <Tabs.Screen name="explore" options={{ title: "Explore" }} />
       <Tabs.Screen name="social" options={{ title: "Social" }} />
+      <Tabs.Screen name="explore" options={{ title: "Explore" }} />
+      <Tabs.Screen name="index" options={{ title: "Lobby" }} />
       <Tabs.Screen name="journal" options={{ title: "Journal" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>

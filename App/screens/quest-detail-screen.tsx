@@ -1,33 +1,55 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Link, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { Pressable, ScrollView, Share, Text, View } from "react-native";
 
 import { LogLoreFlow } from "@/components/log-lore-flow";
 import { QuestStartBlockModal } from "@/components/quest-start-block";
 import { categoryColor, difficultyColor, T } from "@/components/theme";
-import { Card, EmptyState, GradientBand, IconButton, PillStat, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
+import { EmptyState, GradientBand, IconButton, Screen, Sheet, Tag, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
+import { useQuestSave } from "@/contexts/QuestSaveContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { useQuestStart } from "@/hooks/useQuestStart";
 import { fetchQuestReviews } from "@/services/engine/questEngineService";
+import { Quest } from "@/types/content";
 import { QuestReviewData } from "@/types/engine";
+
+const categoryButtonColors: Record<Quest["category"], string> = {
+  SOCIAL: "#00B894",
+  ADVENTURE: "#4D9CFF",
+  "FOOD AND DRINKS": "#E67E22",
+  FITNESS: "#E84C63",
+  NATURE: "#25A75D",
+  SKILLS: "#C59212",
+  EVENTS: "#D83B7D",
+  CREATIVITY: "#8549D6",
+  "WILD CARD": "#B83CD1",
+};
+
+function QuestAction({ label, icon, color, onPress, inverse = false, disabled = false, fullWidth = false }: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; inverse?: boolean; disabled?: boolean; fullWidth?: boolean }) {
+  const backgroundColor = disabled ? `${color}38` : inverse ? T.white : color;
+  const textColor = disabled ? T.muted : inverse ? color : T.white;
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ flex: fullWidth ? undefined : 1, minHeight: 54, borderRadius: 19, borderWidth: inverse ? 2 : 0, borderColor: inverse ? color : "transparent", borderBottomWidth: disabled ? 0 : inverse ? 4 : 5, borderBottomColor: disabled ? "transparent" : inverse ? `${color}99` : "rgba(61,52,56,0.22)", backgroundColor, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7, paddingHorizontal: 10, opacity: pressed && !disabled ? 0.88 : 1, transform: [{ translateY: pressed && !disabled ? 2 : 0 }] })}><Ionicons name={icon} size={18} color={textColor} /><Text numberOfLines={1} style={{ color: textColor, fontFamily: "RubikBold", fontSize: 14, textAlign: "center" }}>{label}</Text></Pressable>;
+}
+
+function Stat({ label, value, icon, color, bordered }: { label: string; value: string; icon?: keyof typeof Ionicons.glyphMap; color: string; bordered?: boolean }) {
+  return <View style={{ flex: 1, minWidth: 0, alignItems: "center", gap: 4, paddingHorizontal: 6, borderLeftWidth: bordered ? 1 : 0, borderLeftColor: T.border }}><View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>{icon ? <Ionicons name={icon} size={15} color={color} /> : null}<Text numberOfLines={1} style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>{value}</Text></View><Text numberOfLines={1} style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase" }}>{label}</Text></View>;
+}
 
 export function QuestDetailScreen({ id, onBack }: { id?: string; onBack: () => void }) {
   const router = useRouter();
   const { horizontalPadding, insets } = useResponsiveScreenLayout();
   const edgePadding = { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding };
-  const { getQuest, loading, quests, toggleSave } = useContent();
-  const { engine, refresh, saveActiveForLater } = useQuestEngine();
+  const { getQuest, loading } = useContent();
+  const { engine, refresh, saveActiveForLater, userPacks } = useQuestEngine();
+  const { openQuestSave } = useQuestSave();
   const { overview, shareQuestWith, challengeFriend } = useSocial();
   const quest = getQuest(id);
   const { tryStart, block, clearBlock, starting } = useQuestStart(getQuest);
-
   const [reviews, setReviews] = useState<QuestReviewData | null>(null);
-  const [reviewsLoading, setReviewsLoading] = useState(false);
   const [logVisible, setLogVisible] = useState(false);
-  const [saveVisible, setSaveVisible] = useState(false);
   const [shareVisible, setShareVisible] = useState(false);
   const [shareFriendId, setShareFriendId] = useState<string | null>(null);
 
@@ -36,249 +58,40 @@ export function QuestDetailScreen({ id, onBack }: { id?: string; onBack: () => v
 
   useEffect(() => {
     if (!quest?.id) return;
-    setReviewsLoading(true);
-    fetchQuestReviews(quest.id)
-      .then(setReviews)
-      .catch(() => setReviews({ summary: { averageRating: null, ratingCount: 0 }, reviews: [] }))
-      .finally(() => setReviewsLoading(false));
+    fetchQuestReviews(quest.id).then(setReviews).catch(() => setReviews({ summary: { averageRating: null, ratingCount: 0 }, reviews: [] }));
   }, [quest?.id]);
 
-  const related = useMemo(() => {
-    if (!quest) return [];
-    return quests
-      .filter((item) => item.id !== quest.id && (item.category === quest.category || item.difficulty === quest.difficulty))
-      .slice(0, 3);
-  }, [quest, quests]);
+  if (!quest) return <Screen><IconButton icon="chevron-back" onPress={onBack} /><EmptyState emoji={loading ? "⏳" : "🔍"} title={loading ? "Loading quest" : "Quest unavailable"} body={loading ? "Finding the latest quest details." : "This quest may be unpublished, archived, or unavailable."} /></Screen>;
 
-  if (!quest) {
-    return (
-      <Screen>
-        <IconButton icon="chevron-back" onPress={onBack} />
-        <Card>
-          <EmptyState
-            emoji={loading ? "⏳" : "🔍"}
-            title={loading ? "Loading quest" : "Quest unavailable"}
-            body={loading ? "Finding the latest quest details." : "This quest may be unpublished, archived, or unavailable."}
-          />
-        </Card>
-      </Screen>
-    );
-  }
-
-  const cat = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
-  const diff = difficultyColor[quest.difficulty];
+  const category = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
+  const difficulty = difficultyColor[quest.difficulty];
+  const actionColor = categoryButtonColors[quest.category];
   const friends = overview?.friends ?? [];
+  const savedCollections = userPacks.filter((pack) => pack.questIds.includes(quest.id)).length;
+  const savedAnywhere = quest.saved || savedCollections > 0;
+  const savedCount = (quest.saved ? 1 : 0) + savedCollections;
+  const completedCount = (quest.completed ? 1 : 0) + (engine?.todayCompletions.filter((completion) => completion.questId === quest.id).length ?? 0);
+  const creatorLabel = quest.createdByLabel?.trim();
+  const creatorHandle = creatorLabel ? (creatorLabel.startsWith("@") ? creatorLabel : `@${creatorLabel}`) : "@QuestLifeTeam";
+  const steps = quest.steps.length ? quest.steps : ["Head out at your own pace — no timer starts until you choose.", "Complete the core challenge described above.", "Log your experience in the Journal after finishing."];
 
-  async function handleStart() {
-    const ok = await tryStart({ questId: quest!.id, source: "explore" });
-    if (ok) await refresh();
-  }
+  const startQuest = async () => { const ok = await tryStart({ questId: quest.id, source: "explore" }); if (ok) await refresh(); };
+  const saveQuest = async () => { await openQuestSave(quest.id); };
+  const nativeShare = async () => { await Share.share({ message: `Try the QuestLife quest “${quest.title}”: ${quest.description}` }); };
+  const sendToFriend = async (challenge: boolean) => { if (!shareFriendId) return; if (challenge) await challengeFriend(shareFriendId, quest.id); else await shareQuestWith(shareFriendId, quest.id); setShareVisible(false); setShareFriendId(null); };
 
-  async function handleSave() {
-    await toggleSave(quest!.id);
-    setSaveVisible(true);
-  }
-
-  async function handleShare() {
-    if (shareFriendId) {
-      await shareQuestWith(shareFriendId, quest!.id);
-      setShareVisible(false);
-      setShareFriendId(null);
-    }
-  }
-
-  async function handleChallenge() {
-    if (shareFriendId) {
-      await challengeFriend(shareFriendId, quest!.id);
-      setShareVisible(false);
-      setShareFriendId(null);
-    }
-  }
-
-  return (
-    <Screen contentStyle={{ paddingHorizontal: 0, gap: 0 }}>
-      <GradientBand color={quest.color}>
-        <View style={{ ...edgePadding, gap: 16 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <IconButton icon="chevron-back" onPress={onBack} />
-            <View style={{ flexDirection: "row", gap: 9 }}>
-              <IconButton icon="share-outline" onPress={() => setShareVisible(true)} />
-              <IconButton icon={quest.saved ? "bookmark" : "bookmark-outline"} color={quest.saved ? T.blue : T.muted} onPress={handleSave} />
-            </View>
-          </View>
-          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-            <Tag label={quest.category} color={cat.text} bg={cat.bg} />
-            <Tag label={quest.difficulty} color={diff.text} bg={diff.bg} />
-            {isActive ? <Tag label="ACTIVE" color={T.white} bg={T.blue} /> : null}
-          </View>
-          <Text style={{ color: T.dark, fontSize: 30, lineHeight: 35, fontWeight: "900" }}>{quest.title}</Text>
-          <Text style={{ color: T.muted, fontWeight: "700", lineHeight: 21 }}>{quest.description}</Text>
-        </View>
-      </GradientBand>
-
-      <View style={{ paddingTop: 24, paddingBottom: 24, ...edgePadding, gap: 18 }}>
-        <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
-          <PillStat icon="flash" text={`+${quest.xp} XP`} />
-          <PillStat icon="time" text={quest.timeLabel} color={T.dark} />
-          <PillStat text={quest.difficulty} color={diff.text} />
-          {reviews?.summary.ratingCount ? (
-            <PillStat icon="star" text={`${reviews.summary.averageRating?.toFixed(1)} (${reviews.summary.ratingCount})`} color={T.orange} />
-          ) : null}
-        </View>
-
-        {isActive ? (
-          <Card style={{ gap: 12, backgroundColor: `${quest.color}0f`, borderColor: `${quest.color}35` }}>
-            <Text style={{ color: T.dark, fontSize: 18, fontWeight: "900" }}>You're doing this quest</Text>
-            <Text style={{ color: T.muted, fontWeight: "700", fontSize: 13 }}>Complete it when you're done to earn XP and log your lore.</Text>
-            <SoftButton label="Complete Quest" icon="checkmark" onPress={() => setLogVisible(true)} />
-            <SoftButton label="Save for later" icon="bookmark-outline" inverse color={T.muted} onPress={async () => { await saveActiveForLater(); await refresh(); onBack(); }} />
-          </Card>
-        ) : null}
-
-        <Card>
-          <Text style={{ color: T.dark, fontSize: 18, fontWeight: "900", marginBottom: 10 }}>About this quest</Text>
-          <Text style={{ color: T.dark, fontWeight: "600", lineHeight: 23 }}>{quest.description}</Text>
-        </Card>
-
-        <Card style={{ backgroundColor: `${quest.color}08`, borderColor: `${quest.color}25` }}>
-          <Text style={{ color: T.dark, fontSize: 18, fontWeight: "900", marginBottom: 12 }}>How it works</Text>
-          {(quest.steps.length ? quest.steps : [
-            "Head out at your own pace. No timer starts until you choose.",
-            "Complete the core challenge described above.",
-            "Log the moment for yourself after finishing.",
-          ]).map((step, index) => (
-            <View key={step} style={{ flexDirection: "row", gap: 12, alignItems: "flex-start", marginTop: index ? 12 : 0 }}>
-              <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: quest.color, alignItems: "center", justifyContent: "center", marginTop: 1 }}>
-                <Text style={{ color: T.white, fontWeight: "900", fontSize: 11 }}>{index + 1}</Text>
-              </View>
-              <Text style={{ color: T.muted, fontWeight: "700", flex: 1, lineHeight: 19 }}>{step}</Text>
-            </View>
-          ))}
-        </Card>
-
-        <View style={{ gap: 10 }}>
-          {!isActive ? (
-            <SoftButton
-              label={starting ? "Starting..." : hasOtherActive ? "Another quest active" : "Start Quest"}
-              icon="play"
-              onPress={hasOtherActive ? () => tryStart({ questId: quest.id, source: "explore" }) : handleStart}
-            />
-          ) : null}
-          <SoftButton label={quest.saved ? "Saved to My Stuff" : "Save for Later"} icon={quest.saved ? "bookmark" : "bookmark-outline"} inverse color={quest.saved ? T.blue : T.muted} onPress={handleSave} />
-          {friends.length ? (
-            <SoftButton label="Share with friend" icon="paper-plane-outline" inverse color={T.cyan} onPress={() => setShareVisible(true)} />
-          ) : null}
-        </View>
-
-        <View style={{ gap: 12 }}>
-          <Text style={{ color: T.dark, fontSize: 18, fontWeight: "900" }}>Community reviews</Text>
-          {reviewsLoading ? (
-            <Card><EmptyState emoji="⏳" title="Loading reviews" body="Fetching what others thought..." /></Card>
-          ) : reviews?.reviews.length ? (
-            reviews.reviews.slice(0, 5).map((review, index) => (
-              <Card key={`${review.createdAt}-${index}`} style={{ gap: 8 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Text style={{ fontSize: 22 }}>{review.reviewerEmoji}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: T.dark, fontWeight: "900" }}>{review.reviewerName}</Text>
-                    <View style={{ flexDirection: "row", gap: 2 }}>
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Ionicons key={star} name={star <= review.rating ? "star" : "star-outline"} size={12} color={T.orange} />
-                      ))}
-                    </View>
-                  </View>
-                </View>
-                {review.reviewText ? <Text style={{ color: T.muted, fontWeight: "700", lineHeight: 19 }}>{review.reviewText}</Text> : null}
-                {review.photoUrls.length ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                    {review.photoUrls.map((url) => (
-                      <Image key={url} source={{ uri: url }} style={{ width: 72, height: 72, borderRadius: 12 }} />
-                    ))}
-                  </ScrollView>
-                ) : null}
-              </Card>
-            ))
-          ) : (
-            <Card><EmptyState emoji="💬" title="No reviews yet" body="Be the first to log your lore after completing this quest." /></Card>
-          )}
-        </View>
-
-        {related.length ? (
-          <View style={{ gap: 12 }}>
-            <Text style={{ color: T.dark, fontSize: 18, fontWeight: "900" }}>More like this</Text>
-            {related.map((item) => {
-              const itemCat = categoryColor[item.category] ?? { text: item.color, bg: `${item.color}18` };
-              return (
-                <Link key={item.id} href={`/quest/${item.id}`} asChild>
-                  <Pressable>
-                    <Card style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14 }}>
-                      <View style={{ width: 5, alignSelf: "stretch", borderRadius: 99, backgroundColor: item.color }} />
-                      <View style={{ flex: 1 }}>
-                        <Tag label={item.category} color={itemCat.text} bg={itemCat.bg} />
-                        <Text style={{ color: T.dark, fontWeight: "900", marginTop: 7 }}>{item.title}</Text>
-                        <Text style={{ color: T.muted, fontWeight: "700", fontSize: 12, marginTop: 2 }}>{item.timeLabel} · +{item.xp} XP</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color={T.muted} />
-                    </Card>
-                  </Pressable>
-                </Link>
-              );
-            })}
-          </View>
-        ) : null}
-      </View>
-
-      <LogLoreFlow
-        visible={logVisible}
-        quest={quest}
-        onClose={() => setLogVisible(false)}
-        onFinished={async () => {
-          setLogVisible(false);
-          await refresh();
-          onBack();
-        }}
-      />
-
-      <QuestStartBlockModal
-        block={block}
-        visible={Boolean(block)}
-        onClose={clearBlock}
-        onGoActive={() => {
-          clearBlock();
-          if (engine?.activeSession) router.push(`/quest/${engine.activeSession.questId}`);
-        }}
-        onSaveActive={async () => {
-          await saveActiveForLater();
-          clearBlock();
-          await refresh();
-        }}
-      />
-
-      <Sheet visible={saveVisible} onClose={() => setSaveVisible(false)}>
-        <View style={{ padding: 24, alignItems: "center", gap: 14 }}>
-          <Text style={{ fontSize: 44 }}>{quest.saved ? "🔖" : "📭"}</Text>
-          <Text style={{ color: T.dark, fontSize: 21, fontWeight: "900" }}>{quest.saved ? "Saved Quest" : "Removed from Saved"}</Text>
-          <Text style={{ color: T.muted, fontWeight: "700", textAlign: "center", lineHeight: 20 }}>{quest.saved ? "This quest is waiting in My Stuff for later." : "You can save it again any time from Explore."}</Text>
-          <SoftButton label="Done" inverse color={T.muted} onPress={() => setSaveVisible(false)} style={{ alignSelf: "stretch" }} />
-        </View>
-      </Sheet>
-
-      <Sheet visible={shareVisible} onClose={() => { setShareVisible(false); setShareFriendId(null); }}>
-        <View style={{ padding: 24, gap: 14 }}>
-          <Text style={{ color: T.dark, fontSize: 21, fontWeight: "900" }}>Share "{quest.title}"</Text>
-          {friends.length ? friends.map((friend) => (
-            <Pressable key={friend.userId} onPress={() => setShareFriendId(friend.userId)} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 }}>
-              <Text style={{ fontSize: 22 }}>{friend.emoji}</Text>
-              <Text style={{ flex: 1, color: T.dark, fontWeight: "800" }}>{friend.displayName}</Text>
-              <Ionicons name={shareFriendId === friend.userId ? "radio-button-on" : "radio-button-off"} size={18} color={T.blue} />
-            </Pressable>
-          )) : (
-            <EmptyState emoji="👋" title="No friends yet" body="Add friends from the Social tab to share quests." />
-          )}
-          <SoftButton label="Share quest" icon="paper-plane" onPress={shareFriendId ? handleShare : undefined} />
-          <SoftButton label="Challenge friend" icon="flash" inverse color={T.orange} onPress={shareFriendId ? handleChallenge : undefined} />
-        </View>
-      </Sheet>
-    </Screen>
-  );
+  return <Screen scroll={false} padded={false}>
+    <View style={{ flex: 1 }}>
+      <GradientBand color={quest.color} bleedTop><View style={{ ...edgePadding, paddingBottom: 10 }}><View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 }}><View style={{ flex: 1, minWidth: 0, gap: 10 }}><View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}><Tag label={quest.category} color={category.text} bg={category.bg} /><Tag label={quest.difficulty} color={difficulty.text} bg={difficulty.bg} /></View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 31, lineHeight: 36 }}>{quest.title}</Text><Text numberOfLines={2} style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 14, lineHeight: 19 }}>by {creatorHandle}</Text></View><IconButton icon="chevron-back" onPress={onBack} /></View></View></GradientBand>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ ...edgePadding, paddingTop: 12, paddingBottom: 18, gap: 25 }}>
+        <View style={{ minHeight: 78, borderRadius: 20, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, flexDirection: "row", alignItems: "center", paddingVertical: 13, boxShadow: `3px 4px 0px ${T.border}` }}><Stat label="Completed" value={String(completedCount)} icon="checkmark-circle" color={actionColor} /><Stat label="Saved" value={String(savedCount)} icon="bookmark" color={actionColor} bordered /><Stat label="Rating" value={reviews?.summary.averageRating ? reviews.summary.averageRating.toFixed(1) : "—"} icon="star" color={T.orange} bordered /></View>
+        <View style={{ gap: 9 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>About this quest</Text><Text style={{ color: T.dark, fontFamily: "Rubik", fontSize: 16, lineHeight: 25 }}>{quest.description}</Text></View>
+        <View style={{ gap: 16, borderRadius: 22, borderWidth: 2, borderColor: `${category.text}55`, backgroundColor: `${category.text}0d`, padding: 18 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>How it works</Text><View style={{ gap: 14 }}>{steps.map((step, index) => <View key={`${index}-${step}`} style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}><View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: actionColor, alignItems: "center", justifyContent: "center", marginTop: 1 }}><Text style={{ color: T.white, fontFamily: "RubikBold", fontSize: 13 }}>{index + 1}</Text></View><Text style={{ flex: 1, color: T.dark, fontFamily: "Rubik", fontSize: 14, lineHeight: 20 }}>{step}</Text></View>)}</View></View>
+      </ScrollView>
+      <View style={{ ...edgePadding, paddingTop: 12, paddingBottom: Math.max(insets.bottom + 8, 16), gap: 10, borderTopWidth: 1, borderTopColor: T.border, backgroundColor: T.bg }}><View style={{ flexDirection: "row", gap: 10 }}><QuestAction label="Save Quest" icon={savedAnywhere ? "bookmark" : "bookmark-outline"} color={actionColor} inverse onPress={saveQuest} /><QuestAction label="Challenge friends" icon="share-social-outline" color={actionColor} inverse onPress={() => setShareVisible(true)} /></View>{isActive ? <QuestAction label="Finish Active Quest" icon="checkmark" color={actionColor} fullWidth onPress={() => setLogVisible(true)} /> : <QuestAction label={starting ? "Starting…" : hasOtherActive ? "Another Quest is Active" : "Start Quest"} icon="play" color={actionColor} fullWidth disabled={hasOtherActive || starting} onPress={startQuest} />}</View>
+    </View>
+    <LogLoreFlow visible={logVisible} quest={quest} onClose={() => setLogVisible(false)} onFinished={async () => { setLogVisible(false); await refresh(); onBack(); }} />
+    <QuestStartBlockModal block={block} visible={Boolean(block)} onClose={clearBlock} onGoActive={() => { clearBlock(); if (engine?.activeSession) router.push(`/quest/${engine.activeSession.questId}`); }} onSaveActive={async () => { await saveActiveForLater(); clearBlock(); await refresh(); }} />
+    <Sheet visible={shareVisible} onClose={() => { setShareVisible(false); setShareFriendId(null); }} maxHeight="76%"><View style={{ paddingHorizontal: 24, paddingBottom: 24, gap: 15 }}><View style={{ gap: 4 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Challenge friends</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 13 }}>Invite a friend or share this quest in another app.</Text></View>{friends.length ? <View style={{ gap: 3 }}>{friends.map((friend) => <Pressable key={friend.userId} accessibilityRole="radio" accessibilityState={{ selected: shareFriendId === friend.userId }} onPress={() => setShareFriendId(friend.userId)} style={{ flexDirection: "row", alignItems: "center", gap: 11, minHeight: 58 }}><View style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: `${actionColor}18`, alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: 20 }}>{friend.emoji}</Text></View><Text style={{ flex: 1, color: T.dark, fontFamily: "RubikBold", fontSize: 15 }}>{friend.displayName}</Text><Ionicons name={shareFriendId === friend.userId ? "checkmark-circle" : "radio-button-off"} size={22} color={shareFriendId === friend.userId ? actionColor : T.muted} /></Pressable>)}</View> : <EmptyState emoji="👋" title="No friends added yet" body="You can still send this quest through your favorite messaging app." />}{shareFriendId ? <View style={{ flexDirection: "row", gap: 9 }}><QuestAction label="Share" icon="paper-plane-outline" color={actionColor} inverse onPress={() => void sendToFriend(false)} /><QuestAction label="Challenge" icon="flash" color={actionColor} onPress={() => void sendToFriend(true)} /></View> : null}<QuestAction label="Share via other apps" icon="share-outline" color={actionColor} fullWidth inverse onPress={() => void nativeShare()} /></View></Sheet>
+  </Screen>;
 }
