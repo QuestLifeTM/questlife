@@ -1,4 +1,4 @@
-import { Profile, ProfileEditInput, ProfileOverview, QuestPost } from "@/types/profile";
+import { Profile, ProfileEditInput, ProfileOverview, QuestPost, RequiredProfileName } from "@/types/profile";
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { toLocalDateKey } from "@/services/journal/journalService";
@@ -65,6 +65,36 @@ export async function updateProfile(input: ProfileEditInput) {
   if (input.title !== undefined) payload.title = input.title?.trim() || null;
 
   const { error } = await supabase.from("profiles").update(payload).eq("id", userData.user.id);
+  if (error) throw error;
+}
+
+export async function fetchRequiredProfileName(userId: string): Promise<RequiredProfileName | null> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("first_name, last_name")
+    .eq("id", userId)
+    .maybeSingle<RequiredProfileName>();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function saveRequiredProfileName(firstName: string, lastName: string) {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user?.email) throw new Error("No authenticated user.");
+
+  const { error } = await supabase.from("profiles").upsert(
+    {
+      id: userData.user.id,
+      email: userData.user.email.trim().toLowerCase(),
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+    },
+    { onConflict: "id" },
+  );
   if (error) throw error;
 }
 

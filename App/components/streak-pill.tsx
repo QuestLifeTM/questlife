@@ -1,6 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Pressable, Text } from "react-native";
+import { QuestlifeFlame } from "@/components/questlife-flame";
 import { T } from "@/components/theme";
 import { useStreaks } from "@/contexts/StreaksContext";
 
@@ -19,22 +19,22 @@ export function StreakPill({ compact = false }: { compact?: boolean }) {
     <Pressable
       onPress={() => router.push("/streak")}
       style={({ pressed }) => ({
-        height: 38,
-        minWidth: compact ? 54 : 58,
+        height: 40,
+        minWidth: compact ? 58 : 62,
         borderRadius: 22,
         borderWidth: 2,
-        borderColor: T.yellow,
-        backgroundColor: "rgba(254,228,64,0.18)",
+        borderColor: "#ffb785",
+        backgroundColor: "#fff0e7",
         paddingHorizontal: 12,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        gap: 7,
+        gap: 8,
         transform: [{ scale: pressed ? 0.96 : 1 }]
       })}
     >
-      <Ionicons name={lit ? "flame" : "flame-outline"} size={14} color={T.orange} />
-      <Text style={{ color: T.dark, fontSize: 14, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{count}</Text>
+      <QuestlifeFlame size={lit ? 21 : 19} style={{ opacity: lit ? 1 : 0.45 }} />
+      <Text style={{ color: "#5a3027", fontSize: 14, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{count}</Text>
     </Pressable>
   );
 }

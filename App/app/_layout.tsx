@@ -1,11 +1,14 @@
 import { useFonts } from "expo-font";
+import "@/services/active-quest/location-task";
 import { Redirect, Stack, useSegments } from "expo-router";
 import { PropsWithChildren } from "react";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { T } from "@/components/theme";
 import { GlobalAnnouncement } from "@/components/global-announcement";
+import { RequiredProfileName } from "@/components/required-profile-name";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ActiveQuestProvider } from "@/contexts/ActiveQuestContext";
 import { ContentProvider } from "@/contexts/ContentContext";
 import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { QuestEngineProvider } from "@/contexts/QuestEngineContext";
@@ -44,15 +47,18 @@ function SessionDataProviders({ children }: PropsWithChildren) {
   // data while the new session is loading.
   return <ContentProvider key={session?.user.id ?? "signed-out"}>
     <QuestEngineProvider>
-      <StreaksProvider>
-        <SocialProvider>
-          <NotificationsProvider>
-            <QuestSaveProvider>{children}</QuestSaveProvider>
-          </NotificationsProvider>
-        </SocialProvider>
-      </StreaksProvider>
+      <ActiveQuestProvider>
+        <StreaksProvider>
+          <SocialProvider>
+            <NotificationsProvider>
+              <QuestSaveProvider>{children}</QuestSaveProvider>
+            </NotificationsProvider>
+          </SocialProvider>
+        </StreaksProvider>
+      </ActiveQuestProvider>
     </QuestEngineProvider>
     <GlobalAnnouncement />
+    <RequiredProfileName />
   </ContentProvider>;
 }
 
@@ -98,6 +104,7 @@ function AppLayout() {
         <Stack.Screen name="auth/callback" />
         <Stack.Screen name="reset-password" />
         <Stack.Screen name="quest/[id]" options={{ presentation: "card" }} />
+        <Stack.Screen name="active-quest" options={{ presentation: "card" }} />
         <Stack.Screen name="memory/[completionId]" options={{ presentation: "card" }} />
         <Stack.Screen name="adventure-pack/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="collection/[id]" options={{ presentation: "card" }} />
@@ -109,6 +116,7 @@ function AppLayout() {
         <Stack.Screen name="plan/pick-quests" options={{ presentation: "card" }} />
         <Stack.Screen name="plan/save-pack" options={{ presentation: "card" }} />
         <Stack.Screen name="streak" options={{ presentation: "card" }} />
+        <Stack.Screen name="streak-invite" options={{ presentation: "card" }} />
         <Stack.Screen name="party/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="notifications" options={{ presentation: "card" }} />
         <Stack.Screen name="add-friends" options={{ presentation: "card" }} />

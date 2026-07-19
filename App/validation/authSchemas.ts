@@ -22,6 +22,12 @@ const username = z
   .max(20, "Username must be 20 characters or less.")
   .regex(/^[A-Za-z0-9_]+$/, "Use letters, numbers, and underscores only.");
 
+const name = (label: string) => z
+  .string()
+  .trim()
+  .min(1, `${label} is required.`)
+  .max(80, `${label} must be 80 characters or less.`);
+
 export const loginSchema = z.object({
   email,
   password: z.string().min(1, "Password is required."),
@@ -31,6 +37,8 @@ export const registerSchema = z
   .object({
     confirmPassword: z.string().min(1, "Confirm your password."),
     email,
+    firstName: name("First name"),
+    lastName: name("Last name"),
     password,
     username,
   })

@@ -3,6 +3,7 @@ import { Link } from "expo-router";
 import { useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { T } from "@/components/theme";
+import { QuestlifeFlame } from "@/components/questlife-flame";
 import { Card, EmptyState, Header, IconButton, PillStat, Screen, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { createQuestPost, fetchProfileOverview, togglePostLike, updateProfile } from "@/services/profile/profileService";
@@ -132,7 +133,7 @@ export function ProfileScreen() {
             {profile.bio ? <Text style={{ color: T.dark, fontWeight: "600", marginTop: 8, lineHeight: 20 }}>{profile.bio}</Text> : null}
           </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <PillStat icon="flame" text={`${stats.currentStreak} streak`} color={T.orange} />
+            <PillStat iconElement={<QuestlifeFlame size={15} />} text={`${stats.currentStreak} streak`} color={T.orange} />
             <PillStat icon="flash" text={`${profile.totalXp} XP`} />
           </View>
           <SoftButton label="Edit profile" icon="create-outline" inverse color={T.blue} onPress={() => setEditOpen(true)} />

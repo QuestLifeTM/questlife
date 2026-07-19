@@ -38,6 +38,8 @@ export default function RegisterScreen() {
     defaultValues: {
       confirmPassword: "",
       email: "",
+      firstName: "",
+      lastName: "",
       password: "",
       username: "",
     },
@@ -84,7 +86,7 @@ export default function RegisterScreen() {
   async function onSubmit(values: RegisterForm) {
     try {
       setLoading(true);
-      const result = await registerWithEmail(values.email, values.username, values.password);
+      const result = await registerWithEmail(values.email, values.username, values.firstName, values.lastName, values.password);
       router.replace({
         pathname: "/(auth)/verify-email",
         params: { email: result.email },
@@ -153,6 +155,38 @@ export default function RegisterScreen() {
       <AuthTitle>{"Let's get\nStarted"}</AuthTitle>
 
       <View style={styles.form}>
+        <Controller
+          control={control}
+          name="firstName"
+          render={({ field: { onBlur, onChange, value } }) => (
+            <AuthInput
+              autoComplete="given-name"
+              error={errors.firstName?.message}
+              icon="person-outline"
+              onBlur={onBlur}
+              onChangeText={onChange}
+              placeholder="Enter your first name"
+              textContentType="givenName"
+              value={value}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="lastName"
+          render={({ field: { onBlur, onChange, value } }) => (
+            <AuthInput
+              autoComplete="family-name"
+              error={errors.lastName?.message}
+              icon="person-outline"
+              onBlur={onBlur}
+              onChangeText={onChange}
+              placeholder="Enter your last name"
+              textContentType="familyName"
+              value={value}
+            />
+          )}
+        />
         <Controller
           control={control}
           name="email"

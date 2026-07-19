@@ -42,6 +42,17 @@ export type JournalEntry = {
   mood: JournalMood | null;
 };
 
+/** A live solo quest is surfaced in Journal before it becomes a completion. */
+export type JournalActiveQuest = {
+  sessionId: string;
+  questId: string;
+  title: string;
+  startedAt: string;
+  category: QuestCategory;
+  difficulty: QuestDifficulty;
+  color: string;
+};
+
 export type PartyJournalCard = {
   partyId: string;
   name: string;
@@ -59,4 +70,5 @@ export type JournalData = {
   memoriesByDate: Record<string, JournalMemory[]>;
   entriesByDate: Record<string, JournalEntry>;
   partyHistory: PartyJournalCard[];
+  activeQuest: JournalActiveQuest | null;
 };

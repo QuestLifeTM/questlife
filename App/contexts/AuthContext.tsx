@@ -16,6 +16,8 @@ type AuthContextValue = {
   initializing: boolean;
   isConfigured: boolean;
   isEmailVerified: boolean;
+  profileNameVersion: number;
+  refreshProfileName: () => void;
   signOut: () => Promise<void>;
   session: Session | null;
   user: User | null;
@@ -25,6 +27,8 @@ const AuthContext = createContext<AuthContextValue>({
   initializing: true,
   isConfigured: isSupabaseConfigured,
   isEmailVerified: false,
+  profileNameVersion: 0,
+  refreshProfileName: () => undefined,
   signOut: async () => undefined,
   session: null,
   user: null,
@@ -33,6 +37,7 @@ const AuthContext = createContext<AuthContextValue>({
 export function AuthProvider({ children }: PropsWithChildren) {
   const [initializing, setInitializing] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
+  const [profileNameVersion, setProfileNameVersion] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -91,6 +96,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       isEmailVerified: session?.user
         ? isUserEmailVerified(session.user)
         : false,
+      profileNameVersion,
+      refreshProfileName: () => setProfileNameVersion((version) => version + 1),
       signOut: async () => {
         await signOutFromService();
         // Supabase emits SIGNED_OUT, but update synchronously as well so the
@@ -100,7 +107,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       session,
       user: session?.user ?? null,
     }),
-    [initializing, session],
+    [initializing, profileNameVersion, session],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

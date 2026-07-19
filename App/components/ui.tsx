@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import type { ReactNode } from "react";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { PropsWithChildren, useEffect, useRef } from "react";
@@ -313,10 +314,10 @@ export function ProgressBar({ value, color = T.blue, height = 10 }: { value: num
   );
 }
 
-export function PillStat({ icon, text, color = T.blue }: { icon?: keyof typeof Ionicons.glyphMap; text: string; color?: string }) {
+export function PillStat({ icon, iconElement, text, color = T.blue }: { icon?: keyof typeof Ionicons.glyphMap; iconElement?: ReactNode; text: string; color?: string }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: `${color}1f` }}>
-      {icon ? <Ionicons name={icon} size={12} color={color} /> : null}
+      {iconElement ?? (icon ? <Ionicons name={icon} size={12} color={color} /> : null)}
       <Text style={{ color, fontWeight: "900", fontSize: 12 }}>{text}</Text>
     </View>
   );
@@ -432,10 +433,10 @@ export function GradientBand({ color, children, bleedTop = false }: PropsWithChi
   );
 }
 
-export function EmptyState({ emoji, title, body, action }: { emoji: string; title: string; body: string; action?: React.ReactNode }) {
+export function EmptyState({ emoji, artwork, title, body, action }: { emoji?: string; artwork?: React.ReactNode; title: string; body: string; action?: React.ReactNode }) {
   return (
     <View style={{ alignItems: "center", paddingVertical: 32, paddingHorizontal: 18 }}>
-      <Text style={{ fontSize: 44, marginBottom: 12 }}>{emoji}</Text>
+      {artwork ? <View style={{ marginBottom: 12 }}>{artwork}</View> : emoji ? <Text style={{ fontSize: 44, marginBottom: 12 }}>{emoji}</Text> : null}
       <Text style={{ color: T.dark, fontWeight: "900", fontSize: 18, marginBottom: 8 }}>{title}</Text>
       <Text style={{ color: T.muted, fontWeight: "600", lineHeight: 20, textAlign: "center", marginBottom: action ? 18 : 0 }}>{body}</Text>
       {action}

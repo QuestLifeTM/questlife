@@ -64,10 +64,10 @@ QuestLife should make choosing an activity feel easy, completing it feel rewardi
 
 ### Account and privacy
 
-- Registration requires a valid email, unique username (3–20 letters, numbers, or underscores), and a password with at least 8 characters, uppercase, lowercase, and a number.
+- Registration requires a first name, last name, unique username (3–20 letters, numbers, or underscores), and a password with at least 8 characters, uppercase, lowercase, and a number. Existing verified accounts that predate this requirement must complete their name before using the updated app.
 - A user must verify their email before accessing protected app content.
 - Auth sessions persist using platform-secure storage on native devices.
-- Profiles expose display name, username, bio, emoji, avatar color, title, XP, and configurable streak visibility.
+- Usernames are the unique QuestLife account handles. The Lobby greets the user by first name; profile personalization may include bio, emoji, avatar color, title, XP, and configurable streak visibility.
 - A profile post may be private, friends-only, or public; only completions belonging to the author may be posted.
 
 ### Quest and reward rules

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Alert, Animated, Easing, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import Reanimated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
+import { QuestlifeFlame } from "@/components/questlife-flame";
 import { categoryColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, haptic, Header, IconButton, PillStat, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
@@ -59,7 +60,7 @@ function FriendRow({ friend, onChallenge, onShare }: { friend: SocialFriend; onC
         <Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }} numberOfLines={1}>{friend.lastQuestTitle ? `Last: ${friend.lastQuestTitle}` : `@${friend.username ?? "adventurer"}`}</Text>
         <View style={{ flexDirection: "row", gap: 6, marginTop: 2 }}>
           <PillStat text={`Lv ${Math.floor(friend.totalXp / 500) + 1}`} color={T.blue} />
-          {friend.currentStreak !== null ? <PillStat icon="flame" text={String(friend.currentStreak)} color={T.orange} /> : null}
+          {friend.currentStreak !== null ? <PillStat iconElement={<QuestlifeFlame size={15} />} text={String(friend.currentStreak)} color={T.orange} /> : null}
         </View>
       </View>
       <View style={{ gap: 6 }}>

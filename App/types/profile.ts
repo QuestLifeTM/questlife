@@ -3,7 +3,9 @@ export type Profile = {
   created_at: string;
   display_name: string | null;
   email: string;
+  first_name: string | null;
   id: string;
+  last_name: string | null;
   updated_at: string;
 };
 
@@ -66,6 +68,8 @@ export type ProfileEditInput = {
   avatarColor?: string;
   title?: string | null;
 };
+
+export type RequiredProfileName = Pick<Profile, "first_name" | "last_name">;
 
 /** Level curve: each level requires 500 XP more than the previous band. */
 export function levelForXp(totalXp: number) {

@@ -143,7 +143,7 @@ export async function isUsernameAvailable(username: string) {
   return Boolean(data);
 }
 
-export async function registerWithEmail(email: string, username: string, password: string) {
+export async function registerWithEmail(email: string, username: string, firstName: string, lastName: string, password: string) {
   assertSupabaseConfigured();
   const normalizedEmail = normalizeEmail(email);
   const normalizedUsername = username.trim();
@@ -165,6 +165,8 @@ export async function registerWithEmail(email: string, username: string, passwor
     password,
     options: {
       data: {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
         username: normalizedUsername,
       },
       emailRedirectTo: authRedirectTo,

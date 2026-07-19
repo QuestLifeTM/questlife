@@ -13,11 +13,35 @@
       "expo-font",
       "expo-secure-store",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "QuestLife uses your location to draw the route of an active quest.",
+          "locationAlwaysAndWhenInUsePermission": "QuestLife uses your location during an active quest so route tracking can continue when your phone is locked.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "QuestLife uses your camera to capture memories during an active quest."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "QuestLife can save the memories you choose to add to your photo library.",
+          "savePhotosPermission": "QuestLife can save the memories you choose to your photo library."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "QuestLife uses your photos when you choose a Party photo, share a Party completion, or add a collection cover."
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "ios": {
       "supportsTablet": false,
@@ -29,8 +53,13 @@
     },
     "android": {
       "edgeToEdgeEnabled": true,
-      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
-      "permissions": ["android.permission.CAMERA", "android.permission.READ_CONTACTS"]
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_CONTACTS"
+      ]
     }
   }
 }

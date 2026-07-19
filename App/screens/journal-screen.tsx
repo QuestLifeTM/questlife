@@ -21,10 +21,11 @@ import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, Entrance, Header, IconButton, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { fetchJournalData, toLocalDateKey, upsertJournalEntry } from "@/services/journal/journalService";
 import { useNotifications } from "@/contexts/NotificationsContext";
-import { JournalData, JournalEntry, JournalMemory, JournalMood, PartyJournalCard } from "@/types/journal";
+import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMood, PartyJournalCard } from "@/types/journal";
 
 type JournalTab = "journal" | "growth";
 type CalendarMode = "week" | "month";
+type PartyDayCollection = { party: PartyJournalCard; dateKey: string };
 
 const weekdayLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
@@ -575,6 +576,18 @@ function MemoryCard({ memory, onPress }: { memory: JournalMemory; onPress: () =>
   );
 }
 
+function ActiveQuestJournalCard({ quest, onPress }: { quest: JournalActiveQuest; onPress: () => void }) {
+  const category = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
+  const difficulty = difficultyColor[quest.difficulty];
+  return <Card pressable onPress={onPress} style={{ borderRadius: radius.lg, borderColor: `${T.blue}55`, backgroundColor: `${T.blue}0b`, gap: 10 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, flex: 1 }}><Tag label={quest.category} color={category.text} bg={category.bg} /><Tag label={quest.difficulty} color={difficulty.text} bg={difficulty.bg} /></View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: `${T.blue}18` }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: T.blue }} /><Text style={{ color: T.blue, fontSize: 11, fontWeight: "900" }}>Active</Text></View>
+    </View>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><View style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: `${T.blue}18` }}><Ionicons name="navigate" size={18} color={T.blue} /></View><View style={{ flex: 1, gap: 2 }}><Text style={{ color: T.dark, fontSize: 16, lineHeight: 21, fontWeight: "900" }} numberOfLines={1}>{quest.title}</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>Tap to continue your active quest</Text></View><Ionicons name="arrow-forward" size={17} color={T.blue} /></View>
+  </Card>;
+}
+
 function EmptyDayCard({ isToday, onExplore }: { isToday: boolean; onExplore: () => void }) {
   return (
     <View
@@ -609,10 +622,14 @@ function DaySection({
   isToday,
   entry,
   memories,
+  activeQuest,
+  partyChapters,
   isLast,
   onEditTitle,
   onSelectMood,
   onOpenMemory,
+  onOpenActiveQuest,
+  onOpenPartyChapter,
   onExplore
 }: {
   dayNumber: number;
@@ -620,10 +637,14 @@ function DaySection({
   isToday: boolean;
   entry: JournalEntry | null;
   memories: JournalMemory[];
+  activeQuest: JournalActiveQuest | null;
+  partyChapters: PartyJournalCard[];
   isLast: boolean;
   onEditTitle: () => void;
   onSelectMood: (mood: JournalMood) => void;
   onOpenMemory: (memory: JournalMemory) => void;
+  onOpenActiveQuest: () => void;
+  onOpenPartyChapter: (party: PartyJournalCard) => void;
   onExplore: () => void;
 }) {
   const editable = isToday;
@@ -631,6 +652,7 @@ function DaySection({
   const milestone = milestoneLabels[dayNumber];
   const xp = memories.reduce((sum, memory) => sum + memory.xp, 0);
   const minutes = memories.reduce((sum, memory) => sum + memory.timeMin, 0);
+  const personalMemories = memories.filter((memory) => !memory.partyId);
   const dateLabel = date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
   return (
@@ -684,16 +706,29 @@ function DaySection({
 
       <DayStatStrip questCount={memories.length} xp={xp} minutes={minutes} />
 
-      {memories.length ? (
+      {activeQuest ? <View style={{ gap: 8 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>In progress</Text><ActiveQuestJournalCard quest={activeQuest} onPress={onOpenActiveQuest} /></View> : null}
+
+      {personalMemories.length ? (
         <View style={{ gap: 10 }}>
           <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>Memories</Text>
-          {memories.map((memory) => (
+          {personalMemories.map((memory) => (
             <MemoryCard key={memory.completionId} memory={memory} onPress={() => onOpenMemory(memory)} />
           ))}
         </View>
-      ) : (
+      ) : !memories.length && !activeQuest ? (
         <EmptyDayCard isToday={isToday} onExplore={onExplore} />
-      )}
+      ) : null}
+
+      {partyChapters.length ? (
+        <View style={{ gap: 10 }}>
+          <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>
+            Party chapter{partyChapters.length === 1 ? "" : "s"}
+          </Text>
+          {partyChapters.map((party) => (
+            <PartyHistoryCard key={party.partyId} party={party} onOpen={() => onOpenPartyChapter(party)} />
+          ))}
+        </View>
+      ) : null}
 
       {!isLast ? <ChapterDivider /> : null}
     </View>
@@ -738,7 +773,7 @@ export function JournalScreen() {
   const [entries, setEntries] = useState<Record<string, JournalEntry>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [partyCollection, setPartyCollection] = useState<PartyJournalCard | null>(null);
+  const [partyCollection, setPartyCollection] = useState<PartyDayCollection | null>(null);
 
   const todayKey = toLocalDateKey(new Date());
   const [activeKey, setActiveKey] = useState(todayKey);
@@ -791,7 +826,11 @@ export function JournalScreen() {
     return keys;
   }, [joinKey, todayKey]);
 
-  const markedDates = useMemo(() => new Set(Object.keys(data?.memoriesByDate ?? {})), [data]);
+  const markedDates = useMemo(() => {
+    const dates = new Set(Object.keys(data?.memoriesByDate ?? {}));
+    if (data?.activeQuest) dates.add(toLocalDateKey(new Date(data.activeQuest.startedAt)));
+    return dates;
+  }, [data]);
 
   function scrollToDay(key: string) {
     const offset = sectionOffsets.current[key];
@@ -857,6 +896,10 @@ export function JournalScreen() {
   const sections = dayKeys.map((key, index) => {
     const date = parseKey(key);
     const dayNumber = Math.round((date.getTime() - join.getTime()) / 86400000) + 1;
+    const memories = data?.memoriesByDate[key] ?? [];
+    const activeQuest = data?.activeQuest && toLocalDateKey(new Date(data.activeQuest.startedAt)) === key ? data.activeQuest : null;
+    const partyIds = new Set(memories.flatMap((memory) => (memory.partyId ? [memory.partyId] : [])));
+    const partyChapters = (data?.partyHistory ?? []).filter((party) => partyIds.has(party.partyId));
     return (
       <View key={key} onLayout={(event) => (sectionOffsets.current[key] = event.nativeEvent.layout.y)}>
         <DaySection
@@ -864,11 +907,15 @@ export function JournalScreen() {
           date={date}
           isToday={key === todayKey}
           entry={entries[key] ?? null}
-          memories={data?.memoriesByDate[key] ?? []}
+          memories={memories}
+          activeQuest={activeQuest}
+          partyChapters={partyChapters}
           isLast={index === dayKeys.length - 1}
           onEditTitle={openTitleEditor}
           onSelectMood={(mood) => saveEntry(key, { mood })}
           onOpenMemory={(memory) => router.push(`/memory/${memory.completionId}`)}
+          onOpenActiveQuest={() => router.push("/active-quest")}
+          onOpenPartyChapter={(party) => setPartyCollection({ party, dateKey: key })}
           onExplore={goExplore}
         />
       </View>
@@ -930,7 +977,6 @@ export function JournalScreen() {
                 </Card>
               ) : (
                 <Entrance delay={120}>
-                  {data?.partyHistory.length ? <View style={{ marginTop: 18, gap: 10 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>Party chapters</Text>{data.partyHistory.map((party) => <PartyHistoryCard key={party.partyId} party={party} onOpen={() => setPartyCollection(party)} />)}</View> : null}
                   {sections}
                   <BeforeJoinMarker joinDate={join} />
                 </Entrance>
@@ -954,8 +1000,8 @@ export function JournalScreen() {
 
       <Sheet visible={partyCollection !== null} onClose={() => setPartyCollection(null)} maxHeight="88%">
         <View style={{ padding: 24, gap: 14 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><View style={{ flex: 1, gap: 3 }}><Text style={{ color: T.dark, fontSize: 21, fontWeight: "900" }}>{partyCollection?.name}</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "800" }}>{partyCollection?.entryCount ?? 0} private Party memories</Text></View><IconButton icon="close" label="Close Party memories" onPress={() => setPartyCollection(null)} /></View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 10 }}>{partyCollection ? Object.values(data?.memoriesByDate ?? {}).flat().filter((memory) => memory.partyId === partyCollection.partyId).sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()).map((memory) => <MemoryCard key={memory.completionId} memory={memory} onPress={() => router.push(`/memory/${memory.completionId}`)} />) : null}</ScrollView>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><View style={{ flex: 1, gap: 3 }}><Text style={{ color: T.dark, fontSize: 21, fontWeight: "900" }}>{partyCollection?.party.name}</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "800" }}>Party memories from this day</Text></View><IconButton icon="close" label="Close Party memories" onPress={() => setPartyCollection(null)} /></View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 10 }}>{partyCollection ? (data?.memoriesByDate[partyCollection.dateKey] ?? []).filter((memory) => memory.partyId === partyCollection.party.partyId).sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()).map((memory) => <MemoryCard key={memory.completionId} memory={memory} onPress={() => router.push(`/memory/${memory.completionId}`)} />) : null}</ScrollView>
         </View>
       </Sheet>
 
