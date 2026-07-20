@@ -45,6 +45,9 @@ export function engineErrorMessage(error: unknown) {
   if (message.includes("RATING_REQUIRED")) {
     return "Add a star rating to log your lore.";
   }
+  if (message.includes('column reference "total_xp" is ambiguous') || message.includes("column reference 'total_xp' is ambiguous")) {
+    return "Quest completion needs the latest database migration. Apply the pending Supabase migrations, then try again.";
+  }
   if (message.includes("reset_todays_solo_quest_completions") || message.includes("PGRST202")) {
     return "The reset feature needs its latest database migration. Apply the reset_todays_solo_quest_completions migration, then try again.";
   }

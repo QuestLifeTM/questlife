@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
+import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { PropsWithChildren, useEffect, useRef } from "react";
@@ -335,8 +336,9 @@ export function Sheet({
   children,
   maxHeight = "82%",
   fillHeight = false,
-  keyboardAvoiding = true
-}: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"]; fillHeight?: boolean; keyboardAvoiding?: boolean }>) {
+  keyboardAvoiding = true,
+  glass = false
+}: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"]; fillHeight?: boolean; keyboardAvoiding?: boolean; glass?: boolean }>) {
   const insets = useSafeAreaInsets();
   const dragY = useRef(new Animated.Value(0)).current;
   const onCloseRef = useRef(onClose);
@@ -363,24 +365,25 @@ export function Sheet({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView enabled={keyboardAvoiding} behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
-      <View style={{ flex: 1, backgroundColor: "rgba(61,52,56,0.42)", justifyContent: "flex-end" }}>
+      <View style={{ flex: 1, backgroundColor: glass ? "rgba(61,52,56,0.28)" : "rgba(61,52,56,0.42)", justifyContent: "flex-end" }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={onClose} style={{ flex: 1 }} />
         <Animated.View
           accessibilityViewIsModal
           style={{
             maxHeight,
             ...(fillHeight ? { height: maxHeight } : null),
-            backgroundColor: T.white,
+            backgroundColor: glass ? "rgba(255,255,255,0.72)" : T.white,
             borderTopLeftRadius: radius.sheet,
             borderTopRightRadius: radius.sheet,
             borderWidth: 2,
-            borderColor: T.border,
+            borderColor: glass ? "rgba(255,255,255,0.88)" : T.border,
             borderBottomWidth: 0,
             paddingBottom: insets.bottom + 8,
             overflow: "hidden",
             transform: [{ translateY: dragY }],
           }}
         >
+          {glass ? <BlurView pointerEvents="none" intensity={18} tint="light" style={{ position: "absolute", inset: 0 }} /> : null}
           <View {...dragResponder.panHandlers} accessibilityLabel="Drag down to dismiss" style={{ alignItems: "center", paddingTop: 12, paddingBottom: 12 }}>
             <View style={{ width: 36, height: 4, borderRadius: 99, backgroundColor: T.border }} />
           </View>
