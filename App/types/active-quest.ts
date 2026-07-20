@@ -13,6 +13,7 @@ export type ActiveQuestLocalSession = {
   entryBody: string;
   trackingStatus: "idle" | "tracking" | "permission-needed" | "unavailable";
   lastLocationAt: string | null;
+  completionSyncState: "idle" | "pending" | "synced";
   updatedAt: string;
 };
 
@@ -24,11 +25,22 @@ export type ActiveQuestRoutePoint = {
   longitude: number;
   accuracy: number | null;
   speed: number | null;
+  altitude: number | null;
+  heading: number | null;
+};
+
+/** Optional quest waypoints for future guided routes; absent for free-roam quests. */
+export type ActiveQuestCheckpoint = {
+  id: string;
+  label: string;
+  latitude: number;
+  longitude: number;
 };
 
 export type ActiveQuestSnapshot = {
   session: ActiveQuestLocalSession;
   route: ActiveQuestRoutePoint[];
+  renderRoute: ActiveQuestRoutePoint[];
   photoCount: number;
   photos: ActiveQuestPhoto[];
 };

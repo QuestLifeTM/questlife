@@ -51,6 +51,10 @@
     <string>QuestLife uses your camera to scan a friend's QR code.</string>
     <key>NSContactsUsageDescription</key>
     <string>QuestLife uses your contacts to help you find friends already on QuestLife.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>QuestLife uses your location to show your active quest route.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>QuestLife uses your location during an active quest so route recording can continue while your screen is locked.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
@@ -65,6 +69,10 @@
     </array>
     <key>UIRequiresFullScreen</key>
     <false/>
+    <key>UIBackgroundModes</key>
+    <array>
+      <string>location</string>
+    </array>
     <key>UIStatusBarStyle</key>
     <string>UIStatusBarStyleDefault</string>
     <key>UISupportedInterfaceOrientations</key>

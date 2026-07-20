@@ -10,6 +10,7 @@ import {
   fetchTodayFeaturedQuestIds,
   fetchTodayPlan,
   fetchUserPacks,
+  resetTodaySoloQuestCompletions,
   saveSessionForLater,
   saveTodayPlan,
   startQuestSession,
@@ -29,6 +30,7 @@ type QuestEngineContextValue = {
   abandonActiveQuest: () => Promise<void>;
   saveActiveForLater: () => Promise<void>;
   completeQuest: (input: CompleteQuestInput) => Promise<CompletionResult>;
+  resetTodaySoloCompletions: () => Promise<number>;
   savePlan: (questIds: string[], sourcePackId?: string | null) => Promise<void>;
   clearPlan: () => Promise<void>;
   saveUserPack: (input: { id?: string; title: string; description?: string | null; icon: string; accentColor: string; coverImageUrl?: string | null; questIds: string[] }) => Promise<void>;
@@ -47,6 +49,7 @@ const QuestEngineContext = createContext<QuestEngineContextValue>({
   abandonActiveQuest: async () => undefined,
   saveActiveForLater: async () => undefined,
   completeQuest: async () => ({ completionId: "", xpAwarded: 0, dailyUsed: 0, dailyLimit: 5 }),
+  resetTodaySoloCompletions: async () => 0,
   savePlan: async () => undefined,
   clearPlan: async () => undefined,
   saveUserPack: async () => undefined,
@@ -124,6 +127,12 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     return result;
   }, []);
 
+  const resetTodaySoloCompletions = useCallback(async () => {
+    const removedCount = await resetTodaySoloQuestCompletions();
+    setEngine(await fetchEngineState());
+    return removedCount;
+  }, []);
+
   const savePlan = useCallback(async (questIds: string[], sourcePackId?: string | null) => {
     const plan = await saveTodayPlan({ questIds, sourcePackId });
     setTodayPlan(plan);
@@ -160,6 +169,7 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
       abandonActiveQuest,
       saveActiveForLater,
       completeQuest,
+      resetTodaySoloCompletions,
       savePlan,
       clearPlan,
       saveUserPack,
@@ -177,6 +187,7 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
       abandonActiveQuest,
       saveActiveForLater,
       completeQuest,
+      resetTodaySoloCompletions,
       savePlan,
       clearPlan,
       saveUserPack,

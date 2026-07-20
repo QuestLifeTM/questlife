@@ -1,224 +1,235 @@
-import * as SQLite from "expo-sqlite";
+import * as FileSystem from "expo-file-system/legacy";
 
 import { ActiveQuestLocalSession, ActiveQuestPhoto, ActiveQuestRecordingState, ActiveQuestRoutePoint, ActiveQuestSnapshot } from "@/types/active-quest";
+import { distanceBetweenMeters, routePointIsUsable, simplifyRouteForRendering } from "@/services/active-quest/route-filter";
 
-type SessionRow = {
-  session_id: string;
-  quest_id: string;
-  started_at: string;
-  recording_state: ActiveQuestRecordingState;
-  paused_at: string | null;
-  active_since: string | null;
-  active_duration_ms: number;
-  distance_meters: number;
-  entry_title: string;
-  entry_body: string;
-  tracking_status: ActiveQuestLocalSession["trackingStatus"];
-  last_location_at: string | null;
-  updated_at: string;
+type ActiveQuestStore = {
+  sessions: Record<string, ActiveQuestLocalSession>;
+  route: ActiveQuestRoutePoint[];
+  renderRoutes: Record<string, ActiveQuestRoutePoint[]>;
+  photos: ActiveQuestPhoto[];
+  trackingSessionId: string | null;
+  nextPointId: number;
+  nextPhotoId: number;
 };
 
-type PointRow = {
-  id: number;
-  session_id: string;
-  captured_at: string;
-  latitude: number;
-  longitude: number;
-  accuracy: number | null;
-  speed: number | null;
+const STORE_URI = `${FileSystem.documentDirectory}active-quests/store.json`;
+const BACKUP_STORE_URI = `${FileSystem.documentDirectory}active-quests/store.backup.json`;
+const EMPTY_STORE: ActiveQuestStore = {
+  sessions: {},
+  route: [],
+  renderRoutes: {},
+  photos: [],
+  trackingSessionId: null,
+  nextPointId: 1,
+  nextPhotoId: 1,
 };
 
-type MediaRow = { id: number; session_id: string; uri: string; captured_at: string; sync_status: ActiveQuestPhoto["syncStatus"]; remote_path: string | null };
+let cache: ActiveQuestStore | null = null;
+let mutationQueue: Promise<void> = Promise.resolve();
+const listeners = new Set<() => void>();
 
-const DATABASE_NAME = "questlife-active-quest.db";
-let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
-
-function asSession(row: SessionRow): ActiveQuestLocalSession {
-  return {
-    sessionId: row.session_id,
-    questId: row.quest_id,
-    startedAt: row.started_at,
-    recordingState: row.recording_state,
-    pausedAt: row.paused_at,
-    activeSince: row.active_since,
-    activeDurationMs: row.active_duration_ms,
-    distanceMeters: row.distance_meters,
-    entryTitle: row.entry_title,
-    entryBody: row.entry_body,
-    trackingStatus: row.tracking_status,
-    lastLocationAt: row.last_location_at,
-    updatedAt: row.updated_at,
-  };
+function freshStore(): ActiveQuestStore {
+  return { ...EMPTY_STORE, sessions: {}, route: [], renderRoutes: {}, photos: [] };
 }
 
-function asPoint(row: PointRow): ActiveQuestRoutePoint {
-  return {
-    id: row.id,
-    sessionId: row.session_id,
-    capturedAt: row.captured_at,
-    latitude: row.latitude,
-    longitude: row.longitude,
-    accuracy: row.accuracy,
-    speed: row.speed,
-  };
-}
-
-function asPhoto(row: MediaRow): ActiveQuestPhoto {
-  return { id: row.id, sessionId: row.session_id, uri: row.uri, capturedAt: row.captured_at, syncStatus: row.sync_status, remotePath: row.remote_path };
-}
-
-async function getDatabase() {
-  if (!databasePromise) {
-    databasePromise = SQLite.openDatabaseAsync(DATABASE_NAME).then(async (database) => {
-      await database.execAsync(`
-        PRAGMA journal_mode = WAL;
-        CREATE TABLE IF NOT EXISTS active_quest_sessions (
-          session_id TEXT PRIMARY KEY NOT NULL,
-          quest_id TEXT NOT NULL,
-          started_at TEXT NOT NULL,
-          recording_state TEXT NOT NULL,
-          paused_at TEXT,
-          active_since TEXT,
-          active_duration_ms INTEGER NOT NULL DEFAULT 0,
-          distance_meters REAL NOT NULL DEFAULT 0,
-          entry_title TEXT NOT NULL DEFAULT '',
-          entry_body TEXT NOT NULL DEFAULT '',
-          tracking_status TEXT NOT NULL DEFAULT 'idle',
-          last_location_at TEXT,
-          updated_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS active_quest_route_points (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          session_id TEXT NOT NULL,
-          captured_at TEXT NOT NULL,
-          latitude REAL NOT NULL,
-          longitude REAL NOT NULL,
-          accuracy REAL,
-          speed REAL,
-          FOREIGN KEY (session_id) REFERENCES active_quest_sessions(session_id) ON DELETE CASCADE
-        );
-        CREATE INDEX IF NOT EXISTS active_quest_route_points_session_time
-          ON active_quest_route_points(session_id, captured_at);
-        CREATE TABLE IF NOT EXISTS active_quest_media (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          session_id TEXT NOT NULL,
-          uri TEXT NOT NULL,
-          captured_at TEXT NOT NULL,
-          sync_status TEXT NOT NULL DEFAULT 'pending',
-          remote_path TEXT,
-          FOREIGN KEY (session_id) REFERENCES active_quest_sessions(session_id) ON DELETE CASCADE
-        );
-      `);
-      return database;
-    });
+async function loadStore() {
+  if (cache) return cache;
+  try {
+    const raw = await FileSystem.readAsStringAsync(STORE_URI);
+    const parsed = JSON.parse(raw) as Partial<ActiveQuestStore>;
+    cache = {
+      ...freshStore(),
+      ...parsed,
+      sessions: Object.fromEntries(Object.entries(parsed.sessions ?? {}).map(([id, session]) => [id, {
+        ...session,
+        completionSyncState: session.completionSyncState ?? "idle",
+      }])),
+      route: (parsed.route ?? []).map((point) => ({ ...point, altitude: point.altitude ?? null, heading: point.heading ?? null })),
+      renderRoutes: parsed.renderRoutes ?? {},
+      photos: parsed.photos ?? [],
+    };
+  } catch {
+    try {
+      const backup = await FileSystem.readAsStringAsync(BACKUP_STORE_URI);
+      const parsed = JSON.parse(backup) as Partial<ActiveQuestStore>;
+      cache = {
+        ...freshStore(),
+        ...parsed,
+        sessions: Object.fromEntries(Object.entries(parsed.sessions ?? {}).map(([id, session]) => [id, {
+          ...session,
+          completionSyncState: session.completionSyncState ?? "idle",
+        }])),
+        route: (parsed.route ?? []).map((point) => ({ ...point, altitude: point.altitude ?? null, heading: point.heading ?? null })),
+        renderRoutes: parsed.renderRoutes ?? {},
+        photos: parsed.photos ?? [],
+      };
+    } catch {
+      cache = freshStore();
+    }
   }
-  return databasePromise;
+  return cache;
+}
+
+async function persistStore(store: ActiveQuestStore) {
+  await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}active-quests`, { intermediates: true });
+  const existingStore = await FileSystem.getInfoAsync(STORE_URI);
+  if (existingStore.exists) {
+    const existingBackup = await FileSystem.getInfoAsync(BACKUP_STORE_URI);
+    if (existingBackup.exists) await FileSystem.deleteAsync(BACKUP_STORE_URI, { idempotent: true });
+    await FileSystem.copyAsync({ from: STORE_URI, to: BACKUP_STORE_URI });
+  }
+  await FileSystem.writeAsStringAsync(STORE_URI, JSON.stringify(store));
+}
+
+function mutate<T>(operation: (store: ActiveQuestStore) => T | Promise<T>) {
+  const result = mutationQueue.then(async () => {
+    const store = await loadStore();
+    const value = await operation(store);
+    await persistStore(store);
+    return value;
+  });
+  mutationQueue = result.then(() => undefined, () => undefined);
+  void result.then(() => listeners.forEach((listener) => listener()));
+  return result;
+}
+
+/** Lets the foreground screen react to points written by the location task. */
+export function subscribeToActiveQuestStore(listener: () => void) {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
 }
 
 export async function ensureActiveQuestSession(input: { sessionId: string; questId: string; startedAt: string; entryTitle: string }) {
-  const database = await getDatabase();
-  const now = new Date().toISOString();
-  await database.runAsync(
-    `INSERT INTO active_quest_sessions (session_id, quest_id, started_at, recording_state, active_since, entry_title, updated_at)
-     VALUES (?, ?, ?, 'recording', ?, ?, ?)
-     ON CONFLICT(session_id) DO NOTHING`,
-    input.sessionId,
-    input.questId,
-    input.startedAt,
-    input.startedAt,
-    input.entryTitle,
-    now,
-  );
+  await mutate((store) => {
+    if (!store.sessions[input.sessionId]) {
+      store.sessions[input.sessionId] = {
+        sessionId: input.sessionId,
+        questId: input.questId,
+        startedAt: input.startedAt,
+        recordingState: "recording",
+        pausedAt: null,
+        activeSince: input.startedAt,
+        activeDurationMs: 0,
+        distanceMeters: 0,
+        entryTitle: input.entryTitle,
+        entryBody: "",
+        trackingStatus: "idle",
+        lastLocationAt: null,
+        completionSyncState: "idle",
+        updatedAt: new Date().toISOString(),
+      };
+    }
+  });
   return getActiveQuestSession(input.sessionId);
 }
 
 export async function getActiveQuestSession(sessionId: string) {
-  const database = await getDatabase();
-  const row = await database.getFirstAsync<SessionRow>("SELECT * FROM active_quest_sessions WHERE session_id = ?", sessionId);
-  return row ? asSession(row) : null;
+  await mutationQueue;
+  const store = await loadStore();
+  const session = store.sessions[sessionId];
+  return session ? { ...session } : null;
 }
 
 export async function getActiveQuestSnapshot(sessionId: string): Promise<ActiveQuestSnapshot | null> {
   const session = await getActiveQuestSession(sessionId);
   if (!session) return null;
-  const database = await getDatabase();
-  const [routeRows, photoRows] = await Promise.all([
-    database.getAllAsync<PointRow>("SELECT * FROM active_quest_route_points WHERE session_id = ? ORDER BY captured_at ASC", sessionId),
-    database.getAllAsync<MediaRow>("SELECT * FROM active_quest_media WHERE session_id = ? ORDER BY captured_at DESC", sessionId),
-  ]);
-  return { session, route: routeRows.map(asPoint), photoCount: photoRows.length, photos: photoRows.map(asPhoto) };
+  await mutationQueue;
+  const store = await loadStore();
+  const route = store.route.filter((point) => point.sessionId === sessionId).sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
+  const photos = store.photos.filter((photo) => photo.sessionId === sessionId).sort((a, b) => b.capturedAt.localeCompare(a.capturedAt));
+  const renderRoute = store.renderRoutes[sessionId] ?? simplifyRouteForRendering(route);
+  return { session, route, renderRoute, photoCount: photos.length, photos };
 }
 
-export async function updateActiveQuestSession(sessionId: string, changes: Partial<Pick<ActiveQuestLocalSession, "recordingState" | "pausedAt" | "activeSince" | "activeDurationMs" | "distanceMeters" | "entryTitle" | "entryBody" | "trackingStatus" | "lastLocationAt">>) {
-  const current = await getActiveQuestSession(sessionId);
-  if (!current) return null;
-  const next = { ...current, ...changes, updatedAt: new Date().toISOString() };
-  const database = await getDatabase();
-  await database.runAsync(
-    `UPDATE active_quest_sessions SET recording_state = ?, paused_at = ?, active_since = ?, active_duration_ms = ?, distance_meters = ?, entry_title = ?, entry_body = ?, tracking_status = ?, last_location_at = ?, updated_at = ? WHERE session_id = ?`,
-    next.recordingState,
-    next.pausedAt,
-    next.activeSince,
-    next.activeDurationMs,
-    next.distanceMeters,
-    next.entryTitle,
-    next.entryBody,
-    next.trackingStatus,
-    next.lastLocationAt,
-    next.updatedAt,
-    sessionId,
-  );
-  return next;
+export async function updateActiveQuestSession(sessionId: string, changes: Partial<Pick<ActiveQuestLocalSession, "recordingState" | "pausedAt" | "activeSince" | "activeDurationMs" | "distanceMeters" | "entryTitle" | "entryBody" | "trackingStatus" | "lastLocationAt" | "completionSyncState">>) {
+  return mutate((store) => {
+    const current = store.sessions[sessionId];
+    if (!current) return null;
+    const next = { ...current, ...changes, updatedAt: new Date().toISOString() };
+    store.sessions[sessionId] = next;
+    return { ...next };
+  });
 }
 
-export async function addRoutePoint(sessionId: string, point: Omit<ActiveQuestRoutePoint, "id" | "sessionId">, distanceDeltaMeters: number) {
-  const database = await getDatabase();
-  await database.withExclusiveTransactionAsync(async (transaction) => {
-    await transaction.runAsync(
-      "INSERT INTO active_quest_route_points (session_id, captured_at, latitude, longitude, accuracy, speed) VALUES (?, ?, ?, ?, ?, ?)",
-      sessionId,
-      point.capturedAt,
-      point.latitude,
-      point.longitude,
-      point.accuracy,
-      point.speed,
-    );
-    await transaction.runAsync(
-      "UPDATE active_quest_sessions SET distance_meters = distance_meters + ?, last_location_at = ?, tracking_status = 'tracking', updated_at = ? WHERE session_id = ?",
-      distanceDeltaMeters,
-      point.capturedAt,
-      new Date().toISOString(),
-      sessionId,
-    );
+/**
+ * Filters and appends under one serialized mutation so foreground and
+ * background location sources cannot accept the same point concurrently.
+ */
+export async function addAcceptedRoutePoint(sessionId: string, point: Omit<ActiveQuestRoutePoint, "id" | "sessionId">) {
+  return mutate((store) => {
+    const session = store.sessions[sessionId];
+    if (!session || session.recordingState !== "recording") return false;
+    const previous = store.route
+      .filter((routePoint) => routePoint.sessionId === sessionId)
+      .sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0] ?? null;
+    if (!routePointIsUsable(point, previous)) return false;
+
+    store.route.push({ id: store.nextPointId++, sessionId, ...point });
+    const sessionRoute = store.route.filter((routePoint) => routePoint.sessionId === sessionId).sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
+    store.renderRoutes[sessionId] = simplifyRouteForRendering(sessionRoute);
+    store.sessions[sessionId] = {
+      ...session,
+      distanceMeters: session.distanceMeters + (previous ? distanceBetweenMeters(previous, point) : 0),
+      lastLocationAt: point.capturedAt,
+      trackingStatus: "tracking",
+      updatedAt: new Date().toISOString(),
+    };
+    return true;
   });
 }
 
 export async function getLatestRoutePoint(sessionId: string) {
-  const database = await getDatabase();
-  const row = await database.getFirstAsync<PointRow>("SELECT * FROM active_quest_route_points WHERE session_id = ? ORDER BY captured_at DESC LIMIT 1", sessionId);
-  return row ? asPoint(row) : null;
+  await mutationQueue;
+  const store = await loadStore();
+  const points = store.route.filter((point) => point.sessionId === sessionId).sort((a, b) => b.capturedAt.localeCompare(a.capturedAt));
+  return points[0] ? { ...points[0] } : null;
+}
+
+export async function getPendingCompletionSyncSessionIds() {
+  await mutationQueue;
+  const store = await loadStore();
+  return Object.values(store.sessions).filter((session) => session.completionSyncState === "pending").map((session) => session.sessionId);
 }
 
 export async function addActiveQuestPhoto(sessionId: string, uri: string, capturedAt = new Date().toISOString()) {
-  const database = await getDatabase();
-  const result = await database.runAsync("INSERT INTO active_quest_media (session_id, uri, captured_at) VALUES (?, ?, ?)", sessionId, uri, capturedAt);
-  return Number(result.lastInsertRowId);
+  return mutate((store) => {
+    const id = store.nextPhotoId++;
+    store.photos.push({ id, sessionId, uri, capturedAt, syncStatus: "pending", remotePath: null });
+    return id;
+  });
 }
 
 export async function getActiveQuestPhotos(sessionId: string) {
-  const database = await getDatabase();
-  const rows = await database.getAllAsync<MediaRow>("SELECT * FROM active_quest_media WHERE session_id = ? ORDER BY captured_at DESC", sessionId);
-  return rows.map(asPhoto);
+  await mutationQueue;
+  const store = await loadStore();
+  return store.photos.filter((photo) => photo.sessionId === sessionId).sort((a, b) => b.capturedAt.localeCompare(a.capturedAt)).map((photo) => ({ ...photo }));
 }
 
 export async function updateActiveQuestPhoto(id: number, changes: Partial<Pick<ActiveQuestPhoto, "syncStatus" | "remotePath">>) {
-  const database = await getDatabase();
-  const current = await database.getFirstAsync<MediaRow>("SELECT * FROM active_quest_media WHERE id = ?", id);
-  if (!current) return;
-  await database.runAsync("UPDATE active_quest_media SET sync_status = ?, remote_path = ? WHERE id = ?", changes.syncStatus ?? current.sync_status, changes.remotePath ?? current.remote_path, id);
+  return mutate((store) => {
+    const index = store.photos.findIndex((photo) => photo.id === id);
+    if (index < 0) return;
+    store.photos[index] = { ...store.photos[index], ...changes };
+  });
+}
+
+export async function setActiveQuestTrackingSession(sessionId: string | null) {
+  await mutate((store) => { store.trackingSessionId = sessionId; });
+}
+
+export async function getActiveQuestTrackingSession() {
+  await mutationQueue;
+  const store = await loadStore();
+  return store.trackingSessionId ? { sessionId: store.trackingSessionId } : null;
 }
 
 export async function clearActiveQuestSession(sessionId: string) {
-  const database = await getDatabase();
-  await database.runAsync("DELETE FROM active_quest_sessions WHERE session_id = ?", sessionId);
+  await mutate((store) => {
+    delete store.sessions[sessionId];
+    store.route = store.route.filter((point) => point.sessionId !== sessionId);
+    delete store.renderRoutes[sessionId];
+    store.photos = store.photos.filter((photo) => photo.sessionId !== sessionId);
+    if (store.trackingSessionId === sessionId) store.trackingSessionId = null;
+  });
 }

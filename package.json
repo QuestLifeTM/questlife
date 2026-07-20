@@ -17,6 +17,7 @@
     "admin:typecheck": "npm --workspace @questlife/admin run typecheck"
   },
   "dependencies": {
+    "@maplibre/maplibre-react-native": "^11.3.6",
     "expo-image-picker": "~17.0.11"
   }
 }

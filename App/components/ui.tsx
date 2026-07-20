@@ -214,6 +214,7 @@ export function SoftButton({
   onPress,
   color = T.blue,
   inverse = false,
+  disabled = false,
   style
 }: {
   label: string;
@@ -221,11 +222,15 @@ export function SoftButton({
   onPress?: () => void;
   color?: string;
   inverse?: boolean;
+  disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   return (
     <Pressable
+      disabled={disabled}
+      accessibilityState={{ disabled }}
       onPress={() => {
+        if (disabled) return;
         haptic();
         onPress?.();
       }}
@@ -241,7 +246,8 @@ export function SoftButton({
           backgroundColor: inverse ? T.white : color,
           borderWidth: inverse ? 2 : 0,
           borderColor: inverse ? T.border : "transparent",
-          transform: [{ scale: pressed ? 0.96 : 1 }]
+          opacity: disabled ? 0.5 : 1,
+          transform: [{ scale: pressed && !disabled ? 0.96 : 1 }]
         },
         style
       ]}

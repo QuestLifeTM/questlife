@@ -27,6 +27,11 @@ export async function syncActiveQuestRecord(sessionId: string) {
     entry_title: session.entryTitle,
     entry_body: session.entryBody,
     last_location_at: session.lastLocationAt,
+    render_route: snapshot.renderRoute.map((point) => ({
+      latitude: point.latitude,
+      longitude: point.longitude,
+      capturedAt: point.capturedAt,
+    })),
     updated_at: session.updatedAt,
   }, { onConflict: "session_id" });
   if (snapshotResult.error) throw snapshotResult.error;
@@ -41,6 +46,8 @@ export async function syncActiveQuestRecord(sessionId: string) {
       longitude: point.longitude,
       accuracy_meters: point.accuracy,
       speed_meters_per_second: point.speed,
+      altitude_meters: point.altitude,
+      heading_degrees: point.heading,
     })), { onConflict: "session_id,client_point_id" });
     if (routeResult.error) throw routeResult.error;
   }

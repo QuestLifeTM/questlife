@@ -22,7 +22,11 @@ function today() {
 
 /** Translates the RPC error codes into copy the app can show directly. */
 export function engineErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === "object" && error !== null && "message" in error && typeof error.message === "string"
+      ? error.message
+      : String(error);
   if (message.includes("ACTIVE_SESSION_EXISTS")) {
     return "You already have an active quest. Complete it or save it for later first.";
   }
@@ -37,6 +41,9 @@ export function engineErrorMessage(error: unknown) {
   }
   if (message.includes("RATING_REQUIRED")) {
     return "Add a star rating to log your lore.";
+  }
+  if (message.includes("reset_todays_solo_quest_completions") || message.includes("PGRST202")) {
+    return "The reset feature needs its latest database migration. Apply the reset_todays_solo_quest_completions migration, then try again.";
   }
   return message;
 }
@@ -95,6 +102,14 @@ export async function completeQuestV2(input: CompleteQuestInput): Promise<Comple
   });
   if (error) throw error;
   return data as CompletionResult;
+}
+
+/** Removes this user's solo completions for the supplied local calendar day. */
+export async function resetTodaySoloQuestCompletions(): Promise<number> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("reset_todays_solo_quest_completions", { p_today: today() });
+  if (error) throw error;
+  return Number(data ?? 0);
 }
 
 export async function fetchQuestReviews(questId: string): Promise<QuestReviewData> {

@@ -1,16 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
 import { useEffect, useState } from "react";
-import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { T } from "@/components/theme";
 import { QuestlifeFlame } from "@/components/questlife-flame";
 import { Card, EmptyState, Header, IconButton, PillStat, Screen, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuestEngine } from "@/contexts/QuestEngineContext";
+import { engineErrorMessage } from "@/services/engine/questEngineService";
 import { createQuestPost, fetchProfileOverview, togglePostLike, updateProfile } from "@/services/profile/profileService";
 import { ProfileOverview, QuestPost, levelForXp } from "@/types/profile";
 
 export function ProfileScreen() {
   const { signOut } = useAuth();
+  const { resetTodaySoloCompletions } = useQuestEngine();
   const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
   const [overview, setOverview] = useState<ProfileOverview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,6 +23,7 @@ export function ProfileScreen() {
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
+  const [resettingToday, setResettingToday] = useState(false);
   const [editForm, setEditForm] = useState({ displayName: "", username: "", bio: "", emoji: "😊", title: "" });
   const [postForm, setPostForm] = useState({ questId: "", caption: "", visibility: "friends" as "public" | "friends" | "private" });
 
@@ -81,6 +85,32 @@ export function ProfileScreen() {
     } finally {
       setSigningOut(false);
     }
+  }
+
+  function confirmResetToday() {
+    Alert.alert(
+      "Reset today's quests?",
+      "This removes today's completed solo quests and their XP so you can do them again. Party quest results are not changed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset today",
+          style: "destructive",
+          onPress: async () => {
+            setResettingToday(true);
+            try {
+              const removed = await resetTodaySoloCompletions();
+              await load();
+              Alert.alert(removed ? "Today's quests reset" : "Nothing to reset", removed ? `${removed} completed ${removed === 1 ? "quest was" : "quests were"} reset.` : "You have no completed solo quests from today.");
+            } catch (error) {
+              Alert.alert("Couldn’t reset today", engineErrorMessage(error));
+            } finally {
+              setResettingToday(false);
+            }
+          },
+        },
+      ],
+    );
   }
 
   if (loading && !overview) {
@@ -177,6 +207,11 @@ export function ProfileScreen() {
             />
           ))}
           <SoftButton label="Save" icon="checkmark" onPress={saveProfile} />
+          <View style={{ marginTop: 8, paddingTop: 14, borderTopWidth: 2, borderTopColor: T.border, gap: 8 }}>
+            <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>Quest progress</Text>
+            <Text style={{ color: T.muted, fontSize: 12, lineHeight: 18, fontWeight: "700" }}>Remove today’s completed solo quests so you can start them again. Party results stay unchanged.</Text>
+            <SoftButton label={resettingToday ? "Resetting today…" : "Reset today’s completed quests"} icon="refresh-outline" inverse color={T.red} onPress={confirmResetToday} disabled={resettingToday} />
+          </View>
           <View style={{ marginTop: 8, paddingTop: 14, borderTopWidth: 2, borderTopColor: T.border, gap: 8 }}>
             <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>Account</Text>
             <SoftButton label="Sign out" icon="log-out-outline" inverse color={T.red} onPress={() => { setEditOpen(false); setSignOutOpen(true); }} />
