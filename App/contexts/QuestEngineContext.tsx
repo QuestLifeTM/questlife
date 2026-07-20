@@ -123,7 +123,13 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
 
   const completeQuest = useCallback(async (input: CompleteQuestInput) => {
     const result = await completeQuestV2(input);
-    setEngine(await fetchEngineState());
+    // Completion has already committed at this point. A follow-up refresh is
+    // useful, but must never turn a completed quest into an apparent failure.
+    try {
+      setEngine(await fetchEngineState());
+    } catch {
+      setEngine((current) => current ? { ...current, activeSession: null } : current);
+    }
     return result;
   }, []);
 

@@ -74,5 +74,11 @@ begin
   end if;
 
   return new;
+exception
+  when others then
+    -- Notifications are secondary to a successful quest completion. Never
+    -- roll back the user's completion because a notification cannot be made.
+    raise warning 'Quest completion notification was skipped: %', sqlerrm;
+    return new;
 end;
 $$;

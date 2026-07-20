@@ -118,17 +118,33 @@ export function LogLoreFlow({
     }
     setBusy(true);
     setError(null);
+    let completion: CompletionResult;
     try {
       await onSaveDraft?.({ title: journalTitle, body: journalBody });
-      const completion = await completeQuest({ questId: quest.id, logged: true, reflection: bodyForCompletion || null, rating, review: null, reviewPublic: false, photoUrls: [] });
+      completion = await completeQuest({ questId: quest.id, logged: true, reflection: bodyForCompletion || null, rating, review: null, reviewPublic: false, photoUrls: [] });
+    } catch (nextError) {
+      setError(engineErrorMessage(nextError));
+      setBusy(false);
+      return;
+    }
+
+    try {
       if (visibility !== "private") {
         const uploaded = await Promise.all(photos.map((uri) => uploadQuestPhoto(uri)));
         await createQuestPost({ questId: quest.id, completionId: completion.completionId, caption, photoUrls: uploaded, visibility, durationSeconds });
       }
-      await Promise.all([refreshNotifications(), refreshStreaks()]);
+    } catch {
+      // A post is optional. The quest and private journal are already saved,
+      // so do not trap the user in a completion screen or invite a duplicate.
+    }
+
+    try {
+      await Promise.allSettled([refreshNotifications(), refreshStreaks()]);
       await onFinished(completion);
     } catch (nextError) {
-      setError(engineErrorMessage(nextError));
+      // The quest still completed successfully; only surface an error if the
+      // local hand-off itself fails.
+      setError("Your quest was completed, but we couldn't open your Journal. Please reopen it from the tab bar.");
     } finally {
       setBusy(false);
     }
