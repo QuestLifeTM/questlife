@@ -86,7 +86,7 @@ function ActiveQuestTabs({ active, onChange, accent }: { active: ActiveQuestTab;
   </View>;
 }
 
-const LiveMap = memo(function LiveMap({ accent, route, renderRoute, checkpoints = [], deviceLocation, liveLocation, trackingStatus, trackingMessage, notice, countdownStep, onEnableTracking }: { accent: string; route: ActiveQuestRoutePoint[]; renderRoute: ActiveQuestRoutePoint[]; checkpoints?: ActiveQuestCheckpoint[]; deviceLocation: MapCoordinate | null; liveLocation: MapCoordinate | null; trackingStatus: "idle" | "tracking" | "permission-needed" | "unavailable"; trackingMessage: string | null; notice: QuestNotice | null; countdownStep: CountdownStep | null; onEnableTracking: () => void }) {
+const LiveMap = memo(function LiveMap({ accent, route, renderRoute, checkpoints = [], deviceLocation, liveLocation, trackingStatus, trackingMessage, notice, countdownStep, onEnableTracking, onReady }: { accent: string; route: ActiveQuestRoutePoint[]; renderRoute: ActiveQuestRoutePoint[]; checkpoints?: ActiveQuestCheckpoint[]; deviceLocation: MapCoordinate | null; liveLocation: MapCoordinate | null; trackingStatus: "idle" | "tracking" | "permission-needed" | "unavailable"; trackingMessage: string | null; notice: QuestNotice | null; countdownStep: CountdownStep | null; onEnableTracking: () => void; onReady: () => void }) {
   const map = useRef<MapView>(null);
   const [followingUser, setFollowingUser] = useState(true);
   const current = route.at(-1);
@@ -103,6 +103,12 @@ const LiveMap = memo(function LiveMap({ accent, route, renderRoute, checkpoints 
     if (cameraRegion && followingUser) map.current?.animateToRegion(cameraRegion, 450);
   }, [cameraRegion?.latitude, cameraRegion?.longitude, followingUser]);
 
+  useEffect(() => {
+    // The permission fallback has no native MapView event, but its contents
+    // are fully rendered and ready to host the countdown immediately.
+    if (!region) onReady();
+  }, [onReady, region]);
+
   if (!region) return <View style={{ flex: 1, backgroundColor: "#edf0eb", alignItems: "center", justifyContent: "center", paddingHorizontal: 28, paddingBottom: BOTTOM_SHEET_CONTENT_HEIGHT, gap: 12 }}>
     <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: `${accent}1c`, alignItems: "center", justifyContent: "center" }}><Ionicons name="location-outline" size={27} color={accent} /></View>
     <Text style={{ color: T.dark, fontSize: 19, lineHeight: 25, fontWeight: "900", textAlign: "center" }}>Ready to map your quest</Text>
@@ -113,7 +119,7 @@ const LiveMap = memo(function LiveMap({ accent, route, renderRoute, checkpoints 
   </View>;
 
   return <View style={{ flex: 1, backgroundColor: "#e5e8e2" }}>
-    <MapView ref={map} style={{ flex: 1 }} initialRegion={cameraRegion ?? undefined} mapType="standard" showsPointsOfInterest={false} showsBuildings={false} showsUserLocation showsMyLocationButton={false} showsCompass toolbarEnabled={false} onPanDrag={() => setFollowingUser(false)}>
+    <MapView ref={map} style={{ flex: 1 }} initialRegion={cameraRegion ?? undefined} mapType="standard" showsPointsOfInterest={false} showsBuildings={false} showsUserLocation showsMyLocationButton={false} showsCompass toolbarEnabled={false} onMapReady={onReady} onPanDrag={() => setFollowingUser(false)}>
       {polylineCoordinates.length > 1 ? <Polyline coordinates={polylineCoordinates} strokeColor={accent} strokeWidth={5} lineCap="round" lineJoin="round" /> : null}
       {route[0] ? <Marker coordinate={{ latitude: route[0].latitude, longitude: route[0].longitude }} anchor={{ x: 0.5, y: 0.5 }} title="Quest started"><View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 4, borderColor: T.white, backgroundColor: accent }} /></Marker> : null}
       {current && route.length > 1 ? <Marker coordinate={{ latitude: current.latitude, longitude: current.longitude }} anchor={{ x: 0.5, y: 0.5 }} title="Current route end"><View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 4, borderColor: T.white, backgroundColor: T.dark }} /></Marker> : null}
@@ -147,7 +153,7 @@ export function ActiveQuestScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { engine, refresh } = useQuestEngine();
-  const { snapshot, liveLocation, trackingMessage, pause, resume, saveEntry, enableTracking, addPhoto, finishLocalQuest } = useActiveQuest();
+  const { snapshot, liveLocation, loading: activeQuestLoading, trackingMessage, pause, resume, saveEntry, enableTracking, addPhoto, finishLocalQuest } = useActiveQuest();
   const { getQuest } = useContent();
   const [tab, setTab] = useState<ActiveQuestTab>("map");
   const [now, setNow] = useState(Date.now());
@@ -155,6 +161,7 @@ export function ActiveQuestScreen() {
   const [takingPhoto, setTakingPhoto] = useState(false);
   const [countdownStep, setCountdownStep] = useState<CountdownStep | null>(null);
   const [countdownLaunchAt, setCountdownLaunchAt] = useState<number | null>(null);
+  const [mapReadyForSession, setMapReadyForSession] = useState<string | null>(null);
   const [photoSavedVisible, setPhotoSavedVisible] = useState(false);
   const [finishHintVisible, setFinishHintVisible] = useState(false);
   const [deviceLocation, setDeviceLocation] = useState<MapCoordinate | null>(null);
@@ -188,7 +195,9 @@ export function ActiveQuestScreen() {
   const [entryBody, setEntryBody] = useState("");
   const paused = snapshot?.session.recordingState === "paused";
   const countdownStartedAt = snapshot?.session.startedAt ?? session?.startedAt;
+  const mapReady = mapReadyForSession === session?.id;
   const statusNotice: QuestNotice = photoSavedVisible ? "photo-saved" : finishHintVisible ? "hold-to-finish" : paused ? "paused" : "active";
+  const handleMapReady = useCallback(() => { if (session?.id) setMapReadyForSession(session.id); }, [session?.id]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1_000);
@@ -229,20 +238,25 @@ export function ActiveQuestScreen() {
   }, [resolveDeviceLocation, tab]);
 
   const beginQuestRoute = useCallback(async () => {
+    if (snapshot?.session.recordingState === "paused") {
+      await resume();
+      return;
+    }
     await enableTracking();
     await resolveDeviceLocation();
-  }, [enableTracking, resolveDeviceLocation]);
+  }, [enableTracking, resolveDeviceLocation, resume, snapshot?.session.recordingState]);
 
   useEffect(() => {
     if (!session?.id || !countdownStartedAt || Date.now() - new Date(countdownStartedAt).getTime() > 15_000) {
       setCountdownLaunchAt(null);
       return;
     }
+    if (!snapshot || activeQuestLoading || !mapReady) return;
     if (countdownSessionRef.current === session.id) return;
     countdownSessionRef.current = session.id;
     lastCountdownStepRef.current = null;
     setCountdownLaunchAt(Date.now());
-  }, [countdownStartedAt, session?.id]);
+  }, [activeQuestLoading, countdownStartedAt, mapReady, session?.id, snapshot]);
 
   useEffect(() => {
     if (!session?.id || !countdownLaunchAt) return;
@@ -318,7 +332,7 @@ export function ActiveQuestScreen() {
       <View style={{ marginTop: 16 }}><ActiveQuestTabs active={tab} onChange={setTab} accent={accent} /></View>
     </View>
     <View style={{ flex: 1 }}>
-      {tab === "map" ? <LiveMap accent={accent} route={snapshot?.route ?? []} renderRoute={snapshot?.renderRoute ?? []} deviceLocation={deviceLocation} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={countdownStep ? null : statusNotice} countdownStep={countdownStep} onEnableTracking={handleEnableRouteRecording} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} /> : <EntryPlaceholder quest={quest} title={entryTitle} body={entryBody} onChangeTitle={setEntryTitle} onChangeBody={setEntryBody} />}
+      {tab === "map" ? <LiveMap accent={accent} route={snapshot?.route ?? []} renderRoute={snapshot?.renderRoute ?? []} deviceLocation={deviceLocation} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={countdownStep ? null : statusNotice} countdownStep={countdownStep} onEnableTracking={handleEnableRouteRecording} onReady={handleMapReady} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} /> : <EntryPlaceholder quest={quest} title={entryTitle} body={entryBody} onChangeTitle={setEntryTitle} onChangeBody={setEntryBody} />}
     </View>
     <BlurView intensity={12} tint="light" style={{ position: "absolute", left: 0, right: 0, bottom: 0, minHeight: insets.bottom + BOTTOM_SHEET_CONTENT_HEIGHT, paddingTop: 12, paddingBottom: Math.max(insets.bottom + 8, 22), paddingHorizontal: 32, borderTopLeftRadius: 34, borderTopRightRadius: 34, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.48)", borderTopWidth: 1, borderColor: "rgba(232,223,213,0.58)", boxShadow: "0px -3px 16px rgba(61,52,56,0.10)", justifyContent: "space-between" }}>
       <View style={{ alignSelf: "center", width: 42, height: 4, borderRadius: 2, backgroundColor: "rgba(210,199,188,0.70)" }} />
@@ -343,6 +357,6 @@ export function ActiveQuestScreen() {
         <View style={{ position: "absolute", right: 32, top: 12, alignItems: "center" }}><RoundAction icon={takingPhoto ? "hourglass" : "camera"} label="Take photo" color={accent} inverse onPress={() => void takePhoto()} /></View>
       </View>
     </BlurView>
-    <LogLoreFlow visible={completeVisible} quest={quest} initialReflection={snapshot?.session.entryBody ?? ""} photoUrls={(snapshot?.photos ?? []).flatMap((photo) => photo.remotePath ? [photo.remotePath] : [])} onClose={() => setCompleteVisible(false)} onFinished={async () => { await finishLocalQuest(); await refresh(); setCompleteVisible(false); router.replace("/(tabs)/journal"); }} />
+    <LogLoreFlow visible={completeVisible} quest={quest} initialTitle={snapshot?.session.entryTitle ?? ""} initialReflection={snapshot?.session.entryBody ?? ""} photoUris={(snapshot?.photos ?? []).map((photo) => photo.uri)} durationSeconds={Math.round((snapshot?.session.activeDurationMs ?? 0) / 1_000)} onSaveDraft={(draft) => saveEntry(draft)} onClose={() => setCompleteVisible(false)} onFinished={async () => { await finishLocalQuest(); await refresh(); setCompleteVisible(false); router.replace("/(tabs)/journal"); }} />
   </View>;
 }

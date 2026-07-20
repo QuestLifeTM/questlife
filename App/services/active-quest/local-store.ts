@@ -107,9 +107,11 @@ export async function ensureActiveQuestSession(input: { sessionId: string; quest
         sessionId: input.sessionId,
         questId: input.questId,
         startedAt: input.startedAt,
-        recordingState: "recording",
-        pausedAt: null,
-        activeSince: input.startedAt,
+        // The active-quest screen owns the start sequence. A new session is
+        // intentionally idle until its 3-2-1-GO countdown has completed.
+        recordingState: "paused",
+        pausedAt: input.startedAt,
+        activeSince: null,
         activeDurationMs: 0,
         distanceMeters: 0,
         entryTitle: input.entryTitle,

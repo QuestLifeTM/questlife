@@ -1,4 +1,4 @@
-import { Profile, ProfileEditInput, ProfileOverview, QuestPost, RequiredProfileName } from "@/types/profile";
+import { Profile, ProfileEditInput, ProfileOverview, QuestFeedPost, QuestPost, RequiredProfileName } from "@/types/profile";
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { toLocalDateKey } from "@/services/journal/journalService";
@@ -103,6 +103,7 @@ export async function createQuestPost(input: {
   completionId?: string | null;
   caption?: string | null;
   photoUrls?: string[];
+  durationSeconds?: number | null;
   visibility?: "public" | "friends" | "private";
 }) {
   assertSupabaseConfigured();
@@ -116,9 +117,17 @@ export async function createQuestPost(input: {
     completion_id: input.completionId ?? null,
     caption: input.caption?.trim() || null,
     photo_urls: input.photoUrls ?? [],
+    duration_seconds: input.durationSeconds ?? null,
     visibility: input.visibility ?? "friends",
   });
   if (error) throw error;
+}
+
+export async function fetchQuestSocialFeed(scope: "public" | "friends") {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("get_quest_social_feed", { p_scope: scope, p_limit: 30 });
+  if (error) throw error;
+  return (data ?? []) as QuestFeedPost[];
 }
 
 export async function deleteQuestPost(postId: string) {
@@ -144,4 +153,4 @@ export async function togglePostLike(postId: string, liked: boolean) {
   return true;
 }
 
-export type { ProfileOverview, QuestPost };
+export type { ProfileOverview, QuestFeedPost, QuestPost };

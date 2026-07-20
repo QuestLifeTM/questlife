@@ -18,9 +18,30 @@ export type QuestPost = {
   questXp: number;
   caption: string | null;
   photoUrls: string[];
+  durationSeconds?: number | null;
   visibility: "public" | "friends" | "private";
   likeCount: number;
   likedByMe: boolean;
+  createdAt: string;
+};
+
+export type QuestFeedPost = {
+  id: string;
+  userId: string;
+  username: string | null;
+  displayName: string;
+  emoji: string;
+  avatarColor: string;
+  questId: string;
+  questTitle: string;
+  questCategory: string;
+  questColor: string;
+  caption: string | null;
+  photoUrls: string[];
+  durationSeconds: number | null;
+  visibility: "public" | "friends" | "private";
+  likeCount: number;
+  commentCount: number;
   createdAt: string;
 };
 

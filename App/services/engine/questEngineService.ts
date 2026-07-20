@@ -36,6 +36,9 @@ export function engineErrorMessage(error: unknown) {
   if (message.includes("QUEST_ALREADY_COMPLETED")) {
     return "You've already completed this quest.";
   }
+  if (message.includes("ACTIVE_SESSION_NOT_FOUND")) {
+    return "This run was reset before it could be finished. Start the quest again to create a fresh active run.";
+  }
   if (message.includes("QUEST_NOT_AVAILABLE")) {
     return "This quest is no longer available.";
   }
