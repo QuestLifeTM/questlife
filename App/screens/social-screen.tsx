@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { Share } from "react-native";
@@ -23,6 +24,16 @@ type FeedScope = "public" | "friends";
 type CreatorStep = "source" | "quests" | "details";
 type PartyQuestFilters = { duration: string | null; difficulty: QuestDifficulty | null };
 type PartyQuestControl = "sort" | "filters" | null;
+
+function FriendsHeaderButton({ onPress }: { onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel="Open Friends" onPress={() => { haptic(); onPress(); }} style={({ pressed }) => ({ width: 58, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: T.dark, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.68)", borderBottomWidth: 5, borderBottomColor: "#292225", boxShadow: "0px 7px 14px rgba(61,52,56,0.20)", transform: [{ translateY: pressed ? 3 : 0 }] })}><View style={{ width: 34, height: 29, borderRadius: 14.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.09)" }}><Ionicons name="people" size={21} color={T.white} /></View></Pressable>;
+}
+
+function FeedScopeTab({ scope, active, onPress }: { scope: FeedScope; active: boolean; onPress: () => void }) {
+  const icon = scope === "public" ? "globe-outline" : "people-outline";
+  const label = scope === "public" ? "Public" : "Friends";
+  return <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={`${label} feed`} onPress={onPress} style={({ pressed }) => ({ flex: 1, minHeight: 66, alignItems: "center", justifyContent: "center", gap: 4, borderBottomWidth: 4, borderBottomColor: active ? T.blue : "transparent", opacity: pressed ? 0.68 : 1 })}><View style={{ width: 36, height: 30, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: active ? `${T.blue}14` : "transparent" }}><Ionicons name={icon} size={22} color={active ? T.blue : T.muted} /></View><Text style={{ color: active ? T.dark : T.muted, fontSize: 12, fontWeight: "900" }}>{label}</Text></Pressable>;
+}
 
 function sortPartyQuests(list: Quest[], sortBy: string) {
   const difficultyOrder: Record<QuestDifficulty, number> = { EASY: 0, MEDIUM: 1, HARD: 2, FORMIDABLE: 3 };
@@ -75,11 +86,18 @@ function formatPostDuration(seconds: number | null) {
 
 function FeedMedia({ post }: { post: QuestFeedPost }) {
   const images = post.photoUrls.slice(0, 4);
-  const overlay = <View pointerEvents="none" style={{ position: "absolute", left: 16, right: 16, top: 15, bottom: 14, justifyContent: "space-between" }}><View style={{ alignSelf: "flex-start", borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "rgba(61,52,56,0.72)", flexDirection: "row", gap: 6, alignItems: "center" }}><Ionicons name="time-outline" size={14} color={T.white} /><Text style={{ color: T.white, fontSize: 13, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{formatPostDuration(post.durationSeconds) ?? "Quest"}</Text></View><View style={{ gap: 4 }}><Text style={{ color: T.white, fontSize: 21, lineHeight: 26, fontWeight: "900" }}>{post.questTitle}</Text>{post.caption ? <Text numberOfLines={3} style={{ color: T.white, fontSize: 13, lineHeight: 18, fontWeight: "700" }}>{post.caption}</Text> : null}<View style={{ flexDirection: "row", alignItems: "center", gap: 9, marginTop: 4 }}><View style={{ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: T.white }}><Ionicons name="heart-outline" size={20} color={T.dark} /></View><View style={{ borderRadius: 16, paddingHorizontal: 9, paddingVertical: 7, backgroundColor: "rgba(61,52,56,0.72)", flexDirection: "row", gap: 5, alignItems: "center" }}><Ionicons name="heart" size={13} color="#ff8c7a" /><Text style={{ color: T.white, fontSize: 11, fontWeight: "900" }}>{post.likeCount}</Text></View><View style={{ borderRadius: 16, paddingHorizontal: 9, paddingVertical: 7, backgroundColor: "rgba(61,52,56,0.72)", flexDirection: "row", gap: 5, alignItems: "center" }}><Ionicons name="chatbubble" size={12} color={T.white} /><Text style={{ color: T.white, fontSize: 11, fontWeight: "900" }}>{post.commentCount}</Text></View></View></View></View>;
-  if (!images.length) return <View style={{ minHeight: 250, borderRadius: 25, overflow: "hidden", backgroundColor: post.questColor }}><View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(61,52,56,0.28)" }} />{overlay}</View>;
-  return <View style={{ borderRadius: 25, overflow: "hidden", backgroundColor: T.border, minHeight: images.length === 1 ? 320 : 390 }}>
-    {images.length === 1 ? <Image source={{ uri: images[0] }} style={{ width: "100%", height: 320 }} resizeMode="cover" /> : images.length === 2 ? <><Image source={{ uri: images[0] }} style={{ width: "100%", height: 214 }} resizeMode="cover" /><Image source={{ uri: images[1] }} style={{ width: "100%", height: 176 }} resizeMode="cover" /></> : <><Image source={{ uri: images[0] }} style={{ width: "100%", height: 208 }} resizeMode="cover" /><View style={{ flexDirection: "row", height: 182, gap: 2 }}>{images.slice(1).map((uri) => <Image key={uri} source={{ uri }} style={{ flex: 1, height: "100%" }} resizeMode="cover" />)}</View></>}
-    <View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(25,23,25,0.30)" }} />{overlay}
+  const sharedDuration = typeof post.stats?.durationSeconds === "number" ? post.stats.durationSeconds : null;
+  const height = images.length === 1 ? 360 : images.length === 2 ? 348 : 400;
+  const photo = (uri: string, index: number, style: object) => <Image key={`${uri}-${index}`} accessibilityLabel={`Quest photo ${index + 1}`} source={{ uri }} style={style} resizeMode="cover" />;
+  const media = !images.length ? <View style={{ flex: 1, backgroundColor: post.questColor }} /> : images.length === 1 ? photo(images[0], 0, { width: "100%", height: "100%" }) : images.length === 2 ? <View style={{ flex: 1, flexDirection: "row" }}>{photo(images[0], 0, { flex: 1, height: "100%" })}{photo(images[1], 1, { flex: 1, height: "100%" })}</View> : images.length === 3 ? <View style={{ flex: 1 }}>{photo(images[0], 0, { width: "100%", height: "60%" })}<View style={{ flex: 1, flexDirection: "row" }}>{photo(images[1], 1, { flex: 1, height: "100%" })}{photo(images[2], 2, { flex: 1, height: "100%" })}</View></View> : <View style={{ flex: 1 }}><View style={{ flex: 1, flexDirection: "row" }}>{photo(images[0], 0, { flex: 1, height: "100%" })}{photo(images[1], 1, { flex: 1, height: "100%" })}</View><View style={{ flex: 1, flexDirection: "row" }}>{photo(images[2], 2, { flex: 1, height: "100%" })}{photo(images[3], 3, { flex: 1, height: "100%" })}</View></View>;
+
+  return <View style={{ height, borderRadius: 28, overflow: "hidden", backgroundColor: T.dark }}>
+    {media}
+    <LinearGradient pointerEvents="none" colors={["rgba(25,23,25,0.44)", "rgba(25,23,25,0.05)", "rgba(25,23,25,0.78)"]} locations={[0, 0.42, 1]} style={{ position: "absolute", inset: 0 }} />
+    <View pointerEvents="none" style={{ position: "absolute", left: 16, right: 16, top: 15, bottom: 15, justifyContent: "space-between" }}>
+      {sharedDuration !== null ? <View style={{ alignSelf: "flex-start", minHeight: 32, borderRadius: 16, paddingHorizontal: 10, backgroundColor: "rgba(28,24,27,0.68)", borderWidth: 1, borderColor: "rgba(255,255,255,0.22)", flexDirection: "row", alignItems: "center", gap: 6 }}><Ionicons name="time-outline" size={14} color={T.white} /><Text style={{ color: T.white, fontSize: 12, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{formatPostDuration(sharedDuration)}</Text></View> : <View />}
+      <View style={{ gap: 5 }}><Text numberOfLines={2} style={{ color: T.white, fontSize: 23, lineHeight: 27, fontWeight: "900", textShadowColor: "rgba(0,0,0,0.22)", textShadowRadius: 4 }}>{post.postTitle?.trim() || post.questTitle}</Text>{post.caption ? <Text numberOfLines={2} style={{ color: "rgba(255,255,255,0.96)", fontSize: 14, lineHeight: 19, fontWeight: "700" }}>{post.caption}</Text> : null}<View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 3 }}><View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.white, alignItems: "center", justifyContent: "center" }}><Ionicons name="heart-outline" size={21} color={T.dark} /></View><View style={{ minHeight: 32, borderRadius: 16, paddingHorizontal: 10, backgroundColor: "rgba(28,24,27,0.68)", flexDirection: "row", alignItems: "center", gap: 5 }}><Ionicons name="heart" size={13} color="#ff8c7a" /><Text style={{ color: T.white, fontSize: 11, fontWeight: "900" }}>{post.likeCount}</Text></View><View style={{ minHeight: 32, borderRadius: 16, paddingHorizontal: 10, backgroundColor: "rgba(28,24,27,0.68)", flexDirection: "row", alignItems: "center", gap: 5 }}><Ionicons name="chatbubble" size={12} color={T.white} /><Text style={{ color: T.white, fontSize: 11, fontWeight: "900" }}>{post.commentCount}</Text></View></View></View>
+    </View>
   </View>;
 }
 
@@ -621,19 +639,23 @@ export function SocialScreen() {
   useEffect(() => { void loadFeed(); }, [feedScope]);
 
   return (
-    <Screen padded={false} contentStyle={{ alignItems: "center" }}>
-      <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
-        <Header title="Social" subtitle={tab === "parties" ? "Party up" : "See what your quest crew is doing"} animated={false} right={tab === "parties" ? <IconButton icon="information-circle-outline" label="How Parties work" onPress={() => setInfoOpen(true)} color={T.blue} /> : <IconButton icon="person-add-outline" label="Find and add friends" onPress={() => router.push("/add-friends")} color={T.blue} />} />
+    <Screen scroll={false} padded={false} contentStyle={{ alignItems: "center" }}>
+      <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 14, transform: [{ translateX: safeAreaOffset }] }}>
+        <Header title="Social" subtitle="Quest crew updates" animated={false} right={<FriendsHeaderButton onPress={() => router.push("/friends")} />} />
         <View style={{ flexDirection: "row", padding: 4, borderRadius: 24, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }}>
           {(["feed", "parties"] as Tab[]).map((item) => <Pressable key={item} onPress={() => setTab(item)} style={{ flex: 1, minHeight: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: tab === item ? T.dark : "transparent" }}><Text style={{ color: tab === item ? T.white : T.muted, fontSize: 13, fontWeight: "900", textTransform: "capitalize" }}>{item}</Text></Pressable>)}
         </View>
-        {error ? <Card style={{ borderRadius: 20, gap: 8 }}><Text style={{ color: T.red, fontWeight: "800" }}>{error}</Text><SoftButton label="Retry" icon="refresh" inverse color={T.blue} onPress={refresh} /></Card> : null}
+        {tab === "feed" ? <View style={{ marginTop: 3, paddingTop: 13, borderTopWidth: 1, borderTopColor: "rgba(232,223,213,0.82)" }}><View accessibilityRole="tablist" style={{ flexDirection: "row", borderBottomWidth: 2, borderBottomColor: T.border, backgroundColor: "rgba(255,255,255,0.38)" }}>{(["public", "friends"] as FeedScope[]).map((scope) => <FeedScopeTab key={scope} scope={scope} active={feedScope === scope} onPress={() => setFeedScope(scope)} />)}</View></View> : null}
+      </View>
 
-        {tab === "feed" ? <View style={{ gap: 14 }}>
-          <View style={{ flexDirection: "row", gap: 8, padding: 4, borderRadius: 18, backgroundColor: "#f7f3ee", borderWidth: 1, borderColor: T.border }}>{(["public", "friends"] as FeedScope[]).map((scope) => <Pressable key={scope} accessibilityRole="tab" accessibilityState={{ selected: feedScope === scope }} onPress={() => setFeedScope(scope)} style={({ pressed }) => ({ flex: 1, minHeight: 42, borderRadius: 13, backgroundColor: feedScope === scope ? T.white : "transparent", alignItems: "center", justifyContent: "center", borderWidth: feedScope === scope ? 1 : 0, borderColor: feedScope === scope ? `${T.blue}45` : "transparent", transform: [{ scale: pressed ? 0.98 : 1 }] })}><Text style={{ color: feedScope === scope ? T.blue : T.muted, fontSize: 13, fontWeight: "900", textTransform: "capitalize" }}>{scope}</Text></Pressable>)}</View>
+      <ScrollView style={{ flex: 1, width: "100%" }} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingTop: 20, paddingBottom: 112 }}>
+        <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
+        {error ? <Card style={{ borderRadius: 20, gap: 8 }}><Text style={{ color: T.red, fontWeight: "800" }}>{error}</Text><SoftButton label="Retry" icon="refresh" inverse color={T.blue} onPress={refresh} /></Card> : null}
+        {tab === "feed" ? <View style={{ gap: 16 }}>
           {feedError ? <Card style={{ borderRadius: 20, gap: 8 }}><Text style={{ color: T.red, fontWeight: "800" }}>{feedError}</Text><SoftButton label="Try again" icon="refresh" inverse color={T.blue} onPress={() => void loadFeed()} /></Card> : null}
           {feedLoading ? <EmptyState emoji="⏳" title="Loading feed" body="Finding fresh quest moments…" /> : feed.length ? feed.map((post) => <QuestFeedCard key={post.id} post={post} />) : <EmptyState emoji={feedScope === "public" ? "🌍" : "🤝"} title={feedScope === "public" ? "No public posts yet" : "Your Friends feed is quiet"} body={feedScope === "public" ? "Complete a quest and share the first story with everyone." : "Follow friends, then their Friends-only quest posts will appear here."} />}
         </View> : <View style={{ gap: 18 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><View><Text style={{ color: T.dark, fontSize: 20, fontWeight: "900" }}>Parties</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>Quest together</Text></View><IconButton icon="information-circle-outline" label="How Parties work" onPress={() => setInfoOpen(true)} color={T.blue} /></View>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <ActionTile icon="mail-unread-outline" title="Party Invites" color={T.purple} badge={overview?.partyInvites.length} onPress={() => setInviteOpen(true)} />
             <ActionTile icon="key-outline" title="Join with a Code" color={T.blue} onPress={() => setCodeOpen(true)} />
@@ -646,7 +668,8 @@ export function SocialScreen() {
             {partyHub?.past.length ? partyHub.past.map((party) => <PartyCard key={party.id} party={party} />) : <Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>Finished Parties appear here.</Text>}
           </View>
         </View>}
-      </View>
+        </View>
+      </ScrollView>
 
       <CreatePartySheet visible={creatorOpen} onClose={() => setCreatorOpen(false)} />
       <Sheet visible={infoOpen} onClose={() => setInfoOpen(false)}><View style={{ padding: 24, gap: 14 }}><View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>How Parties work</Text><IconButton icon="close" label="Close Party information" onPress={() => setInfoOpen(false)} color={T.muted} /></View><Text style={{ color: T.muted, fontSize: 14, lineHeight: 21, fontWeight: "700" }}>Pick quests. Bring your people. Earn XP together.</Text><Choice selected title="Free for All" body="Any Party quest · base XP ranks." icon="walk" color={T.blue} onPress={() => undefined} /><Choice selected title="Everyone Together" body="Host starts · fastest earns more." icon="people" color={T.purple} onPress={() => undefined} /></View></Sheet>

@@ -119,6 +119,7 @@ function AppLayout() {
         <Stack.Screen name="streak-invite" options={{ presentation: "card" }} />
         <Stack.Screen name="party/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="notifications" options={{ presentation: "card" }} />
+        <Stack.Screen name="friends" options={{ presentation: "card" }} />
         <Stack.Screen name="add-friends" options={{ presentation: "card" }} />
         <Stack.Screen name="add-friend/[userId]" options={{ presentation: "card" }} />
       </Stack>

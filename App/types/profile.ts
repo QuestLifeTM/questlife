@@ -16,13 +16,23 @@ export type QuestPost = {
   questCategory: string;
   questColor: string;
   questXp: number;
+  postTitle: string | null;
   caption: string | null;
   photoUrls: string[];
   durationSeconds?: number | null;
+  stats: QuestPostStats;
   visibility: "public" | "friends" | "private";
   likeCount: number;
   likedByMe: boolean;
   createdAt: string;
+};
+
+/** Only the keys present here are intentionally shown on a shared post. */
+export type QuestPostStats = {
+  photos?: number;
+  distanceMeters?: number;
+  durationSeconds?: number;
+  rewardXp?: number;
 };
 
 export type QuestFeedPost = {
@@ -36,9 +46,11 @@ export type QuestFeedPost = {
   questTitle: string;
   questCategory: string;
   questColor: string;
+  postTitle: string | null;
   caption: string | null;
   photoUrls: string[];
   durationSeconds: number | null;
+  stats: QuestPostStats;
   visibility: "public" | "friends" | "private";
   likeCount: number;
   commentCount: number;

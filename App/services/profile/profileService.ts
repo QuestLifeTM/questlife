@@ -1,4 +1,4 @@
-import { Profile, ProfileEditInput, ProfileOverview, QuestFeedPost, QuestPost, RequiredProfileName } from "@/types/profile";
+import { Profile, ProfileEditInput, ProfileOverview, QuestFeedPost, QuestPost, QuestPostStats, RequiredProfileName } from "@/types/profile";
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { toLocalDateKey } from "@/services/journal/journalService";
@@ -101,9 +101,11 @@ export async function saveRequiredProfileName(firstName: string, lastName: strin
 export async function createQuestPost(input: {
   questId: string;
   completionId?: string | null;
+  title?: string | null;
   caption?: string | null;
   photoUrls?: string[];
   durationSeconds?: number | null;
+  stats?: QuestPostStats;
   visibility?: "public" | "friends" | "private";
 }) {
   assertSupabaseConfigured();
@@ -111,16 +113,36 @@ export async function createQuestPost(input: {
   if (userError) throw userError;
   if (!userData.user) throw new Error("No authenticated user.");
 
-  const { error } = await supabase.from("quest_posts").insert({
+  const currentPayload = {
+    user_id: userData.user.id,
+    quest_id: input.questId,
+    completion_id: input.completionId ?? null,
+    post_title: input.title?.trim() || null,
+    caption: input.caption?.trim() || null,
+    photo_urls: input.photoUrls ?? [],
+    duration_seconds: input.durationSeconds ?? null,
+    post_stats: input.stats ?? {},
+    visibility: input.visibility ?? "friends",
+  };
+  const { data, error } = await supabase.from("quest_posts").insert(currentPayload).select("id").single();
+  if (!error) return data;
+
+  // The composition screen can be updated before its accompanying database
+  // migration reaches a project. Fall back to the original post shape so a
+  // completed quest can still be published while surfacing other real errors.
+  const missingPostColumns = error.code === "42703" || /post_(title|stats)|duration_seconds/i.test(error.message);
+  if (!missingPostColumns) throw error;
+
+  const { data: legacyData, error: legacyError } = await supabase.from("quest_posts").insert({
     user_id: userData.user.id,
     quest_id: input.questId,
     completion_id: input.completionId ?? null,
     caption: input.caption?.trim() || null,
     photo_urls: input.photoUrls ?? [],
-    duration_seconds: input.durationSeconds ?? null,
     visibility: input.visibility ?? "friends",
-  });
-  if (error) throw error;
+  }).select("id").single();
+  if (legacyError) throw legacyError;
+  return legacyData;
 }
 
 export async function fetchQuestSocialFeed(scope: "public" | "friends") {

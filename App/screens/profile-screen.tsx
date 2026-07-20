@@ -182,7 +182,7 @@ export function ProfileScreen() {
                   <Image source={{ uri: post.photoUrls[0] }} style={{ width: "100%", height: "100%" }} />
                 ) : (
                   <View style={{ flex: 1, backgroundColor: `${post.questColor}22`, alignItems: "center", justifyContent: "center", padding: 10 }}>
-                    <Text style={{ color: T.dark, fontWeight: "900", textAlign: "center", fontSize: 13 }} numberOfLines={3}>{post.questTitle}</Text>
+                    <Text style={{ color: T.dark, fontWeight: "900", textAlign: "center", fontSize: 13 }} numberOfLines={3}>{post.postTitle?.trim() || post.questTitle}</Text>
                   </View>
                 )}
               </Pressable>

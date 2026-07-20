@@ -101,8 +101,23 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
 
   const startQuest = useCallback(
     async (input: { questId: string; source?: "explore" | "pack" | "plan" | "featured" | "saved" | "social"; packId?: string | null }) => {
-      await startQuestSession(input);
-      setEngine(await fetchEngineState());
+      const session = await startQuestSession(input);
+      try {
+        setEngine(await fetchEngineState());
+      } catch {
+        // The session exists remotely. Preserve that fact locally so a retry
+        // cannot accidentally try to start a second active quest.
+        setEngine((current) => current ? {
+          ...current,
+          activeSession: {
+            id: session.sessionId,
+            questId: input.questId,
+            source: input.source ?? "explore",
+            packId: input.packId ?? null,
+            startedAt: new Date().toISOString(),
+          },
+        } : current);
+      }
     },
     [],
   );
@@ -111,14 +126,22 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     const sessionId = engine?.activeSession?.id;
     if (!sessionId) return;
     await abandonQuestSession(sessionId);
-    setEngine(await fetchEngineState());
+    try {
+      setEngine(await fetchEngineState());
+    } catch {
+      setEngine((current) => current ? { ...current, activeSession: null } : current);
+    }
   }, [engine?.activeSession?.id]);
 
   const saveActiveForLater = useCallback(async () => {
     const sessionId = engine?.activeSession?.id;
     if (!sessionId) return;
     await saveSessionForLater(sessionId);
-    setEngine(await fetchEngineState());
+    try {
+      setEngine(await fetchEngineState());
+    } catch {
+      setEngine((current) => current ? { ...current, activeSession: null } : current);
+    }
   }, [engine?.activeSession?.id]);
 
   const completeQuest = useCallback(async (input: CompleteQuestInput) => {
@@ -135,7 +158,11 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
 
   const resetTodaySoloCompletions = useCallback(async () => {
     const removedCount = await resetTodaySoloQuestCompletions();
-    setEngine(await fetchEngineState());
+    try {
+      setEngine(await fetchEngineState());
+    } catch {
+      setEngine((current) => current ? { ...current, dailyUsed: Math.max(0, current.dailyUsed - removedCount) } : current);
+    }
     return removedCount;
   }, []);
 

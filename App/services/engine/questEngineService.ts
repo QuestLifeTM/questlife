@@ -73,13 +73,14 @@ export async function startQuestSession(input: {
   packId?: string | null;
 }) {
   assertSupabaseConfigured();
-  const { error } = await supabase.rpc("start_quest_session", {
+  const { data, error } = await supabase.rpc("start_quest_session", {
     p_quest_id: input.questId,
     p_today: today(),
     p_source: input.source ?? "explore",
     p_pack_id: input.packId ?? null,
   });
   if (error) throw error;
+  return data as { sessionId: string };
 }
 
 export async function abandonQuestSession(sessionId: string) {
