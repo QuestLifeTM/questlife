@@ -6,11 +6,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Alert, Animated, Easing, FlatList, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import Reanimated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { QuestFeedCard } from "@/components/quest-feed-card";
 import { QuestlifeFlame } from "@/components/questlife-flame";
 import { categoryColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, haptic, Header, IconButton, PillStat, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { categories, sortOptions } from "@/data/questlife";
 import { fetchQuestSocialFeed } from "@/services/profile/profileService";
@@ -44,14 +46,6 @@ function sortPartyQuests(list: Quest[], sortBy: string) {
   return copy;
 }
 
-function Avatar({ emoji, color, size = 44 }: { emoji: string; color: string; size?: number }) {
-  return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: `${color}22`, borderWidth: 2, borderColor: `${color}66`, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ fontSize: size * 0.42 }}>{emoji}</Text>
-    </View>
-  );
-}
-
 function SectionTitle({ title, detail }: { title: string; detail?: string }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
@@ -64,7 +58,7 @@ function SectionTitle({ title, detail }: { title: string; detail?: string }) {
 function FriendRow({ friend, onChallenge, onShare }: { friend: SocialFriend; onChallenge: () => void; onShare: () => void }) {
   return (
     <Card style={{ borderRadius: 22, padding: 14, flexDirection: "row", alignItems: "center", gap: 12, boxShadow: "none" }}>
-      <Avatar emoji={friend.emoji} color={friend.avatarColor} />
+      <ProfileAvatar uri={friend.avatarUrl} color={friend.avatarColor} label={`${friend.displayName}'s profile photo`} />
       <View style={{ flex: 1, gap: 3 }}>
         <Text style={{ color: T.dark, fontSize: 16, fontWeight: "900" }}>{friend.displayName}</Text>
         <Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }} numberOfLines={1}>{friend.lastQuestTitle ? `Last: ${friend.lastQuestTitle}` : `@${friend.username ?? "adventurer"}`}</Text>
@@ -154,7 +148,7 @@ function PartyCard({ party }: { party: Party }) {
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             {party.members.slice(0, 4).map((member, index) => (
               <View key={member.userId} style={{ marginLeft: index ? -8 : 0, zIndex: 4 - index }}>
-                <Avatar emoji={member.emoji} color={member.avatarColor} size={28} />
+                <ProfileAvatar uri={member.avatarUrl} color={member.avatarColor} size={28} label={`${member.displayName}'s profile photo`} />
               </View>
             ))}
           </View>
@@ -568,6 +562,7 @@ export function SocialScreen() {
   const router = useRouter();
   const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
   const { quests } = useContent();
+  const { profileNameVersion } = useAuth();
   const { overview, partyHub, loading, error, refresh, respondRequest, challengeFriend, shareQuestWith, respondToPartyInvite, joinPartyWithCode } = useSocial();
   const [tab, setTab] = useState<Tab>("feed");
   const [feedScope, setFeedScope] = useState<FeedScope>("public");
@@ -593,7 +588,7 @@ export function SocialScreen() {
     finally { setFeedLoading(false); }
   };
 
-  useEffect(() => { void loadFeed(); }, [feedScope]);
+  useEffect(() => { void loadFeed(); }, [feedScope, profileNameVersion]);
 
   return (
     <Screen scroll={false} padded={false} contentStyle={{ alignItems: "center" }}>

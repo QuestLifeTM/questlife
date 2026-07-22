@@ -1,13 +1,75 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { Sheet } from "@/components/ui";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { T } from "@/components/theme";
+import { Sheet } from "@/components/ui";
 import { addQuestPostComment, fetchQuestPostComments, QuestPostComment } from "@/services/profile/commentService";
 
+function CommentAvatar({ comment, size = 36 }: { comment: QuestPostComment; size?: number }) {
+  return <ProfileAvatar uri={comment.avatarUrl} color={comment.avatarColor} size={size} label={`${comment.displayName}'s profile photo`} />;
+}
+
 export function QuestCommentsSheet({ postId, visible, onClose, onCountChange }: { postId: string; visible: boolean; onClose: () => void; onCountChange: (count: number) => void }) {
-  const [comments, setComments] = useState<QuestPostComment[]>([]); const [draft, setDraft] = useState(""); const [replyTo, setReplyTo] = useState<QuestPostComment | null>(null); const [sending, setSending] = useState(false);
-  useEffect(() => { if (visible) fetchQuestPostComments(postId).then((items) => { setComments(items); onCountChange(items.length); }).catch(() => setComments([])); }, [onCountChange, postId, visible]);
-  const submit = async () => { if (!draft.trim() || sending) return; setSending(true); try { await addQuestPostComment(postId, draft, replyTo?.id ?? null); setDraft(""); setReplyTo(null); const items = await fetchQuestPostComments(postId); setComments(items); onCountChange(items.length); } finally { setSending(false); } };
-  return <Sheet visible={visible} onClose={onClose} maxHeight="84%" fillHeight><View style={{ flex: 1 }}><View style={{ minHeight: 54, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: T.border, alignItems: "center", justifyContent: "center" }}><Text style={{ color: T.dark, fontSize: 18, fontWeight: "900" }}>Comments</Text></View><ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 12 }}>{comments.length ? comments.filter((comment) => !comment.parentId).map((comment) => <View key={comment.id} style={{ gap: 8 }}><View style={{ flexDirection: "row", gap: 10 }}><View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: `${comment.avatarColor}20`, alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: 17 }}>{comment.emoji}</Text></View><View style={{ flex: 1, gap: 3 }}><Text style={{ color: T.dark, fontSize: 13, fontWeight: "900" }}>@{comment.username ?? comment.displayName.replace(/\s+/g, "").toLowerCase()}</Text><Text style={{ color: T.dark, fontSize: 14, lineHeight: 20, fontWeight: "600" }}>{comment.body}</Text><Pressable onPress={() => setReplyTo(comment)}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900" }}>Reply</Text></Pressable></View></View>{comments.filter((reply) => reply.parentId === comment.id).map((reply) => <View key={reply.id} style={{ marginLeft: 46, flexDirection: "row", gap: 8 }}><Text style={{ fontSize: 14 }}>{reply.emoji}</Text><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 12, fontWeight: "900" }}>@{reply.username ?? reply.displayName.replace(/\s+/g, "").toLowerCase()}</Text><Text style={{ color: T.dark, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{reply.body}</Text></View></View>)}</View>) : <Text style={{ color: T.muted, fontSize: 14, fontWeight: "700", textAlign: "center", marginTop: 32 }}>Start the conversation.</Text>}</ScrollView><View style={{ padding: 12, borderTopWidth: 1, borderTopColor: T.border, gap: 7 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "800" }}>{replyTo ? `Replying to @${replyTo.username ?? replyTo.displayName}` : "Add a comment"}</Text><View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><TextInput value={draft} onChangeText={setDraft} placeholder="Write a comment…" placeholderTextColor={T.muted} multiline style={{ flex: 1, minHeight: 46, maxHeight: 90, borderRadius: 20, borderWidth: 1.5, borderColor: T.border, paddingHorizontal: 13, paddingVertical: 10, color: T.dark, fontWeight: "600" }} /><Pressable disabled={!draft.trim() || sending} onPress={() => void submit()} style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: draft.trim() ? T.blue : T.border, alignItems: "center", justifyContent: "center" }}><Ionicons name="paper-plane" size={19} color={T.white} /></Pressable></View></View></View></Sheet>;
+  const [comments, setComments] = useState<QuestPostComment[]>([]);
+  const [draft, setDraft] = useState("");
+  const [replyTo, setReplyTo] = useState<QuestPostComment | null>(null);
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    fetchQuestPostComments(postId).then((items) => {
+      setComments(items);
+      onCountChange(items.length);
+    }).catch(() => setComments([]));
+  }, [onCountChange, postId, visible]);
+
+  const submit = async () => {
+    if (!draft.trim() || sending) return;
+    setSending(true);
+    try {
+      await addQuestPostComment(postId, draft, replyTo?.id ?? null);
+      setDraft("");
+      setReplyTo(null);
+      const items = await fetchQuestPostComments(postId);
+      setComments(items);
+      onCountChange(items.length);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return <Sheet visible={visible} onClose={onClose} maxHeight="84%" fillHeight>
+    <View style={{ flex: 1 }}>
+      <View style={{ minHeight: 54, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: T.border, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ color: T.dark, fontSize: 18, fontWeight: "900" }}>Comments</Text>
+      </View>
+      <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 12 }}>
+        {comments.length ? comments.filter((comment) => !comment.parentId).map((comment) => <View key={comment.id} style={{ gap: 8 }}>
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <CommentAvatar comment={comment} />
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={{ color: T.dark, fontSize: 13, fontWeight: "900" }}>@{comment.username ?? comment.displayName.replace(/\s+/g, "").toLowerCase()}</Text>
+              <Text style={{ color: T.dark, fontSize: 14, lineHeight: 20, fontWeight: "600" }}>{comment.body}</Text>
+              <Pressable onPress={() => setReplyTo(comment)}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900" }}>Reply</Text></Pressable>
+            </View>
+          </View>
+          {comments.filter((reply) => reply.parentId === comment.id).map((reply) => <View key={reply.id} style={{ marginLeft: 46, flexDirection: "row", gap: 8 }}>
+            <CommentAvatar comment={reply} size={25} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: T.dark, fontSize: 12, fontWeight: "900" }}>@{reply.username ?? reply.displayName.replace(/\s+/g, "").toLowerCase()}</Text>
+              <Text style={{ color: T.dark, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{reply.body}</Text>
+            </View>
+          </View>)}
+        </View>) : <Text style={{ color: T.muted, fontSize: 14, fontWeight: "700", textAlign: "center", marginTop: 32 }}>Start the conversation.</Text>}
+      </ScrollView>
+      <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: T.border, gap: 7 }}>
+        <Text style={{ color: T.muted, fontSize: 11, fontWeight: "800" }}>{replyTo ? `Replying to @${replyTo.username ?? replyTo.displayName}` : "Add a comment"}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <TextInput value={draft} onChangeText={setDraft} placeholder="Write a comment…" placeholderTextColor={T.muted} multiline style={{ flex: 1, minHeight: 46, maxHeight: 90, borderRadius: 20, borderWidth: 1.5, borderColor: T.border, paddingHorizontal: 13, paddingVertical: 10, color: T.dark, fontWeight: "600" }} />
+          <Pressable disabled={!draft.trim() || sending} onPress={() => void submit()} style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: draft.trim() ? T.blue : T.border, alignItems: "center", justifyContent: "center" }}><Ionicons name="paper-plane" size={19} color={T.white} /></Pressable>
+        </View>
+      </View>
+    </View>
+  </Sheet>;
 }

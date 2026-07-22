@@ -4,13 +4,12 @@ import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { T } from "@/components/theme";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { EmptyState, Header, IconButton, Screen, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { useSocial } from "@/contexts/SocialContext";
 import { SocialFriend } from "@/types/social";
 
-function FriendAvatar({ friend }: { friend: SocialFriend }) {
-  return <View style={{ width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: `${friend.avatarColor}20`, borderWidth: 2, borderColor: `${friend.avatarColor}66` }}><Text style={{ fontSize: 21 }}>{friend.emoji}</Text></View>;
-}
+function FriendAvatar({ friend }: { friend: SocialFriend }) { return <ProfileAvatar uri={friend.avatarUrl} color={friend.avatarColor} size={48} label={`${friend.displayName}'s profile photo`} />; }
 
 function FriendRow({ friend }: { friend: SocialFriend }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={`View ${friend.displayName}`} style={({ pressed }) => ({ minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, opacity: pressed ? 0.7 : 1 })}>

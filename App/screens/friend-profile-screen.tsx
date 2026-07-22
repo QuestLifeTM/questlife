@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Alert, Text, View } from "react-native";
 import { Card, EmptyState, Header, IconButton, Screen, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { T } from "@/components/theme";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { useSocial } from "@/contexts/SocialContext";
 import { fetchFriendProfile } from "@/services/social/socialService";
 import { ProfileSearchResult } from "@/types/social";
@@ -41,7 +42,7 @@ export function FriendProfileScreen() {
     <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
       <Header title="Profile" subtitle="QuestLife adventurer" animated={false} right={<IconButton icon="arrow-back" label="Back to Add Friends" onPress={() => router.back()} color={T.dark} />} />
       {loading ? <EmptyState emoji="⏳" title="Opening profile" body="Loading this adventurer…" /> : !profile ? <EmptyState emoji="🧭" title="Profile unavailable" body="This QR code may be old, or the adventurer is no longer available." /> : <Card style={{ borderRadius: 28, padding: 24, gap: 16, alignItems: "center", borderColor: `${profile.avatarColor}55`, borderBottomWidth: 5, borderBottomColor: `${profile.avatarColor}88` }}>
-        <View style={{ width: 92, height: 92, borderRadius: 46, backgroundColor: `${profile.avatarColor}22`, borderWidth: 3, borderColor: profile.avatarColor, alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: 45 }}>{profile.emoji}</Text></View>
+        <ProfileAvatar uri={profile.avatarUrl} color={profile.avatarColor} size={92} label={`${profile.displayName}'s profile photo`} />
         <View style={{ alignItems: "center", gap: 4 }}><Text selectable style={{ color: T.dark, fontSize: 23, fontWeight: "900" }}>{profile.displayName}</Text><Text selectable style={{ color: T.muted, fontSize: 14, fontWeight: "700" }}>{profile.username ? `@${profile.username}` : "QuestLife adventurer"}</Text></View>
         {isMe ? <SoftButton label="This is your profile" icon="person" inverse color={T.muted} /> : status ? <View style={{ minHeight: 50, width: "100%", borderRadius: 17, backgroundColor: profile.isFriend ? `${T.green}16` : `${T.blue}16`, alignItems: "center", justifyContent: "center" }}><Text style={{ color: profile.isFriend ? T.green : T.blue, fontSize: 14, fontWeight: "900" }}>{status}</Text></View> : <SoftButton label={saving ? "Sending…" : "Add friend"} icon="person-add" color={T.blue} onPress={add} style={{ width: "100%" }} />}
       </Card>}

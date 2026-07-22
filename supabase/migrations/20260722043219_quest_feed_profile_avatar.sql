@@ -21,11 +21,12 @@ begin
       select jsonb_build_object(
         'id', post.id, 'userId', profile.id, 'username', profile.username,
         'displayName', coalesce(profile.display_name, 'Adventurer'), 'emoji', profile.emoji,
-        'avatarColor', profile.avatar_color, 'avatarUrl', profile.avatar_url, 'questId', quest.id, 'questTitle', quest.title,
-        'questCategory', quest.category, 'questColor', quest.accent_color,
-        'postTitle', post.post_title, 'caption', post.caption, 'photoUrls', post.photo_urls,
-        'rating', completion.rating, 'durationSeconds', post.duration_seconds,
-        'stats', post.post_stats, 'visibility', post.visibility,
+        'avatarColor', profile.avatar_color, 'avatarUrl', profile.avatar_url,
+        'questId', quest.id, 'questTitle', quest.title, 'questCategory', quest.category,
+        'questColor', quest.accent_color, 'postTitle', post.post_title, 'caption', post.caption,
+        'photoUrls', post.photo_urls, 'rating', completion.rating,
+        'durationSeconds', post.duration_seconds, 'stats', post.post_stats,
+        'visibility', post.visibility,
         'likeCount', (select count(*)::integer from public.post_likes like_row where like_row.post_id = post.id),
         'commentCount', 0, 'createdAt', post.created_at
       ) as post_row

@@ -1,4 +1,5 @@
 import { Text, View } from "react-native";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { T } from "@/components/theme";
 import { JournalParticipant } from "@/types/journal";
 
@@ -17,22 +18,8 @@ export function AvatarPile({ people, size = 26, max = 3 }: { people: JournalPart
   return (
     <View style={{ flexDirection: "row", alignItems: "center" }}>
       {visible.map((person, index) => (
-        <View
-          key={person.id}
-          style={{
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            backgroundColor: `${person.color}20`,
-            borderWidth: 2,
-            borderColor: T.white,
-            alignItems: "center",
-            justifyContent: "center",
-            marginLeft: index ? -size * 0.35 : 0,
-            zIndex: visible.length - index
-          }}
-        >
-          <Text style={{ fontSize: Math.round(size * 0.5) }}>{person.emoji}</Text>
+        <View key={person.id} style={{ marginLeft: index ? -size * 0.35 : 0, zIndex: visible.length - index }}>
+          <ProfileAvatar uri={person.avatarUrl} color={person.color} size={size} label={`${person.name}'s profile photo`} />
         </View>
       ))}
       {overflow > 0 ? (

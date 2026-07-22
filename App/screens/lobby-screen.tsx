@@ -5,6 +5,7 @@ import { AccessibilityInfo, Animated, Easing, Pressable, StyleProp, StyleSheet, 
 import Svg, { Path } from "react-native-svg";
 
 import { getLobbyLayout, lobbyDesign, resolveLobbyStates } from "@/components/lobby-design";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { QuestStartBlockSheet } from "@/components/quest-start-block";
 import { StreakPill } from "@/components/streak-pill";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
@@ -14,7 +15,7 @@ import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useQuestStart } from "@/hooks/useQuestStart";
 import { Quest } from "@/types/content";
-import { fetchRequiredProfileName } from "@/services/profile/profileService";
+import { fetchProfileOverview, fetchRequiredProfileName } from "@/services/profile/profileService";
 
 function useReducedMotionPreference() {
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -124,18 +125,14 @@ function greetingFor(date: Date) {
   return "Good Night";
 }
 
-function LobbyAvatar() {
+function LobbyAvatar({ uri }: { uri: string | null }) {
   const size = 50;
   const inner = 38;
   const dot = 14;
 
   return (
     <View style={{ width: size, height: size, position: "relative" }}>
-      <View style={[styles.avatarRing, { width: size, height: size, borderRadius: size / 2 }]}>
-        <View style={[styles.avatarInner, { width: inner, height: inner, borderRadius: inner / 2 }]}>
-          <Text style={styles.avatarEmoji}>😊</Text>
-        </View>
-      </View>
+      <View style={[styles.avatarRing, { width: size, height: size, borderRadius: size / 2 }]}><ProfileAvatar uri={uri} color={T.blue} size={inner} label="Your profile photo" /></View>
       <View style={[styles.avatarDot, { width: dot, height: dot, borderRadius: dot / 2 }]} />
     </View>
   );
@@ -478,6 +475,7 @@ export function LobbyScreen() {
 
   const [savedSheet, setSavedSheet] = useState(false);
   const [firstName, setFirstName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const { isCompact: compact } = getLobbyLayout(contentWidth);
   const now = new Date();
@@ -491,6 +489,9 @@ export function LobbyScreen() {
       .catch(() => {
         if (active) setFirstName("");
       });
+    void fetchProfileOverview()
+      .then((overview) => { if (active) setAvatarUrl(overview.profile?.avatarUrl ?? null); })
+      .catch(() => { if (active) setAvatarUrl(null); });
     return () => { active = false; };
   }, [profileNameVersion, user?.id]);
 
@@ -535,7 +536,7 @@ export function LobbyScreen() {
           testID={`lobby-${lobbyStates.request}-${lobbyStates.activity}-${lobbyStates.plan}-${lobbyStates.history}-${lobbyStates.feedback}`}
         >
         <View style={styles.header}>
-          <LobbyAvatar />
+          <LobbyAvatar uri={avatarUrl} />
           <View style={styles.headerCopy}>
             <Text style={styles.greeting} numberOfLines={1}>
               {greetingFor(now)}!

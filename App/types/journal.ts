@@ -31,6 +31,7 @@ export type JournalMemory = {
 export type JournalParticipant = {
   id: string;
   name: string;
+  avatarUrl?: string | null;
   emoji: string;
   color: string;
 };

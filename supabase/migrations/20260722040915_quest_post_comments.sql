@@ -17,7 +17,7 @@ returns jsonb language sql security definer set search_path = '' stable as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', c.id, 'parentId', c.parent_id, 'body', c.body, 'createdAt', c.created_at,
     'userId', p.id, 'displayName', coalesce(p.display_name, 'Adventurer'), 'username', p.username,
-    'emoji', p.emoji, 'avatarColor', p.avatar_color
+    'emoji', p.emoji, 'avatarColor', p.avatar_color, 'avatarUrl', p.avatar_url
   ) order by c.created_at), '[]'::jsonb)
   from public.quest_post_comments c join public.profiles p on p.id = c.user_id where c.post_id = p_post_id;
 $$;

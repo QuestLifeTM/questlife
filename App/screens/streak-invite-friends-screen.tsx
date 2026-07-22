@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { T } from "@/components/theme";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { EmptyState, IconButton, Screen, useResponsiveScreenLayout } from "@/components/ui";
 import { useSocial } from "@/contexts/SocialContext";
 import { useStreaks } from "@/contexts/StreaksContext";
@@ -12,9 +13,7 @@ import { SocialFriend } from "@/types/social";
 
 const STREAK_ORANGE = "#ff6d45";
 
-function FriendAvatar({ friend }: { friend: SocialFriend }) {
-  return <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: `${friend.avatarColor}22`, borderWidth: 2, borderColor: `${friend.avatarColor}77`, alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: 22 }}>{friend.emoji}</Text></View>;
-}
+function FriendAvatar({ friend }: { friend: SocialFriend }) { return <ProfileAvatar uri={friend.avatarUrl} color={friend.avatarColor} size={48} label={`${friend.displayName}'s profile photo`} />; }
 
 function InviteButton({ label, disabled, onPress }: { label: string; disabled?: boolean; onPress?: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ minHeight: 42, paddingHorizontal: 14, borderRadius: 15, backgroundColor: disabled ? "#f1eae5" : STREAK_ORANGE, borderBottomWidth: 4, borderBottomColor: disabled ? "#ddd4ce" : "#d44c31", alignItems: "center", justifyContent: "center", transform: [{ translateY: pressed && !disabled ? 2 : 0 }] })}><Text style={{ color: disabled ? T.muted : T.white, fontSize: 12, fontWeight: "900", letterSpacing: 0.35, textTransform: "uppercase" }}>{label}</Text></Pressable>;

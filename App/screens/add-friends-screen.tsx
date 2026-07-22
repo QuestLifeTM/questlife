@@ -9,16 +9,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Share, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, EmptyState, haptic, Header, IconButton, Screen, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { T } from "@/components/theme";
 import { useSocial } from "@/contexts/SocialContext";
 import { fetchFriendSuggestions, findProfilesByContactEmails } from "@/services/social/socialService";
 import { ProfileSearchResult } from "@/types/social";
 
 type DiscoveryTab = "suggested" | "contacts" | "qr";
-
-function Avatar({ emoji, color, size = 48 }: { emoji: string; color: string; size?: number }) {
-  return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: `${color}22`, borderWidth: 2, borderColor: `${color}66`, alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: size * 0.43 }}>{emoji}</Text></View>;
-}
 
 function DiscoveryTabButton({ tab, active, icon, label, onPress }: { tab: DiscoveryTab; active: boolean; icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
   return <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={label} onPress={onPress} style={({ pressed }) => ({ flex: 1, minHeight: 72, alignItems: "center", justifyContent: "center", gap: 5, borderBottomWidth: 4, borderBottomColor: active ? T.blue : "transparent", opacity: pressed ? 0.65 : 1 })}>
@@ -40,7 +37,7 @@ function FriendActionButton({ label, icon, color = T.blue, onPress, style }: { l
 function PersonRow({ person, onAdd }: { person: ProfileSearchResult; onAdd: (person: ProfileSearchResult) => void }) {
   const status = person.isFriend ? "Friends" : person.requestStatus ? "Pending" : null;
   return <View style={{ minHeight: 72, flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 9 }}>
-    <Avatar emoji={person.emoji} color={person.avatarColor} />
+    <ProfileAvatar uri={person.avatarUrl} color={person.avatarColor} size={48} label={`${person.displayName}'s profile photo`} />
     <View style={{ flex: 1, gap: 2 }}>
       <Text selectable style={{ color: T.dark, fontSize: 15, fontWeight: "900" }} numberOfLines={1}>{person.displayName}</Text>
       <Text selectable style={{ color: T.muted, fontSize: 12, fontWeight: "700" }} numberOfLines={1}>{person.username ? `@${person.username}` : "QuestLife adventurer"}</Text>

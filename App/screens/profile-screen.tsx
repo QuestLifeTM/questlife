@@ -3,16 +3,16 @@ import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { EmptyState, Screen, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { T } from "@/components/theme";
 import { QuestFeedThumbnail } from "@/components/quest-feed-card";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSocial } from "@/contexts/SocialContext";
 import { fetchProfileOverview, updateProfile, uploadProfileAvatar } from "@/services/profile/profileService";
 import { ProfileOverview, QuestFeedPost } from "@/types/profile";
-
-const defaultProfileAvatar = require("../assets/profile/default-profile-avatar.png");
 
 type ProfileTab = "posts" | "growth" | "achievements";
 
@@ -31,12 +31,6 @@ function accountValue(metadata: unknown, key: string) {
 function fullProfileName(displayName: string, metadata: unknown) {
   const fullName = [accountValue(metadata, "first_name"), accountValue(metadata, "last_name")].filter(Boolean).join(" ");
   return displayName.trim().split(/\s+/).filter(Boolean).length >= 2 ? displayName : fullName || displayName;
-}
-
-function ProfileAvatar({ uri, size, label }: { uri: string | null; size: number; label: string }) {
-  return <View accessible accessibilityLabel={label} style={{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", borderWidth: 2, borderColor: T.white, backgroundColor: T.white, boxShadow: "0px 5px 12px rgba(61,52,56,0.16)" }}>
-    <Image source={uri ? { uri } : defaultProfileAvatar} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
-  </View>;
 }
 
 function HeaderControl({ label, icon, positive = false, disabled = false, onPress }: { label?: string; icon?: keyof typeof Ionicons.glyphMap; positive?: boolean; disabled?: boolean; onPress: () => void }) {
@@ -63,7 +57,8 @@ function ProfileTabSwitcher({ activeTab, onChange }: { activeTab: ProfileTab; on
 
 export function ProfileScreen() {
   const router = useRouter();
-  const { signOut, user } = useAuth();
+  const { signOut, user, refreshProfileName } = useAuth();
+  const { refresh: refreshSocial } = useSocial();
   const { contentWidth, horizontalPadding, insets, safeAreaOffset } = useResponsiveScreenLayout();
   const [overview, setOverview] = useState<ProfileOverview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -157,6 +152,8 @@ export function ProfileScreen() {
       const avatarUrl = draftAvatarUri && draftAvatarUri !== overview.profile.avatarUrl ? await uploadProfileAvatar(draftAvatarUri) : undefined;
       const metadataUsername = accountValue(user?.user_metadata, "username");
       await updateProfile({ displayName, bio: draftBio, avatarUrl, username: !overview.profile.username && metadataUsername ? metadataUsername : undefined });
+      refreshProfileName();
+      await refreshSocial();
       setEditing(false);
       await load();
       showToast("Saved!");
@@ -184,6 +181,7 @@ export function ProfileScreen() {
     displayName,
     emoji: profile.emoji,
     avatarColor: profile.avatarColor,
+    avatarUrl: profile.avatarUrl,
     commentCount: 0,
   }));
 

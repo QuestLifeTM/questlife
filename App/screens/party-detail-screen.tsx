@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, FlatList, Image, LayoutChangeEvent, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import Reanimated, { Easing, FadeIn, FadeInDown, FadeOutUp, ZoomIn, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { QuestlifeFlame } from "@/components/questlife-flame";
 import { T } from "@/components/theme";
 import { EmptyState, IconButton, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
@@ -61,8 +62,11 @@ function sortPickerQuests(quests: Quest[], sort: QuestPickerSort) {
   return next.sort((a, b) => Number(b.featured) - Number(a.featured) || b.xp - a.xp || a.title.localeCompare(b.title));
 }
 
-function Avatar({ emoji, color, size = 40 }: { emoji: string; color: string; size?: number }) {
-  return <View style={{ width: size, height: size, borderRadius: size / 2, alignItems: "center", justifyContent: "center", backgroundColor: `${color}1b`, borderWidth: 2, borderColor: T.white }}><Text style={{ fontSize: size * 0.44 }}>{emoji}</Text></View>;
+function Avatar({ uri, emoji, color, size = 40, name }: { uri?: string | null; emoji?: string; color: string; size?: number; name?: string }) {
+  const { overview } = useSocial();
+  const matchingFriend = overview?.friends.find((friend) => friend.emoji === emoji || friend.displayName === name);
+  const label = name ?? matchingFriend?.displayName ?? "Adventurer";
+  return <ProfileAvatar uri={uri ?? matchingFriend?.avatarUrl ?? null} color={color} size={size} label={`${label}'s profile photo`} />;
 }
 
 function darkerButtonEdge(color: string) {
@@ -116,7 +120,7 @@ function PartyHeader({ party, onBack, onInfo }: { party: PartyDetail; onBack: ()
       <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
         <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 24, lineHeight: 29 }} numberOfLines={2}>{party.name}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          <View style={{ flexDirection: "row", paddingLeft: 2 }}>{party.members.slice(0, 4).map((member, index) => <View key={member.userId} style={{ marginLeft: index ? -9 : 0 }}><Avatar emoji={member.emoji} color={member.avatarColor} size={27} /></View>)}</View>
+          <View style={{ flexDirection: "row", paddingLeft: 2 }}>{party.members.slice(0, 4).map((member, index) => <View key={member.userId} style={{ marginLeft: index ? -9 : 0 }}><Avatar uri={member.avatarUrl} color={member.avatarColor} name={member.displayName} size={27} /></View>)}</View>
           <Text style={{ color: T.muted, fontSize: 12, fontWeight: "900" }}>{party.memberCount} {party.memberCount === 1 ? "member" : "members"}</Text>
           <Tag label={party.gameMode === "everyone_together" ? "Together" : "Free for all"} color={accent} bg={`${accent}18`} />
         </View>
@@ -257,7 +261,7 @@ function FeedPostCard({ post, onReact, loadMedia = true }: { post: PartyFeedPost
   return <Reanimated.View entering={reducedMotion ? FadeIn.duration(1) : FadeInDown.duration(180)} style={{ borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 4, borderBottomColor: "#e6ddd2", backgroundColor: T.white, overflow: "hidden" }}>
     <View style={{ padding: 18, gap: 13 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <View style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: T.bg, borderWidth: 2, borderColor: T.border }}><Text style={{ fontSize: 21 }}>{post.userEmoji}</Text></View>
+        <ProfileAvatar uri={post.userAvatarUrl} color={T.blue} size={42} label={`${post.userName}'s profile photo`} />
         <View style={{ flex: 1, gap: 1 }}>
           <Text style={{ color: T.dark, fontSize: 16, lineHeight: 20, fontWeight: "900" }} numberOfLines={1}>{post.userName}</Text>
           <Text style={{ color: T.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" }} numberOfLines={1}>{post.questTitle} · {formatDuration(post.elapsedSeconds)}</Text>
@@ -302,7 +306,7 @@ function PodiumPlayer({ entry, placement }: { entry?: PartyLeaderboardEntry; pla
   return <View style={{ flex: 1, minWidth: 0, height: 282, alignItems: "center", justifyContent: "flex-end" }}>
     <View style={{ position: "relative", marginTop: placement === 1 ? 25 : 0 }}>
       {placement === 1 ? <Text style={{ position: "absolute", top: -34, left: 0, right: 0, textAlign: "center", fontSize: 31, lineHeight: 34 }}>👑</Text> : null}
-      <View style={{ width: avatarSize + 8, height: avatarSize + 8, borderRadius: (avatarSize + 8) / 2, padding: 4, backgroundColor: `${accent}25`, borderWidth: 3, borderColor: accent }}><Avatar emoji={entry.emoji} color={entry.avatarColor} size={avatarSize} /></View>
+      <View style={{ width: avatarSize + 8, height: avatarSize + 8, borderRadius: (avatarSize + 8) / 2, padding: 4, backgroundColor: `${accent}25`, borderWidth: 3, borderColor: accent }}><Avatar uri={entry.avatarUrl} color={entry.avatarColor} name={entry.displayName} size={avatarSize} /></View>
     </View>
     <Text style={{ width: "100%", marginTop: 10, paddingHorizontal: 3, color: T.dark, fontSize: placement === 1 ? 15 : 13, lineHeight: 18, fontWeight: "900", textAlign: "center" }} numberOfLines={1}>{entry.displayName}</Text>
     <Text style={{ marginTop: 2, color: "#655a60", fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"] }}>{entry.xp} XP</Text>
@@ -336,7 +340,7 @@ function Leaderboard({ party, stampSelf }: { party: PartyDetail; stampSelf: bool
       {remainingEntries.map((entry, index) => {
         const isViewer = entry.userId === viewerId;
         return <Reanimated.View key={entry.userId} entering={stampSelf && isViewer && !reducedMotion ? ZoomIn.springify().damping(17).stiffness(220) : FadeInDown.delay(index * (reducedMotion ? 0 : 45)).duration(reducedMotion ? 1 : 170)} style={{ minHeight: 78, paddingHorizontal: 15, borderRadius: 18, backgroundColor: isViewer ? `${T.blue}14` : "#f2eef2", flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <Avatar emoji={entry.emoji} color={entry.avatarColor} size={48} />
+          <Avatar uri={entry.avatarUrl} color={entry.avatarColor} name={entry.displayName} size={48} />
           <View style={{ flex: 1, minWidth: 0, gap: 3 }}><Text style={{ color: T.dark, fontSize: 15, lineHeight: 19, fontWeight: "900" }} numberOfLines={1}>{entry.displayName}</Text><View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><Ionicons name="flash" size={13} color={T.purple} /><Text style={{ color: mutedText, fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] }}>{entry.xp} Party XP</Text></View></View>
           <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: `${isViewer ? T.blue : T.white}b8` }}><Text style={{ color: isViewer ? T.blue : T.muted, fontSize: 14, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{entry.rank}</Text></View>
         </Reanimated.View>;

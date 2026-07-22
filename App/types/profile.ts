@@ -43,6 +43,7 @@ export type QuestFeedPost = {
   displayName: string;
   emoji: string;
   avatarColor: string;
+  avatarUrl?: string | null;
   questId: string;
   questTitle: string;
   questCategory: string;

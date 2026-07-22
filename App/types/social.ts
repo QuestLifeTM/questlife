@@ -4,6 +4,7 @@ export type SocialProfile = {
   userId: string;
   username: string | null;
   displayName: string;
+  avatarUrl: string | null;
   emoji: string;
   avatarColor: string;
 };
@@ -70,6 +71,7 @@ export type PartyInvite = {
 export type PartyMember = {
   userId: string;
   displayName: string;
+  avatarUrl: string | null;
   emoji: string;
   avatarColor: string;
   role: "leader" | "member";
@@ -152,12 +154,13 @@ export type PartyRound = {
   status: "active" | "ended";
   completedCount?: number;
   totalMembers?: number;
-  topFinishers?: { userId: string; name: string; emoji: string; elapsedSeconds: number; rank: number }[];
+  topFinishers?: { userId: string; name: string; emoji: string; avatarUrl: string | null; elapsedSeconds: number; rank: number }[];
 };
 
 export type PartyLeaderboardEntry = {
   userId: string;
   displayName: string;
+  avatarUrl: string | null;
   emoji: string;
   avatarColor: string;
   xp: number;
@@ -172,6 +175,7 @@ export type PartyFeedPost = {
   questTitle: string;
   userName: string;
   userEmoji: string;
+  userAvatarUrl: string | null;
   caption: string | null;
   photoPaths: string[];
   createdAt: string;

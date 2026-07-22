@@ -6,10 +6,12 @@ import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Image, ImageBac
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AnimatedFlame } from "@/components/animated-flame";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { QuestlifeFlame } from "@/components/questlife-flame";
 import { T } from "@/components/theme";
 import { EmptyState, Sheet, SoftButton, haptic, responsiveScreenGutter } from "@/components/ui";
 import { useStreaks } from "@/contexts/StreaksContext";
+import { useSocial } from "@/contexts/SocialContext";
 import { toLocalDateKey } from "@/services/journal/journalService";
 import { DuoStreak, IncomingDuoInvite, OutgoingDuoInvite, StreakFriend } from "@/types/streaks";
 
@@ -21,11 +23,12 @@ const STREAK_INK = "#282124";
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const ACHIEVEMENTS = [
-  { days: 7, label: "Week warrior", note: "Keep a flame for 7 days", icon: "shield-checkmark" },
-  { days: 14, label: "Two-week torch", note: "A fortnight of showing up", icon: "flame" },
-  { days: 30, label: "Month maker", note: "Build a 30-day rhythm", icon: "ribbon" },
-  { days: 100, label: "Centurion", note: "Reach 100 days in a row", icon: "trophy" },
-  { days: 365, label: "Year of fire", note: "Keep your promise all year", icon: "medal" },
+  { days: 7, label: "Week warrior", note: "Keep a flame for 7 days", badge: require("@/assets/streaks/streak-badge-day-7.png") },
+  { days: 14, label: "Two-week torch", note: "A fortnight of showing up", badge: require("@/assets/streaks/streak-badge-day-14.png") },
+  { days: 30, label: "Month maker", note: "Build a 30-day rhythm", badge: require("@/assets/streaks/streak-badge-day-30.png") },
+  { days: 50, label: "Half-century spark", note: "Make 50 days your new normal", badge: require("@/assets/streaks/streak-badge-day-50.png") },
+  { days: 100, label: "Centurion", note: "Reach 100 days in a row", badge: require("@/assets/streaks/streak-badge-day-100.png") },
+  { days: 365, label: "Year of fire", note: "Keep your promise all year", badge: require("@/assets/streaks/streak-badge-day-365.png") },
 ] as const;
 
 function parseDateKey(key: string) {
@@ -47,16 +50,7 @@ function colorFor(id: string) {
   return colors[Array.from(id).reduce((total, letter) => total + letter.charCodeAt(0), 0) % colors.length];
 }
 
-function PersonAvatar({ name, avatarUrl, seed, size = 44 }: { name: string; avatarUrl: string | null; seed: string; size?: number }) {
-  const color = colorFor(seed);
-  return avatarUrl ? (
-    <Image source={{ uri: avatarUrl }} style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 2, borderColor: color }} />
-  ) : (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: `${color}22`, borderWidth: 2, borderColor: `${color}77`, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color, fontWeight: "900", fontSize: Math.round(size * 0.4) }}>{name.trim().charAt(0).toUpperCase() || "?"}</Text>
-    </View>
-  );
-}
+function PersonAvatar({ name, avatarUrl, seed, size = 44 }: { name: string; avatarUrl: string | null; seed: string; size?: number }) { return <ProfileAvatar uri={avatarUrl} color={colorFor(seed)} size={size} label={`${name}'s profile photo`} />; }
 
 function WhitePanel({ children, style }: { children: React.ReactNode; style?: object }) {
   return <View style={[{ backgroundColor: T.white, borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#e6ddd2", padding: 16 }, style]}>{children}</View>;
@@ -188,13 +182,14 @@ function CalendarCard({ questDays, currentRange }: { questDays: Set<string>; cur
 
 function PersonalContent() {
   const { overview, setVisibility } = useStreaks();
+  const { overview: socialOverview } = useSocial();
   const reducedMotion = useReducedMotion();
 
   if (!overview) return null;
   const { personal, friends, questDays } = overview;
   const currentRange = personal.currentStreak && personal.streakStartedOn && personal.lastQuestOn ? { start: personal.streakStartedOn, end: personal.lastQuestOn } : null;
   const leaderRows = [
-    { id: "you", name: "You", avatarUrl: null as string | null, streak: personal.currentStreak, self: true },
+    { id: "you", name: "You", avatarUrl: socialOverview?.me.avatarUrl ?? null, streak: personal.currentStreak, self: true },
     ...friends.filter((friend) => friend.streakVisible).map((friend) => ({ id: friend.userId, name: friend.displayName, avatarUrl: friend.avatarUrl, streak: friend.currentStreak ?? 0, self: false })),
   ].sort((a, b) => b.streak - a.streak);
 
@@ -251,7 +246,7 @@ function FriendsContent() {
 }
 
 function AchievementsContent({ currentStreak }: { currentStreak: number }) {
-  return <View style={{ gap: 18 }}><View style={{ alignItems: "center", gap: 6, paddingVertical: 5 }}><Text style={{ color: T.dark, fontSize: 19, fontWeight: "900" }}>Streak achievements</Text><Text style={{ color: T.muted, fontSize: 13, fontWeight: "700", textAlign: "center" }}>Every day you show up makes your flame stronger.</Text></View><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>{ACHIEVEMENTS.map((achievement) => { const unlocked = currentStreak >= achievement.days; const progress = Math.min(1, currentStreak / achievement.days); return <WhitePanel key={achievement.days} style={{ width: "48%", alignItems: "center", gap: 8, opacity: unlocked ? 1 : 0.7, backgroundColor: unlocked ? "#fff6f0" : T.white, borderColor: unlocked ? "#f4c7ae" : "#eadfd9" }}><View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: unlocked ? "#ffe0c9" : "#eee9e6", alignItems: "center", justifyContent: "center" }}><Ionicons name={achievement.icon} size={26} color={unlocked ? STREAK_ORANGE : "#aaa0a1"} /></View><Text style={{ color: T.dark, fontSize: 14, fontWeight: "900", textAlign: "center" }}>{achievement.days}-day streak</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "700", textAlign: "center" }}>{achievement.label}</Text><View style={{ width: "100%", height: 5, backgroundColor: "#eadfd9", borderRadius: 3, overflow: "hidden" }}><View style={{ width: `${Math.max(3, progress * 100)}%`, height: "100%", backgroundColor: unlocked ? STREAK_ORANGE : "#cfc5c1" }} /></View><Text style={{ color: unlocked ? STREAK_ORANGE : T.muted, fontSize: 11, fontWeight: "900" }}>{unlocked ? "UNLOCKED" : `${currentStreak}/${achievement.days}`}</Text></WhitePanel>; })}</View></View>;
+  return <View style={{ gap: 18 }}><View style={{ alignItems: "center", gap: 6, paddingVertical: 5 }}><Text style={{ color: T.dark, fontSize: 19, fontWeight: "900" }}>Streak achievements</Text><Text style={{ color: T.muted, fontSize: 13, fontWeight: "700", textAlign: "center" }}>Every day you show up makes your flame stronger.</Text></View><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>{ACHIEVEMENTS.map((achievement) => { const unlocked = currentStreak >= achievement.days; const progress = Math.min(1, currentStreak / achievement.days); return <WhitePanel key={achievement.days} style={{ width: "48%", alignItems: "center", gap: 8, opacity: unlocked ? 1 : 0.46, backgroundColor: unlocked ? "#fff6f0" : T.white, borderColor: unlocked ? "#f4c7ae" : "#eadfd9" }}><Image source={achievement.badge} accessibilityLabel={`${achievement.days}-day streak achievement`} style={{ width: 74, height: 74 }} resizeMode="contain" /><Text style={{ color: T.dark, fontSize: 14, fontWeight: "900", textAlign: "center" }}>{achievement.days}-day streak</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "700", textAlign: "center" }}>{achievement.label}</Text><View style={{ width: "100%", height: 5, backgroundColor: "#eadfd9", borderRadius: 3, overflow: "hidden" }}><View style={{ width: `${Math.max(3, progress * 100)}%`, height: "100%", backgroundColor: unlocked ? STREAK_ORANGE : "#cfc5c1" }} /></View><Text style={{ color: unlocked ? STREAK_ORANGE : T.muted, fontSize: 11, fontWeight: "900" }}>{unlocked ? "UNLOCKED" : `${currentStreak}/${achievement.days}`}</Text></WhitePanel>; })}</View></View>;
 }
 
 export function StreakScreen({ onBack }: { onBack: () => void }) {
