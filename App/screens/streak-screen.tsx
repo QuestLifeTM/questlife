@@ -1,4 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import MaskedView from "@react-native-masked-view/masked-view";
+import { LinearGradient } from "expo-linear-gradient";
+import { Accelerometer } from "expo-sensors";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -23,6 +26,7 @@ const STREAK_INK = "#282124";
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const ACHIEVEMENTS = [
+  { days: 3, label: "First flame", note: "Show up for 3 days", badge: require("@/assets/streaks/streak-badge-day-3.png") },
   { days: 7, label: "Week warrior", note: "Keep a flame for 7 days", badge: require("@/assets/streaks/streak-badge-day-7.png") },
   { days: 14, label: "Two-week torch", note: "A fortnight of showing up", badge: require("@/assets/streaks/streak-badge-day-14.png") },
   { days: 30, label: "Month maker", note: "Build a 30-day rhythm", badge: require("@/assets/streaks/streak-badge-day-30.png") },
@@ -93,6 +97,63 @@ function useReducedMotion() {
   }, []);
 
   return reducedMotion;
+}
+
+function useBadgeTilt(enabled: boolean) {
+  const x = useRef(new Animated.Value(0)).current;
+  const y = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!enabled) {
+      x.setValue(0);
+      y.setValue(0);
+      return;
+    }
+
+    let active = true;
+    let subscription: { remove: () => void } | undefined;
+    let restingTilt: { x: number; y: number } | undefined;
+
+    const start = async () => {
+      try {
+        if (!(await Accelerometer.isAvailableAsync()) || !active) return;
+        Accelerometer.setUpdateInterval(200);
+        subscription = Accelerometer.addListener(({ x: deviceX, y: deviceY }) => {
+          if (!restingTilt) restingTilt = { x: deviceX, y: deviceY };
+          const horizontalTilt = Math.max(-1, Math.min(1, (deviceX - restingTilt.x) / 0.18));
+          const verticalTilt = Math.max(-1, Math.min(1, (deviceY - restingTilt.y) / 0.18));
+          Animated.parallel([
+            Animated.spring(x, { toValue: horizontalTilt, damping: 22, stiffness: 180, mass: 0.55, useNativeDriver: true }),
+            Animated.spring(y, { toValue: verticalTilt, damping: 22, stiffness: 180, mass: 0.55, useNativeDriver: true }),
+          ]).start();
+        });
+      } catch {
+        // The badges remain fully usable on simulators and devices without motion sensors.
+      }
+    };
+
+    void start();
+    return () => {
+      active = false;
+      subscription?.remove();
+    };
+  }, [enabled, x, y]);
+
+  return { x, y };
+}
+
+function StreakBadge({ source, days, unlocked, tiltX, tiltY }: { source: number; days: number; unlocked: boolean; tiltX: Animated.Value; tiltY: Animated.Value }) {
+  const shimmerX = tiltX.interpolate({ inputRange: [-1, 1], outputRange: [-20, 20] });
+  const shimmerY = tiltY.interpolate({ inputRange: [-1, 1], outputRange: [18, -18] });
+
+  return <View accessibilityLabel={`${days}-day streak achievement${unlocked ? ", unlocked" : ", locked"}`} style={{ width: 78, height: 78, alignItems: "center", justifyContent: "center" }}>
+    <Image source={source} style={{ width: 78, height: 78 }} resizeMode="contain" />
+    {unlocked ? <MaskedView pointerEvents="none" androidRenderingMode="software" maskElement={<Image source={source} style={{ width: 78, height: 78 }} resizeMode="contain" />} style={{ position: "absolute", width: 78, height: 78 }}>
+      <Animated.View style={{ position: "absolute", width: 126, height: 126, left: -26, top: -26, transform: [{ translateX: shimmerX }, { translateY: shimmerY }, { rotate: "-24deg" }] }}>
+        <LinearGradient colors={["rgba(246,239,225,0)", "rgba(246,239,225,0.03)", "rgba(246,239,225,0.32)", "rgba(246,239,225,0.03)", "rgba(246,239,225,0)"]} locations={[0, 0.3, 0.5, 0.7, 1]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }} />
+      </Animated.View>
+    </MaskedView> : null}
+  </View>;
 }
 
 function StreakHero({ days, onBack, topInset }: { days: number; onBack: () => void; topInset: number }) {
@@ -246,7 +307,9 @@ function FriendsContent() {
 }
 
 function AchievementsContent({ currentStreak }: { currentStreak: number }) {
-  return <View style={{ gap: 18 }}><View style={{ alignItems: "center", gap: 6, paddingVertical: 5 }}><Text style={{ color: T.dark, fontSize: 19, fontWeight: "900" }}>Streak achievements</Text><Text style={{ color: T.muted, fontSize: 13, fontWeight: "700", textAlign: "center" }}>Every day you show up makes your flame stronger.</Text></View><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>{ACHIEVEMENTS.map((achievement) => { const unlocked = currentStreak >= achievement.days; const progress = Math.min(1, currentStreak / achievement.days); return <WhitePanel key={achievement.days} style={{ width: "48%", alignItems: "center", gap: 8, opacity: unlocked ? 1 : 0.46, backgroundColor: unlocked ? "#fff6f0" : T.white, borderColor: unlocked ? "#f4c7ae" : "#eadfd9" }}><Image source={achievement.badge} accessibilityLabel={`${achievement.days}-day streak achievement`} style={{ width: 74, height: 74 }} resizeMode="contain" /><Text style={{ color: T.dark, fontSize: 14, fontWeight: "900", textAlign: "center" }}>{achievement.days}-day streak</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "700", textAlign: "center" }}>{achievement.label}</Text><View style={{ width: "100%", height: 5, backgroundColor: "#eadfd9", borderRadius: 3, overflow: "hidden" }}><View style={{ width: `${Math.max(3, progress * 100)}%`, height: "100%", backgroundColor: unlocked ? STREAK_ORANGE : "#cfc5c1" }} /></View><Text style={{ color: unlocked ? STREAK_ORANGE : T.muted, fontSize: 11, fontWeight: "900" }}>{unlocked ? "UNLOCKED" : `${currentStreak}/${achievement.days}`}</Text></WhitePanel>; })}</View></View>;
+  const reducedMotion = useReducedMotion();
+  const tilt = useBadgeTilt(!reducedMotion && currentStreak >= ACHIEVEMENTS[0].days);
+  return <View style={{ gap: 18 }}><View style={{ alignItems: "center", gap: 6, paddingVertical: 5 }}><Text style={{ color: T.dark, fontSize: 19, fontWeight: "900" }}>Streak achievements</Text><Text style={{ color: T.muted, fontSize: 13, fontWeight: "700", textAlign: "center" }}>Every day you show up makes your flame stronger.</Text></View><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>{ACHIEVEMENTS.map((achievement) => { const unlocked = currentStreak >= achievement.days; const progress = Math.min(1, currentStreak / achievement.days); return <WhitePanel key={achievement.days} style={{ width: "48%", alignItems: "center", gap: 8, opacity: unlocked ? 1 : 0.46, backgroundColor: unlocked ? "#fff6f0" : T.white, borderColor: unlocked ? "#f4c7ae" : "#eadfd9" }}><StreakBadge source={achievement.badge} days={achievement.days} unlocked={unlocked} tiltX={tilt.x} tiltY={tilt.y} /><Text style={{ color: T.dark, fontSize: 14, fontWeight: "900", textAlign: "center" }}>{achievement.days}-day streak</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "700", textAlign: "center" }}>{achievement.label}</Text><View style={{ width: "100%", height: 5, backgroundColor: "#eadfd9", borderRadius: 3, overflow: "hidden" }}><View style={{ width: `${Math.max(3, progress * 100)}%`, height: "100%", backgroundColor: unlocked ? STREAK_ORANGE : "#cfc5c1" }} /></View><Text style={{ color: unlocked ? STREAK_ORANGE : T.muted, fontSize: 11, fontWeight: "900" }}>{unlocked ? "UNLOCKED" : `${currentStreak}/${achievement.days}`}</Text></WhitePanel>; })}</View></View>;
 }
 
 export function StreakScreen({ onBack }: { onBack: () => void }) {

@@ -6,6 +6,7 @@ import { Quest } from "@/types/content";
 export type QuestStartBlock =
   | { type: "daily_limit" }
   | { type: "active_quest"; activeQuest: Quest | null }
+  | { type: "repeat_quest"; quest: Quest; repeatXp: number }
   | { type: "error"; message: string };
 
 /**
@@ -18,10 +19,16 @@ export function useQuestStart(getQuest: (id?: string) => Quest | null) {
   const [starting, setStarting] = useState(false);
 
   const tryStart = useCallback(
-    async (input: { questId: string; source?: "explore" | "pack" | "plan" | "featured" | "saved" | "social"; packId?: string | null }) => {
+    async (input: { questId: string; source?: "explore" | "pack" | "plan" | "featured" | "saved" | "social"; packId?: string | null; confirmedRepeat?: boolean }) => {
       setStarting(true);
       setBlock(null);
       try {
+        const quest = getQuest(input.questId);
+        const completedToday = engine?.todayCompletions.some((completion) => completion.questId === input.questId) ?? false;
+        if (!input.confirmedRepeat && quest && (quest.completed || completedToday)) {
+          setBlock({ type: "repeat_quest", quest, repeatXp: Math.round(quest.xp * 0.2) });
+          return false;
+        }
         await startQuest(input);
         await refresh();
         return true;
@@ -32,6 +39,10 @@ export function useQuestStart(getQuest: (id?: string) => Quest | null) {
         } else if (message.includes("already have an active")) {
           const activeQuest = engine?.activeSession ? getQuest(engine.activeSession.questId) : null;
           setBlock({ type: "active_quest", activeQuest: activeQuest ?? null });
+        } else if (message.includes("already completed")) {
+          const quest = getQuest(input.questId);
+          if (quest) setBlock({ type: "repeat_quest", quest, repeatXp: Math.round(quest.xp * 0.2) });
+          else setBlock({ type: "error", message });
         } else {
           setBlock({ type: "error", message });
         }

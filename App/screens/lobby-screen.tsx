@@ -607,6 +607,14 @@ export function LobbyScreen() {
               await handleSaveForLater();
               clearBlock();
             }}
+            onRepeatQuest={async () => {
+              if (block?.type !== "repeat_quest") return;
+              const started = await tryStart({ questId: block.quest.id, source: "plan", confirmedRepeat: true });
+              if (started) {
+                await refresh();
+                router.push("/active-quest");
+              }
+            }}
           />
         </View>
       </Sheet>

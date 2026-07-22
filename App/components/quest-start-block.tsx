@@ -9,11 +9,13 @@ export function QuestStartBlockSheet({
   onClose,
   onGoActive,
   onSaveActive,
+  onRepeatQuest,
 }: {
   block: QuestStartBlock | null;
   onClose: () => void;
   onGoActive?: () => void;
   onSaveActive?: () => void;
+  onRepeatQuest?: () => void | Promise<void>;
 }) {
   if (!block) return null;
 
@@ -48,6 +50,22 @@ export function QuestStartBlockSheet({
     );
   }
 
+  if (block.type === "repeat_quest") {
+    return (
+      <Card style={{ borderRadius: 24, gap: 12, borderColor: `${T.orange}55`, backgroundColor: "#fffaf2" }}>
+        <View style={{ width: 54, height: 54, borderRadius: 19, alignSelf: "center", alignItems: "center", justifyContent: "center", backgroundColor: `${T.orange}18` }}><Text style={{ fontSize: 27 }}>🔁</Text></View>
+        <Text style={{ color: T.dark, fontSize: 21, lineHeight: 26, fontWeight: "900", textAlign: "center" }}>You’ve already completed this quest</Text>
+        <Text style={{ color: T.muted, fontSize: 14, lineHeight: 21, fontWeight: "700", textAlign: "center" }}>
+          You can do it again and earn {block.repeatXp} XP — 20% of the usual {block.quest.xp} XP — to keep adventures fair for everyone.
+        </Text>
+        <View style={{ gap: 10 }}>
+          {onRepeatQuest ? <SoftButton label="Do this adventure again" icon="refresh" color={T.orange} onPress={() => void onRepeatQuest()} /> : null}
+          <SoftButton label="Just okay" inverse color={T.muted} onPress={onClose} />
+        </View>
+      </Card>
+    );
+  }
+
   return (
     <Card style={{ borderRadius: 24, gap: 12 }}>
       <Text style={{ color: T.dark, fontWeight: "900", textAlign: "center" }}>{block.message}</Text>
@@ -62,17 +80,19 @@ export function QuestStartBlockModal({
   onClose,
   onGoActive,
   onSaveActive,
+  onRepeatQuest,
 }: {
   block: QuestStartBlock | null;
   visible: boolean;
   onClose: () => void;
   onGoActive?: () => void;
   onSaveActive?: () => void;
+  onRepeatQuest?: () => void | Promise<void>;
 }) {
   if (!visible || !block) return null;
   return (
     <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, top: 0, backgroundColor: "rgba(61,52,56,0.42)", justifyContent: "flex-end", padding: 20, zIndex: 100 }}>
-      <QuestStartBlockSheet block={block} onClose={onClose} onGoActive={onGoActive} onSaveActive={onSaveActive} />
+      <QuestStartBlockSheet block={block} onClose={onClose} onGoActive={onGoActive} onSaveActive={onSaveActive} onRepeatQuest={onRepeatQuest} />
     </View>
   );
 }

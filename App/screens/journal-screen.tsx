@@ -579,19 +579,23 @@ function TodayMediaSection({ items, onOpenAlbum }: { items: JournalMediaItem[]; 
 
 function JournalAlbum({ items }: { items: JournalMediaItem[] }) {
   const resolvedItems = useResolvedMedia(items);
-  const grouped = resolvedItems.reduce<Record<string, (JournalMediaItem & { uri: string })[]>>((groups, item) => {
-    (groups[item.dateKey] ??= []).push(item);
+  const grouped = resolvedItems.reduce<Record<string, { questTitle: string; dateKey: string; items: (JournalMediaItem & { uri: string })[] }>>((groups, item) => {
+    const key = `${item.dateKey}\u0001${item.questTitle}`;
+    (groups[key] ??= { questTitle: item.questTitle, dateKey: item.dateKey, items: [] }).items.push(item);
     return groups;
   }, {});
-  const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+  const quests = Object.values(grouped).sort((a, b) => b.dateKey.localeCompare(a.dateKey) || a.questTitle.localeCompare(b.questTitle));
+  const todayKey = toLocalDateKey(new Date());
+  const yesterdayKey = toLocalDateKey(addDays(new Date(), -1));
+  const displayDate = (dateKey: string) => dateKey === todayKey ? "Today" : dateKey === yesterdayKey ? "Yesterday" : parseKey(dateKey).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
   if (!items.length) return <Card style={{ borderRadius: radius.xl }}><EmptyState emoji="📷" title="Your album is waiting" body="Finish a quest with a photo and it will become part of your journal album." /></Card>;
 
   return <View style={{ gap: 20 }}>
-    {dates.map((dateKey) => <View key={dateKey} style={{ gap: 9 }}>
-      <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>{dateKey === toLocalDateKey(new Date()) ? "Today" : parseKey(dateKey).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-        {grouped[dateKey].map((item) => <View key={item.id} style={{ width: "48.5%", aspectRatio: 0.88, overflow: "hidden", borderRadius: radius.lg, backgroundColor: T.border }}><Image source={{ uri: item.uri }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /><View style={{ position: "absolute", left: 7, right: 7, bottom: 7, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 5, backgroundColor: "rgba(39,34,35,0.58)" }}><Text numberOfLines={1} style={{ color: T.white, fontSize: 10, fontWeight: "900" }}>{item.questTitle}</Text></View></View>)}
+    {quests.map((quest) => <View key={`${quest.dateKey}-${quest.questTitle}`} style={{ gap: 10 }}>
+      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}><Text numberOfLines={1} style={{ flexShrink: 1, color: T.dark, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>{quest.questTitle}</Text><Text numberOfLines={1} style={{ color: T.muted, fontSize: 11, lineHeight: 16, fontWeight: "800" }}>· {displayDate(quest.dateKey)}</Text></View>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {quest.items.map((item) => <View key={item.id} style={{ width: "23.2%", aspectRatio: 1, overflow: "hidden", borderRadius: 13, backgroundColor: T.border }}><Image source={{ uri: item.uri }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /></View>)}
       </View>
     </View>)}
   </View>;
