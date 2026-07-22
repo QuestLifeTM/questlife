@@ -48,7 +48,7 @@
     <key>NSFaceIDUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
     <key>NSCameraUsageDescription</key>
-    <string>QuestLife uses your camera to scan a friend's QR code.</string>
+    <string>QuestLife uses your camera to capture memories during an active quest and scan a friend's QR code.</string>
     <key>NSContactsUsageDescription</key>
     <string>QuestLife uses your contacts to help you find friends already on QuestLife.</string>
     <key>NSLocationWhenInUseUsageDescription</key>

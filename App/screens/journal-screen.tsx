@@ -6,6 +6,7 @@ import {
   Animated,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Image,
   Pressable,
   ScrollView,
   StyleProp,
@@ -19,20 +20,22 @@ import { AvatarPile } from "@/components/avatar-pile";
 import { StreakPill } from "@/components/streak-pill";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, Entrance, Header, IconButton, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
-import { fetchJournalData, toLocalDateKey, upsertJournalEntry } from "@/services/journal/journalService";
+import { fetchJournalData, resolveJournalMedia, toLocalDateKey, upsertJournalEntry } from "@/services/journal/journalService";
+import { useActiveQuest } from "@/contexts/ActiveQuestContext";
 import { useNotifications } from "@/contexts/NotificationsContext";
 import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMood, PartyJournalCard } from "@/types/journal";
 
-type JournalTab = "journal" | "growth";
+type JournalTab = "journal" | "album";
 type CalendarMode = "week" | "month";
 type PartyDayCollection = { party: PartyJournalCard; dateKey: string };
+type JournalMediaItem = { id: string; source: string; dateKey: string; questTitle: string };
 
 const weekdayLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
-const moods: { key: JournalMood; emoji: string; color: string }[] = [
-  { key: "sad", emoji: "😔", color: T.purple },
-  { key: "neutral", emoji: "😐", color: T.cyan },
-  { key: "happy", emoji: "😊", color: T.green }
+const moods: { key: JournalMood; emoji: string; label: string; description: string; color: string }[] = [
+  { key: "sad", emoji: "😔", label: "Low", description: "Taking it gently today", color: T.purple },
+  { key: "neutral", emoji: "😐", label: "Steady", description: "Finding your rhythm", color: T.cyan },
+  { key: "happy", emoji: "😊", label: "Happy", description: "Feeling bright today", color: T.green }
 ];
 
 const milestoneLabels: Record<number, string> = {
@@ -116,8 +119,8 @@ function formatTime(iso: string) {
 // ── Header + tab switch ──────────────────────────────────────────────────────
 
 function JournalHeader({ tab }: { tab: JournalTab }) {
-  const title = tab === "journal" ? "My Journal" : "My Growth";
-  const subtitle = tab === "journal" ? "Your story, one day at a time" : "Watch yourself level up";
+  const title = tab === "journal" ? "My Journal" : "My Album";
+  const subtitle = tab === "journal" ? "Your story, one day at a time" : "Every quest, kept close";
 
   return (
     <Header
@@ -140,7 +143,7 @@ function JournalHeader({ tab }: { tab: JournalTab }) {
 function JournalTabs({ activeTab, onChange }: { activeTab: JournalTab; onChange: (tab: JournalTab) => void }) {
   return (
     <View style={{ flexDirection: "row", padding: 5, borderRadius: 28, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }}>
-      {(["journal", "growth"] as JournalTab[]).map((tab) => {
+      {(["journal", "album"] as JournalTab[]).map((tab) => {
         const isActive = activeTab === tab;
         return (
           <Pressable
@@ -161,7 +164,7 @@ function JournalTabs({ activeTab, onChange }: { activeTab: JournalTab; onChange:
             })}
           >
             <Text style={{ color: isActive ? T.white : T.muted, fontSize: 13, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>
-              {tab === "journal" ? "My Journal" : "My Growth"}
+              {tab === "journal" ? "My Journal" : "My Album"}
             </Text>
           </Pressable>
         );
@@ -453,37 +456,145 @@ function ChapterDivider() {
 }
 
 function MoodSelector({ mood, editable, onSelect }: { mood: JournalMood | null; editable: boolean; onSelect: (mood: JournalMood) => void }) {
+  const selectedMood = moods.find((option) => option.key === mood) ?? null;
+
   return (
-    <View style={{ flexDirection: "row", gap: 7 }}>
-      {moods.map((option) => {
-        const selected = mood === option.key;
-        return (
-          <Pressable
-            key={option.key}
-            disabled={!editable}
-            onPress={() => {
-              haptic();
-              onSelect(option.key);
-            }}
-            style={({ pressed }) => ({
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: selected ? `${option.color}1f` : T.white,
-              borderWidth: 2,
-              borderColor: selected ? option.color : T.border,
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: selected ? 1 : editable ? 0.85 : 0.4,
-              transform: [{ scale: pressed ? 0.88 : 1 }]
-            })}
-          >
-            <Text style={{ fontSize: 16 }}>{option.emoji}</Text>
-          </Pressable>
-        );
-      })}
+    <View
+      style={{
+        gap: 12,
+        padding: 16,
+        borderRadius: radius.lg,
+        borderWidth: 1.5,
+        borderColor: selectedMood ? `${selectedMood.color}55` : T.border,
+        backgroundColor: selectedMood ? `${selectedMood.color}0e` : "#fffaff"
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <View style={{ gap: 2 }}>
+          <Text style={{ color: T.dark, fontSize: 15, fontWeight: "900" }}>{editable ? "Today's mood" : "Mood"}</Text>
+          <Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>{selectedMood ? selectedMood.description : editable ? "Choose what feels most like you" : "No mood recorded"}</Text>
+        </View>
+        {selectedMood ? <View style={{ borderRadius: 99, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: `${selectedMood.color}18` }}><Text style={{ color: selectedMood.color, fontSize: 11, fontWeight: "900" }}>{selectedMood.label}</Text></View> : null}
+      </View>
+
+      <View accessibilityRole="radiogroup" style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
+        {moods.map((option) => {
+          const selected = mood === option.key;
+          return (
+            <Pressable
+              key={option.key}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selected, disabled: !editable }}
+              accessibilityLabel={`${option.label}: ${option.description}`}
+              disabled={!editable}
+              onPress={() => {
+                haptic();
+                onSelect(option.key);
+              }}
+              style={({ pressed }) => ({
+                flex: 1,
+                minHeight: 80,
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 5,
+                borderRadius: 18,
+                backgroundColor: selected ? `${option.color}1d` : T.white,
+                borderWidth: selected ? 2 : 1,
+                borderColor: selected ? option.color : T.border,
+                opacity: selected || editable ? 1 : 0.56,
+                transform: [{ scale: pressed ? 0.96 : selected ? 1.03 : 1 }]
+              })}
+            >
+              <View style={{ width: selected ? 50 : 38, height: selected ? 50 : 38, borderRadius: 99, alignItems: "center", justifyContent: "center", backgroundColor: selected ? `${option.color}35` : "#f1efec" }}>
+                <Text style={{ fontSize: selected ? 30 : 20 }}>{option.emoji}</Text>
+              </View>
+              <Text style={{ color: selected ? T.dark : T.muted, fontSize: 11, fontWeight: "900" }}>{option.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
+}
+
+function isDirectMediaUri(source: string) {
+  return /^(?:https?:|file:|content:|ph:|asset:)/i.test(source);
+}
+
+function useResolvedMedia(items: JournalMediaItem[]) {
+  const [resolvedItems, setResolvedItems] = useState<(JournalMediaItem & { uri: string })[]>([]);
+  const itemKey = items.map((item) => `${item.id}:${item.source}`).join("\u0001");
+
+  useEffect(() => {
+    let mounted = true;
+    const remoteSources = items.filter((item) => !isDirectMediaUri(item.source)).map((item) => item.source);
+    const load = remoteSources.length ? resolveJournalMedia(remoteSources) : Promise.resolve([] as string[]);
+    load.then((urls) => {
+      if (!mounted) return;
+      const resolvedBySource = new Map(remoteSources.map((source, index) => [source, urls[index]]));
+      setResolvedItems(items.flatMap((item) => {
+        const uri = isDirectMediaUri(item.source) ? item.source : resolvedBySource.get(item.source);
+        return uri ? [{ ...item, uri }] : [];
+      }));
+    }).catch(() => {
+      if (mounted) setResolvedItems(items.filter((item) => isDirectMediaUri(item.source)).map((item) => ({ ...item, uri: item.source })));
+    });
+    return () => { mounted = false; };
+  }, [itemKey]);
+
+  return resolvedItems;
+}
+
+function TodayMediaSection({ items, onOpenAlbum }: { items: JournalMediaItem[]; onOpenAlbum: () => void }) {
+  const resolvedItems = useResolvedMedia(items);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    setActiveIndex(0);
+    if (resolvedItems.length < 2) return;
+    const timer = setInterval(() => setActiveIndex((index) => (index + 1) % resolvedItems.length), 3_800);
+    return () => clearInterval(timer);
+  }, [resolvedItems.length]);
+
+  if (!items.length) return null;
+  const activeItem = resolvedItems[activeIndex] ?? null;
+
+  return (
+    <View style={{ gap: 9 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>Today's media</Text>
+        <Text style={{ color: T.muted, fontSize: 11, fontWeight: "800" }}>{items.length} photo{items.length === 1 ? "" : "s"}</Text>
+      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Open today's photos in your album" onPress={onOpenAlbum} style={({ pressed }) => ({ height: 156, overflow: "hidden", borderRadius: radius.lg, borderWidth: 1.5, borderColor: T.border, backgroundColor: "#eee9e2", transform: [{ scale: pressed ? 0.985 : 1 }] })}>
+        {activeItem ? <Image source={{ uri: activeItem.uri }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /> : <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 7 }}><Ionicons name="images-outline" size={24} color={T.muted} /><Text style={{ color: T.muted, fontSize: 12, fontWeight: "800" }}>Preparing today's photo…</Text></View>}
+        <View style={{ position: "absolute", left: 10, right: 10, bottom: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <View style={{ flex: 1, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "rgba(39,34,35,0.66)" }}><Text numberOfLines={1} style={{ color: T.white, fontSize: 11, fontWeight: "900" }}>{activeItem?.questTitle ?? "Quest memory"}</Text></View>
+          <View style={{ width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.92)" }}><Ionicons name="grid-outline" size={16} color={T.dark} /></View>
+        </View>
+      </Pressable>
+      {resolvedItems.length > 1 ? <View style={{ flexDirection: "row", justifyContent: "center", gap: 5 }}>{resolvedItems.map((item, index) => <View key={item.id} style={{ width: index === activeIndex ? 16 : 5, height: 5, borderRadius: 99, backgroundColor: index === activeIndex ? T.blue : T.border }} />)}</View> : null}
+    </View>
+  );
+}
+
+function JournalAlbum({ items }: { items: JournalMediaItem[] }) {
+  const resolvedItems = useResolvedMedia(items);
+  const grouped = resolvedItems.reduce<Record<string, (JournalMediaItem & { uri: string })[]>>((groups, item) => {
+    (groups[item.dateKey] ??= []).push(item);
+    return groups;
+  }, {});
+  const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+  if (!items.length) return <Card style={{ borderRadius: radius.xl }}><EmptyState emoji="📷" title="Your album is waiting" body="Finish a quest with a photo and it will become part of your journal album." /></Card>;
+
+  return <View style={{ gap: 20 }}>
+    {dates.map((dateKey) => <View key={dateKey} style={{ gap: 9 }}>
+      <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>{dateKey === toLocalDateKey(new Date()) ? "Today" : parseKey(dateKey).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+        {grouped[dateKey].map((item) => <View key={item.id} style={{ width: "48.5%", aspectRatio: 0.88, overflow: "hidden", borderRadius: radius.lg, backgroundColor: T.border }}><Image source={{ uri: item.uri }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /><View style={{ position: "absolute", left: 7, right: 7, bottom: 7, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 5, backgroundColor: "rgba(39,34,35,0.58)" }}><Text numberOfLines={1} style={{ color: T.white, fontSize: 10, fontWeight: "900" }}>{item.questTitle}</Text></View></View>)}
+      </View>
+    </View>)}
+  </View>;
 }
 
 function DayStatStrip({ questCount, xp, minutes }: { questCount: number; xp: number; minutes: number }) {
@@ -622,6 +733,7 @@ function DaySection({
   isToday,
   entry,
   memories,
+  todayMediaItems,
   activeQuest,
   partyChapters,
   isLast,
@@ -629,6 +741,7 @@ function DaySection({
   onSelectMood,
   onOpenMemory,
   onOpenActiveQuest,
+  onOpenAlbum,
   onOpenPartyChapter,
   onExplore
 }: {
@@ -637,6 +750,7 @@ function DaySection({
   isToday: boolean;
   entry: JournalEntry | null;
   memories: JournalMemory[];
+  todayMediaItems: JournalMediaItem[];
   activeQuest: JournalActiveQuest | null;
   partyChapters: PartyJournalCard[];
   isLast: boolean;
@@ -644,6 +758,7 @@ function DaySection({
   onSelectMood: (mood: JournalMood) => void;
   onOpenMemory: (memory: JournalMemory) => void;
   onOpenActiveQuest: () => void;
+  onOpenAlbum: () => void;
   onOpenPartyChapter: (party: PartyJournalCard) => void;
   onExplore: () => void;
 }) {
@@ -692,8 +807,9 @@ function DaySection({
             {dateLabel}
           </Text>
         </View>
-        <MoodSelector mood={entry?.mood ?? null} editable={editable} onSelect={onSelectMood} />
       </View>
+
+      <MoodSelector mood={entry?.mood ?? null} editable={editable} onSelect={onSelectMood} />
 
       {milestone ? (
         <View style={{ flexDirection: "row" }}>
@@ -705,6 +821,8 @@ function DaySection({
       ) : null}
 
       <DayStatStrip questCount={memories.length} xp={xp} minutes={minutes} />
+
+      {isToday ? <TodayMediaSection items={todayMediaItems} onOpenAlbum={onOpenAlbum} /> : null}
 
       {activeQuest ? <View style={{ gap: 8 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>In progress</Text><ActiveQuestJournalCard quest={activeQuest} onPress={onOpenActiveQuest} /></View> : null}
 
@@ -766,6 +884,7 @@ export function JournalScreen() {
   const insets = useSafeAreaInsets();
   const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
   const { markJournalRead } = useNotifications();
+  const { snapshot: activeQuestSnapshot } = useActiveQuest();
 
   const [tab, setTab] = useState<JournalTab>("journal");
   const [mode, setMode] = useState<CalendarMode>("week");
@@ -775,7 +894,7 @@ export function JournalScreen() {
   const [error, setError] = useState<string | null>(null);
   const [partyCollection, setPartyCollection] = useState<PartyDayCollection | null>(null);
 
-  const todayKey = toLocalDateKey(new Date());
+  const [todayKey, setTodayKey] = useState(() => toLocalDateKey(new Date()));
   const [activeKey, setActiveKey] = useState(todayKey);
 
   const [editingTitle, setEditingTitle] = useState(false);
@@ -787,6 +906,16 @@ export function JournalScreen() {
   const sectionsBaseY = useRef(0);
   const calendarHeight = useRef(140);
   const suppressScrollSyncUntil = useRef(0);
+
+  // The inline media shelf is explicitly for the current local calendar day.
+  // Refresh this key at midnight so those captures move to Album without a
+  // reload while the journal remains open.
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const timer = setTimeout(() => setTodayKey(toLocalDateKey(new Date())), Math.max(1_000, nextMidnight.getTime() - now.getTime() + 150));
+    return () => clearTimeout(timer);
+  }, [todayKey]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -831,6 +960,24 @@ export function JournalScreen() {
     if (data?.activeQuest) dates.add(toLocalDateKey(new Date(data.activeQuest.startedAt)));
     return dates;
   }, [data]);
+
+  const albumItems = useMemo<JournalMediaItem[]>(() => {
+    const completedMedia = Object.entries(data?.memoriesByDate ?? {}).flatMap(([dateKey, memories]) => memories.flatMap((memory) => memory.photoPaths.map((source, index) => ({
+      id: `memory-${memory.completionId}-${index}`,
+      source,
+      dateKey,
+      questTitle: memory.title,
+    }))));
+    const activeMedia = (activeQuestSnapshot?.photos ?? []).map((photo) => ({
+      id: `active-${photo.id}`,
+      source: photo.uri,
+      dateKey: toLocalDateKey(new Date(photo.capturedAt)),
+      questTitle: data?.activeQuest?.title ?? "Active quest",
+    }));
+    return [...activeMedia, ...completedMedia];
+  }, [activeQuestSnapshot?.photos, data?.activeQuest?.title, data?.memoriesByDate]);
+
+  const todayMediaItems = useMemo(() => albumItems.filter((item) => item.dateKey === todayKey), [albumItems, todayKey]);
 
   function scrollToDay(key: string) {
     const offset = sectionOffsets.current[key];
@@ -908,6 +1055,7 @@ export function JournalScreen() {
           isToday={key === todayKey}
           entry={entries[key] ?? null}
           memories={memories}
+          todayMediaItems={todayMediaItems}
           activeQuest={activeQuest}
           partyChapters={partyChapters}
           isLast={index === dayKeys.length - 1}
@@ -915,6 +1063,7 @@ export function JournalScreen() {
           onSelectMood={(mood) => saveEntry(key, { mood })}
           onOpenMemory={(memory) => router.push(`/memory/${memory.completionId}`)}
           onOpenActiveQuest={() => router.push("/active-quest")}
+          onOpenAlbum={() => setTab("album")}
           onOpenPartyChapter={(party) => setPartyCollection({ party, dateKey: key })}
           onExplore={goExplore}
         />
@@ -986,13 +1135,7 @@ export function JournalScreen() {
         ) : (
           <View style={{ alignItems: "center" }}>
             <Entrance style={{ width: contentWidth, paddingHorizontal: horizontalPadding, marginTop: 6, transform: [{ translateX: safeAreaOffset }] }}>
-              <Card style={{ borderRadius: radius.xl }}>
-                <EmptyState
-                  emoji="🌱"
-                  title="Your growth story is coming"
-                  body="Trends, badges, and insights from your quests will bloom here. Every quest you finish is already counting toward it."
-                />
-              </Card>
+              <JournalAlbum items={albumItems} />
             </Entrance>
           </View>
         )}

@@ -5,6 +5,7 @@ type PartyCategoryIconProps = {
   category: QuestCategory;
   size?: number;
   color?: string;
+  strokeWidth?: number;
 };
 
 const iconColors: Record<QuestCategory, string> = {
@@ -19,9 +20,9 @@ const iconColors: Record<QuestCategory, string> = {
   "WILD CARD": "#D14DFF"
 };
 
-export function PartyCategoryIcon({ category, size = 22, color: colorOverride }: PartyCategoryIconProps) {
+export function PartyCategoryIcon({ category, size = 22, color: colorOverride, strokeWidth = 1.9 }: PartyCategoryIconProps) {
   const color = colorOverride ?? iconColors[category];
-  const stroke = { stroke: color, strokeWidth: 1.9, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  const stroke = { stroke: color, strokeWidth, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">

@@ -1,6 +1,7 @@
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { toLocalDateKey } from "@/services/journal/journalService";
+import { compressFeedImage } from "@/services/media/feed-image";
 import {
   CompleteQuestInput,
   CompletionResult,
@@ -136,14 +137,13 @@ export async function uploadQuestPhoto(localUri: string): Promise<string> {
   if (userError) throw userError;
   if (!userData.user) throw new Error("No authenticated user.");
 
-  const response = await fetch(localUri);
+  const compressedUri = await compressFeedImage(localUri);
+  const response = await fetch(compressedUri);
   const blob = await response.arrayBuffer();
-  const extension = localUri.split(".").pop()?.toLowerCase() || "jpg";
+  const extension = "jpg";
   const path = `${userData.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
 
-  const { error } = await supabase.storage.from("quest-photos").upload(path, blob, {
-    contentType: extension === "png" ? "image/png" : "image/jpeg",
-  });
+  const { error } = await supabase.storage.from("quest-photos").upload(path, blob, { contentType: "image/jpeg" });
   if (error) throw error;
 
   const { data } = supabase.storage.from("quest-photos").getPublicUrl(path);

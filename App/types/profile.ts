@@ -29,6 +29,7 @@ export type QuestPost = {
 
 /** Only the keys present here are intentionally shown on a shared post. */
 export type QuestPostStats = {
+  rating?: number;
   photos?: number;
   distanceMeters?: number;
   durationSeconds?: number;
@@ -49,6 +50,7 @@ export type QuestFeedPost = {
   postTitle: string | null;
   caption: string | null;
   photoUrls: string[];
+  rating?: number | null;
   durationSeconds: number | null;
   stats: QuestPostStats;
   visibility: "public" | "friends" | "private";
@@ -73,6 +75,7 @@ export type ProfileOverview = {
     userId: string;
     username: string | null;
     displayName: string;
+    avatarUrl: string | null;
     email: string | null;
     bio: string | null;
     emoji: string;
@@ -97,6 +100,7 @@ export type ProfileEditInput = {
   displayName?: string;
   username?: string;
   bio?: string | null;
+  avatarUrl?: string | null;
   emoji?: string;
   avatarColor?: string;
   title?: string | null;

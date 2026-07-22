@@ -38,7 +38,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "QuestLife uses your photos when you choose a Party photo, share a Party completion, or add a collection cover."
+          "cameraPermission": "QuestLife uses your camera to capture memories during an active quest.",
+          "photosPermission": "QuestLife uses your photos when you choose a profile picture or cover, a Party photo, share a Party completion, or add a collection cover."
         }
       ],
       "expo-sqlite"
@@ -47,7 +48,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.agentatom.questlife-native",
       "infoPlist": {
-        "NSCameraUsageDescription": "QuestLife uses your camera to scan a friend's QR code.",
+        "NSCameraUsageDescription": "QuestLife uses your camera to capture memories during an active quest and scan a friend's QR code.",
         "NSContactsUsageDescription": "QuestLife uses your contacts to help you find friends already on QuestLife.",
         "NSLocationWhenInUseUsageDescription": "QuestLife uses your location to show your active quest route.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "QuestLife uses your location during an active quest so route recording can continue while your screen is locked.",

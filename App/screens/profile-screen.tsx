@@ -1,265 +1,257 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
-import { useEffect, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { BlurView } from "expo-blur";
+import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import { Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+
+import { EmptyState, Screen, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { T } from "@/components/theme";
-import { QuestlifeFlame } from "@/components/questlife-flame";
-import { Card, EmptyState, Header, IconButton, PillStat, Screen, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
+import { QuestFeedThumbnail } from "@/components/quest-feed-card";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuestEngine } from "@/contexts/QuestEngineContext";
-import { engineErrorMessage } from "@/services/engine/questEngineService";
-import { createQuestPost, fetchProfileOverview, togglePostLike, updateProfile } from "@/services/profile/profileService";
-import { ProfileOverview, QuestPost, levelForXp } from "@/types/profile";
+import { fetchProfileOverview, updateProfile, uploadProfileAvatar } from "@/services/profile/profileService";
+import { ProfileOverview, QuestFeedPost } from "@/types/profile";
+
+const defaultProfileAvatar = require("../assets/profile/default-profile-avatar.png");
+
+type ProfileTab = "posts" | "growth" | "achievements";
+
+const profileTabs: ReadonlyArray<{ id: ProfileTab; label: string; icon: keyof typeof Ionicons.glyphMap; activeIcon: keyof typeof Ionicons.glyphMap }> = [
+  { id: "posts", label: "Posts", icon: "grid-outline", activeIcon: "grid" },
+  { id: "growth", label: "Personal Growth", icon: "trending-up-outline", activeIcon: "trending-up" },
+  { id: "achievements", label: "Achievements", icon: "trophy-outline", activeIcon: "trophy" },
+];
+
+function accountValue(metadata: unknown, key: string) {
+  if (!metadata || typeof metadata !== "object") return "";
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function fullProfileName(displayName: string, metadata: unknown) {
+  const fullName = [accountValue(metadata, "first_name"), accountValue(metadata, "last_name")].filter(Boolean).join(" ");
+  return displayName.trim().split(/\s+/).filter(Boolean).length >= 2 ? displayName : fullName || displayName;
+}
+
+function ProfileAvatar({ uri, size, label }: { uri: string | null; size: number; label: string }) {
+  return <View accessible accessibilityLabel={label} style={{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", borderWidth: 2, borderColor: T.white, backgroundColor: T.white, boxShadow: "0px 5px 12px rgba(61,52,56,0.16)" }}>
+    <Image source={uri ? { uri } : defaultProfileAvatar} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
+  </View>;
+}
+
+function HeaderControl({ label, icon, positive = false, disabled = false, onPress }: { label?: string; icon?: keyof typeof Ionicons.glyphMap; positive?: boolean; disabled?: boolean; onPress: () => void }) {
+  return <Pressable disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={label ?? "Profile control"} onPress={onPress} hitSlop={8} style={({ pressed }) => ({ minWidth: 40, minHeight: 40, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 4, opacity: disabled ? 0.45 : pressed ? 0.66 : 1 })}>
+    {icon ? <Ionicons name={icon} size={20} color={T.dark} /> : <Text style={{ color: positive ? T.green : T.dark, fontFamily: "RubikBold", fontSize: 15 }}>{label}</Text>}
+    {positive ? <Ionicons name="checkmark-circle" size={18} color={T.green} /> : null}
+  </Pressable>;
+}
+
+function ImageControl({ label, onPress, style }: { label: string; onPress: () => void; style?: object }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [{ width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: T.white, borderWidth: 2, borderColor: T.border, boxShadow: `2px 2px 0px ${T.border}`, opacity: pressed ? 0.72 : 1 }, style]}><Ionicons name="image-outline" size={21} color={T.dark} /></Pressable>;
+}
+
+function ProfileTabSwitcher({ activeTab, onChange }: { activeTab: ProfileTab; onChange: (tab: ProfileTab) => void }) {
+  return <View accessibilityRole="tablist" style={{ width: "100%", maxWidth: 276, flexDirection: "row", borderBottomWidth: 1, borderBottomColor: T.border }}>
+    {profileTabs.map((tab) => {
+      const selected = tab.id === activeTab;
+      return <Pressable key={tab.id} accessibilityRole="tab" accessibilityLabel={tab.label} accessibilityState={{ selected }} onPress={() => onChange(tab.id)} hitSlop={8} style={({ pressed }) => ({ flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderBottomWidth: 2, borderBottomColor: selected ? T.dark : "transparent", opacity: pressed ? 0.66 : 1 })}>
+        <Ionicons name={selected ? tab.activeIcon : tab.icon} size={24} color={selected ? T.dark : "#6f767d"} />
+      </Pressable>;
+    })}
+  </View>;
+}
 
 export function ProfileScreen() {
-  const { signOut } = useAuth();
-  const { resetTodaySoloCompletions } = useQuestEngine();
-  const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
+  const router = useRouter();
+  const { signOut, user } = useAuth();
+  const { contentWidth, horizontalPadding, insets, safeAreaOffset } = useResponsiveScreenLayout();
   const [overview, setOverview] = useState<ProfileOverview | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editOpen, setEditOpen] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<QuestPost | null>(null);
-  const [signOutOpen, setSignOutOpen] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
-  const [signOutError, setSignOutError] = useState<string | null>(null);
-  const [resettingToday, setResettingToday] = useState(false);
-  const [editForm, setEditForm] = useState({ displayName: "", username: "", bio: "", emoji: "😊", title: "" });
-  const [postForm, setPostForm] = useState({ questId: "", caption: "", visibility: "friends" as "public" | "friends" | "private" });
+  const [editing, setEditing] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
+  const [error, setError] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [draftBio, setDraftBio] = useState("");
+  const [draftAvatarUri, setDraftAvatarUri] = useState<string | null>(null);
+  const [readOnlyContentTop, setReadOnlyContentTop] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function load() {
     setLoading(true);
     try {
-      const data = await fetchProfileOverview();
-      if (!data.profile) {
-        setOverview(null);
-        return;
+      const next = await fetchProfileOverview();
+      setOverview(next.profile ? next : null);
+      if (next.profile) {
+        setDraftName(fullProfileName(next.profile.displayName, user?.user_metadata));
+        setDraftBio(next.profile.bio ?? "");
+        setDraftAvatarUri(next.profile.avatarUrl);
       }
-
-      setOverview(data);
-      setEditForm({
-        displayName: data.profile.displayName,
-        username: data.profile.username ?? "",
-        bio: data.profile.bio ?? "",
-        emoji: data.profile.emoji,
-        title: data.profile.title ?? "",
-      });
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, [user?.id]);
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    if (toastDismissTimer.current) clearTimeout(toastDismissTimer.current);
+  }, []);
 
-  const level = overview?.profile ? levelForXp(overview.profile.totalXp) : { level: 1, progress: 0, intoLevel: 0, toNext: 500 };
-
-  async function saveProfile() {
-    await updateProfile(editForm);
-    setEditOpen(false);
-    await load();
+  function showToast(message: string) {
+    if (toastDismissTimer.current) clearTimeout(toastDismissTimer.current);
+    setToast(message);
+    toastDismissTimer.current = setTimeout(() => setToast(null), 3000);
   }
 
-  async function publishPost() {
-    if (!postForm.questId) return;
-    await createQuestPost({ questId: postForm.questId, caption: postForm.caption, visibility: postForm.visibility });
-    setCreateOpen(false);
-    setPostForm({ questId: "", caption: "", visibility: "friends" });
-    await load();
+  function clearToast() {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    if (toastDismissTimer.current) clearTimeout(toastDismissTimer.current);
+    setToast(null);
   }
 
-  async function toggleLike(post: QuestPost) {
-    await togglePostLike(post.id, post.likedByMe);
-    await load();
+  function notifyAfterImagePick(message: string) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => showToast(message), 1000);
   }
 
-  async function confirmSignOut() {
-    if (signingOut) return;
-    setSigningOut(true);
-    setSignOutError(null);
+  function startEditing() {
+    if (!overview?.profile) return;
+    setError(null);
+    setDraftName(fullProfileName(overview.profile.displayName, user?.user_metadata));
+    setDraftBio(overview.profile.bio ?? "");
+    setDraftAvatarUri(overview.profile.avatarUrl);
+    setEditing(true);
+  }
+
+  function discard() {
+    if (!overview?.profile) return;
+    setDraftName(fullProfileName(overview.profile.displayName, user?.user_metadata));
+    setDraftBio(overview.profile.bio ?? "");
+    setDraftAvatarUri(overview.profile.avatarUrl);
+    setError(null);
+    clearToast();
+    setEditing(false);
+  }
+
+  async function chooseImage() {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.86 });
+    if (result.canceled || !result.assets[0]) return;
+    setDraftAvatarUri(result.assets[0].uri);
+    notifyAfterImagePick("Profile picture set!");
+  }
+
+  async function save() {
+    if (!overview?.profile || saving) return;
+    const displayName = draftName.trim();
+    if (!displayName) {
+      setError("Add your name before saving.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
     try {
-      await signOut();
-      setSignOutOpen(false);
-      // The root auth guard redirects to Login after the session is cleared.
-    } catch (error) {
-      setSignOutError(error instanceof Error ? error.message : "We couldn't sign you out. Please try again.");
+      const avatarUrl = draftAvatarUri && draftAvatarUri !== overview.profile.avatarUrl ? await uploadProfileAvatar(draftAvatarUri) : undefined;
+      const metadataUsername = accountValue(user?.user_metadata, "username");
+      await updateProfile({ displayName, bio: draftBio, avatarUrl, username: !overview.profile.username && metadataUsername ? metadataUsername : undefined });
+      setEditing(false);
+      await load();
+      showToast("Saved!");
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "We couldn't save your profile. Please try again.");
     } finally {
-      setSigningOut(false);
+      setSaving(false);
     }
   }
 
-  function confirmResetToday() {
-    Alert.alert(
-      "Reset today's quests?",
-      "This removes today's completed solo quests and their XP so you can do them again. Party quest results are not changed.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reset today",
-          style: "destructive",
-          onPress: async () => {
-            setResettingToday(true);
-            try {
-              const removed = await resetTodaySoloCompletions();
-              await load();
-              Alert.alert(removed ? "Today's quests reset" : "Nothing to reset", removed ? `${removed} completed ${removed === 1 ? "quest was" : "quests were"} reset.` : "You have no completed solo quests from today.");
-            } catch (error) {
-              Alert.alert("Couldn’t reset today", engineErrorMessage(error));
-            } finally {
-              setResettingToday(false);
-            }
-          },
-        },
-      ],
-    );
-  }
+  if (loading && !overview) return <Screen><EmptyState emoji="⏳" title="Loading profile" body="Gathering your QuestLife identity…" /></Screen>;
+  if (!overview?.profile) return <Screen><EmptyState emoji="!" title="Profile unavailable" body="Sign in to view your profile." /></Screen>;
 
-  if (loading && !overview) {
-    return (
-      <Screen>
-        <EmptyState emoji="⏳" title="Loading profile" body="Gathering your stats..." />
-      </Screen>
-    );
-  }
+  const { profile, stats } = overview;
+  const avatarUri = editing ? draftAvatarUri : profile.avatarUrl;
+  const displayName = fullProfileName(profile.displayName, user?.user_metadata);
+  const username = accountValue(user?.user_metadata, "username") || profile.username || "adventurer";
+  const hasCompletedQuest = stats.totalQuests > 0;
+  const postTileSize = (contentWidth - horizontalPadding * 2 - 12) / 3;
+  const profilePosts: QuestFeedPost[] = overview.posts.map((post) => ({
+    ...post,
+    durationSeconds: post.durationSeconds ?? null,
+    userId: profile.userId,
+    username,
+    displayName,
+    emoji: profile.emoji,
+    avatarColor: profile.avatarColor,
+    commentCount: 0,
+  }));
 
-  if (!overview?.profile) {
-    return (
-      <Screen>
-        <EmptyState emoji="!" title="Profile unavailable" body="Sign in to view your profile." />
-      </Screen>
-    );
-  }
+  return <View style={{ flex: 1, backgroundColor: T.bg }}>
+    <ScrollView scrollEnabled={!editing} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + 112 }}>
+      <View style={{ width: contentWidth, transform: [{ translateX: safeAreaOffset }] }}>
+      <View style={{ backgroundColor: T.bg }}>
+        <View style={{ paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top - 4, 0) }}>
+          <View style={{ height: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            {editing ? <HeaderControl label="Discard" onPress={discard} /> : <HeaderControl icon="create-outline" label="Edit profile" onPress={startEditing} />}
+            {editing ? <HeaderControl label={saving ? "Saving…" : "Save"} positive disabled={saving} onPress={() => void save()} /> : <HeaderControl icon="settings-outline" label="Open settings" onPress={() => setSettingsOpen(true)} />}
+          </View>
 
-  const { profile, stats, posts, recentCompletions } = overview;
-
-  return (
-    <Screen padded={false} contentStyle={{ alignItems: "center" }}>
-      <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 18, transform: [{ translateX: safeAreaOffset }] }}>
-        <Header title="Profile" subtitle="Your quest identity" right={<IconButton icon="settings-outline" onPress={() => setEditOpen(true)} />} animated={false} />
-
-        <Card style={{ borderRadius: 28, gap: 16 }}>
-          <View style={{ flexDirection: "row", gap: 16, alignItems: "center" }}>
-            <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: `${profile.avatarColor}22`, borderWidth: 3, borderColor: profile.avatarColor, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 34 }}>{profile.emoji}</Text>
+          <View style={{ alignItems: "center", paddingTop: editing ? 8 : 5 }}>
+            <View style={{ marginTop: editing ? 7 : 0, position: "relative" }}>
+              <ProfileAvatar uri={avatarUri} size={92} label={`${displayName}'s profile photo`} />
+              {editing ? <ImageControl label="Change profile picture" onPress={() => void chooseImage()} style={{ width: 34, height: 34, borderRadius: 11, position: "absolute", right: -10, bottom: -7, zIndex: 3, elevation: 3 }} /> : null}
             </View>
-            <View style={{ flex: 1, flexDirection: "row", justifyContent: "space-around" }}>
-              <View style={{ alignItems: "center" }}>
-                <Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>{stats.totalQuests}</Text>
-                <Text style={{ color: T.muted, fontSize: 12, fontWeight: "800" }}>Quests</Text>
-              </View>
-              <View style={{ alignItems: "center" }}>
-                <Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>{level.level}</Text>
-                <Text style={{ color: T.muted, fontSize: 12, fontWeight: "800" }}>Level</Text>
-              </View>
-              <View style={{ alignItems: "center" }}>
-                <Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>{stats.friendsCount}</Text>
-                <Text style={{ color: T.muted, fontSize: 12, fontWeight: "800" }}>Friends</Text>
-              </View>
-            </View>
-          </View>
-          <View>
-            <Text style={{ color: T.dark, fontSize: 18, fontWeight: "900" }}>{profile.displayName}</Text>
-            {profile.title ? <Text style={{ color: T.blue, fontWeight: "800", marginTop: 2 }}>{profile.title}</Text> : null}
-            <Text style={{ color: T.muted, fontWeight: "700", marginTop: 4 }}>@{profile.username}</Text>
-            {profile.bio ? <Text style={{ color: T.dark, fontWeight: "600", marginTop: 8, lineHeight: 20 }}>{profile.bio}</Text> : null}
-          </View>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <PillStat iconElement={<QuestlifeFlame size={15} />} text={`${stats.currentStreak} streak`} color={T.orange} />
-            <PillStat icon="flash" text={`${profile.totalXp} XP`} />
-          </View>
-          <SoftButton label="Edit profile" icon="create-outline" inverse color={T.blue} onPress={() => setEditOpen(true)} />
-        </Card>
 
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Text style={{ color: T.dark, fontSize: 18, fontWeight: "900" }}>Quest posts</Text>
-          <SoftButton label="New post" icon="add" onPress={() => setCreateOpen(true)} color={T.blue} style={{ minHeight: 38, paddingHorizontal: 14 }} />
+            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 40, marginTop: 9, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12 }}><TextInput value={draftName} onChangeText={setDraftName} accessibilityLabel="Name" autoCapitalize="words" placeholder="Your name" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 14, lineHeight: 19, textAlign: "center", paddingVertical: 6 }} /></View> : <Text style={{ marginTop: 9, color: T.dark, fontFamily: "RubikBold", fontSize: 14, lineHeight: 19, textAlign: "center" }}>{displayName}</Text>}
+            <Text style={{ marginTop: editing ? 9 : 4, color: T.dark, fontFamily: "RubikBold", fontSize: 14, lineHeight: 19, textAlign: "center" }}>
+              @{username}{hasCompletedQuest ? `  •  ${stats.totalQuests.toLocaleString()} ${stats.totalQuests === 1 ? "Quest" : "Quests"} Done` : ""}
+            </Text>
+
+            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 52, marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12, paddingVertical: 6 }}><TextInput value={draftBio} onChangeText={setDraftBio} accessibilityLabel="Bio" placeholder="Write a bio…" placeholderTextColor={T.muted} multiline maxLength={180} textAlignVertical="top" style={{ minHeight: 32, color: T.dark, fontFamily: "Rubik", fontSize: 14, lineHeight: 18 }} /></View> : <Text style={{ maxWidth: 286, marginTop: 8, color: profile.bio ? T.dark : T.muted, fontFamily: "Rubik", fontSize: 14, lineHeight: 19, textAlign: "center" }}>{profile.bio || "Tap the pencil icon to add a bio."}</Text>}
+            {error ? <Text accessibilityRole="alert" style={{ marginTop: 7, color: T.red, fontFamily: "RubikBold", fontSize: 12, textAlign: "center" }}>{error}</Text> : null}
+          </View>
+
+          <View
+            accessible={!editing}
+            importantForAccessibility={editing ? "no-hide-descendants" : "auto"}
+            onLayout={({ nativeEvent }) => setReadOnlyContentTop(nativeEvent.layout.y)}
+            pointerEvents={editing ? "none" : "auto"}
+            style={{ width: "100%", alignItems: "center", marginTop: 18 }}
+          >
+              <ProfileTabSwitcher activeTab={activeTab} onChange={setActiveTab} />
+          </View>
         </View>
-
-        {posts.length ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {posts.map((post) => (
-              <Pressable key={post.id} onPress={() => setSelectedPost(post)} style={{ width: "48.5%", aspectRatio: 1, borderRadius: 18, overflow: "hidden", borderWidth: 2, borderColor: T.border }}>
-                {post.photoUrls[0] ? (
-                  <Image source={{ uri: post.photoUrls[0] }} style={{ width: "100%", height: "100%" }} />
-                ) : (
-                  <View style={{ flex: 1, backgroundColor: `${post.questColor}22`, alignItems: "center", justifyContent: "center", padding: 10 }}>
-                    <Text style={{ color: T.dark, fontWeight: "900", textAlign: "center", fontSize: 13 }} numberOfLines={3}>{post.postTitle?.trim() || post.questTitle}</Text>
-                  </View>
-                )}
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          <EmptyState emoji="📸" title="No posts yet" body="Share a completed quest to show friends what you've been up to." />
-        )}
       </View>
+      <View
+        importantForAccessibility={editing ? "no-hide-descendants" : "auto"}
+        pointerEvents={editing ? "none" : "auto"}
+        style={{ width: "100%" }}
+      >
+      {activeTab === "posts" ? <View style={{ paddingHorizontal: horizontalPadding, paddingTop: 20 }}>
+        {profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." />}
+      </View> : null}
+      </View>
+    </View>
+    </ScrollView>
 
-      <Sheet visible={editOpen} onClose={() => setEditOpen(false)} maxHeight="88%">
-        <ScrollView contentContainerStyle={{ padding: 24, gap: 12 }}>
-          <Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>Edit profile</Text>
-          {(["displayName", "username", "bio", "emoji", "title"] as const).map((field) => (
-            <TextInput
-              key={field}
-              value={editForm[field]}
-              onChangeText={(v) => setEditForm((f) => ({ ...f, [field]: v }))}
-              placeholder={field}
-              placeholderTextColor={T.muted}
-              style={{ borderWidth: 2, borderColor: T.border, borderRadius: 16, padding: 14, color: T.dark, fontWeight: "700" }}
-            />
-          ))}
-          <SoftButton label="Save" icon="checkmark" onPress={saveProfile} />
-          <View style={{ marginTop: 8, paddingTop: 14, borderTopWidth: 2, borderTopColor: T.border, gap: 8 }}>
-            <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>Quest progress</Text>
-            <Text style={{ color: T.muted, fontSize: 12, lineHeight: 18, fontWeight: "700" }}>Remove today’s completed solo quests so you can start them again. Party results stay unchanged.</Text>
-            <SoftButton label={resettingToday ? "Resetting today…" : "Reset today’s completed quests"} icon="refresh-outline" inverse color={T.red} onPress={confirmResetToday} disabled={resettingToday} />
-          </View>
-          <View style={{ marginTop: 8, paddingTop: 14, borderTopWidth: 2, borderTopColor: T.border, gap: 8 }}>
-            <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>Account</Text>
-            <SoftButton label="Sign out" icon="log-out-outline" inverse color={T.red} onPress={() => { setEditOpen(false); setSignOutOpen(true); }} />
-          </View>
-        </ScrollView>
-      </Sheet>
+    {editing && readOnlyContentTop !== null ? <View pointerEvents="none" style={{ position: "absolute", top: readOnlyContentTop, right: 0, bottom: 0, left: 0, overflow: "hidden" }}>
+      <BlurView tint="light" intensity={16} style={{ position: "absolute", inset: 0 }} />
+      <View style={{ flex: 1, backgroundColor: "rgba(255,252,245,0.48)" }} />
+    </View> : null}
 
-      <Sheet visible={signOutOpen} onClose={() => !signingOut && setSignOutOpen(false)}>
-        <View style={{ padding: 24, gap: 14 }}>
-          <View style={{ width: 48, height: 48, borderRadius: 17, backgroundColor: `${T.red}16`, alignItems: "center", justifyContent: "center" }}><Ionicons name="log-out-outline" size={24} color={T.red} /></View>
-          <Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>Sign out?</Text>
-          <Text style={{ color: T.muted, fontSize: 14, lineHeight: 20, fontWeight: "700" }}>You’ll be signed out on this device. Your quests, memories, and Party progress stay safely in your account.</Text>
-          {signOutError ? <Text accessibilityRole="alert" style={{ color: T.red, fontSize: 12, lineHeight: 18, fontWeight: "800" }}>{signOutError}</Text> : null}
-          <SoftButton label={signingOut ? "Signing out…" : "Sign out"} icon="log-out-outline" inverse color={T.red} onPress={confirmSignOut} />
-          <SoftButton label="Stay signed in" inverse color={T.muted} onPress={() => { if (!signingOut) setSignOutOpen(false); }} />
-        </View>
-      </Sheet>
+    <Sheet visible={settingsOpen} onClose={() => setSettingsOpen(false)}>
+      <View style={{ padding: 24, gap: 16 }}>
+        <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Settings</Text>
+        <SoftButton label="Notifications" icon="notifications-outline" inverse color={T.blue} onPress={() => { setSettingsOpen(false); router.push("/notifications"); }} />
+        <SoftButton label="Sign out" icon="log-out-outline" inverse color={T.red} onPress={() => { setSettingsOpen(false); void signOut(); }} />
+      </View>
+    </Sheet>
 
-      <Sheet visible={createOpen} onClose={() => setCreateOpen(false)} maxHeight="88%">
-        <ScrollView contentContainerStyle={{ padding: 24, gap: 12 }}>
-          <Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>Create post</Text>
-          <Text style={{ color: T.muted, fontWeight: "800", fontSize: 12, textTransform: "uppercase" }}>Pick a completed quest</Text>
-          {recentCompletions.map((c) => (
-            <Pressable key={c.completionId} onPress={() => setPostForm((f) => ({ ...f, questId: c.questId }))} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 }}>
-              <Ionicons name={postForm.questId === c.questId ? "radio-button-on" : "radio-button-off"} size={18} color={T.blue} />
-              <Text style={{ color: T.dark, fontWeight: "800" }}>{c.questTitle}</Text>
-            </Pressable>
-          ))}
-          <TextInput value={postForm.caption} onChangeText={(v) => setPostForm((f) => ({ ...f, caption: v }))} placeholder="Caption..." placeholderTextColor={T.muted} multiline style={{ minHeight: 80, borderWidth: 2, borderColor: T.border, borderRadius: 16, padding: 14, color: T.dark, fontWeight: "700", textAlignVertical: "top" }} />
-          <SoftButton label="Post" icon="send" onPress={publishPost} />
-        </ScrollView>
-      </Sheet>
-
-      <Sheet visible={selectedPost !== null} onClose={() => setSelectedPost(null)}>
-        {selectedPost ? (
-          <View style={{ padding: 24, gap: 14 }}>
-            <Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>{selectedPost.questTitle}</Text>
-            {selectedPost.caption ? <Text style={{ color: T.muted, fontWeight: "700", lineHeight: 20 }}>{selectedPost.caption}</Text> : null}
-            <Pressable onPress={() => toggleLike(selectedPost)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Ionicons name={selectedPost.likedByMe ? "heart" : "heart-outline"} size={22} color={T.red} />
-              <Text style={{ color: T.dark, fontWeight: "900" }}>{selectedPost.likeCount}</Text>
-            </Pressable>
-            <Link href={`/quest/${selectedPost.questId}`} asChild>
-              <Pressable><SoftButton label="Do this quest" icon="compass" /></Pressable>
-            </Link>
-          </View>
-        ) : null}
-      </Sheet>
-    </Screen>
-  );
+    <Modal transparent visible={Boolean(toast)} animationType="fade" onRequestClose={() => setToast(null)}>
+      <View pointerEvents="box-none" style={{ flex: 1, justifyContent: "flex-end", padding: 20, paddingBottom: 106 }}>
+        {toast ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss notification" onPress={clearToast} style={{ minHeight: 62, borderRadius: 18, borderWidth: 2, borderColor: "#55c96b", backgroundColor: T.white, paddingHorizontal: 15, flexDirection: "row", alignItems: "center", gap: 11, boxShadow: "0px 6px 14px rgba(61,52,56,0.16)" }}><View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: "#55c96b", alignItems: "center", justifyContent: "center" }}><Ionicons name="checkmark" size={18} color={T.white} /></View><Text style={{ flex: 1, color: T.dark, fontFamily: "RubikBold", fontSize: 15 }}>{toast}</Text></Pressable> : null}
+      </View>
+    </Modal>
+  </View>;
 }

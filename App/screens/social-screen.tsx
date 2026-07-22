@@ -1,12 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { Share } from "react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Alert, Animated, Easing, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { AccessibilityInfo, Alert, Animated, Easing, FlatList, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import Reanimated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
+import { QuestFeedCard } from "@/components/quest-feed-card";
 import { QuestlifeFlame } from "@/components/questlife-flame";
 import { categoryColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, haptic, Header, IconButton, PillStat, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
@@ -19,15 +19,11 @@ import { Quest, QuestDifficulty, questDifficulties } from "@/types/content";
 import { QuestFeedPost } from "@/types/profile";
 import { CreatePartyInput, Party, PartyLocationType, PartyMode, PartyProofMode, PartyTemplate, SocialFriend } from "@/types/social";
 
-type Tab = "feed" | "parties";
+type Tab = "feed" | "friends" | "parties";
 type FeedScope = "public" | "friends";
 type CreatorStep = "source" | "quests" | "details";
 type PartyQuestFilters = { duration: string | null; difficulty: QuestDifficulty | null };
 type PartyQuestControl = "sort" | "filters" | null;
-
-function FriendsHeaderButton({ onPress }: { onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel="Open Friends" onPress={() => { haptic(); onPress(); }} style={({ pressed }) => ({ width: 58, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: T.dark, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.68)", borderBottomWidth: 5, borderBottomColor: "#292225", boxShadow: "0px 7px 14px rgba(61,52,56,0.20)", transform: [{ translateY: pressed ? 3 : 0 }] })}><View style={{ width: 34, height: 29, borderRadius: 14.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.09)" }}><Ionicons name="people" size={21} color={T.white} /></View></Pressable>;
-}
 
 function FeedScopeTab({ scope, active, onPress }: { scope: FeedScope; active: boolean; onPress: () => void }) {
   const icon = scope === "public" ? "globe-outline" : "people-outline";
@@ -63,46 +59,6 @@ function SectionTitle({ title, detail }: { title: string; detail?: string }) {
       {detail ? <Text style={{ color: T.muted, fontSize: 12, fontWeight: "800" }}>{detail}</Text> : null}
     </View>
   );
-}
-
-function relativePostTime(value: string) {
-  const timestamp = new Date(value);
-  const elapsed = Date.now() - timestamp.getTime();
-  const hours = Math.floor(elapsed / 3_600_000);
-  const time = timestamp.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  if (hours < 24) return `${hours < 1 ? "Just now" : `${hours}h ago`} · ${time}`;
-  if (hours < 48) return `Yesterday · ${time}`;
-  if (hours < 24 * 7) return `${Math.floor(hours / 24)}d ago · ${time}`;
-  return `${timestamp.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })} · ${time}`;
-}
-
-function formatPostDuration(seconds: number | null) {
-  if (seconds === null) return null;
-  const hours = Math.floor(seconds / 3_600);
-  const minutes = Math.floor((seconds % 3_600) / 60);
-  const remaining = seconds % 60;
-  return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}` : `${minutes}:${String(remaining).padStart(2, "0")}`;
-}
-
-function FeedMedia({ post }: { post: QuestFeedPost }) {
-  const images = post.photoUrls.slice(0, 4);
-  const sharedDuration = typeof post.stats?.durationSeconds === "number" ? post.stats.durationSeconds : null;
-  const height = images.length === 1 ? 360 : images.length === 2 ? 348 : 400;
-  const photo = (uri: string, index: number, style: object) => <Image key={`${uri}-${index}`} accessibilityLabel={`Quest photo ${index + 1}`} source={{ uri }} style={style} resizeMode="cover" />;
-  const media = !images.length ? <View style={{ flex: 1, backgroundColor: post.questColor }} /> : images.length === 1 ? photo(images[0], 0, { width: "100%", height: "100%" }) : images.length === 2 ? <View style={{ flex: 1, flexDirection: "row" }}>{photo(images[0], 0, { flex: 1, height: "100%" })}{photo(images[1], 1, { flex: 1, height: "100%" })}</View> : images.length === 3 ? <View style={{ flex: 1 }}>{photo(images[0], 0, { width: "100%", height: "60%" })}<View style={{ flex: 1, flexDirection: "row" }}>{photo(images[1], 1, { flex: 1, height: "100%" })}{photo(images[2], 2, { flex: 1, height: "100%" })}</View></View> : <View style={{ flex: 1 }}><View style={{ flex: 1, flexDirection: "row" }}>{photo(images[0], 0, { flex: 1, height: "100%" })}{photo(images[1], 1, { flex: 1, height: "100%" })}</View><View style={{ flex: 1, flexDirection: "row" }}>{photo(images[2], 2, { flex: 1, height: "100%" })}{photo(images[3], 3, { flex: 1, height: "100%" })}</View></View>;
-
-  return <View style={{ height, borderRadius: 28, overflow: "hidden", backgroundColor: T.dark }}>
-    {media}
-    <LinearGradient pointerEvents="none" colors={["rgba(25,23,25,0.44)", "rgba(25,23,25,0.05)", "rgba(25,23,25,0.78)"]} locations={[0, 0.42, 1]} style={{ position: "absolute", inset: 0 }} />
-    <View pointerEvents="none" style={{ position: "absolute", left: 16, right: 16, top: 15, bottom: 15, justifyContent: "space-between" }}>
-      {sharedDuration !== null ? <View style={{ alignSelf: "flex-start", minHeight: 32, borderRadius: 16, paddingHorizontal: 10, backgroundColor: "rgba(28,24,27,0.68)", borderWidth: 1, borderColor: "rgba(255,255,255,0.22)", flexDirection: "row", alignItems: "center", gap: 6 }}><Ionicons name="time-outline" size={14} color={T.white} /><Text style={{ color: T.white, fontSize: 12, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{formatPostDuration(sharedDuration)}</Text></View> : <View />}
-      <View style={{ gap: 5 }}><Text numberOfLines={2} style={{ color: T.white, fontSize: 23, lineHeight: 27, fontWeight: "900", textShadowColor: "rgba(0,0,0,0.22)", textShadowRadius: 4 }}>{post.postTitle?.trim() || post.questTitle}</Text>{post.caption ? <Text numberOfLines={2} style={{ color: "rgba(255,255,255,0.96)", fontSize: 14, lineHeight: 19, fontWeight: "700" }}>{post.caption}</Text> : null}<View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 3 }}><View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.white, alignItems: "center", justifyContent: "center" }}><Ionicons name="heart-outline" size={21} color={T.dark} /></View><View style={{ minHeight: 32, borderRadius: 16, paddingHorizontal: 10, backgroundColor: "rgba(28,24,27,0.68)", flexDirection: "row", alignItems: "center", gap: 5 }}><Ionicons name="heart" size={13} color="#ff8c7a" /><Text style={{ color: T.white, fontSize: 11, fontWeight: "900" }}>{post.likeCount}</Text></View><View style={{ minHeight: 32, borderRadius: 16, paddingHorizontal: 10, backgroundColor: "rgba(28,24,27,0.68)", flexDirection: "row", alignItems: "center", gap: 5 }}><Ionicons name="chatbubble" size={12} color={T.white} /><Text style={{ color: T.white, fontSize: 11, fontWeight: "900" }}>{post.commentCount}</Text></View></View></View>
-    </View>
-  </View>;
-}
-
-function QuestFeedCard({ post }: { post: QuestFeedPost }) {
-  return <View style={{ gap: 8 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 3 }}><Avatar emoji={post.emoji} color={post.avatarColor} size={36} /><Text style={{ flex: 1, color: T.dark, fontSize: 13, fontWeight: "900" }} numberOfLines={1}>@{post.username ?? post.displayName.replace(/\s+/g, "").toLowerCase()}</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "700" }}>{relativePostTime(post.createdAt)}</Text></View><FeedMedia post={post} /></View>;
 }
 
 function FriendRow({ friend, onChallenge, onShare }: { friend: SocialFriend; onChallenge: () => void; onShare: () => void }) {
@@ -618,6 +574,7 @@ export function SocialScreen() {
   const [feed, setFeed] = useState<QuestFeedPost[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [feedError, setFeedError] = useState<string | null>(null);
+  const [activeFeedIndex, setActiveFeedIndex] = useState(0);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -631,7 +588,7 @@ export function SocialScreen() {
   const loadFeed = async () => {
     setFeedLoading(true);
     setFeedError(null);
-    try { setFeed(await fetchQuestSocialFeed(feedScope)); }
+    try { setFeed(await fetchQuestSocialFeed(feedScope)); setActiveFeedIndex(0); }
     catch (nextError) { setFeedError(nextError instanceof Error ? nextError.message : "We couldn’t load the feed."); }
     finally { setFeedLoading(false); }
   };
@@ -641,19 +598,22 @@ export function SocialScreen() {
   return (
     <Screen scroll={false} padded={false} contentStyle={{ alignItems: "center" }}>
       <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 14, transform: [{ translateX: safeAreaOffset }] }}>
-        <Header title="Social" subtitle="Quest crew updates" animated={false} right={<FriendsHeaderButton onPress={() => router.push("/friends")} />} />
+        <Header title="Social" subtitle="Quest crew updates" animated={false} />
         <View style={{ flexDirection: "row", padding: 4, borderRadius: 24, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }}>
-          {(["feed", "parties"] as Tab[]).map((item) => <Pressable key={item} onPress={() => setTab(item)} style={{ flex: 1, minHeight: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: tab === item ? T.dark : "transparent" }}><Text style={{ color: tab === item ? T.white : T.muted, fontSize: 13, fontWeight: "900", textTransform: "capitalize" }}>{item}</Text></Pressable>)}
+          {(["feed", "friends", "parties"] as Tab[]).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} accessibilityLabel={`${item} tab`} onPress={() => { haptic(); setTab(item); }} style={({ pressed }) => ({ flex: 1, minHeight: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: tab === item ? T.dark : "transparent", opacity: pressed ? 0.8 : 1 })}><Text style={{ color: tab === item ? T.white : T.muted, fontSize: 13, fontWeight: "900", textTransform: "capitalize" }}>{item}</Text></Pressable>)}
         </View>
         {tab === "feed" ? <View style={{ marginTop: 3, paddingTop: 13, borderTopWidth: 1, borderTopColor: "rgba(232,223,213,0.82)" }}><View accessibilityRole="tablist" style={{ flexDirection: "row", borderBottomWidth: 2, borderBottomColor: T.border, backgroundColor: "rgba(255,255,255,0.38)" }}>{(["public", "friends"] as FeedScope[]).map((scope) => <FeedScopeTab key={scope} scope={scope} active={feedScope === scope} onPress={() => setFeedScope(scope)} />)}</View></View> : null}
       </View>
 
-      <ScrollView style={{ flex: 1, width: "100%" }} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingTop: 20, paddingBottom: 112 }}>
+      {tab === "feed" ? <FlatList data={feed} keyExtractor={(post) => post.id} style={{ flex: 1, width: "100%" }} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} removeClippedSubviews windowSize={7} initialNumToRender={4} maxToRenderPerBatch={4} updateCellsBatchingPeriod={80} contentContainerStyle={{ alignItems: "center", paddingTop: 20, paddingBottom: 112, gap: 16 }} onViewableItemsChanged={({ viewableItems }) => { const first = viewableItems.find((item) => item.isViewable && item.index !== null)?.index; if (typeof first === "number") setActiveFeedIndex(first); }} ListHeaderComponent={feedError ? <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><Card style={{ borderRadius: 20, gap: 8 }}><Text style={{ color: T.red, fontWeight: "800" }}>{feedError}</Text><SoftButton label="Try again" icon="refresh" inverse color={T.blue} onPress={() => void loadFeed()} /></Card></View> : null} ListEmptyComponent={feedLoading ? <EmptyState emoji="⏳" title="Loading feed" body="Finding fresh quest moments…" /> : <EmptyState emoji={feedScope === "public" ? "🌍" : "🤝"} title={feedScope === "public" ? "No public posts yet" : "Your Friends feed is quiet"} body={feedScope === "public" ? "Complete a quest and share the first story with everyone." : "Follow friends, then their Friends-only quest posts will appear here."} />} renderItem={({ item, index }) => <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><QuestFeedCard post={item} loadMedia={Math.abs(index - activeFeedIndex) <= 3} /></View>} /> : <ScrollView style={{ flex: 1, width: "100%" }} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingTop: 20, paddingBottom: 112 }}>
         <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
         {error ? <Card style={{ borderRadius: 20, gap: 8 }}><Text style={{ color: T.red, fontWeight: "800" }}>{error}</Text><SoftButton label="Retry" icon="refresh" inverse color={T.blue} onPress={refresh} /></Card> : null}
-        {tab === "feed" ? <View style={{ gap: 16 }}>
-          {feedError ? <Card style={{ borderRadius: 20, gap: 8 }}><Text style={{ color: T.red, fontWeight: "800" }}>{feedError}</Text><SoftButton label="Try again" icon="refresh" inverse color={T.blue} onPress={() => void loadFeed()} /></Card> : null}
-          {feedLoading ? <EmptyState emoji="⏳" title="Loading feed" body="Finding fresh quest moments…" /> : feed.length ? feed.map((post) => <QuestFeedCard key={post.id} post={post} />) : <EmptyState emoji={feedScope === "public" ? "🌍" : "🤝"} title={feedScope === "public" ? "No public posts yet" : "Your Friends feed is quiet"} body={feedScope === "public" ? "Complete a quest and share the first story with everyone." : "Follow friends, then their Friends-only quest posts will appear here."} />}
+        {tab === "friends" ? <View style={{ gap: 14 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ gap: 2 }}><Text style={{ color: T.dark, fontSize: 20, fontWeight: "900" }}>Friends</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>Your quest crew</Text></View>
+            <IconButton icon="person-add" label="Add friends" color={T.blue} onPress={() => router.push("/add-friends")} />
+          </View>
+          {loading && !overview ? <EmptyState emoji="⏳" title="Finding your crew" body="Loading your friends…" /> : overview?.friends.length ? overview.friends.map((friend) => <FriendRow key={friend.userId} friend={friend} onShare={() => setActionFriend(friend)} onChallenge={() => setActionFriend(friend)} />) : <EmptyState emoji="👋" title="Your crew starts here" body="Use the Add friends button above to build your crew." />}
         </View> : <View style={{ gap: 18 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><View><Text style={{ color: T.dark, fontSize: 20, fontWeight: "900" }}>Parties</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>Quest together</Text></View><IconButton icon="information-circle-outline" label="How Parties work" onPress={() => setInfoOpen(true)} color={T.blue} /></View>
           <View style={{ flexDirection: "row", gap: 10 }}>
@@ -669,7 +629,7 @@ export function SocialScreen() {
           </View>
         </View>}
         </View>
-      </ScrollView>
+      </ScrollView>}
 
       <CreatePartySheet visible={creatorOpen} onClose={() => setCreatorOpen(false)} />
       <Sheet visible={infoOpen} onClose={() => setInfoOpen(false)}><View style={{ padding: 24, gap: 14 }}><View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>How Parties work</Text><IconButton icon="close" label="Close Party information" onPress={() => setInfoOpen(false)} color={T.muted} /></View><Text style={{ color: T.muted, fontSize: 14, lineHeight: 21, fontWeight: "700" }}>Pick quests. Bring your people. Earn XP together.</Text><Choice selected title="Free for All" body="Any Party quest · base XP ranks." icon="walk" color={T.blue} onPress={() => undefined} /><Choice selected title="Everyone Together" body="Host starts · fastest earns more." icon="people" color={T.purple} onPress={() => undefined} /></View></Sheet>

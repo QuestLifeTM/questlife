@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, FlatList, Image, LayoutChangeEvent, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import Reanimated, { Easing, FadeIn, FadeInDown, FadeOutUp, ZoomIn, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
 import { QuestlifeFlame } from "@/components/questlife-flame";
@@ -231,21 +231,23 @@ function PartyFeedLoading() {
   return <View accessibilityLabel="Loading Party Feed" style={{ gap: 11 }}><FeedPostSkeleton /><FeedPostSkeleton media={false} /></View>;
 }
 
-function FeedPostCard({ post, onReact }: { post: PartyFeedPost; onReact: (emoji: string) => void }) {
+function FeedPostCard({ post, onReact, loadMedia = true }: { post: PartyFeedPost; onReact: (emoji: string) => void; loadMedia?: boolean }) {
   const [urls, setUrls] = useState<string[]>([]);
+  const [carouselWidth, setCarouselWidth] = useState(0);
+  const [carouselPage, setCarouselPage] = useState(0);
   const reducedMotion = useReducedMotion();
   const photoPathsKey = post.photoPaths.join("\u0001");
   useEffect(() => {
     let mounted = true;
     const photoPaths = photoPathsKey ? photoPathsKey.split("\u0001") : [];
-    if (!photoPaths.length) { setUrls((current) => current.length ? [] : current); return; }
+    if (!photoPaths.length || !loadMedia) { setUrls((current) => current.length ? [] : current); return; }
     resolvePartyMedia(photoPaths).then((next) => {
       if (!mounted) return;
       const nextUrls = next.filter((url): url is string => Boolean(url));
       setUrls((current) => current.length === nextUrls.length && current.every((url, index) => url === nextUrls[index]) ? current : nextUrls);
     }).catch(() => { if (mounted) setUrls((current) => current.length ? [] : current); });
     return () => { mounted = false; };
-  }, [photoPathsKey]);
+  }, [loadMedia, photoPathsKey]);
   const bodyCopy = post.caption?.trim() || (post.postType === "activity" ? `Completed “${post.questTitle}”` : null);
   const heart = post.reactions.find((reaction) => reaction.emoji === "💙");
   const secondsSincePosting = Math.max(0, Math.floor((Date.now() - new Date(post.createdAt).getTime()) / 1000));
@@ -266,8 +268,7 @@ function FeedPostCard({ post, onReact }: { post: PartyFeedPost; onReact: (emoji:
       {bodyCopy ? <Text style={{ color: T.dark, fontSize: 15, lineHeight: 22, fontWeight: "700" }}>{bodyCopy}</Text> : null}
 
       {photoPathsKey && !urls.length ? <FeedSkeletonBlock height={218} radius={16} /> : null}
-      {urls.length === 1 ? <Image source={{ uri: urls[0], cache: "force-cache" }} style={{ width: "100%", height: 218, borderRadius: 16, backgroundColor: T.border }} resizeMode="cover" /> : null}
-      {urls.length > 1 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 4 }}>{urls.map((url) => <Image key={url} source={{ uri: url, cache: "force-cache" }} style={{ width: 188, height: 144, borderRadius: 16, backgroundColor: T.border }} resizeMode="cover" />)}</ScrollView> : null}
+      {urls.length ? <View onLayout={(event: LayoutChangeEvent) => setCarouselWidth(event.nativeEvent.layout.width)} style={{ height: 218, borderRadius: 16, overflow: "hidden", backgroundColor: T.border }}>{carouselWidth ? <FlatList horizontal pagingEnabled data={urls} keyExtractor={(url, index) => `${url}-${index}`} showsHorizontalScrollIndicator={false} getItemLayout={(_, index) => ({ length: carouselWidth, offset: carouselWidth * index, index })} onMomentumScrollEnd={(event) => setCarouselPage(Math.round(event.nativeEvent.contentOffset.x / carouselWidth))} renderItem={({ item: url, index }) => <Image accessibilityLabel={`Party photo ${index + 1} of ${urls.length}`} source={{ uri: url, cache: "force-cache" }} resizeMethod="resize" style={{ width: carouselWidth, height: 218, backgroundColor: T.border }} resizeMode="cover" />} /> : null}{urls.length > 1 ? <View pointerEvents="none" style={{ position: "absolute", right: 10, top: 10, minHeight: 26, borderRadius: 13, paddingHorizontal: 8, backgroundColor: "rgba(28,24,27,0.68)", alignItems: "center", justifyContent: "center" }}><Text style={{ color: T.white, fontSize: 11, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{carouselPage + 1}/{urls.length}</Text></View> : null}</View> : null}
 
       <View style={{ gap: 7 }}>
         <Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>{postedLabel}</Text>
@@ -452,6 +453,7 @@ export function PartyDetailScreen() {
   const [launchingQuestId, setLaunchingQuestId] = useState<string | null>(null);
   const [remoteRound, setRemoteRound] = useState(false);
   const [stampLeaderboard, setStampLeaderboard] = useState(false);
+  const [activePartyFeedIndex, setActivePartyFeedIndex] = useState(0);
   const previousRoundId = useRef<string | null>(null);
   const leaderboardStampTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadSequence = useRef(0);
@@ -608,7 +610,7 @@ export function PartyDetailScreen() {
 
   return <Screen scroll={false} padded={false} contentStyle={{ paddingTop: 0 }}>
     <View style={{ flex: 1, width: "100%" }}>
-      <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: party.status === "active" ? 112 : 28, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
+      {tab === "feed" ? <FlatList data={party.feed} keyExtractor={(post) => post.id} contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} removeClippedSubviews windowSize={7} initialNumToRender={4} maxToRenderPerBatch={4} updateCellsBatchingPeriod={80} contentContainerStyle={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: party.status === "active" ? 112 : 28, gap: 11, transform: [{ translateX: safeAreaOffset }] }} onViewableItemsChanged={({ viewableItems }) => { const first = viewableItems.find((item) => item.isViewable && item.index !== null)?.index; if (typeof first === "number") setActivePartyFeedIndex(first); }} ListHeaderComponent={<View style={{ gap: 16 }}><PartyHeader party={party} onBack={() => router.back()} onInfo={() => setInfoOpen(true)} /><PartyTabs active={tab} unreadFeed={party.unreadFeedCount ?? 0} unreadLeaderboard={party.unreadLeaderboardCount ?? 0} onChange={selectTab} /><View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Party Feed</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700", marginTop: 3 }}>Your crew’s adventures, just for this Party.</Text></View></View>} ListEmptyComponent={loading ? <PartyFeedLoading /> : <EmptyState emoji="📸" title="No Party posts yet" body="Your first completed quest will show up here." />} renderItem={({ item, index }) => <FeedPostCard post={item} loadMedia={Math.abs(index - activePartyFeedIndex) <= 3} onReact={(emoji) => reactToPartyFeed(item.id, emoji).then(() => load(true))} />} /> : <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: party.status === "active" ? 112 : 28, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
         <PartyHeader party={party} onBack={() => router.back()} onInfo={() => setInfoOpen(true)} />
         <PartyTabs active={tab} unreadFeed={party.unreadFeedCount ?? 0} unreadLeaderboard={party.unreadLeaderboardCount ?? 0} onChange={selectTab} />
         {tab === "quests" ? <View style={{ gap: 13 }}>
@@ -619,9 +621,8 @@ export function PartyDetailScreen() {
           {visibleQuests.length ? visibleQuests.map((quest) => <QuestRow key={quest.questId} quest={quest} party={party} category={categoryForQuest(quest.questId)} launching={launchingQuestId === quest.questId} locked={party.gameMode === "free_for_all" && Boolean(activeQuest)} onStart={() => startQuest(quest)} onLocked={() => Alert.alert("Finish your active quest", `Complete or abandon “${activeQuest?.title ?? "your current quest"}” before starting another one.`)} />) : <EmptyState emoji="✨" title="All caught up" body="Start another quest or let the host add more." />}
           {party.completedQuests.length ? <View style={{ gap: 10, marginTop: 5 }}><View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>Completed quests</Text><Text style={{ color: T.green, fontSize: 11, fontWeight: "900" }}>{party.completedQuests.length} done</Text></View>{party.completedQuests.map((quest) => <CompletedQuestRow key={quest.id} quest={quest} shared={party.gameMode === "everyone_together"} />)}</View> : null}
         </View> : null}
-        {tab === "feed" ? <View style={{ gap: 11 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Party Feed</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700", marginTop: 3 }}>Your crew’s adventures, just for this Party.</Text></View>{loading ? <PartyFeedLoading /> : party.feed.length ? party.feed.map((post) => <FeedPostCard key={post.id} post={post} onReact={(emoji) => reactToPartyFeed(post.id, emoji).then(() => load(true))} />) : <EmptyState emoji="📸" title="No Party posts yet" body="Your first completed quest will show up here." />}</View> : null}
         {tab === "leaderboard" ? <Leaderboard party={party} stampSelf={stampLeaderboard} /> : null}
-      </ScrollView>
+      </ScrollView>}
       {tab === "quests" && party.status === "active" ? <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingTop: 16, paddingBottom: 16, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, backgroundColor: T.white, borderTopWidth: 2, borderTopColor: T.border }}><PartyButton label={party.isHost ? "Add quests" : "Suggest quests"} icon="add" onPress={() => setPickerOpen(true)} /></View> : null}
       {pickerOpen ? <QuestPicker party={party} contentQuests={contentQuests} selectedIds={selectedQuestIds} onToggle={(id) => setSelectedQuestIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id])} onClose={() => setPickerOpen(false)} onConfirm={addOrSuggest} /> : null}
     </View>

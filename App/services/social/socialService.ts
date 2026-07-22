@@ -1,6 +1,7 @@
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { toLocalDateKey } from "@/services/journal/journalService";
+import { compressFeedImage } from "@/services/media/feed-image";
 import {
   CreatePartyInput,
   PartyCompletionInput,
@@ -292,11 +293,12 @@ export async function uploadPartyMedia(partyId: string, localUri: string): Promi
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
   if (!userData.user) throw new Error("No authenticated user.");
-  const response = await fetch(localUri);
+  const compressedUri = await compressFeedImage(localUri);
+  const response = await fetch(compressedUri);
   const blob = await response.arrayBuffer();
-  const extension = localUri.split(".").pop()?.toLowerCase() || "jpg";
+  const extension = "jpg";
   const path = `${partyId}/${userData.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
-  const { error } = await supabase.storage.from("party-media").upload(path, blob, { contentType: extension === "png" ? "image/png" : "image/jpeg" });
+  const { error } = await supabase.storage.from("party-media").upload(path, blob, { contentType: "image/jpeg" });
   if (error) throw error;
   return path;
 }
@@ -306,11 +308,12 @@ export async function uploadJournalMedia(localUri: string): Promise<string> {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
   if (!userData.user) throw new Error("No authenticated user.");
-  const response = await fetch(localUri);
+  const compressedUri = await compressFeedImage(localUri);
+  const response = await fetch(compressedUri);
   const blob = await response.arrayBuffer();
-  const extension = localUri.split(".").pop()?.toLowerCase() || "jpg";
+  const extension = "jpg";
   const path = `${userData.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
-  const { error } = await supabase.storage.from("journal-media").upload(path, blob, { contentType: extension === "png" ? "image/png" : "image/jpeg" });
+  const { error } = await supabase.storage.from("journal-media").upload(path, blob, { contentType: "image/jpeg" });
   if (error) throw error;
   return path;
 }

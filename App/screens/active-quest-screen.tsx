@@ -3,7 +3,7 @@ import { BlurView } from "expo-blur";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Animated, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import MapView, { Marker, Polyline } from "react-native-maps";
@@ -26,6 +26,9 @@ type CountdownStep = 3 | 2 | 1 | "GO";
 const BOTTOM_SHEET_CONTENT_HEIGHT = 248;
 const MAP_NOTICE_BOTTOM_OFFSET = BOTTOM_SHEET_CONTENT_HEIGHT + 48;
 const MAP_RECENTER_BOTTOM_OFFSET = BOTTOM_SHEET_CONTENT_HEIGHT + 94;
+// Keep the visual fill aligned with the full confirmation gesture so the
+// completion sheet appears the moment the pill reaches the end.
+const END_QUEST_HOLD_DURATION = 2_000;
 
 function formatDuration(activeDurationMs: number, activeSince: string | null) {
   const elapsed = activeDurationMs + (activeSince ? Math.max(0, Date.now() - new Date(activeSince).getTime()) : 0);
@@ -37,7 +40,7 @@ function formatDuration(activeDurationMs: number, activeSince: string | null) {
 
 type MapCoordinate = { latitude: number; longitude: number };
 
-function QuestNoticePill({ notice, accent, message }: { notice: QuestNotice; accent: string; message?: string | null }) {
+function QuestNoticePill({ notice, accent, holdProgress, message }: { notice: QuestNotice; accent: string; holdProgress?: Animated.Value; message?: string | null }) {
   const detail = notice === "active"
     ? { icon: "ellipse" as const, iconColor: T.green, label: "Quest in progress" }
     : notice === "paused"
@@ -47,10 +50,12 @@ function QuestNoticePill({ notice, accent, message }: { notice: QuestNotice; acc
         : notice === "hold-to-finish"
           ? { icon: "hand-left" as const, iconColor: T.red, label: "Hold End quest to finish" }
           : { icon: "location-outline" as const, iconColor: accent, label: message ?? "Enable location to record your route" };
+  const fillWidth = holdProgress?.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] });
   return <View pointerEvents="none" style={{ position: "absolute", left: 20, right: 20, bottom: MAP_NOTICE_BOTTOM_OFFSET, alignItems: "center" }}>
-    <View style={{ minHeight: 38, flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.94)", paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: "rgba(232,223,213,0.84)", boxShadow: "0px 3px 10px rgba(61,52,56,0.12)" }}>
-      <Ionicons name={detail.icon} size={notice === "active" ? 12 : 17} color={detail.iconColor} />
-      <Text style={{ color: T.dark, fontSize: 13, lineHeight: 17, fontWeight: "900" }}>{detail.label}</Text>
+    <View style={{ minHeight: 38, overflow: "hidden", flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.94)", paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: "rgba(232,223,213,0.84)", boxShadow: "0px 3px 10px rgba(61,52,56,0.12)" }}>
+      {fillWidth ? <Animated.View style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: fillWidth, backgroundColor: `${T.red}22` }} /> : null}
+      <Ionicons name={detail.icon} size={notice === "active" ? 12 : 17} color={detail.iconColor} style={{ zIndex: 1 }} />
+      <Text style={{ color: T.dark, fontSize: 13, lineHeight: 17, fontWeight: "900", zIndex: 1 }}>{detail.label}</Text>
     </View>
   </View>;
 }
@@ -132,7 +137,7 @@ const LiveMap = memo(function LiveMap({ accent, route, renderRoute, checkpoints 
 });
 
 function Album({ accent, photos }: { accent: string; photos: ActiveQuestPhoto[] }) {
-  if (!photos.length) return <View style={{ flex: 1, paddingHorizontal: 22, paddingBottom: 220, backgroundColor: "#f8f7f3", alignItems: "center", justifyContent: "center", gap: 12 }}><View style={{ width: "100%", aspectRatio: 1.55, borderRadius: 20, borderWidth: 2, borderStyle: "dashed", borderColor: `${accent}88`, backgroundColor: `${accent}0e`, alignItems: "center", justifyContent: "center", gap: 9 }}><View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: `${accent}18`, alignItems: "center", justifyContent: "center" }}><Ionicons name="camera" size={23} color={accent} /></View><Text style={{ color: T.dark, fontSize: 17, fontWeight: "900" }}>Capture the little moments</Text><Text style={{ maxWidth: 250, color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700", textAlign: "center" }}>Photos from this quest will appear here as a two-column memory stream.</Text></View></View>;
+  if (!photos.length) return <View style={{ flex: 1, paddingHorizontal: 22, paddingBottom: BOTTOM_SHEET_CONTENT_HEIGHT + 92, backgroundColor: "#f8f7f3", alignItems: "center", justifyContent: "center", gap: 12 }}><View style={{ width: "100%", aspectRatio: 1.55, borderRadius: 20, borderWidth: 2, borderStyle: "dashed", borderColor: `${accent}88`, backgroundColor: `${accent}0e`, alignItems: "center", justifyContent: "center", gap: 9 }}><View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: `${accent}18`, alignItems: "center", justifyContent: "center" }}><Ionicons name="camera" size={23} color={accent} /></View><Text style={{ color: T.dark, fontSize: 17, fontWeight: "900" }}>Capture the little moments</Text><Text style={{ maxWidth: 250, color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700", textAlign: "center" }}>Photos from this quest will appear here as a two-column memory stream.</Text></View></View>;
   return <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 230, flexDirection: "row", flexWrap: "wrap", gap: 10, backgroundColor: "#f8f7f3" }}>
     {photos.map((photo) => <View key={photo.id} style={{ width: "48%", aspectRatio: 0.88, overflow: "hidden", borderRadius: 18, backgroundColor: T.border }}><Image source={{ uri: photo.uri }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />{photo.syncStatus !== "synced" ? <View style={{ position: "absolute", right: 8, bottom: 8, borderRadius: 12, padding: 5, backgroundColor: "rgba(255,255,255,0.88)" }}><Ionicons name="cloud-upload-outline" size={15} color={accent} /></View> : null}</View>)}
   </ScrollView>;
@@ -145,8 +150,8 @@ function EntryPlaceholder({ quest, title, body, onChangeTitle, onChangeBody }: {
   </View>;
 }
 
-function RoundAction({ icon, label, color, inverse = false, onPress, onLongPress, onPressIn }: { icon: keyof typeof Ionicons.glyphMap; label: string; color: string; inverse?: boolean; onPress: () => void; onLongPress?: () => void; onPressIn?: () => void }) {
-  return <View style={{ alignItems: "center", gap: 6 }}><Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityHint={onLongPress ? "Press and hold to finish this quest" : undefined} delayLongPress={650} onPressIn={onPressIn} onLongPress={() => { haptic(); onLongPress?.(); }} onPress={() => { haptic(); onPress(); }} style={({ pressed }) => ({ width: 62, height: 62, borderRadius: 31, alignItems: "center", justifyContent: "center", backgroundColor: inverse ? T.white : color, borderWidth: inverse ? 2 : 0, borderColor: inverse ? color : "transparent", transform: [{ scale: pressed ? 0.94 : 1 }] })}><Ionicons name={icon} size={27} color={inverse ? color : T.white} /></Pressable><Text style={{ color: T.muted, fontSize: 12, lineHeight: 16, fontWeight: "900" }}>{label}</Text></View>;
+function RoundAction({ icon, label, color, inverse = false, onPress, onPressIn, onPressOut, holdToConfirm = false }: { icon: keyof typeof Ionicons.glyphMap; label: string; color: string; inverse?: boolean; onPress: () => void; onPressIn?: () => void; onPressOut?: () => void; holdToConfirm?: boolean }) {
+  return <View style={{ alignItems: "center", gap: 6 }}><Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityHint={holdToConfirm ? "Press and hold to finish this quest" : undefined} onPressIn={onPressIn} onPressOut={onPressOut} onPress={() => { if (!holdToConfirm) { haptic(); onPress(); } }} style={({ pressed }) => ({ width: 62, height: 62, borderRadius: 31, alignItems: "center", justifyContent: "center", backgroundColor: inverse ? T.white : color, borderWidth: inverse ? 2 : 0, borderColor: inverse ? color : "transparent", transform: [{ scale: pressed ? 0.94 : 1 }] })}><Ionicons name={icon} size={27} color={inverse ? color : T.white} /></Pressable><Text style={{ color: T.muted, fontSize: 12, lineHeight: 16, fontWeight: "900" }}>{label}</Text></View>;
 }
 
 export function ActiveQuestScreen() {
@@ -165,6 +170,10 @@ export function ActiveQuestScreen() {
   const [photoSavedVisible, setPhotoSavedVisible] = useState(false);
   const [finishHintVisible, setFinishHintVisible] = useState(false);
   const [deviceLocation, setDeviceLocation] = useState<MapCoordinate | null>(null);
+  const finishHoldProgress = useRef(new Animated.Value(0)).current;
+  const finishHoldAnimation = useRef<Animated.CompositeAnimation | null>(null);
+  const finishHoldTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finishHoldCompleted = useRef(false);
   const countdownSessionRef = useRef<string | null>(null);
   const routeRecordingStartedSessionRef = useRef<string | null>(null);
   const lastCountdownStepRef = useRef<CountdownStep | null>(null);
@@ -295,6 +304,11 @@ export function ActiveQuestScreen() {
     return () => clearTimeout(timer);
   }, [finishHintVisible]);
 
+  useEffect(() => () => {
+    finishHoldAnimation.current?.stop();
+    if (finishHoldTimeout.current) clearTimeout(finishHoldTimeout.current);
+  }, []);
+
   const duration = useMemo(() => snapshot ? formatDuration(snapshot.session.activeDurationMs, snapshot.session.activeSince) : "0:00", [now, snapshot]);
 
   if (!session || !quest) return <View style={{ flex: 1, paddingTop: insets.top + 24, backgroundColor: T.bg }}><EmptyState emoji="🧭" title="No active quest" body="Start a solo quest from Explore to create its live home." /></View>;
@@ -302,18 +316,70 @@ export function ActiveQuestScreen() {
   const togglePaused = () => { void (paused ? resume() : pause()); };
   const enableRouteRecording = beginQuestRoute;
   const handleEnableRouteRecording = () => { void enableRouteRecording(); };
+  const beginFinishQuestHold = () => {
+    if (finishHoldTimeout.current) clearTimeout(finishHoldTimeout.current);
+    setFinishHintVisible(true);
+    finishHoldAnimation.current?.stop();
+    finishHoldProgress.setValue(0);
+    finishHoldCompleted.current = false;
+    finishHoldAnimation.current = Animated.timing(finishHoldProgress, { toValue: 1, duration: END_QUEST_HOLD_DURATION, useNativeDriver: false });
+    finishHoldAnimation.current.start();
+    // The visual and the confirmation start on the same press. Do not wait on
+    // Animated's completion callback: it can be delivered late after the fill
+    // has already reached the end, especially while the map is rendering.
+    finishHoldTimeout.current = setTimeout(() => {
+      if (finishHoldCompleted.current) return;
+      finishHoldCompleted.current = true;
+      finishHoldTimeout.current = null;
+      haptic();
+      setFinishHintVisible(false);
+      setCompleteVisible(true);
+    }, END_QUEST_HOLD_DURATION);
+  };
+  const cancelFinishQuestHold = () => {
+    if (finishHoldCompleted.current) return;
+    if (finishHoldTimeout.current) clearTimeout(finishHoldTimeout.current);
+    finishHoldTimeout.current = null;
+    finishHoldAnimation.current?.stop();
+    finishHoldProgress.setValue(0);
+  };
   const takePhoto = async () => {
     if (takingPhoto) return;
     setTakingPhoto(true);
     try {
-      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.78 });
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          "Camera access needed",
+          permission.canAskAgain
+            ? "Allow camera access to capture this quest memory."
+            : "Camera access is turned off for QuestLife. Enable it in Settings to capture this quest memory.",
+          permission.canAskAgain
+            ? [{ text: "Not now", style: "cancel" }]
+            : [
+                { text: "Not now", style: "cancel" },
+                { text: "Open Settings", onPress: () => void Linking.openSettings() },
+              ],
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        cameraType: ImagePicker.CameraType.back,
+        quality: 0.78,
+      });
       if (!result.canceled && result.assets[0]) {
         await addPhoto(result.assets[0].uri);
         setPhotoSavedVisible(true);
       }
-    } catch {
-      // The native camera can be cancelled or unavailable without interrupting
-      // the active quest. The next tap simply opens it again.
+    } catch (nextError) {
+      Alert.alert(
+        "Couldn’t open camera",
+        nextError instanceof Error
+          ? nextError.message
+          : "Your quest is still active. Please try taking the photo again.",
+      );
     } finally {
       setTakingPhoto(false);
     }
@@ -332,8 +398,9 @@ export function ActiveQuestScreen() {
       <View style={{ marginTop: 16 }}><ActiveQuestTabs active={tab} onChange={setTab} accent={accent} /></View>
     </View>
     <View style={{ flex: 1 }}>
-      {tab === "map" ? <LiveMap accent={accent} route={snapshot?.route ?? []} renderRoute={snapshot?.renderRoute ?? []} deviceLocation={deviceLocation} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={countdownStep ? null : statusNotice} countdownStep={countdownStep} onEnableTracking={handleEnableRouteRecording} onReady={handleMapReady} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} /> : <EntryPlaceholder quest={quest} title={entryTitle} body={entryBody} onChangeTitle={setEntryTitle} onChangeBody={setEntryBody} />}
+      {tab === "map" ? <LiveMap accent={accent} route={snapshot?.route ?? []} renderRoute={snapshot?.renderRoute ?? []} deviceLocation={deviceLocation} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={null} countdownStep={countdownStep} onEnableTracking={handleEnableRouteRecording} onReady={handleMapReady} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} /> : <EntryPlaceholder quest={quest} title={entryTitle} body={entryBody} onChangeTitle={setEntryTitle} onChangeBody={setEntryBody} />}
     </View>
+    {!countdownStep ? <QuestNoticePill notice={statusNotice} accent={accent} holdProgress={finishHintVisible ? finishHoldProgress : undefined} message={trackingMessage} /> : null}
     <BlurView intensity={12} tint="light" style={{ position: "absolute", left: 0, right: 0, bottom: 0, minHeight: insets.bottom + BOTTOM_SHEET_CONTENT_HEIGHT, paddingTop: 12, paddingBottom: Math.max(insets.bottom + 8, 22), paddingHorizontal: 32, borderTopLeftRadius: 34, borderTopRightRadius: 34, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.48)", borderTopWidth: 1, borderColor: "rgba(232,223,213,0.58)", boxShadow: "0px -3px 16px rgba(61,52,56,0.10)", justifyContent: "space-between" }}>
       <View style={{ alignSelf: "center", width: 42, height: 4, borderRadius: 2, backgroundColor: "rgba(210,199,188,0.70)" }} />
       <View style={{ flexDirection: "row" }}>
@@ -352,7 +419,7 @@ export function ActiveQuestScreen() {
         <Text style={{ color: T.muted, fontSize: 13, lineHeight: 17, fontWeight: "900", textTransform: "uppercase" }}>Time</Text>
       </View>
       <View style={{ position: "relative", flexDirection: "row", alignItems: "flex-start", justifyContent: "center", marginHorizontal: -32, paddingTop: 12, paddingHorizontal: 32, borderTopWidth: 1, borderTopColor: "rgba(232,223,213,0.48)", backgroundColor: "rgba(255,255,255,0.16)" }}>
-        {paused ? <View style={{ position: "absolute", left: 32, top: 12, alignItems: "center" }}><RoundAction icon="stop" label="End quest" color={T.red} onPress={() => setFinishHintVisible(true)} onPressIn={() => setFinishHintVisible(true)} onLongPress={() => setCompleteVisible(true)} /></View> : null}
+        {paused ? <View style={{ position: "absolute", left: 32, top: 12, alignItems: "center" }}><RoundAction icon="stop" label="End quest" color={T.red} holdToConfirm onPress={() => undefined} onPressIn={beginFinishQuestHold} onPressOut={cancelFinishQuestHold} /></View> : null}
         <View style={{ flex: 1, alignItems: "center" }}><RoundAction icon={paused ? "play" : "pause"} label={paused ? "Resume" : "Pause"} color={accent} onPress={togglePaused} /></View>
         <View style={{ position: "absolute", right: 32, top: 12, alignItems: "center" }}><RoundAction icon={takingPhoto ? "hourglass" : "camera"} label="Take photo" color={accent} inverse onPress={() => void takePhoto()} /></View>
       </View>

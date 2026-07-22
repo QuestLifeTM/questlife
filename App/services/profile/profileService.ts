@@ -60,12 +60,38 @@ export async function updateProfile(input: ProfileEditInput) {
   if (input.displayName !== undefined) payload.display_name = input.displayName?.trim() || null;
   if (input.username !== undefined) payload.username = input.username?.trim() || null;
   if (input.bio !== undefined) payload.bio = input.bio?.trim() || null;
+  if (input.avatarUrl !== undefined) payload.avatar_url = input.avatarUrl;
   if (input.emoji !== undefined) payload.emoji = input.emoji;
   if (input.avatarColor !== undefined) payload.avatar_color = input.avatarColor;
   if (input.title !== undefined) payload.title = input.title?.trim() || null;
 
   const { error } = await supabase.from("profiles").update(payload).eq("id", userData.user.id);
   if (error) throw error;
+}
+
+async function uploadProfileImage(localUri: string) {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  const response = await fetch(localUri);
+  const body = await response.arrayBuffer();
+  const rawExtension = localUri.split(".").pop()?.split("?")[0]?.toLowerCase();
+  const extension = rawExtension === "png" || rawExtension === "webp" ? rawExtension : "jpg";
+  const contentType = extension === "png" ? "image/png" : extension === "webp" ? "image/webp" : "image/jpeg";
+  const path = `${userData.user.id}/avatar-${Date.now()}.${extension}`;
+
+  const { error } = await supabase.storage
+    .from("profile-avatars")
+    .upload(path, body, { contentType, upsert: false, cacheControl: "31536000" });
+  if (error) throw error;
+
+  return supabase.storage.from("profile-avatars").getPublicUrl(path).data.publicUrl;
+}
+
+export async function uploadProfileAvatar(localUri: string) {
+  return uploadProfileImage(localUri);
 }
 
 export async function fetchRequiredProfileName(userId: string): Promise<RequiredProfileName | null> {

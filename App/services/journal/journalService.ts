@@ -1,5 +1,6 @@
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { compressFeedImage } from "@/services/media/feed-image";
 import { Quest } from "@/types/content";
 import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMood, PartyJournalCard, journalMoods } from "@/types/journal";
 
@@ -175,9 +176,36 @@ export async function fetchJournalMemory(completionId: string): Promise<JournalM
 export async function resolveJournalMedia(paths: string[]) {
   if (!paths.length) return [];
   assertSupabaseConfigured();
-  const { data, error } = await supabase.storage.from("journal-media").createSignedUrls(paths, 60 * 30);
+  // Legacy completions may hold public URLs, while new private journal media
+  // stores object paths. Keep both formats readable during the rollout.
+  const privatePaths = paths.filter((path) => !/^https?:\/\//i.test(path));
+  if (!privatePaths.length) return paths;
+
+  const { data, error } = await supabase.storage.from("journal-media").createSignedUrls(privatePaths, 60 * 30);
   if (error) throw error;
-  return data.map((item) => item.signedUrl).filter((url): url is string => Boolean(url));
+  const signedByPath = new Map(privatePaths.map((path, index) => [path, data[index]?.signedUrl]));
+  return paths
+    .map((path) => /^https?:\/\//i.test(path) ? path : signedByPath.get(path))
+    .filter((url): url is string => Boolean(url));
+}
+
+/** Uploads a private journal image and returns the stored object path. */
+export async function uploadJournalMedia(localUri: string): Promise<string> {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  const compressedUri = await compressFeedImage(localUri);
+  const response = await fetch(compressedUri);
+  const blob = await response.arrayBuffer();
+  const extension = "jpg";
+  const path = `${userData.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+  const contentType = "image/jpeg";
+
+  const { error } = await supabase.storage.from("journal-media").upload(path, blob, { contentType });
+  if (error) throw error;
+  return path;
 }
 
 export async function upsertJournalEntry(input: {
