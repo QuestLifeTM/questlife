@@ -423,7 +423,7 @@ export function SearchInput({
   );
 }
 
-export function GradientBand({ color, children, bleedTop = false }: PropsWithChildren<{ color: string; bleedTop?: boolean }>) {
+export function GradientBand({ color, children, bleedTop = false, bleedTopSpacing = 16 }: PropsWithChildren<{ color: string; bleedTop?: boolean; bleedTopSpacing?: number }>) {
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top + 8, 20);
 
@@ -434,7 +434,7 @@ export function GradientBand({ color, children, bleedTop = false }: PropsWithChi
         padding: 16,
         borderBottomWidth: 1,
         borderBottomColor: `${color}28`,
-        ...(bleedTop ? { marginTop: -topPadding, paddingTop: topPadding + 16 } : {})
+        ...(bleedTop ? { marginTop: -topPadding, paddingTop: topPadding + bleedTopSpacing } : {})
       }}
     >
       {children}

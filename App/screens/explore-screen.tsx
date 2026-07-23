@@ -519,7 +519,7 @@ export function ExploreScreen() {
       ) : null}
 
       <View style={{ width: contentWidth, gap: 14, marginTop: showDiscoverySections ? 11 : 20, paddingHorizontal: sideGap, transform: [{ translateX: safeAreaOffset }] }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 0, paddingBottom: 4 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -sideGap }} contentContainerStyle={{ gap: 8, paddingHorizontal: sideGap, paddingBottom: 4 }}>
           {categories.map((item) => {
             const active = category === item;
             const tone = item === "All" ? null : categoryColor[item];

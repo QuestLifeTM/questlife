@@ -10,6 +10,7 @@ import { QuestlifeFlame } from "@/components/questlife-flame";
 import { T } from "@/components/theme";
 import { EmptyState, IconButton, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
+import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { supabase } from "@/lib/supabase";
 import { resolvePartyMedia, uploadJournalMedia, uploadPartyMedia } from "@/services/social/socialService";
@@ -439,6 +440,7 @@ export function PartyDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const partyId = String(params.id ?? "");
   const { quests: contentQuests } = useContent();
+  const { showFeedback } = useAppFeedback();
   const { overview, getParty, beginPartyQuest, abandonPartyQuest, setPartyQuestsEnabled, completePartyQuest, finishPartyQuest, finishParty, addQuestsToParty, suggestQuestsForParty, reactToPartyFeed, inviteFriendToParty, exitParty, markPartyNotificationsRead, dismissPartyBriefing } = useSocial();
   const [party, setParty] = useState<PartyDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -563,13 +565,20 @@ export function PartyDetailScreen() {
   };
 
   const openQuestList = async () => {
-    try { await setPartyQuestsEnabled(partyId, true); await load(); }
+    try {
+      await setPartyQuestsEnabled(partyId, true);
+      await load();
+      showFeedback({ message: "The Party quest list is now open.", icon: "lock-open", color: T.green });
+    }
     catch (nextError) { Alert.alert("Couldn’t open quests", nextError instanceof Error ? nextError.message : "Please try again."); }
   };
 
   const sendPartyInvite = async (friendId: string) => {
     setSendingInviteId(friendId);
-    try { await inviteFriendToParty(partyId, friendId); Alert.alert("Invite sent", "Your friend can accept it from Social → Parties."); }
+    try {
+      await inviteFriendToParty(partyId, friendId);
+      showFeedback({ message: "Invite sent. Your friend can accept it from Social > Parties.", icon: "person-add", color: T.blue });
+    }
     catch (nextError) { Alert.alert("Couldn’t send invite", nextError instanceof Error ? nextError.message : "Please try again."); }
     finally { setSendingInviteId(null); }
   };
@@ -594,18 +603,41 @@ export function PartyDetailScreen() {
 
   const confirmEndRound = async () => {
     if (!party?.activeRound) return;
-    try { await finishPartyQuest(partyId, party.activeRound.questId); setEndPrompt(null); await load(); Alert.alert("Results locked", "Final speed bonuses have been added to the Party leaderboard."); }
+    try {
+      await finishPartyQuest(partyId, party.activeRound.questId);
+      setEndPrompt(null);
+      await load();
+      showFeedback({ message: "Results locked. Final speed bonuses are on the Party leaderboard.", icon: "trophy", color: T.orange });
+    }
     catch (nextError) { Alert.alert("Couldn’t end shared quest", nextError instanceof Error ? nextError.message : "Please try again."); }
   };
 
   const addOrSuggest = async () => {
     if (!party || !selectedQuestIds.length) return;
-    try { if (party.isHost) await addQuestsToParty(partyId, selectedQuestIds); else await suggestQuestsForParty(partyId, selectedQuestIds); setSelectedQuestIds([]); setPickerOpen(false); await load(); }
+    const count = selectedQuestIds.length;
+    try {
+      if (party.isHost) await addQuestsToParty(partyId, selectedQuestIds);
+      else await suggestQuestsForParty(partyId, selectedQuestIds);
+      setSelectedQuestIds([]);
+      setPickerOpen(false);
+      await load();
+      showFeedback({
+        message: party.isHost
+          ? `${count} ${count === 1 ? "quest was" : "quests were"} added to this Party.`
+          : `${count} ${count === 1 ? "quest was" : "quests were"} suggested to the host.`,
+        icon: party.isHost ? "add-circle" : "paper-plane",
+        color: party.isHost ? T.blue : T.purple,
+      });
+    }
     catch (nextError) { Alert.alert("Couldn’t update quests", nextError instanceof Error ? nextError.message : "Please try again."); }
   };
 
   const acceptSuggestion = async (suggestion: PartyQuestSuggestion) => {
-    try { await addQuestsToParty(partyId, [suggestion.questId]); await load(); }
+    try {
+      await addQuestsToParty(partyId, [suggestion.questId]);
+      await load();
+      showFeedback({ message: "Suggested quest added to this Party.", icon: "add-circle", color: T.blue });
+    }
     catch (nextError) { Alert.alert("Couldn’t add recommendation", nextError instanceof Error ? nextError.message : "Please try again."); }
   };
 

@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Share, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, Share, Text, View } from "react-native";
 
+import { PartyCategoryIcon } from "@/components/party-category-icon";
 import { QuestStartBlockModal } from "@/components/quest-start-block";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { categoryColor, difficultyColor, T } from "@/components/theme";
-import { EmptyState, GradientBand, IconButton, Screen, Sheet, Tag, useResponsiveScreenLayout } from "@/components/ui";
+import { EmptyState, GradientBand, IconButton, Screen, Sheet, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useQuestSave } from "@/contexts/QuestSaveContext";
@@ -27,6 +28,32 @@ const categoryButtonColors: Record<Quest["category"], string> = {
   CREATIVITY: "#8549D6",
   "WILD CARD": "#B83CD1",
 };
+
+const difficultyIcons: Record<Quest["difficulty"], keyof typeof Ionicons.glyphMap> = {
+  EASY: "leaf-outline",
+  MEDIUM: "flame-outline",
+  HARD: "thunderstorm-outline",
+  FORMIDABLE: "shield-outline",
+};
+
+const questLifeVerifiedBadge = require("../assets/icons/questlife-verified.png");
+
+function QuestHeaderPill({
+  label,
+  color,
+  backgroundColor,
+  icon,
+}: {
+  label: string;
+  color: string;
+  backgroundColor: string;
+  icon: React.ReactNode;
+}) {
+  return <View style={{ minHeight: 27, paddingHorizontal: 8, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, backgroundColor, borderWidth: 1, borderColor: `${color}20` }}>
+    {icon}
+    <Text numberOfLines={1} style={{ color, fontFamily: "RubikBlack", fontSize: 10, lineHeight: 12, letterSpacing: 0.45, textTransform: "uppercase" }}>{label}</Text>
+  </View>;
+}
 
 function QuestAction({ label, icon, color, onPress, inverse = false, disabled = false, fullWidth = false }: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; inverse?: boolean; disabled?: boolean; fullWidth?: boolean }) {
   const backgroundColor = disabled ? `${color}38` : inverse ? T.white : color;
@@ -72,6 +99,7 @@ export function QuestDetailScreen({ id, onBack }: { id?: string; onBack: () => v
   const completedCount = (quest.completed ? 1 : 0) + (engine?.todayCompletions.filter((completion) => completion.questId === quest.id).length ?? 0);
   const creatorLabel = quest.createdByLabel?.trim();
   const creatorHandle = creatorLabel ? (creatorLabel.startsWith("@") ? creatorLabel : `@${creatorLabel}`) : "@QuestLifeTeam";
+  const isQuestLifeTeam = creatorHandle.slice(1).toLowerCase() === "questlifeteam";
   const steps = quest.steps.length ? quest.steps : ["Head out at your own pace — no timer starts until you choose.", "Complete the core challenge described above.", "Log your experience in the Journal after finishing."];
 
   const startQuest = async () => { const ok = await tryStart({ questId: quest.id, source: "explore" }); if (ok) { await refresh(); router.replace("/active-quest"); } };
@@ -81,7 +109,7 @@ export function QuestDetailScreen({ id, onBack }: { id?: string; onBack: () => v
 
   return <Screen scroll={false} padded={false}>
     <View style={{ flex: 1 }}>
-      <GradientBand color={quest.color} bleedTop><View style={{ ...edgePadding, paddingBottom: 10 }}><View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 }}><View style={{ flex: 1, minWidth: 0, gap: 10 }}><View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}><Tag label={quest.category} color={category.text} bg={category.bg} /><Tag label={quest.difficulty} color={difficulty.text} bg={difficulty.bg} /></View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 31, lineHeight: 36 }}>{quest.title}</Text><Text numberOfLines={2} style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 14, lineHeight: 19 }}>by {creatorHandle}</Text></View><IconButton icon="chevron-back" onPress={onBack} /></View></View></GradientBand>
+      <GradientBand color={quest.color} bleedTop bleedTopSpacing={6}><View style={{ ...edgePadding, paddingBottom: 4 }}><View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}><View style={{ flex: 1, minWidth: 0, gap: 6 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}><QuestHeaderPill label={quest.category} color={category.text} backgroundColor={category.bg} icon={<PartyCategoryIcon category={quest.category} size={13} color={category.text} strokeWidth={2.1} />} /><QuestHeaderPill label={quest.difficulty} color={difficulty.text} backgroundColor={difficulty.bg} icon={<Ionicons name={difficultyIcons[quest.difficulty]} size={13} color={difficulty.text} />} /></View><Text numberOfLines={2} style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 29, lineHeight: 32 }}>{quest.title}</Text><View accessibilityLabel={isQuestLifeTeam ? "Created by QuestLife Team, verified" : `Created by ${creatorHandle}`} style={{ flexDirection: "row", alignItems: "center", minHeight: 23, gap: 5 }}><Text numberOfLines={1} style={{ flexShrink: 1, color: T.muted, fontFamily: "RubikBold", fontSize: 13, lineHeight: 18 }}>by {creatorHandle}</Text>{isQuestLifeTeam ? <Image source={questLifeVerifiedBadge} accessibilityLabel="Verified QuestLife Team" style={{ width: 26, height: 23 }} resizeMode="contain" /> : null}</View></View><View style={{ paddingTop: 1 }}><IconButton icon="chevron-back" onPress={onBack} /></View></View></View></GradientBand>
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ ...edgePadding, paddingTop: 12, paddingBottom: 18, gap: 25 }}>
         <View style={{ minHeight: 78, borderRadius: 20, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, flexDirection: "row", alignItems: "center", paddingVertical: 13, boxShadow: `3px 4px 0px ${T.border}` }}><Stat label="Completed" value={String(completedCount)} icon="checkmark-circle" color={actionColor} /><Stat label="Saved" value={String(savedCount)} icon="bookmark" color={actionColor} bordered /><Stat label="Rating" value={reviews?.summary.averageRating ? reviews.summary.averageRating.toFixed(1) : "—"} icon="star" color={T.orange} bordered /></View>
         <View style={{ gap: 9 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>About this quest</Text><Text style={{ color: T.dark, fontFamily: "Rubik", fontSize: 16, lineHeight: 25 }}>{quest.description}</Text></View>

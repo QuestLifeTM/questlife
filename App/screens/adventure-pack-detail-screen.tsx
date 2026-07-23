@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { categoryColor, T } from "@/components/theme";
-import { Card, EmptyState, GradientBand, IconButton, PillStat, ProgressBar, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
+import { Card, EmptyState, GradientBand, IconButton, PillStat, ProgressBar, Screen, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
+import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useContent } from "@/contexts/ContentContext";
 import { useStreaks } from "@/contexts/StreaksContext";
 import { Quest } from "@/types/content";
@@ -14,6 +15,7 @@ export function AdventurePackDetailScreen({ id, onBack }: { id?: string; onBack:
   const edgePadding = { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding };
   const { adventurePacks, completeQuest, getAdventurePack, loading, quests } = useContent();
   const { refresh: refreshStreaks } = useStreaks();
+  const { showFeedback } = useAppFeedback();
   const pack = getAdventurePack(id) ?? adventurePacks[0] ?? null;
   const list = useMemo(() => {
     if (!pack) return [];
@@ -25,7 +27,6 @@ export function AdventurePackDetailScreen({ id, onBack }: { id?: string; onBack:
   const [saved, setSaved] = useState(false);
   const [started, setStarted] = useState(false);
   const [completedIds, setCompletedIds] = useState<string[]>([]);
-  const [feedback, setFeedback] = useState<"start" | "save" | "done" | null>(null);
   const progress = list.length ? (completedIds.length / list.length) * 100 : 0;
   const nextQuest = list.find((quest) => !completedIds.includes(quest.id)) ?? list[0];
 
@@ -46,12 +47,19 @@ export function AdventurePackDetailScreen({ id, onBack }: { id?: string; onBack:
 
   function startPack() {
     setStarted(true);
-    setFeedback("start");
+    showFeedback({ message: `${pack.title} is now your active adventure plan.`, icon: "compass", color: pack.color });
   }
 
   function toggleSaved() {
-    setSaved((value) => !value);
-    setFeedback("save");
+    setSaved((value) => {
+      const next = !value;
+      showFeedback({
+        message: next ? "Adventure Pack saved to My Stuff." : "Adventure Pack removed from My Stuff.",
+        icon: "bookmark",
+        color: pack.color,
+      });
+      return next;
+    });
   }
 
   async function markQuestDone(quest: Quest) {
@@ -59,7 +67,7 @@ export function AdventurePackDetailScreen({ id, onBack }: { id?: string; onBack:
     setCompletedIds((prev) => prev.includes(quest.id) ? prev : [...prev, quest.id]);
     await completeQuest(quest.id);
     refreshStreaks();
-    setFeedback("done");
+    showFeedback({ message: "Quest marked complete.", icon: "checkmark", color: T.green });
   }
 
   return (
@@ -153,19 +161,6 @@ export function AdventurePackDetailScreen({ id, onBack }: { id?: string; onBack:
           )}
         </View>
       </View>
-
-      <Sheet visible={feedback !== null} onClose={() => setFeedback(null)}>
-        <View style={{ padding: 24, alignItems: "center", gap: 14 }}>
-          <Text style={{ fontSize: 46 }}>{feedback === "done" ? "✅" : feedback === "save" ? "🔖" : pack.icon}</Text>
-          <Text style={{ color: T.dark, fontSize: 22, fontWeight: "900", textAlign: "center" }}>
-            {feedback === "done" ? "Quest marked complete" : feedback === "save" ? saved ? "Adventure Pack saved" : "Adventure Pack removed" : "Adventure Pack started"}
-          </Text>
-          <Text style={{ color: T.muted, fontWeight: "700", textAlign: "center", lineHeight: 20 }}>
-            {feedback === "done" ? `Nice. ${completedIds.length}/${list.length} quests are now done.` : feedback === "save" ? saved ? "You can find it again in My Stuff." : "You can save it again whenever you want." : `${pack.title} is now your active adventure plan.`}
-          </Text>
-          <SoftButton label="Continue" color={pack.color} onPress={() => setFeedback(null)} style={{ alignSelf: "stretch" }} />
-        </View>
-      </Sheet>
     </Screen>
   );
 }

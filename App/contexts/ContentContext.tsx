@@ -17,7 +17,7 @@ type ContentContextValue = {
   loading: boolean;
   quests: Quest[];
   refresh: () => Promise<void>;
-  toggleSave: (questId: string) => Promise<void>;
+  toggleSave: (questId: string) => Promise<boolean>;
 };
 
 const ContentContext = createContext<ContentContextValue>({
@@ -29,7 +29,7 @@ const ContentContext = createContext<ContentContextValue>({
   loading: false,
   quests: [],
   refresh: async () => undefined,
-  toggleSave: async () => undefined,
+  toggleSave: async () => false,
 });
 
 export function ContentProvider({ children }: PropsWithChildren) {
@@ -77,7 +77,7 @@ export function ContentProvider({ children }: PropsWithChildren) {
   const toggleSave = useCallback(
     async (questId: string) => {
       const quest = quests.find((item) => item.id === questId);
-      if (!quest) return;
+      if (!quest) return false;
 
       setQuests((prev) =>
         prev.map((item) => (item.id === questId ? { ...item, saved: !item.saved } : item)),
@@ -85,11 +85,13 @@ export function ContentProvider({ children }: PropsWithChildren) {
 
       try {
         await toggleSavedQuest(questId, quest.saved);
+        return true;
       } catch (nextError) {
         setQuests((prev) =>
           prev.map((item) => (item.id === questId ? { ...item, saved: quest.saved } : item)),
         );
         setError(nextError instanceof Error ? nextError.message : "Unable to update saved quest.");
+        return false;
       }
     },
     [quests],

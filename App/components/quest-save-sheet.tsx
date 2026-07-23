@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { PartyCategoryIcon } from "@/components/party-category-icon";
@@ -15,9 +15,8 @@ type QuestSaveSheetProps = {
   quest: Quest | null;
   visible: boolean;
   onClose: () => void;
-  onCollectionCreated: (title: string, quest: Quest) => void;
   onSaveSelections: (quest: Quest, destinations: string[], changed: boolean) => void;
-  onToggleSaved: (questId: string) => Promise<void>;
+  onToggleSaved: (questId: string) => Promise<boolean>;
 };
 
 function BookmarkBurst() {
@@ -72,7 +71,7 @@ function CollectionThumbnail({ pack }: { pack: UserPack }) {
   );
 }
 
-export function QuestSaveSheet({ quest, visible, onClose, onCollectionCreated, onSaveSelections, onToggleSaved }: QuestSaveSheetProps) {
+export function QuestSaveSheet({ quest, visible, onClose, onSaveSelections, onToggleSaved }: QuestSaveSheetProps) {
   const { saveUserPack, userPacks } = useQuestEngine();
   const [mode, setMode] = useState<"collections" | "create">("collections");
   const [collectionName, setCollectionName] = useState("");
@@ -83,23 +82,34 @@ export function QuestSaveSheet({ quest, visible, onClose, onCollectionCreated, o
   const [coverUri, setCoverUri] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [inputFocused, setInputFocused] = useState(false);
+  const initializedQuestId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || !quest) {
+      initializedQuestId.current = null;
+      return;
+    }
+    if (initializedQuestId.current === quest.id) return;
+    initializedQuestId.current = quest.id;
     setMode("collections");
     setCollectionName("");
-    setSelectedCollectionIds(userPacks.filter((pack) => pack.questIds.includes(quest?.id ?? "")).map((pack) => pack.id));
-    setPrivateSaved(Boolean(quest?.saved));
+    setSelectedCollectionIds(userPacks.filter((pack) => pack.questIds.includes(quest.id)).map((pack) => pack.id));
+    // Opening the sheet expresses intent to save. Persist only when the user
+    // confirms with Save, so dismissing the sheet never creates a hidden save.
+    setPrivateSaved(true);
     setCreating(false);
     setSavingState(false);
     setCoverUri(null);
     setError(null);
     setInputFocused(false);
-  }, [quest?.id, quest?.saved, userPacks, visible]);
+  }, [quest, userPacks, visible]);
 
   const collections = useMemo(() => userPacks.filter((pack) => pack.title.trim()), [userPacks]);
 
   if (!quest) return null;
+
+  const isSavedByCollection = selectedCollectionIds.length > 0;
+  const isSavedToMyStuff = privateSaved || isSavedByCollection;
 
   const toggleCollection = (packId: string) => {
     setSelectedCollectionIds((current) => current.includes(packId) ? current.filter((id) => id !== packId) : [...current, packId]);
@@ -108,10 +118,17 @@ export function QuestSaveSheet({ quest, visible, onClose, onCollectionCreated, o
   const createCollection = async () => {
     const title = collectionName.trim();
     if (!title || creating) return;
+    if (collections.some((pack) => pack.title.trim().toLocaleLowerCase() === title.toLocaleLowerCase())) {
+      setError("A collection with this name already exists.");
+      return;
+    }
 
     setCreating(true);
     setError(null);
     try {
+      if (!quest.saved && !(await onToggleSaved(quest.id))) {
+        throw new Error("Unable to save this quest to My Stuff.");
+      }
       const coverImageUrl = coverUri ? await uploadCollectionCover(coverUri) : null;
       await saveUserPack({
         title,
@@ -121,7 +138,7 @@ export function QuestSaveSheet({ quest, visible, onClose, onCollectionCreated, o
         coverImageUrl,
         questIds: [quest.id],
       });
-      onCollectionCreated(title, quest);
+      onSaveSelections(quest, ["My Stuff", title], true);
       onClose();
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Unable to create the collection.");
@@ -137,10 +154,12 @@ export function QuestSaveSheet({ quest, visible, onClose, onCollectionCreated, o
     try {
       const initialCollectionIds = collections.filter((pack) => pack.questIds.includes(quest.id)).map((pack) => pack.id);
       const membershipsChanged = collections.some((pack) => initialCollectionIds.includes(pack.id) !== selectedCollectionIds.includes(pack.id));
-      const changed = privateSaved !== quest.saved || membershipsChanged;
+      const selectedCollections = collections.filter((pack) => selectedCollectionIds.includes(pack.id));
+      const savedToMyStuff = privateSaved || selectedCollections.length > 0;
+      const changed = savedToMyStuff !== quest.saved || membershipsChanged;
       const destinations = [
-        ...(privateSaved ? ["Saved Quests"] : []),
-        ...collections.filter((pack) => selectedCollectionIds.includes(pack.id)).map((pack) => pack.title),
+        ...(savedToMyStuff ? ["My Stuff"] : []),
+        ...selectedCollections.map((pack) => pack.title),
       ];
 
       if (!changed) {
@@ -149,7 +168,9 @@ export function QuestSaveSheet({ quest, visible, onClose, onCollectionCreated, o
         return;
       }
 
-      if (privateSaved !== quest.saved) await onToggleSaved(quest.id);
+      if (savedToMyStuff !== quest.saved && !(await onToggleSaved(quest.id))) {
+        throw new Error(savedToMyStuff ? "Unable to save this quest to My Stuff." : "Unable to remove this quest from My Stuff.");
+      }
 
       await Promise.all(collections.map((pack) => {
         const wasIncluded = pack.questIds.includes(quest.id);
@@ -209,14 +230,15 @@ export function QuestSaveSheet({ quest, visible, onClose, onCollectionCreated, o
             </View>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={privateSaved ? "Remove from Saved Quests" : "Save to Saved Quests"}
-              accessibilityHint="This does not change collection memberships"
-              accessibilityState={{ checked: privateSaved }}
+              accessibilityLabel={isSavedToMyStuff ? "Saved to My Stuff" : "Save to My Stuff"}
+              accessibilityHint={isSavedByCollection ? "Quests in a collection remain saved to My Stuff." : "This does not change collection memberships"}
+              accessibilityState={{ checked: isSavedToMyStuff, disabled: isSavedByCollection }}
+              disabled={isSavedByCollection}
               onPress={() => setPrivateSaved((saved) => !saved)}
               hitSlop={8}
-              style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.64 : 1 })}
+              style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", opacity: isSavedByCollection ? 1 : pressed ? 0.64 : 1 })}
             >
-              <Ionicons name={privateSaved ? "bookmark" : "bookmark-outline"} size={22} color={privateSaved ? T.blue : T.muted} />
+              <Ionicons name={isSavedToMyStuff ? "bookmark" : "bookmark-outline"} size={22} color={isSavedToMyStuff ? T.blue : T.muted} />
             </Pressable>
           </View>
 
@@ -260,9 +282,6 @@ export function QuestSaveSheet({ quest, visible, onClose, onCollectionCreated, o
             })}
           </View> : (
             <View style={{ alignItems: "center", paddingTop: 4, gap: 13 }}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Close save quest" onPress={onClose} hitSlop={10} style={{ alignSelf: "flex-end", width: 34, height: 34, alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name="close" size={24} color={T.muted} />
-              </Pressable>
               <BookmarkBurst />
               <View style={{ alignSelf: "stretch", gap: 7 }}>
                 <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22, lineHeight: 27 }}>Collect the quests you want to try</Text>

@@ -2,14 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { EmptyState, Screen, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { T } from "@/components/theme";
 import { QuestFeedThumbnail } from "@/components/quest-feed-card";
+import { QuestPostManagementSheet } from "@/components/quest-post-management-sheet";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { fetchProfileOverview, updateProfile, uploadProfileAvatar } from "@/services/profile/profileService";
 import { ProfileOverview, QuestFeedPost } from "@/types/profile";
@@ -58,6 +60,7 @@ function ProfileTabSwitcher({ activeTab, onChange }: { activeTab: ProfileTab; on
 export function ProfileScreen() {
   const router = useRouter();
   const { signOut, user, refreshProfileName } = useAuth();
+  const { showFeedback } = useAppFeedback();
   const { refresh: refreshSocial } = useSocial();
   const { contentWidth, horizontalPadding, insets, safeAreaOffset } = useResponsiveScreenLayout();
   const [overview, setOverview] = useState<ProfileOverview | null>(null);
@@ -71,9 +74,7 @@ export function ProfileScreen() {
   const [draftBio, setDraftBio] = useState("");
   const [draftAvatarUri, setDraftAvatarUri] = useState<string | null>(null);
   const [readOnlyContentTop, setReadOnlyContentTop] = useState<number | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const toastDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [managedPost, setManagedPost] = useState<QuestFeedPost | null>(null);
 
   async function load() {
     setLoading(true);
@@ -91,27 +92,6 @@ export function ProfileScreen() {
   }
 
   useEffect(() => { void load(); }, [user?.id]);
-  useEffect(() => () => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    if (toastDismissTimer.current) clearTimeout(toastDismissTimer.current);
-  }, []);
-
-  function showToast(message: string) {
-    if (toastDismissTimer.current) clearTimeout(toastDismissTimer.current);
-    setToast(message);
-    toastDismissTimer.current = setTimeout(() => setToast(null), 3000);
-  }
-
-  function clearToast() {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    if (toastDismissTimer.current) clearTimeout(toastDismissTimer.current);
-    setToast(null);
-  }
-
-  function notifyAfterImagePick(message: string) {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => showToast(message), 1000);
-  }
 
   function startEditing() {
     if (!overview?.profile) return;
@@ -128,7 +108,6 @@ export function ProfileScreen() {
     setDraftBio(overview.profile.bio ?? "");
     setDraftAvatarUri(overview.profile.avatarUrl);
     setError(null);
-    clearToast();
     setEditing(false);
   }
 
@@ -136,7 +115,6 @@ export function ProfileScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.86 });
     if (result.canceled || !result.assets[0]) return;
     setDraftAvatarUri(result.assets[0].uri);
-    notifyAfterImagePick("Profile picture set!");
   }
 
   async function save() {
@@ -149,14 +127,19 @@ export function ProfileScreen() {
     setSaving(true);
     setError(null);
     try {
-      const avatarUrl = draftAvatarUri && draftAvatarUri !== overview.profile.avatarUrl ? await uploadProfileAvatar(draftAvatarUri) : undefined;
+      const avatarChanged = Boolean(draftAvatarUri && draftAvatarUri !== overview.profile.avatarUrl);
+      const avatarUrl = avatarChanged ? await uploadProfileAvatar(draftAvatarUri!) : undefined;
       const metadataUsername = accountValue(user?.user_metadata, "username");
       await updateProfile({ displayName, bio: draftBio, avatarUrl, username: !overview.profile.username && metadataUsername ? metadataUsername : undefined });
       refreshProfileName();
       await refreshSocial();
       setEditing(false);
       await load();
-      showToast("Saved!");
+      showFeedback({
+        message: avatarChanged ? "Profile picture updated." : "Profile updated.",
+        icon: "person",
+        color: T.blue,
+      });
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "We couldn't save your profile. Please try again.");
     } finally {
@@ -227,7 +210,7 @@ export function ProfileScreen() {
         style={{ width: "100%" }}
       >
       {activeTab === "posts" ? <View style={{ paddingHorizontal: horizontalPadding, paddingTop: 20 }}>
-        {profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." />}
+        {profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." />}
       </View> : null}
       </View>
     </View>
@@ -245,11 +228,7 @@ export function ProfileScreen() {
         <SoftButton label="Sign out" icon="log-out-outline" inverse color={T.red} onPress={() => { setSettingsOpen(false); void signOut(); }} />
       </View>
     </Sheet>
+    <QuestPostManagementSheet post={managedPost} visible={Boolean(managedPost)} onClose={() => setManagedPost(null)} onUpdated={() => { setManagedPost(null); void load(); }} onDeleted={() => { setManagedPost(null); void load(); }} />
 
-    <Modal transparent visible={Boolean(toast)} animationType="fade" onRequestClose={() => setToast(null)}>
-      <View pointerEvents="box-none" style={{ flex: 1, justifyContent: "flex-end", padding: 20, paddingBottom: 106 }}>
-        {toast ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss notification" onPress={clearToast} style={{ minHeight: 62, borderRadius: 18, borderWidth: 2, borderColor: "#55c96b", backgroundColor: T.white, paddingHorizontal: 15, flexDirection: "row", alignItems: "center", gap: 11, boxShadow: "0px 6px 14px rgba(61,52,56,0.16)" }}><View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: "#55c96b", alignItems: "center", justifyContent: "center" }}><Ionicons name="checkmark" size={18} color={T.white} /></View><Text style={{ flex: 1, color: T.dark, fontFamily: "RubikBold", fontSize: 15 }}>{toast}</Text></Pressable> : null}
-      </View>
-    </Modal>
   </View>;
 }

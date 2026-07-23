@@ -6,6 +6,7 @@ import { Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "reac
 
 import { categoryColor, T } from "@/components/theme";
 import { Card, EmptyState, IconButton, Screen, Sheet } from "@/components/ui";
+import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { uploadCollectionCover } from "@/services/engine/questEngineService";
@@ -14,6 +15,7 @@ import { Quest } from "@/types/content";
 export function UserCollectionDetailScreen({ id, onBack }: { id: string; onBack: () => void }) {
   const { quests } = useContent();
   const { userPacks, saveUserPack, removeUserPack } = useQuestEngine();
+  const { showFeedback } = useAppFeedback();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -23,14 +25,38 @@ export function UserCollectionDetailScreen({ id, onBack }: { id: string; onBack:
   const pack = userPacks.find((item) => item.id === id);
   const packQuests = useMemo(() => pack ? pack.questIds.map((questId) => quests.find((quest) => quest.id === questId)).filter(Boolean) as Quest[] : [], [pack, quests]);
   const candidates = useMemo(() => pack ? quests.filter((quest) => quest.saved && !pack.questIds.includes(quest.id)) : [], [pack, quests]);
-  const addSelected = async () => { if (!pack || !selectedIds.length) return; await saveUserPack({ id: pack.id, title: pack.title, description: pack.description, icon: pack.icon, accentColor: pack.accentColor, coverImageUrl: pack.coverImageUrl, questIds: [...pack.questIds, ...selectedIds] }); setSelectedIds([]); setPickerOpen(false); };
+  const addSelected = async () => {
+    if (!pack || !selectedIds.length) return;
+    const count = selectedIds.length;
+    await saveUserPack({ id: pack.id, title: pack.title, description: pack.description, icon: pack.icon, accentColor: pack.accentColor, coverImageUrl: pack.coverImageUrl, questIds: [...new Set([...pack.questIds, ...selectedIds])] });
+    setSelectedIds([]);
+    setPickerOpen(false);
+    showFeedback({ message: `${count} ${count === 1 ? "quest was" : "quests were"} added to “${pack.title}”.`, icon: "add-circle", color: pack.accentColor });
+  };
   const startEdit = () => { setTitle(pack?.title ?? ""); setCoverUri(null); setRemoveCover(false); setEditOpen(true); };
   const chooseCover = async () => { const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.78 }); if (!result.canceled && result.assets[0]) { setCoverUri(result.assets[0].uri); setRemoveCover(false); } };
-  const saveEdit = async () => { if (!pack || !title.trim()) return; const coverImageUrl = removeCover ? null : coverUri ? await uploadCollectionCover(coverUri) : pack.coverImageUrl; await saveUserPack({ id: pack.id, title: title.trim(), description: pack.description, icon: pack.icon, accentColor: pack.accentColor, coverImageUrl, questIds: pack.questIds }); setEditOpen(false); };
+  const saveEdit = async () => {
+    if (!pack || !title.trim()) return;
+    const nextTitle = title.trim();
+    const titleChanged = nextTitle !== pack.title;
+    const coverChanged = removeCover ? Boolean(pack.coverImageUrl) : Boolean(coverUri);
+    const coverImageUrl = removeCover ? null : coverUri ? await uploadCollectionCover(coverUri) : pack.coverImageUrl;
+    await saveUserPack({ id: pack.id, title: nextTitle, description: pack.description, icon: pack.icon, accentColor: pack.accentColor, coverImageUrl, questIds: pack.questIds });
+    setEditOpen(false);
+    showFeedback({
+      message: titleChanged && coverChanged
+        ? removeCover ? "Collection renamed and cover photo removed." : "Collection renamed and cover photo updated."
+        : titleChanged ? "Collection renamed."
+          : coverChanged ? removeCover ? "Collection cover photo removed." : "Collection cover photo updated."
+            : "Collection updated.",
+      icon: "bookmarks",
+      color: pack.accentColor,
+    });
+  };
   const deleteCollection = () => {
     if (!pack) return;
     const currentPack = pack;
-    Alert.alert("Delete collection?", `“${currentPack.title}” will be deleted. The quests will remain saved.`, [{ text: "Keep", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => { void removeUserPack(currentPack.id).then(onBack); } }]);
+    Alert.alert("Delete collection?", `“${currentPack.title}” will be deleted. The quests will remain saved.`, [{ text: "Keep", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => { void removeUserPack(currentPack.id).then(() => { showFeedback({ message: `“${currentPack.title}” was deleted.`, icon: "trash", color: T.red }); onBack(); }).catch(() => Alert.alert("Couldn’t delete collection", "Please try again.")); } }]);
   };
   if (!pack) return <Screen><IconButton icon="chevron-back" onPress={onBack} /><EmptyState emoji="🗂️" title="Collection not found" body="It may have been deleted." /></Screen>;
   return <Screen>

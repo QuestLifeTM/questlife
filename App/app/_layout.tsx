@@ -8,6 +8,7 @@ import { T } from "@/components/theme";
 import { GlobalAnnouncement } from "@/components/global-announcement";
 import { RequiredProfileName } from "@/components/required-profile-name";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AppFeedbackProvider } from "@/contexts/AppFeedbackContext";
 import { ActiveQuestProvider } from "@/contexts/ActiveQuestContext";
 import { ContentProvider } from "@/contexts/ContentContext";
 import { NotificationsProvider } from "@/contexts/NotificationsContext";
@@ -32,9 +33,11 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <SessionDataProviders>
-        <AppLayout />
-      </SessionDataProviders>
+      <AppFeedbackProvider>
+        <SessionDataProviders>
+          <AppLayout />
+        </SessionDataProviders>
+      </AppFeedbackProvider>
     </AuthProvider>
   );
 }

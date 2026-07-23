@@ -13,9 +13,10 @@ import { Card, PillStat, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveSc
 import { useAuth } from "@/contexts/AuthContext";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
+import { formatElapsedCompact, useElapsedDuration } from "@/hooks/useElapsedTime";
 import { useQuestStart } from "@/hooks/useQuestStart";
 import { Quest } from "@/types/content";
-import { fetchProfileOverview, fetchRequiredProfileName } from "@/services/profile/profileService";
+import { fetchOwnProfileAvatar, fetchRequiredProfileName } from "@/services/profile/profileService";
 
 function useReducedMotionPreference() {
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -97,14 +98,6 @@ function LobbySwapText({ text, style, reducedMotion }: { text: string; style: St
   return <Animated.Text style={[style, { opacity, transform: [{ translateY }] }]}>{displayed}</Animated.Text>;
 }
 
-function msToLabel(startedAt: string) {
-  const mins = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 60000));
-  if (mins < 60) return `${mins} min${mins === 1 ? "" : "s"}`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
-}
-
 function formatTime(iso: string) {
   const d = new Date(iso);
   return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -125,16 +118,22 @@ function greetingFor(date: Date) {
   return "Good Night";
 }
 
-function LobbyAvatar({ uri }: { uri: string | null }) {
+function LobbyAvatar({ uri, onPress }: { uri: string | null; onPress: () => void }) {
   const size = 50;
   const inner = 38;
   const dot = 14;
 
   return (
-    <View style={{ width: size, height: size, position: "relative" }}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Open your profile"
+      hitSlop={8}
+      onPress={onPress}
+      style={{ width: size, height: size, position: "relative" }}
+    >
       <View style={[styles.avatarRing, { width: size, height: size, borderRadius: size / 2 }]}><ProfileAvatar uri={uri} color={T.blue} size={inner} label="Your profile photo" /></View>
       <View style={[styles.avatarDot, { width: dot, height: dot, borderRadius: dot / 2 }]} />
-    </View>
+    </Pressable>
   );
 }
 
@@ -300,7 +299,7 @@ function ActiveQuestCard({
             <Text style={styles.activeDescription} numberOfLines={2}>{activeQuest.description}</Text>
           </View>
           <View style={styles.activeStats}>
-            <View style={styles.activeStatCell}><View style={styles.timeIconWrap}><ClockIcon /></View><View style={styles.statCopy}><Text style={[styles.statLabel, styles.timeLabel]}>Time elapsed</Text><Text style={styles.statValue}>{elapsedLabel}</Text></View></View>
+            <View style={styles.activeStatCell}><View style={styles.timeIconWrap}><ClockIcon /></View><View style={styles.statCopy}><Text style={[styles.statLabel, styles.timeLabel]}>Time elapsed</Text><Text numberOfLines={1} style={[styles.statValue, styles.elapsedStatValue]}>{elapsedLabel}</Text></View></View>
             <View style={styles.statDivider} />
             <View style={styles.activeStatCell}><View style={styles.rewardIconWrap}><RewardIcon /></View><View style={styles.statCopy}><Text style={[styles.statLabel, styles.rewardLabel]}>Reward</Text><Text style={styles.statValue}>+{activeQuest.xp} XP</Text></View></View>
           </View>
@@ -489,13 +488,14 @@ export function LobbyScreen() {
       .catch(() => {
         if (active) setFirstName("");
       });
-    void fetchProfileOverview()
-      .then((overview) => { if (active) setAvatarUrl(overview.profile?.avatarUrl ?? null); })
+    void fetchOwnProfileAvatar(user.id)
+      .then((url) => { if (active) setAvatarUrl(url); })
       .catch(() => { if (active) setAvatarUrl(null); });
     return () => { active = false; };
   }, [profileNameVersion, user?.id]);
 
   const activeQuest = engine?.activeSession ? getQuest(engine.activeSession.questId) : null;
+  const activeQuestElapsed = useElapsedDuration(engine?.activeSession?.startedAt);
   const dailyUsed = engine?.dailyUsed ?? 0;
   const dailyLimit = engine?.dailyLimit ?? 5;
   const completions = engine?.todayCompletions ?? [];
@@ -536,7 +536,7 @@ export function LobbyScreen() {
           testID={`lobby-${lobbyStates.request}-${lobbyStates.activity}-${lobbyStates.plan}-${lobbyStates.history}-${lobbyStates.feedback}`}
         >
         <View style={styles.header}>
-          <LobbyAvatar uri={avatarUrl} />
+          <LobbyAvatar uri={avatarUrl} onPress={() => router.navigate("/(tabs)/profile")} />
           <View style={styles.headerCopy}>
             <Text style={styles.greeting} numberOfLines={1}>
               {greetingFor(now)}!
@@ -563,7 +563,7 @@ export function LobbyScreen() {
           {activeQuest && engine?.activeSession ? (
             <ActiveQuestCard
               activeQuest={activeQuest}
-              elapsedLabel={msToLabel(engine.activeSession.startedAt)}
+              elapsedLabel={formatElapsedCompact(activeQuestElapsed)}
               onView={() => router.push("/active-quest")}
               reducedMotion={reducedMotion}
             />
@@ -892,6 +892,10 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     fontSize: 17,
     lineHeight: 23,
+  },
+  elapsedStatValue: {
+    flexShrink: 1,
+    fontVariant: ["tabular-nums"],
   },
   statDivider: {
     width: 1,

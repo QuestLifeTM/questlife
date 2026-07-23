@@ -3,7 +3,7 @@ import { BlurView } from "expo-blur";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Animated, Image, InteractionManager, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import MapView, { Marker, Polyline } from "react-native-maps";
@@ -15,6 +15,7 @@ import { EmptyState, haptic } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
 import { useActiveQuest } from "@/contexts/ActiveQuestContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
+import { formatElapsedFull, useElapsedDuration } from "@/hooks/useElapsedTime";
 import { Quest } from "@/types/content";
 import { ActiveQuestCheckpoint, ActiveQuestRoutePoint } from "@/types/active-quest";
 import { ActiveQuestPhoto } from "@/types/active-quest";
@@ -29,14 +30,6 @@ const MAP_RECENTER_BOTTOM_OFFSET = BOTTOM_SHEET_CONTENT_HEIGHT + 94;
 // Keep the visual fill aligned with the full confirmation gesture so the
 // completion sheet appears the moment the pill reaches the end.
 const END_QUEST_HOLD_DURATION = 2_000;
-
-function formatDuration(activeDurationMs: number, activeSince: string | null) {
-  const elapsed = activeDurationMs + (activeSince ? Math.max(0, Date.now() - new Date(activeSince).getTime()) : 0);
-  const hours = Math.floor(elapsed / 3_600_000);
-  const minutes = Math.floor((elapsed % 3_600_000) / 60_000);
-  const seconds = Math.floor((elapsed % 60_000) / 1_000);
-  return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}` : `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
 
 type MapCoordinate = { latitude: number; longitude: number };
 
@@ -91,7 +84,7 @@ function ActiveQuestTabs({ active, onChange, accent }: { active: ActiveQuestTab;
   </View>;
 }
 
-const LiveMap = memo(function LiveMap({ accent, route, renderRoute, checkpoints = [], deviceLocation, liveLocation, trackingStatus, trackingMessage, notice, countdownStep, onEnableTracking, onReady }: { accent: string; route: ActiveQuestRoutePoint[]; renderRoute: ActiveQuestRoutePoint[]; checkpoints?: ActiveQuestCheckpoint[]; deviceLocation: MapCoordinate | null; liveLocation: MapCoordinate | null; trackingStatus: "idle" | "tracking" | "permission-needed" | "unavailable"; trackingMessage: string | null; notice: QuestNotice | null; countdownStep: CountdownStep | null; onEnableTracking: () => void; onReady: () => void }) {
+const LiveMap = memo(function LiveMap({ accent, route, renderRoute, checkpoints = [], deviceLocation, liveLocation, trackingStatus, trackingMessage, notice, onEnableTracking }: { accent: string; route: ActiveQuestRoutePoint[]; renderRoute: ActiveQuestRoutePoint[]; checkpoints?: ActiveQuestCheckpoint[]; deviceLocation: MapCoordinate | null; liveLocation: MapCoordinate | null; trackingStatus: "idle" | "tracking" | "permission-needed" | "unavailable"; trackingMessage: string | null; notice: QuestNotice | null; onEnableTracking: () => void }) {
   const map = useRef<MapView>(null);
   const [followingUser, setFollowingUser] = useState(true);
   const current = route.at(-1);
@@ -108,23 +101,16 @@ const LiveMap = memo(function LiveMap({ accent, route, renderRoute, checkpoints 
     if (cameraRegion && followingUser) map.current?.animateToRegion(cameraRegion, 450);
   }, [cameraRegion?.latitude, cameraRegion?.longitude, followingUser]);
 
-  useEffect(() => {
-    // The permission fallback has no native MapView event, but its contents
-    // are fully rendered and ready to host the countdown immediately.
-    if (!region) onReady();
-  }, [onReady, region]);
-
   if (!region) return <View style={{ flex: 1, backgroundColor: "#edf0eb", alignItems: "center", justifyContent: "center", paddingHorizontal: 28, paddingBottom: BOTTOM_SHEET_CONTENT_HEIGHT, gap: 12 }}>
     <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: `${accent}1c`, alignItems: "center", justifyContent: "center" }}><Ionicons name="location-outline" size={27} color={accent} /></View>
     <Text style={{ color: T.dark, fontSize: 19, lineHeight: 25, fontWeight: "900", textAlign: "center" }}>Ready to map your quest</Text>
     <Text style={{ color: T.muted, maxWidth: 280, fontSize: 14, lineHeight: 20, fontWeight: "600", textAlign: "center" }}>Enable location to centre the map on where you actually are and start recording your route.</Text>
     <Pressable accessibilityRole="button" onPress={onEnableTracking} style={({ pressed }) => ({ minHeight: 48, marginTop: 4, borderRadius: 24, paddingHorizontal: 18, alignItems: "center", justifyContent: "center", backgroundColor: accent, transform: [{ scale: pressed ? 0.97 : 1 }] })}><Text style={{ color: T.white, fontSize: 14, fontWeight: "900" }}>Enable route recording</Text></Pressable>
     {notice ? <QuestNoticePill notice={notice} accent={accent} message={trackingMessage} /> : null}
-    {countdownStep ? <CountdownOverlay step={countdownStep} accent={accent} /> : null}
   </View>;
 
   return <View style={{ flex: 1, backgroundColor: "#e5e8e2" }}>
-    <MapView ref={map} style={{ flex: 1 }} initialRegion={cameraRegion ?? undefined} mapType="standard" showsPointsOfInterest={false} showsBuildings={false} showsUserLocation showsMyLocationButton={false} showsCompass toolbarEnabled={false} onMapReady={onReady} onPanDrag={() => setFollowingUser(false)}>
+    <MapView ref={map} style={{ flex: 1 }} initialRegion={cameraRegion ?? undefined} mapType="standard" showsPointsOfInterest={false} showsBuildings={false} showsUserLocation showsMyLocationButton={false} showsCompass toolbarEnabled={false} onPanDrag={() => setFollowingUser(false)}>
       {polylineCoordinates.length > 1 ? <Polyline coordinates={polylineCoordinates} strokeColor={accent} strokeWidth={5} lineCap="round" lineJoin="round" /> : null}
       {route[0] ? <Marker coordinate={{ latitude: route[0].latitude, longitude: route[0].longitude }} anchor={{ x: 0.5, y: 0.5 }} title="Quest started"><View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 4, borderColor: T.white, backgroundColor: accent }} /></Marker> : null}
       {current && route.length > 1 ? <Marker coordinate={{ latitude: current.latitude, longitude: current.longitude }} anchor={{ x: 0.5, y: 0.5 }} title="Current route end"><View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 4, borderColor: T.white, backgroundColor: T.dark }} /></Marker> : null}
@@ -132,9 +118,18 @@ const LiveMap = memo(function LiveMap({ accent, route, renderRoute, checkpoints 
     </MapView>
     {!followingUser ? <Pressable accessibilityRole="button" accessibilityLabel="Recenter map on your route" onPress={() => setFollowingUser(true)} style={({ pressed }) => ({ position: "absolute", right: 18, bottom: MAP_RECENTER_BOTTOM_OFFSET, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: T.white, borderWidth: 1, borderColor: T.border, boxShadow: "0px 2px 6px rgba(61,52,56,0.14)", transform: [{ scale: pressed ? 0.94 : 1 }] })}><Ionicons name="locate" size={21} color={accent} /></Pressable> : null}
     {notice ? <QuestNoticePill notice={notice} accent={accent} message={trackingStatus === "permission-needed" || trackingStatus === "unavailable" ? trackingMessage : null} /> : null}
-    {countdownStep ? <CountdownOverlay step={countdownStep} accent={accent} /> : null}
   </View>;
 });
+
+function QuestStartupSurface({ accent, step }: { accent: string; step: CountdownStep | null }) {
+  return <View style={{ flex: 1, backgroundColor: "#edf0eb", alignItems: "center", justifyContent: "center", paddingBottom: BOTTOM_SHEET_CONTENT_HEIGHT }}>
+    <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: `${accent}16`, alignItems: "center", justifyContent: "center" }}>
+      <Ionicons name="navigate" size={32} color={accent} />
+    </View>
+    <Text style={{ marginTop: 18, color: T.dark, fontSize: 18, fontWeight: "900" }}>Get ready to begin</Text>
+    {step ? <CountdownOverlay step={step} accent={accent} /> : null}
+  </View>;
+}
 
 function Album({ accent, photos }: { accent: string; photos: ActiveQuestPhoto[] }) {
   if (!photos.length) return <View style={{ flex: 1, paddingHorizontal: 22, paddingBottom: BOTTOM_SHEET_CONTENT_HEIGHT + 92, backgroundColor: "#f8f7f3", alignItems: "center", justifyContent: "center", gap: 12 }}><View style={{ width: "100%", aspectRatio: 1.55, borderRadius: 20, borderWidth: 2, borderStyle: "dashed", borderColor: `${accent}88`, backgroundColor: `${accent}0e`, alignItems: "center", justifyContent: "center", gap: 9 }}><View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: `${accent}18`, alignItems: "center", justifyContent: "center" }}><Ionicons name="camera" size={23} color={accent} /></View><Text style={{ color: T.dark, fontSize: 17, fontWeight: "900" }}>Capture the little moments</Text><Text style={{ maxWidth: 250, color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700", textAlign: "center" }}>Photos from this quest will appear here as a two-column memory stream.</Text></View></View>;
@@ -161,12 +156,11 @@ export function ActiveQuestScreen() {
   const { snapshot, liveLocation, loading: activeQuestLoading, trackingMessage, pause, resume, saveEntry, enableTracking, addPhoto, finishLocalQuest } = useActiveQuest();
   const { getQuest } = useContent();
   const [tab, setTab] = useState<ActiveQuestTab>("map");
-  const [now, setNow] = useState(Date.now());
   const [completeVisible, setCompleteVisible] = useState(false);
   const [takingPhoto, setTakingPhoto] = useState(false);
   const [countdownStep, setCountdownStep] = useState<CountdownStep | null>(null);
   const [countdownLaunchAt, setCountdownLaunchAt] = useState<number | null>(null);
-  const [mapReadyForSession, setMapReadyForSession] = useState<string | null>(null);
+  const [startupCompleteForSession, setStartupCompleteForSession] = useState<string | null>(null);
   const [photoSavedVisible, setPhotoSavedVisible] = useState(false);
   const [finishHintVisible, setFinishHintVisible] = useState(false);
   const [deviceLocation, setDeviceLocation] = useState<MapCoordinate | null>(null);
@@ -176,7 +170,6 @@ export function ActiveQuestScreen() {
   const finishHoldCompleted = useRef(false);
   const countdownSessionRef = useRef<string | null>(null);
   const routeRecordingStartedSessionRef = useRef<string | null>(null);
-  const lastCountdownStepRef = useRef<CountdownStep | null>(null);
   const session = engine?.activeSession;
   const loadedQuest = getQuest(session?.questId);
   // An active session remains completable even if the live content list has
@@ -204,15 +197,12 @@ export function ActiveQuestScreen() {
   const [entryBody, setEntryBody] = useState("");
   const paused = snapshot?.session.recordingState === "paused";
   const countdownStartedAt = snapshot?.session.startedAt ?? session?.startedAt;
-  const mapReady = mapReadyForSession === session?.id;
+  const elapsedDuration = useElapsedDuration(session?.startedAt);
+  const isFreshSession = Boolean(session?.id && countdownStartedAt && Date.now() - new Date(countdownStartedAt).getTime() <= 15_000);
+  const shouldPlayCountdown = isFreshSession && snapshot?.session.recordingState === "paused";
+  const isCountdownPending = shouldPlayCountdown && countdownSessionRef.current !== session?.id && !countdownLaunchAt;
+  const isStartingQuest = isCountdownPending || Boolean(countdownLaunchAt && startupCompleteForSession !== session?.id);
   const statusNotice: QuestNotice = photoSavedVisible ? "photo-saved" : finishHintVisible ? "hold-to-finish" : paused ? "paused" : "active";
-  const handleMapReady = useCallback(() => { if (session?.id) setMapReadyForSession(session.id); }, [session?.id]);
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1_000);
-    return () => clearInterval(timer);
-  }, []);
-
   useEffect(() => {
     if (quest && snapshot) {
       setEntryTitle(snapshot.session.entryTitle || `Day 1: ${quest.title}`);
@@ -243,8 +233,8 @@ export function ActiveQuestScreen() {
   }, []);
 
   useEffect(() => {
-    if (tab === "map") void resolveDeviceLocation();
-  }, [resolveDeviceLocation, tab]);
+    if (tab === "map" && !isStartingQuest) void resolveDeviceLocation();
+  }, [isStartingQuest, resolveDeviceLocation, tab]);
 
   const beginQuestRoute = useCallback(async () => {
     if (snapshot?.session.recordingState === "paused") {
@@ -260,36 +250,40 @@ export function ActiveQuestScreen() {
       setCountdownLaunchAt(null);
       return;
     }
-    if (!snapshot || activeQuestLoading || !mapReady) return;
+    if (!snapshot || activeQuestLoading) return;
+    if (snapshot.session.recordingState !== "paused") return;
     if (countdownSessionRef.current === session.id) return;
     countdownSessionRef.current = session.id;
-    lastCountdownStepRef.current = null;
     setCountdownLaunchAt(Date.now());
-  }, [activeQuestLoading, countdownStartedAt, mapReady, session?.id, snapshot]);
+  }, [activeQuestLoading, countdownStartedAt, session?.id, snapshot]);
 
   useEffect(() => {
     if (!session?.id || !countdownLaunchAt) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const updateCountdown = () => {
-      const elapsed = Date.now() - countdownLaunchAt;
-      const step: CountdownStep | null = elapsed < 850 ? 3 : elapsed < 1_700 ? 2 : elapsed < 2_550 ? 1 : elapsed < 3_400 ? "GO" : null;
-      if (!step) {
-        setCountdownStep(null);
-        if (routeRecordingStartedSessionRef.current !== session.id) {
-          routeRecordingStartedSessionRef.current = session.id;
-          void beginQuestRoute();
-        }
-        return;
+    const phases: { delay: number; step: CountdownStep }[] = [
+      { delay: 0, step: 3 },
+      { delay: 850, step: 2 },
+      { delay: 1_700, step: 1 },
+      { delay: 2_550, step: "GO" },
+    ];
+    const timers = phases.map(({ delay, step }) => setTimeout(() => {
+      haptic();
+      setCountdownStep(step);
+    }, delay));
+    const finishTimer = setTimeout(() => {
+      setCountdownStep(null);
+      setCountdownLaunchAt(null);
+      setStartupCompleteForSession(session.id);
+      if (routeRecordingStartedSessionRef.current !== session.id) {
+        routeRecordingStartedSessionRef.current = session.id;
+        // Mounting the native map and requesting GPS can be expensive. Start
+        // them after the countdown has yielded its final frame to the UI.
+        InteractionManager.runAfterInteractions(() => { void beginQuestRoute(); });
       }
-      if (lastCountdownStepRef.current !== step) {
-        lastCountdownStepRef.current = step;
-        haptic();
-        setCountdownStep(step);
-      }
-      timer = setTimeout(updateCountdown, 60);
+    }, 3_400);
+    return () => {
+      timers.forEach(clearTimeout);
+      clearTimeout(finishTimer);
     };
-    updateCountdown();
-    return () => { if (timer) clearTimeout(timer); };
   }, [beginQuestRoute, countdownLaunchAt, session?.id]);
 
   useEffect(() => {
@@ -309,7 +303,7 @@ export function ActiveQuestScreen() {
     if (finishHoldTimeout.current) clearTimeout(finishHoldTimeout.current);
   }, []);
 
-  const duration = useMemo(() => snapshot ? formatDuration(snapshot.session.activeDurationMs, snapshot.session.activeSince) : "0:00", [now, snapshot]);
+  const duration = formatElapsedFull(elapsedDuration);
 
   if (!session || !quest) return <View style={{ flex: 1, paddingTop: insets.top + 24, backgroundColor: T.bg }}><EmptyState emoji="🧭" title="No active quest" body="Start a solo quest from Explore to create its live home." /></View>;
 
@@ -398,7 +392,7 @@ export function ActiveQuestScreen() {
       <View style={{ marginTop: 16 }}><ActiveQuestTabs active={tab} onChange={setTab} accent={accent} /></View>
     </View>
     <View style={{ flex: 1 }}>
-      {tab === "map" ? <LiveMap accent={accent} route={snapshot?.route ?? []} renderRoute={snapshot?.renderRoute ?? []} deviceLocation={deviceLocation} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={null} countdownStep={countdownStep} onEnableTracking={handleEnableRouteRecording} onReady={handleMapReady} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} /> : <EntryPlaceholder quest={quest} title={entryTitle} body={entryBody} onChangeTitle={setEntryTitle} onChangeBody={setEntryBody} />}
+      {tab === "map" ? isStartingQuest ? <QuestStartupSurface accent={accent} step={countdownStep} /> : <LiveMap accent={accent} route={snapshot?.route ?? []} renderRoute={snapshot?.renderRoute ?? []} deviceLocation={deviceLocation} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={null} onEnableTracking={handleEnableRouteRecording} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} /> : <EntryPlaceholder quest={quest} title={entryTitle} body={entryBody} onChangeTitle={setEntryTitle} onChangeBody={setEntryBody} />}
     </View>
     {!countdownStep ? <QuestNoticePill notice={statusNotice} accent={accent} holdProgress={finishHintVisible ? finishHoldProgress : undefined} message={trackingMessage} /> : null}
     <BlurView intensity={12} tint="light" style={{ position: "absolute", left: 0, right: 0, bottom: 0, minHeight: insets.bottom + BOTTOM_SHEET_CONTENT_HEIGHT, paddingTop: 12, paddingBottom: Math.max(insets.bottom + 8, 22), paddingHorizontal: 32, borderTopLeftRadius: 34, borderTopRightRadius: 34, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.48)", borderTopWidth: 1, borderColor: "rgba(232,223,213,0.58)", boxShadow: "0px -3px 16px rgba(61,52,56,0.10)", justifyContent: "space-between" }}>

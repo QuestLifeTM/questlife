@@ -50,6 +50,24 @@ export async function fetchProfileOverview(userId?: string): Promise<ProfileOver
   };
 }
 
+/**
+ * Small, self-owned profile read for surfaces that only need the avatar.
+ * Keeping this independent from the overview RPC prevents a nonessential
+ * overview failure from making the Lobby show the placeholder image.
+ */
+export async function fetchOwnProfileAvatar(userId: string): Promise<string | null> {
+  assertSupabaseConfigured();
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("avatar_url")
+    .eq("id", userId)
+    .maybeSingle<{ avatar_url: string | null }>();
+
+  if (error) throw error;
+  return data?.avatar_url ?? null;
+}
+
 export async function updateProfile(input: ProfileEditInput) {
   assertSupabaseConfigured();
   const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -180,7 +198,39 @@ export async function fetchQuestSocialFeed(scope: "public" | "friends") {
 
 export async function deleteQuestPost(postId: string) {
   assertSupabaseConfigured();
-  const { error } = await supabase.from("quest_posts").delete().eq("id", postId);
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  const { error } = await supabase
+    .from("quest_posts")
+    .delete()
+    .eq("id", postId)
+    .eq("user_id", userData.user.id);
+  if (error) throw error;
+}
+
+export async function updateQuestPost(postId: string, input: {
+  postTitle: string | null;
+  caption: string | null;
+  photoUrls: string[];
+  visibility: "public" | "friends" | "private";
+}) {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  const { error } = await supabase
+    .from("quest_posts")
+    .update({
+      post_title: input.postTitle?.trim() || null,
+      caption: input.caption?.trim() || null,
+      photo_urls: input.photoUrls,
+      visibility: input.visibility,
+    })
+    .eq("id", postId)
+    .eq("user_id", userData.user.id);
   if (error) throw error;
 }
 

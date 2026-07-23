@@ -263,8 +263,12 @@ export async function upsertUserPack(input: {
   if (userError) throw userError;
   if (!userData.user) throw new Error("No authenticated user.");
 
+  const title = input.title.trim();
+  if (!title) throw new Error("A collection name is required.");
+  const questIds = [...new Set(input.questIds)];
+
   const payload = {
-    title: input.title.trim(),
+    title,
     description: input.description?.trim() || null,
     icon: input.icon || "🎒",
     accent_color: input.accentColor,
@@ -274,7 +278,7 @@ export async function upsertUserPack(input: {
 
   const runUpsert = (nextPayload: typeof payload | Omit<typeof payload, "cover_image_url">) => {
     const query = input.id
-      ? supabase.from("user_adventure_packs").update(nextPayload).eq("id", input.id)
+      ? supabase.from("user_adventure_packs").update(nextPayload).eq("id", input.id).eq("user_id", userData.user.id)
       : supabase.from("user_adventure_packs").insert(nextPayload);
     return query.select("id").single<{ id: string }>();
   };
@@ -286,21 +290,49 @@ export async function upsertUserPack(input: {
   }
   if (error || !data) throw error ?? new Error("Unable to save this collection.");
 
+  const { data: existingQuestRows, error: existingQuestError } = await supabase
+    .from("user_adventure_pack_quests")
+    .select("quest_id, position")
+    .eq("user_pack_id", data.id);
+  if (existingQuestError) throw existingQuestError;
+
   const { error: deleteError } = await supabase
     .from("user_adventure_pack_quests")
     .delete()
     .eq("user_pack_id", data.id);
   if (deleteError) throw deleteError;
 
-  if (input.questIds.length) {
+  if (questIds.length) {
     const { error: insertError } = await supabase.from("user_adventure_pack_quests").insert(
-      input.questIds.map((questId, index) => ({
+      questIds.map((questId, index) => ({
         user_pack_id: data.id,
         quest_id: questId,
         position: index,
       })),
     );
-    if (insertError) throw insertError;
+    if (insertError) {
+      // The API has no transaction boundary across a parent update and this
+      // membership replacement. Restore the prior rows before surfacing the
+      // error so a failed save cannot empty an existing collection.
+      const previousMemberships = existingQuestRows ?? [];
+      if (previousMemberships.length) {
+        await supabase.from("user_adventure_pack_quests").insert(
+          previousMemberships.map((row) => ({
+            user_pack_id: data.id,
+            quest_id: row.quest_id,
+            position: row.position,
+          })),
+        );
+      }
+      if (!input.id) {
+        await supabase
+          .from("user_adventure_packs")
+          .delete()
+          .eq("id", data.id)
+          .eq("user_id", userData.user.id);
+      }
+      throw insertError;
+    }
   }
 
   return data.id;
