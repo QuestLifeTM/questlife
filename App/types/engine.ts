@@ -58,6 +58,7 @@ export type UserPack = {
   icon: string;
   accentColor: string;
   coverImageUrl: string | null;
+  isPinned: boolean;
   questIds: string[];
   createdAt: string;
 };

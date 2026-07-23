@@ -36,6 +36,15 @@ type ActiveSessionRow = {
   quests: CompletionQuestRow | null;
 };
 
+type CompletionHistoryRow = {
+  quests: { category: Quest["category"] } | null;
+};
+
+export type QuestHistorySignal = {
+  category: Quest["category"];
+  completedThisMonth: number;
+};
+
 function assertSupabaseConfigured() {
   if (!isSupabaseConfigured) {
     throw new Error(SUPABASE_CONFIG_ERROR);
@@ -155,6 +164,33 @@ export async function fetchJournalData(): Promise<JournalData> {
   return { joinedAt, memoriesByDate, entriesByDate, partyHistory: (partyHistoryResult.data ?? []) as PartyJournalCard[], activeQuest: mapActiveQuest(activeSessionRow) };
 }
 
+/** A lightweight monthly completion signal for contextual recommendations. */
+export async function fetchQuestHistorySignals(): Promise<QuestHistorySignal[]> {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const { data, error } = await supabase
+    .from("quest_completions")
+    .select("quests(category)")
+    .eq("user_id", userData.user.id)
+    .gte("created_at", monthStart)
+    .returns<CompletionHistoryRow[]>();
+  if (error) throw error;
+
+  const counts = new Map<Quest["category"], number>();
+  for (const row of data ?? []) {
+    if (!row.quests) continue;
+    counts.set(row.quests.category, (counts.get(row.quests.category) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([category, completedThisMonth]) => ({ category, completedThisMonth }))
+    .sort((a, b) => b.completedThisMonth - a.completedThisMonth || a.category.localeCompare(b.category));
+}
+
 export async function fetchJournalMemory(completionId: string): Promise<JournalMemory | null> {
   assertSupabaseConfigured();
   const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -171,6 +207,21 @@ export async function fetchJournalMemory(completionId: string): Promise<JournalM
   if (error) throw error;
   if (!data) return null;
   return mapMemory(data);
+}
+
+/** Updates the authenticated user's private reflection for a completed quest. */
+export async function updateJournalMemoryReflection(input: { completionId: string; reflection: string | null }) {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  const { error } = await supabase
+    .from("quest_completions")
+    .update({ reflection: input.reflection?.trim() || null })
+    .eq("id", input.completionId)
+    .eq("user_id", userData.user.id);
+  if (error) throw error;
 }
 
 export async function resolveJournalMedia(paths: string[]) {

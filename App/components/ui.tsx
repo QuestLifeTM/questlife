@@ -52,9 +52,7 @@ export function useResponsiveScreenLayout(maxContentWidth = DEFAULT_CONTENT_MAX_
 
 export function haptic() {
   if (!isHapticFeedbackEnabled()) return;
-  if (process.env.EXPO_OS === "ios") {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-  }
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 }
 
 export function Screen({

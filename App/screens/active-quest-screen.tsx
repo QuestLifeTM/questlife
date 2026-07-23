@@ -10,8 +10,10 @@ import MapView, { Marker, Polyline } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { LogLoreFlow } from "@/components/log-lore-flow";
+import { QuestlifeFlame } from "@/components/questlife-flame";
 import { categoryColor, T } from "@/components/theme";
-import { EmptyState, haptic } from "@/components/ui";
+import { EmptyState, haptic, Sheet, SoftButton } from "@/components/ui";
+import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useContent } from "@/contexts/ContentContext";
 import { useActiveQuest } from "@/contexts/ActiveQuestContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
@@ -19,6 +21,7 @@ import { formatElapsedFull, useElapsedDuration } from "@/hooks/useElapsedTime";
 import { Quest } from "@/types/content";
 import { ActiveQuestCheckpoint, ActiveQuestRoutePoint } from "@/types/active-quest";
 import { ActiveQuestPhoto } from "@/types/active-quest";
+import { CompletionResult } from "@/types/engine";
 
 type ActiveQuestTab = "map" | "album" | "entry";
 type QuestNotice = "active" | "paused" | "photo-saved" | "hold-to-finish" | "location-help";
@@ -30,6 +33,7 @@ const MAP_RECENTER_BOTTOM_OFFSET = BOTTOM_SHEET_CONTENT_HEIGHT + 94;
 // Keep the visual fill aligned with the full confirmation gesture so the
 // completion sheet appears the moment the pill reaches the end.
 const END_QUEST_HOLD_DURATION = 2_000;
+const STALE_ACTIVE_QUEST_AFTER_MS = 4 * 60 * 60 * 1_000;
 
 type MapCoordinate = { latitude: number; longitude: number };
 
@@ -149,10 +153,83 @@ function RoundAction({ icon, label, color, inverse = false, onPress, onPressIn, 
   return <View style={{ alignItems: "center", gap: 6 }}><Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityHint={holdToConfirm ? "Press and hold to finish this quest" : undefined} onPressIn={onPressIn} onPressOut={onPressOut} onPress={() => { if (!holdToConfirm) { haptic(); onPress(); } }} style={({ pressed }) => ({ width: 62, height: 62, borderRadius: 31, alignItems: "center", justifyContent: "center", backgroundColor: inverse ? T.white : color, borderWidth: inverse ? 2 : 0, borderColor: inverse ? color : "transparent", transform: [{ scale: pressed ? 0.94 : 1 }] })}><Ionicons name={icon} size={27} color={inverse ? color : T.white} /></Pressable><Text style={{ color: T.muted, fontSize: 12, lineHeight: 16, fontWeight: "900" }}>{label}</Text></View>;
 }
 
+function StaleQuestActionButton({ label, icon, onPress, disabled = false, inverse = false }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void; disabled?: boolean; inverse?: boolean }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={() => { if (!disabled) { haptic(); onPress(); } }} style={({ pressed }) => ({ minHeight: 56, borderRadius: 28, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: inverse ? T.white : T.blue, borderWidth: inverse ? 3 : 0, borderColor: inverse ? T.border : "transparent", borderBottomWidth: inverse ? 3 : 5, borderBottomColor: inverse ? T.border : "#258fd8", opacity: disabled ? 0.5 : 1, transform: [{ translateY: pressed && !disabled ? 3 : 0 }] })}>
+    <Ionicons name={icon} size={21} color={inverse ? T.blue : T.white} />
+    <Text style={{ color: inverse ? T.blue : T.white, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22, fontWeight: "900" }}>{label}</Text>
+  </Pressable>;
+}
+
+function StaleQuestReminder({
+  visible,
+  elapsedLabel,
+  busy,
+  onResume,
+  onSaveForLater,
+  onAbandon,
+}: {
+  visible: boolean;
+  elapsedLabel: string;
+  busy: boolean;
+  onResume: () => void;
+  onSaveForLater: () => void;
+  onAbandon: () => void;
+}) {
+  return (
+    <Sheet visible={visible} onClose={onResume} maxHeight="70%">
+      <View style={{ paddingHorizontal: 24, paddingBottom: 26, gap: 13 }}>
+        <View style={{ alignItems: "center", gap: 8 }}>
+          <View style={{ width: 58, height: 58, borderRadius: 21, backgroundColor: `${T.orange}16`, alignItems: "center", justifyContent: "center" }}><Ionicons name="time-outline" size={29} color={T.orange} /></View>
+          <Text style={{ color: T.dark, fontSize: 23, lineHeight: 29, fontWeight: "900", textAlign: "center" }}>Still on this quest?</Text>
+          <Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700", textAlign: "center" }}>It has been active for {elapsedLabel}. Continue when you are ready, or clear it from your day.</Text>
+        </View>
+        <View style={{ gap: 9 }}>
+          <StaleQuestActionButton label="Resume quest" icon="play" onPress={onResume} disabled={busy} />
+          <StaleQuestActionButton label="Save for later" icon="bookmark-outline" inverse onPress={onSaveForLater} disabled={busy} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Abandon this quest" accessibilityState={{ disabled: busy }} disabled={busy} onPress={onAbandon} style={({ pressed }) => ({ minHeight: 42, alignItems: "center", justifyContent: "center", opacity: busy || pressed ? 0.65 : 1 })}><Text style={{ color: T.red, fontFamily: "RubikBold", fontSize: 16, lineHeight: 21, fontWeight: "900" }}>Abandon this quest</Text></Pressable>
+        </View>
+      </View>
+    </Sheet>
+  );
+}
+
+function CompletionRewardMoment({
+  completion,
+  questTitle,
+  onJournal,
+  onExplore,
+}: {
+  completion: CompletionResult | null;
+  questTitle: string;
+  onJournal: () => void;
+  onExplore: () => void;
+}) {
+  if (!completion) return null;
+  const energyLeft = Math.max(0, completion.dailyLimit - completion.dailyUsed);
+  return (
+    <Sheet visible={Boolean(completion)} onClose={onJournal} maxHeight="76%">
+      <View style={{ paddingHorizontal: 24, paddingBottom: 26, gap: 15 }}>
+        <View style={{ alignItems: "center", gap: 7 }}>
+          <View style={{ width: 70, height: 70, borderRadius: 25, alignItems: "center", justifyContent: "center", backgroundColor: `${T.yellow}32`, borderWidth: 2, borderColor: `${T.orange}55`, borderBottomWidth: 5, borderBottomColor: `${T.orange}88` }}><Ionicons name="trophy" size={35} color={T.orange} /></View>
+          <Text style={{ color: T.dark, fontSize: 26, lineHeight: 32, fontWeight: "900", textAlign: "center" }}>Quest complete!</Text>
+          <Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700", textAlign: "center" }}>{questTitle}</Text>
+        </View>
+        <View style={{ borderRadius: 19, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#e6ddd2", backgroundColor: T.white, overflow: "hidden" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 13, borderBottomWidth: 1, borderBottomColor: T.border }}><View style={{ width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: `${T.blue}16` }}><Ionicons name="flash" size={21} color={T.blue} /></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>+{completion.xpAwarded} XP earned</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>A little more progress toward your next level.</Text></View></View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 13, borderBottomWidth: 1, borderBottomColor: T.border }}><View style={{ width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: `${T.orange}16` }}><QuestlifeFlame size={25} /></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>Your streak is covered today</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>Today now counts as a completed day.</Text></View></View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 13 }}><View style={{ width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: `${T.green}16` }}><Ionicons name="battery-half" size={21} color={T.green} /></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>{energyLeft ? `${energyLeft} ${energyLeft === 1 ? "quest" : "quests"} of energy left` : "Today's energy is complete"}</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>{energyLeft ? "You can keep exploring whenever it feels right." : "Rest up. Your energy resets at midnight."}</Text></View></View>
+        </View>
+        <View style={{ gap: 9 }}><SoftButton label="View your Journal" icon="book" onPress={onJournal} />{energyLeft ? <SoftButton label="Find another quest" icon="compass" inverse color={T.blue} onPress={onExplore} /> : null}</View>
+      </View>
+    </Sheet>
+  );
+}
+
 export function ActiveQuestScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { engine, refresh } = useQuestEngine();
+  const { engine, refresh, abandonActiveQuest, saveActiveForLater } = useQuestEngine();
+  const { showFeedback } = useAppFeedback();
   const { snapshot, liveLocation, loading: activeQuestLoading, trackingMessage, pause, resume, saveEntry, enableTracking, addPhoto, finishLocalQuest } = useActiveQuest();
   const { getQuest } = useContent();
   const [tab, setTab] = useState<ActiveQuestTab>("map");
@@ -163,6 +240,9 @@ export function ActiveQuestScreen() {
   const [startupCompleteForSession, setStartupCompleteForSession] = useState<string | null>(null);
   const [photoSavedVisible, setPhotoSavedVisible] = useState(false);
   const [finishHintVisible, setFinishHintVisible] = useState(false);
+  const [staleQuestReminderVisible, setStaleQuestReminderVisible] = useState(false);
+  const [staleQuestActionBusy, setStaleQuestActionBusy] = useState(false);
+  const [completionReward, setCompletionReward] = useState<{ result: CompletionResult; questTitle: string } | null>(null);
   const [deviceLocation, setDeviceLocation] = useState<MapCoordinate | null>(null);
   const finishHoldProgress = useRef(new Animated.Value(0)).current;
   const finishHoldAnimation = useRef<Animated.CompositeAnimation | null>(null);
@@ -170,6 +250,7 @@ export function ActiveQuestScreen() {
   const finishHoldCompleted = useRef(false);
   const countdownSessionRef = useRef<string | null>(null);
   const routeRecordingStartedSessionRef = useRef<string | null>(null);
+  const staleQuestReminderShownForSessionRef = useRef<string | null>(null);
   const session = engine?.activeSession;
   const loadedQuest = getQuest(session?.questId);
   // An active session remains completable even if the live content list has
@@ -217,6 +298,12 @@ export function ActiveQuestScreen() {
     }, 750);
     return () => clearTimeout(saveTimer);
   }, [entryBody, entryTitle, saveEntry, snapshot]);
+
+  useEffect(() => {
+    if (!session?.id || elapsedDuration < STALE_ACTIVE_QUEST_AFTER_MS || staleQuestReminderShownForSessionRef.current === session.id) return;
+    staleQuestReminderShownForSessionRef.current = session.id;
+    setStaleQuestReminderVisible(true);
+  }, [elapsedDuration, session?.id]);
 
   const resolveDeviceLocation = useCallback(async () => {
     const permission = await Location.getForegroundPermissionsAsync();
@@ -378,6 +465,42 @@ export function ActiveQuestScreen() {
       setTakingPhoto(false);
     }
   };
+  const saveStaleQuestForLater = async () => {
+    if (staleQuestActionBusy) return;
+    setStaleQuestActionBusy(true);
+    try {
+      await saveActiveForLater();
+      showFeedback({ message: "Your quest is saved to My Stuff for later.", icon: "bookmark", color: T.blue });
+      setStaleQuestReminderVisible(false);
+      router.replace("/(tabs)");
+    } catch {
+      showFeedback({ message: "We couldn't save this quest for later. Please try again.", icon: "alert-circle", color: T.red });
+    } finally {
+      setStaleQuestActionBusy(false);
+    }
+  };
+  const confirmAbandonStaleQuest = () => {
+    Alert.alert("Abandon this quest?", "Your active timer and in-progress notes will be cleared. This cannot be undone.", [
+      { text: "Keep quest", style: "cancel" },
+      {
+        text: "Abandon",
+        style: "destructive",
+        onPress: () => void (async () => {
+          setStaleQuestActionBusy(true);
+          try {
+            await abandonActiveQuest();
+            showFeedback({ message: "Quest abandoned. You can choose another whenever you’re ready.", icon: "compass", color: T.muted });
+            setStaleQuestReminderVisible(false);
+            router.replace("/(tabs)");
+          } catch {
+            showFeedback({ message: "We couldn't abandon this quest. Please try again.", icon: "alert-circle", color: T.red });
+          } finally {
+            setStaleQuestActionBusy(false);
+          }
+        })(),
+      },
+    ]);
+  };
 
   return <View style={{ flex: 1, backgroundColor: T.bg }}>
     <StatusBar style="dark" />
@@ -418,6 +541,8 @@ export function ActiveQuestScreen() {
         <View style={{ position: "absolute", right: 32, top: 12, alignItems: "center" }}><RoundAction icon={takingPhoto ? "hourglass" : "camera"} label="Take photo" color={accent} inverse onPress={() => void takePhoto()} /></View>
       </View>
     </BlurView>
-    <LogLoreFlow visible={completeVisible} quest={quest} initialTitle={snapshot?.session.entryTitle ?? ""} initialReflection={snapshot?.session.entryBody ?? ""} photoUris={(snapshot?.photos ?? []).map((photo) => photo.uri)} durationSeconds={Math.round((snapshot?.session.activeDurationMs ?? 0) / 1_000)} distanceMeters={snapshot?.session.distanceMeters ?? 0} onSaveDraft={(draft) => saveEntry(draft)} onClose={() => setCompleteVisible(false)} onFinished={async () => { await finishLocalQuest(); await refresh(); setCompleteVisible(false); router.replace("/(tabs)/journal"); }} />
+    <LogLoreFlow visible={completeVisible} quest={quest} initialTitle={snapshot?.session.entryTitle ?? ""} initialReflection={snapshot?.session.entryBody ?? ""} photoUris={(snapshot?.photos ?? []).map((photo) => photo.uri)} durationSeconds={Math.round((snapshot?.session.activeDurationMs ?? 0) / 1_000)} distanceMeters={snapshot?.session.distanceMeters ?? 0} onSaveDraft={(draft) => saveEntry(draft)} onClose={() => setCompleteVisible(false)} onFinished={async (result) => { await finishLocalQuest(); await refresh(); setCompleteVisible(false); setCompletionReward({ result, questTitle: quest.title }); }} />
+    <StaleQuestReminder visible={staleQuestReminderVisible} elapsedLabel={formatElapsedFull(elapsedDuration)} busy={staleQuestActionBusy} onResume={() => setStaleQuestReminderVisible(false)} onSaveForLater={() => void saveStaleQuestForLater()} onAbandon={confirmAbandonStaleQuest} />
+    <CompletionRewardMoment completion={completionReward?.result ?? null} questTitle={completionReward?.questTitle ?? ""} onJournal={() => { const completionId = completionReward?.result.completionId; setCompletionReward(null); router.replace(completionId ? `/memory/${completionId}` : "/(tabs)/journal"); }} onExplore={() => { setCompletionReward(null); router.replace("/(tabs)/explore"); }} />
   </View>;
 }

@@ -10,6 +10,8 @@ export type NotificationPreferenceKey =
 export type UserSettings = {
   notifications: Record<NotificationPreferenceKey, boolean>;
   hapticFeedback: boolean;
+  reduceMotion: boolean;
+  highContrast: boolean;
 };
 
 export const defaultUserSettings: UserSettings = {
@@ -23,4 +25,6 @@ export const defaultUserSettings: UserSettings = {
     weeklyRecap: true,
   },
   hapticFeedback: true,
+  reduceMotion: false,
+  highContrast: false,
 };

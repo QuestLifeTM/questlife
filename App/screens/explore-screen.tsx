@@ -222,6 +222,55 @@ function MetaPill({ icon, text, color = T.blue }: { icon: keyof typeof Ionicons.
   );
 }
 
+function QuickQuestFilter({ value, onChange }: { value: 5 | 10 | 20 | null; onChange: (value: 5 | 10 | 20 | null) => void }) {
+  return (
+    <View style={{ gap: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <Ionicons name="flash" size={16} color={T.orange} />
+        <Text style={{ color: T.dark, fontSize: 14, lineHeight: 18, fontWeight: "900" }}>Quick quests</Text>
+      </View>
+      <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: 8 }}>
+        {([5, 10, 20] as const).map((minutes) => {
+          const selected = value === minutes;
+          return (
+            <Pressable
+              key={minutes}
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+              accessibilityLabel={`${minutes} minutes or less`}
+              onPress={() => {
+                haptic();
+                onChange(selected ? null : minutes);
+              }}
+              style={({ pressed }) => ({
+                flex: 1,
+                minHeight: 42,
+                borderRadius: 14,
+                borderWidth: 2,
+                borderColor: selected ? T.orange : T.border,
+                backgroundColor: selected ? `${T.orange}14` : T.white,
+                alignItems: "center",
+                justifyContent: "center",
+                transform: [{ scale: pressed ? 0.97 : 1 }],
+              })}
+            >
+              <Text style={{ color: selected ? T.orange : T.muted, fontSize: 13, lineHeight: 17, fontWeight: "900" }}>{minutes} min</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function ExploreQuestSkeleton() {
+  return <Card style={{ minHeight: 172, borderRadius: 24, padding: 16, gap: 12, boxShadow: `4px 4px 0px ${T.border}` }}><View accessibilityRole="progressbar" accessibilityLabel="Loading quest" style={{ flex: 1, gap: 12 }}><View style={{ flexDirection: "row", gap: 7 }}><View style={{ width: 78, height: 24, borderRadius: 12, backgroundColor: T.border }} /><View style={{ width: 62, height: 24, borderRadius: 12, backgroundColor: T.border }} /></View><View style={{ width: "76%", height: 22, borderRadius: 8, backgroundColor: T.border }} /><View style={{ width: "96%", height: 12, borderRadius: 6, backgroundColor: T.border }} /><View style={{ width: "68%", height: 12, borderRadius: 6, backgroundColor: T.border }} /><View style={{ marginTop: "auto", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><View style={{ width: 72, height: 28, borderRadius: 14, backgroundColor: T.border }} /><View style={{ width: 76, height: 34, borderRadius: 17, backgroundColor: `${T.blue}22` }} /></View></View></Card>;
+}
+
+function ExploreLoadingList() {
+  return <View accessibilityLabel="Loading quests" style={{ width: "100%", gap: 14 }}><ExploreQuestSkeleton /><ExploreQuestSkeleton /><ExploreQuestSkeleton /></View>;
+}
+
 function QuestFeedCard({ quest, onSave }: { quest: Quest; onSave: () => void }) {
   const cat = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
   const diff = difficultyColor[quest.difficulty];
@@ -281,16 +330,18 @@ export function ExploreScreen() {
   const [category, setCategory] = useState("All");
   const [sortBy, setSortBy] = useState("Best Match");
   const [filters, setFilters] = useState<Filters>({ duration: null, difficulty: null });
+  const [quickDuration, setQuickDuration] = useState<5 | 10 | 20 | null>(null);
   const [filterVisible, setFilterVisible] = useState(false);
   const feedCardWidth = contentWidth - sideGap * 2;
 
-  const activeFilters = [filters.duration, filters.difficulty].filter(Boolean).length;
+  const activeFilters = [filters.duration, filters.difficulty, quickDuration].filter(Boolean).length;
   const feed = useMemo(() => {
     let result = quests.filter((quest) => {
       const query = search.trim().toLowerCase();
       if (query && !`${quest.title} ${quest.description} ${quest.category}`.toLowerCase().includes(query)) return false;
       if (category !== "All" && quest.category !== category) return false;
       if (filters.difficulty && quest.difficulty !== filters.difficulty) return false;
+      if (quickDuration && quest.timeMin > quickDuration) return false;
       if (filters.duration === "Under 30min" && quest.timeMin >= 30) return false;
       if (filters.duration === "30-60min" && (quest.timeMin < 30 || quest.timeMin > 60)) return false;
       if (filters.duration === "1-2h" && (quest.timeMin < 60 || quest.timeMin > 120)) return false;
@@ -298,13 +349,14 @@ export function ExploreScreen() {
       return true;
     });
     return sortQuests(result, sortBy);
-  }, [category, filters, quests, search, sortBy]);
+  }, [category, filters, quickDuration, quests, search, sortBy]);
 
   const reset = () => {
     setSearch("");
     setCategory("All");
     setSortBy("Best Match");
     setFilters({ duration: null, difficulty: null });
+    setQuickDuration(null);
   };
 
   return (
@@ -348,15 +400,15 @@ export function ExploreScreen() {
           })}
         </ScrollView>
 
+        <QuickQuestFilter value={quickDuration} onChange={setQuickDuration} />
+
         <View style={{ gap: 12, paddingHorizontal: 0, alignItems: "center" }}>
           <View style={{ width: "100%", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
             <Text style={{ color: T.dark, fontSize: 21, lineHeight: 28, fontWeight: "900" }}>{category === "All" ? "All Quests" : category}</Text>
             <Text style={{ color: T.muted, fontWeight: "800", fontSize: 13 }}>{feed.length} quests</Text>
           </View>
           {loading ? (
-            <Card style={{ borderRadius: 24 }}>
-              <EmptyState emoji="⏳" title="Loading quests" body="Pulling the latest published quests from QuestLife." />
-            </Card>
+            <ExploreLoadingList />
           ) : error ? (
             <Card style={{ borderRadius: 24 }}>
               <EmptyState emoji="!" title="Could not load quests" body={error} action={<SoftButton label="Try again" icon="refresh" onPress={refresh} />} />
@@ -385,7 +437,7 @@ export function ExploreScreen() {
                 <Text style={{ color: T.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" }}>Customize how you see quests</Text>
               </View>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Reset sort and filters" hitSlop={6} onPress={() => { setSortBy("Best Match"); setFilters({ duration: null, difficulty: null }); }} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: pressed ? 0.72 : 1 })}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Reset sort and filters" hitSlop={6} onPress={() => { setSortBy("Best Match"); setFilters({ duration: null, difficulty: null }); setQuickDuration(null); }} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: pressed ? 0.72 : 1 })}>
               <Ionicons name="reload-outline" size={17} color={T.muted} />
               <Text style={{ color: T.muted, fontSize: 12, fontWeight: "800" }}>Reset</Text>
             </Pressable>

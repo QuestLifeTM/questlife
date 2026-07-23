@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { categoryColor, T } from "@/components/theme";
-import { Card, EmptyState, IconButton, Screen, Sheet, useResponsiveScreenLayout } from "@/components/ui";
+import { Card, EmptyState, IconButton, Screen, SearchInput, Sheet, useResponsiveScreenLayout } from "@/components/ui";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
@@ -19,12 +19,12 @@ function Cover({ pack, height = 112 }: { pack: UserPack; height?: number }) {
   </View>;
 }
 
-function CollectionCard({ pack, quests, width, onOpen }: { pack: UserPack; quests: Quest[]; width: number; onOpen: () => void }) {
+function CollectionCard({ pack, quests, width, onOpen, onTogglePin }: { pack: UserPack; quests: Quest[]; width: number; onOpen: () => void; onTogglePin: () => void }) {
   const visibleQuests = quests.slice(0, 3);
   return <Card style={{ width, padding: 0, overflow: "hidden", gap: 0 }}>
     <Cover pack={pack} />
     <View style={{ padding: 12, gap: 8 }}>
-      <Text numberOfLines={1} style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 15 }}>{pack.title}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text numberOfLines={1} style={{ flex: 1, color: T.dark, fontFamily: "RubikBlack", fontSize: 15 }}>{pack.title}</Text><Pressable accessibilityRole="button" accessibilityLabel={pack.isPinned ? "Unpin collection" : "Pin collection"} onPress={onTogglePin} hitSlop={6}><Ionicons name={pack.isPinned ? "pin" : "pin-outline"} size={16} color={pack.isPinned ? T.orange : T.muted} /></Pressable></View>
       <View style={{ minHeight: 55, gap: 5 }}>{visibleQuests.length ? visibleQuests.map((quest) => <View key={quest.id} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}><Ionicons name="ellipse" size={8} color={categoryColor[quest.category]?.text ?? quest.color} /><Text numberOfLines={1} style={{ flex: 1, color: T.muted, fontFamily: "Rubik", fontSize: 11 }}>{quest.title}</Text></View>) : <Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 11 }}>No quests yet</Text>}{quests.length > 3 ? <Text style={{ color: pack.accentColor, fontFamily: "RubikBold", fontSize: 11 }}>+{quests.length - 3} more</Text> : null}</View>
       <View style={{ paddingTop: 9, borderTopWidth: 1, borderTopColor: T.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 11 }}>{quests.length} {quests.length === 1 ? "quest" : "quests"}</Text><Pressable onPress={onOpen} hitSlop={6}><Text style={{ color: T.blue, fontFamily: "RubikBold", fontSize: 11 }}>View all</Text></Pressable></View>
     </View>
@@ -46,12 +46,21 @@ export function QuestCollectionsScreen({ onBack }: { onBack: () => void }) {
   const [name, setName] = useState("");
   const [coverUri, setCoverUri] = useState<string | null>(null);
   const [selectedQuestIds, setSelectedQuestIds] = useState<string[]>([]);
+  const [collectionSearch, setCollectionSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // `Screen` applies this same horizontal gutter. Size cards from the usable
   // content area, not the viewport, so two cards always occupy one row.
   const cardWidth = (contentWidth - horizontalPadding * 2 - 12) / 2;
   const availableQuests = useMemo(() => quests.filter((quest) => quest.saved), [quests]);
+  const visibleCollections = useMemo(() => {
+    const query = collectionSearch.trim().toLowerCase();
+    if (!query) return userPacks;
+    return userPacks.filter((pack) => {
+      const questTitles = pack.questIds.map((id) => quests.find((quest) => quest.id === id)?.title ?? "").join(" ");
+      return `${pack.title} ${pack.description ?? ""} ${questTitles}`.toLowerCase().includes(query);
+    });
+  }, [collectionSearch, quests, userPacks]);
 
   const reset = () => { setStage("closed"); setName(""); setCoverUri(null); setSelectedQuestIds([]); setError(null); };
   const chooseCover = async () => { const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.78 }); if (!result.canceled && result.assets[0]) setCoverUri(result.assets[0].uri); };
@@ -71,10 +80,19 @@ export function QuestCollectionsScreen({ onBack }: { onBack: () => void }) {
       });
     } catch (nextError) { setError(nextError instanceof Error ? nextError.message : "Unable to create this collection."); } finally { setSaving(false); }
   };
+  const togglePin = async (pack: UserPack) => {
+    try {
+      await saveUserPack({ id: pack.id, title: pack.title, description: pack.description, icon: pack.icon, accentColor: pack.accentColor, coverImageUrl: pack.coverImageUrl, isPinned: !pack.isPinned, questIds: pack.questIds });
+      showFeedback({ message: pack.isPinned ? `“${pack.title}” was unpinned.` : `“${pack.title}” is pinned to the top.`, icon: "pin", color: T.orange });
+    } catch (nextError) {
+      showFeedback({ message: nextError instanceof Error && /is_pinned/i.test(nextError.message) ? "Pinning needs the latest collection migration." : "We couldn't update this collection pin. Please try again.", icon: "alert-circle", color: T.red });
+    }
+  };
 
   return <Screen>
     <View style={{ minHeight: 54, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><IconButton icon="chevron-back" onPress={onBack} /><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Quest Collections</Text><IconButton icon="add" color={T.white} bg={T.blue} onPress={() => setStage("details")} /></View>
-    {userPacks.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>{userPacks.map((pack) => <CollectionCard key={pack.id} pack={pack} quests={pack.questIds.map((id) => quests.find((quest) => quest.id === id)).filter(Boolean) as Quest[]} width={cardWidth} onOpen={() => router.push(`/collection/${pack.id}`)} />)}</View> : <EmptyState emoji="🗂️" title="Your collections live here" body="Create a collection to organize saved quests for a future adventure." />}
+    {userPacks.length > 5 ? <SearchInput value={collectionSearch} onChangeText={setCollectionSearch} placeholder="Search collections" /> : null}
+    {userPacks.length ? visibleCollections.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>{visibleCollections.map((pack) => <CollectionCard key={pack.id} pack={pack} quests={pack.questIds.map((id) => quests.find((quest) => quest.id === id)).filter(Boolean) as Quest[]} width={cardWidth} onOpen={() => router.push(`/collection/${pack.id}`)} onTogglePin={() => void togglePin(pack)} />)}</View> : <EmptyState emoji="🔎" title="No collections found" body="Try another collection name or a quest title you saved inside it." /> : <EmptyState emoji="🗂️" title="Your collections live here" body="Create a collection to organize saved quests for a future adventure." />}
     <Sheet visible={stage === "details"} onClose={reset} maxHeight="80%"><View style={{ paddingHorizontal: 24, paddingBottom: 26, gap: 18 }}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Pressable onPress={reset}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15 }}>Cancel</Text></Pressable><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 18 }}>New collection</Text><Pressable disabled={!name.trim()} onPress={() => setStage("pick")}><Text style={{ color: name.trim() ? T.blue : T.border, fontFamily: "RubikBold", fontSize: 15 }}>Next</Text></Pressable></View><Pressable onPress={chooseCover} style={{ alignSelf: "center", width: 106, height: 106, borderRadius: 25, overflow: "hidden", backgroundColor: `${T.blue}16`, alignItems: "center", justifyContent: "center", borderWidth: 2, borderStyle: coverUri ? "solid" : "dashed", borderColor: T.border }}>{coverUri ? <Image source={{ uri: coverUri }} style={{ width: "100%", height: "100%" }} /> : <><Ionicons name="camera-outline" size={28} color={T.blue} /><Text style={{ color: T.blue, fontFamily: "RubikBold", fontSize: 11, marginTop: 4 }}>Add photo</Text></>}<View style={{ position: "absolute", right: 5, bottom: 5, width: 26, height: 26, borderRadius: 13, backgroundColor: T.blue, alignItems: "center", justifyContent: "center" }}><Ionicons name="add" size={15} color={T.white} /></View></Pressable><TextInput autoFocus value={name} onChangeText={setName} placeholder="Collection name" placeholderTextColor={T.muted} style={{ minHeight: 58, borderRadius: 18, borderWidth: 2, borderColor: T.border, paddingHorizontal: 16, color: T.dark, fontFamily: "Rubik", fontSize: 16 }} /><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 17 }}>Private collection · you can add a cover photo now or later.</Text></View></Sheet>
     <Sheet visible={stage === "pick"} onClose={reset} maxHeight="90%" fillHeight><View style={{ flex: 1 }}><View style={{ paddingHorizontal: 22, paddingBottom: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Pressable onPress={() => setStage("details")}><Ionicons name="chevron-back" size={25} color={T.dark} /></Pressable><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 18 }}>Add from Saved</Text><Pressable onPress={createCollection} disabled={saving}><Text style={{ color: saving ? T.border : T.blue, fontFamily: "RubikBold", fontSize: 15 }}>{saving ? "Saving…" : "Save"}</Text></Pressable></View><ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24, gap: 10 }}>{availableQuests.length ? availableQuests.map((quest) => <SavedQuestPicker key={quest.id} quest={quest} selected={selectedQuestIds.includes(quest.id)} onPress={() => setSelectedQuestIds((ids) => ids.includes(quest.id) ? ids.filter((id) => id !== quest.id) : [...ids, quest.id])} />) : <EmptyState emoji="📭" title="No saved quests yet" body="Save a quest from Explore first, then add it to one or more collections." />}{error ? <Text style={{ color: T.red, fontFamily: "RubikBold", fontSize: 13 }}>{error}</Text> : null}</ScrollView></View></Sheet>
   </Screen>;

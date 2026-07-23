@@ -571,7 +571,7 @@ function TodayMediaSection({ items, onOpenAlbum }: { items: JournalMediaItem[]; 
   );
 }
 
-function JournalAlbum({ items }: { items: JournalMediaItem[] }) {
+function JournalAlbum({ items, onExplore }: { items: JournalMediaItem[]; onExplore: () => void }) {
   const resolvedItems = useResolvedMedia(items);
   const grouped = resolvedItems.reduce<Record<string, { questTitle: string; dateKey: string; items: (JournalMediaItem & { uri: string })[] }>>((groups, item) => {
     const key = `${item.dateKey}\u0001${item.questTitle}`;
@@ -583,7 +583,7 @@ function JournalAlbum({ items }: { items: JournalMediaItem[] }) {
   const yesterdayKey = toLocalDateKey(addDays(new Date(), -1));
   const displayDate = (dateKey: string) => dateKey === todayKey ? "Today" : dateKey === yesterdayKey ? "Yesterday" : parseKey(dateKey).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-  if (!items.length) return <Card style={{ borderRadius: radius.xl }}><EmptyState emoji="📷" title="Your album is waiting" body="Finish a quest with a photo and it will become part of your journal album." /></Card>;
+  if (!items.length) return <Card style={{ borderRadius: radius.xl }}><EmptyState emoji="📷" title="Your album is waiting" body="Finish a quest with a photo and it will become part of your journal album." action={<SoftButton label="Explore quests" icon="compass" color={T.blue} onPress={onExplore} />} /></Card>;
 
   return <View style={{ gap: 20 }}>
     {quests.map((quest) => <View key={`${quest.dateKey}-${quest.questTitle}`} style={{ gap: 10 }}>
@@ -1126,7 +1126,7 @@ export function JournalScreen() {
         ) : (
           <View style={{ alignItems: "center" }}>
             <Entrance style={{ width: contentWidth, paddingHorizontal: horizontalPadding, marginTop: 6, transform: [{ translateX: safeAreaOffset }] }}>
-              <JournalAlbum items={albumItems} />
+              <JournalAlbum items={albumItems} onExplore={goExplore} />
             </Entrance>
           </View>
         )}

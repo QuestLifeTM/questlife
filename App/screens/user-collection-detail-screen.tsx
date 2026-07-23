@@ -28,7 +28,7 @@ export function UserCollectionDetailScreen({ id, onBack }: { id: string; onBack:
   const addSelected = async () => {
     if (!pack || !selectedIds.length) return;
     const count = selectedIds.length;
-    await saveUserPack({ id: pack.id, title: pack.title, description: pack.description, icon: pack.icon, accentColor: pack.accentColor, coverImageUrl: pack.coverImageUrl, questIds: [...new Set([...pack.questIds, ...selectedIds])] });
+    await saveUserPack({ id: pack.id, title: pack.title, description: pack.description, icon: pack.icon, accentColor: pack.accentColor, coverImageUrl: pack.coverImageUrl, isPinned: pack.isPinned, questIds: [...new Set([...pack.questIds, ...selectedIds])] });
     setSelectedIds([]);
     setPickerOpen(false);
     showFeedback({ message: `${count} ${count === 1 ? "quest was" : "quests were"} added to “${pack.title}”.`, icon: "add-circle", color: pack.accentColor });
@@ -41,7 +41,7 @@ export function UserCollectionDetailScreen({ id, onBack }: { id: string; onBack:
     const titleChanged = nextTitle !== pack.title;
     const coverChanged = removeCover ? Boolean(pack.coverImageUrl) : Boolean(coverUri);
     const coverImageUrl = removeCover ? null : coverUri ? await uploadCollectionCover(coverUri) : pack.coverImageUrl;
-    await saveUserPack({ id: pack.id, title: nextTitle, description: pack.description, icon: pack.icon, accentColor: pack.accentColor, coverImageUrl, questIds: pack.questIds });
+    await saveUserPack({ id: pack.id, title: nextTitle, description: pack.description, icon: pack.icon, accentColor: pack.accentColor, coverImageUrl, isPinned: pack.isPinned, questIds: pack.questIds });
     setEditOpen(false);
     showFeedback({
       message: titleChanged && coverChanged

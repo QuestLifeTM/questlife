@@ -183,6 +183,7 @@ export function QuestSaveSheet({ quest, visible, onClose, onSaveSelections, onTo
           icon: pack.icon,
           accentColor: pack.accentColor,
           coverImageUrl: pack.coverImageUrl,
+          isPinned: pack.isPinned,
           questIds: shouldInclude ? [...pack.questIds, quest.id] : pack.questIds.filter((id) => id !== quest.id),
         });
       }));

@@ -7,14 +7,16 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { EmptyState, Screen, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
+import { QuestlifeFlame } from "@/components/questlife-flame";
 import { T } from "@/components/theme";
 import { QuestFeedThumbnail } from "@/components/quest-feed-card";
 import { QuestPostManagementSheet } from "@/components/quest-post-management-sheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useSocial } from "@/contexts/SocialContext";
+import { formatElapsedCompact } from "@/hooks/useElapsedTime";
 import { fetchProfileOverview, updateProfile, uploadProfileAvatar } from "@/services/profile/profileService";
-import { ProfileOverview, QuestFeedPost } from "@/types/profile";
+import { levelForXp, ProfileOverview, QuestFeedPost } from "@/types/profile";
 
 function accountValue(metadata: unknown, key: string) {
   if (!metadata || typeof metadata !== "object") return "";
@@ -38,6 +40,60 @@ function ImageControl({ label, onPress, style }: { label: string; onPress: () =>
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [{ width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: T.white, borderWidth: 2, borderColor: T.border, boxShadow: `2px 2px 0px ${T.border}`, opacity: pressed ? 0.72 : 1 }, style]}><Ionicons name="image-outline" size={21} color={T.dark} /></Pressable>;
 }
 
+type ProfileTab = "posts" | "stats";
+
+function ProfileTabButton({ tab, activeTab, onPress }: { tab: ProfileTab; activeTab: ProfileTab; onPress: () => void }) {
+  const active = tab === activeTab;
+  const label = tab === "posts" ? "Posts" : "Stats";
+  const icon = tab === "posts" ? "grid-outline" : "stats-chart-outline";
+  return <Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }} onPress={onPress} style={({ pressed }) => ({ flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", borderBottomWidth: active ? 3 : 0, borderBottomColor: active ? T.dark : "transparent", opacity: pressed ? 0.62 : 1 })}><Ionicons name={icon} size={25} color={active ? T.dark : T.muted} /></Pressable>;
+}
+
+function ProfileStats({ overview }: { overview: ProfileOverview }) {
+  const { profile, stats } = overview;
+  const { level, intoLevel, toNext, progress } = levelForXp(profile?.totalXp ?? 0);
+  const nextLevel = level + 1;
+  const xpRemaining = Math.max(0, toNext - intoLevel);
+  const timeSpent = formatElapsedCompact((stats.totalQuestDurationSeconds ?? 0) * 1_000);
+  const primaryMetrics = [
+    { label: "Longest streak", value: `${stats.longestStreak}d`, icon: <QuestlifeFlame size={26} /> },
+    { label: "Quests done", value: stats.totalQuests.toLocaleString(), icon: <Ionicons name="checkmark-circle" size={25} color={T.green} /> },
+  ];
+  const timeMetric = { label: "Time spent", value: timeSpent, icon: <Ionicons name="time" size={27} color={T.blue} /> };
+
+  return <View style={{ gap: 12 }}>
+    <View style={{ borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 6, borderBottomColor: "#dfd6cc", backgroundColor: T.white, padding: 16, gap: 13 }}>
+      <View style={{ gap: 1 }}>
+        <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 23, lineHeight: 28 }}>Level {level}</Text>
+        <Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 17, fontWeight: "700" }}>{xpRemaining.toLocaleString()} XP to level {nextLevel}</Text>
+      </View>
+      <View style={{ gap: 7 }}>
+        <View style={{ height: 11, borderRadius: 6, overflow: "hidden", backgroundColor: `${T.blue}1f` }}><View style={{ width: `${Math.max(3, Math.round(progress * 100))}%`, height: "100%", borderRadius: 6, backgroundColor: T.blue }} /></View>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: T.blue, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{intoLevel.toLocaleString()} / {toNext.toLocaleString()} XP</Text><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 11, lineHeight: 15 }}>Level {nextLevel}</Text></View>
+      </View>
+    </View>
+    <View style={{ borderRadius: 20, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#dfd6cc", backgroundColor: T.white, overflow: "hidden" }}>
+      <View style={{ minHeight: 100, flexDirection: "row" }}>
+        {primaryMetrics.map((metric, index) => <View key={metric.label} style={{ flex: 1, minWidth: 0, flexDirection: "row" }}>
+          {index ? <View style={{ width: 1, marginVertical: 16, backgroundColor: T.border }} /> : null}
+          <View style={{ flex: 1, minWidth: 0, paddingHorizontal: 8, paddingVertical: 16, alignItems: "center", justifyContent: "center", gap: 9 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 29 }}>{metric.icon}<Text adjustsFontSizeToFit minimumFontScale={0.8} numberOfLines={1} style={{ flexShrink: 1, color: T.dark, fontFamily: "RubikBold", fontSize: 24, lineHeight: 29, fontVariant: ["tabular-nums"] }}>{metric.value}</Text></View>
+            <Text numberOfLines={1} style={{ width: "100%", color: T.muted, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16, letterSpacing: 0.35, textTransform: "uppercase", textAlign: "center" }}>{metric.label}</Text>
+          </View>
+        </View>)}
+      </View>
+      <View style={{ height: 1, marginHorizontal: 16, backgroundColor: T.border }} />
+      <View style={{ minHeight: 90, paddingHorizontal: 16, paddingVertical: 15, alignItems: "center", justifyContent: "center", gap: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, minHeight: 29 }}>
+          {timeMetric.icon}
+          <Text adjustsFontSizeToFit minimumFontScale={0.8} numberOfLines={1} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 24, lineHeight: 29, fontVariant: ["tabular-nums"] }}>{timeMetric.value}</Text>
+        </View>
+        <Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16, letterSpacing: 0.35, textTransform: "uppercase" }}>{timeMetric.label}</Text>
+      </View>
+    </View>
+  </View>;
+}
+
 export function ProfileScreen() {
   const router = useRouter();
   const { user, refreshProfileName } = useAuth();
@@ -54,6 +110,7 @@ export function ProfileScreen() {
   const [draftAvatarUri, setDraftAvatarUri] = useState<string | null>(null);
   const [readOnlyContentTop, setReadOnlyContentTop] = useState<number | null>(null);
   const [managedPost, setManagedPost] = useState<QuestFeedPost | null>(null);
+  const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
 
   async function load() {
     setLoading(true);
@@ -181,7 +238,13 @@ export function ProfileScreen() {
         style={{ width: "100%" }}
       >
       <View style={{ paddingHorizontal: horizontalPadding, paddingTop: 20 }}>
-        {profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." />}
+        <View accessibilityRole="tablist" style={{ height: 54, flexDirection: "row" }}>
+          <ProfileTabButton tab="posts" activeTab={activeTab} onPress={() => setActiveTab("posts")} />
+          <ProfileTabButton tab="stats" activeTab={activeTab} onPress={() => setActiveTab("stats")} />
+        </View>
+        <View style={{ marginTop: 16 }}>
+          {activeTab === "posts" ? (profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." />) : <ProfileStats overview={overview} />}
+        </View>
       </View>
       </View>
     </View>

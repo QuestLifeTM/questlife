@@ -3,7 +3,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, FlatList, Image, LayoutChangeEvent, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import Reanimated, { Easing, FadeIn, FadeInDown, FadeOutUp, ZoomIn, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
+import Reanimated, { Easing, FadeIn, FadeInDown, FadeOutUp, ZoomIn, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { QuestlifeFlame } from "@/components/questlife-flame";
@@ -12,6 +12,7 @@ import { EmptyState, IconButton, Screen, Sheet, SoftButton, Tag, haptic, useResp
 import { useContent } from "@/contexts/ContentContext";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useSocial } from "@/contexts/SocialContext";
+import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { supabase } from "@/lib/supabase";
 import { resolvePartyMedia, uploadJournalMedia, uploadPartyMedia } from "@/services/social/socialService";
 import { Quest, questCategories, QuestCategory, questCategoryColors } from "@/types/content";
@@ -103,7 +104,7 @@ function PartyTabs({ active, unreadFeed, unreadLeaderboard, onChange }: { active
   </View>;
 }
 
-function PartyHeader({ party, onBack, onInfo }: { party: PartyDetail; onBack: () => void; onInfo: () => void }) {
+function PartyHeader({ party, onBack, onInfo, onOpenProfile }: { party: PartyDetail; onBack: () => void; onInfo: () => void; onOpenProfile: (userId: string) => void }) {
   const [, tick] = useState(0);
   const accent = party.gameMode === "everyone_together" ? T.purple : T.pink;
   const liveStartedAt = party.status === "active" ? party.partyStartedAt ?? (party.gameMode === "everyone_together" ? party.activeRound?.startedAt ?? null : null) : null;
@@ -121,7 +122,7 @@ function PartyHeader({ party, onBack, onInfo }: { party: PartyDetail; onBack: ()
       <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
         <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 24, lineHeight: 29 }} numberOfLines={2}>{party.name}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          <View style={{ flexDirection: "row", paddingLeft: 2 }}>{party.members.slice(0, 4).map((member, index) => <View key={member.userId} style={{ marginLeft: index ? -9 : 0 }}><Avatar uri={member.avatarUrl} color={member.avatarColor} name={member.displayName} size={27} /></View>)}</View>
+          <View style={{ flexDirection: "row", paddingLeft: 2 }}>{party.members.slice(0, 4).map((member, index) => <Pressable key={member.userId} accessibilityRole="button" accessibilityLabel={`View ${member.displayName}'s profile`} onPress={() => onOpenProfile(member.userId)} style={({ pressed }) => ({ marginLeft: index ? -9 : 0, opacity: pressed ? 0.7 : 1 })}><Avatar uri={member.avatarUrl} color={member.avatarColor} name={member.displayName} size={27} /></Pressable>)}</View>
           <Text style={{ color: T.muted, fontSize: 12, fontWeight: "900" }}>{party.memberCount} {party.memberCount === 1 ? "member" : "members"}</Text>
           <Tag label={party.gameMode === "everyone_together" ? "Together" : "Free for all"} color={accent} bg={`${accent}18`} />
         </View>
@@ -152,7 +153,7 @@ function EmptyActiveQuest({ party, onOpenQuestList, onInvite }: { party: PartyDe
 
 function ActiveQuestCard({ party, quest, category, onComplete, onEnd, onAbandon, remoteStart }: { party: PartyDetail; quest: PartyQuest; category: QuestCategory; onComplete: () => void; onEnd: () => void; onAbandon: () => void; remoteStart: boolean }) {
   const [, tick] = useState(0);
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = useReducedMotionPreference();
   const startedAt = party.activeRound?.startedAt;
   useEffect(() => {
     if (!startedAt) return;
@@ -182,7 +183,7 @@ function ActiveQuestCard({ party, quest, category, onComplete, onEnd, onAbandon,
 }
 
 function QuestRow({ quest, party, category, launching, locked, onStart, onLocked }: { quest: PartyQuest; party: PartyDetail; category: QuestCategory; launching: boolean; locked: boolean; onStart: () => void; onLocked: () => void }) {
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = useReducedMotionPreference();
   const waitingForHost = party.gameMode === "everyone_together" && !party.isHost;
   const freePlayPaused = party.gameMode === "free_for_all" && !party.questsEnabled;
   return <Reanimated.View exiting={launching && !reducedMotion ? FadeOutUp.duration(180) : undefined} style={{ borderRadius: 19, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#e6ddd2", backgroundColor: T.white, padding: 13, gap: 10 }}>
@@ -208,7 +209,7 @@ function CompletedQuestRow({ quest, shared }: { quest: PartyCompletedQuest; shar
 }
 
 function FeedSkeletonBlock({ width = "100%", height, radius = 9 }: { width?: number | `${number}%`; height: number; radius?: number }) {
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = useReducedMotionPreference();
   const opacity = useSharedValue(0.56);
   const pulseStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
@@ -236,11 +237,11 @@ function PartyFeedLoading() {
   return <View accessibilityLabel="Loading Party Feed" style={{ gap: 11 }}><FeedPostSkeleton /><FeedPostSkeleton media={false} /></View>;
 }
 
-function FeedPostCard({ post, onReact, loadMedia = true }: { post: PartyFeedPost; onReact: (emoji: string) => void; loadMedia?: boolean }) {
+function FeedPostCard({ post, onReact, onOpenProfile, loadMedia = true }: { post: PartyFeedPost; onReact: (emoji: string) => void; onOpenProfile?: () => void; loadMedia?: boolean }) {
   const [urls, setUrls] = useState<string[]>([]);
   const [carouselWidth, setCarouselWidth] = useState(0);
   const [carouselPage, setCarouselPage] = useState(0);
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = useReducedMotionPreference();
   const photoPathsKey = post.photoPaths.join("\u0001");
   useEffect(() => {
     let mounted = true;
@@ -262,13 +263,15 @@ function FeedPostCard({ post, onReact, loadMedia = true }: { post: PartyFeedPost
   return <Reanimated.View entering={reducedMotion ? FadeIn.duration(1) : FadeInDown.duration(180)} style={{ borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 4, borderBottomColor: "#e6ddd2", backgroundColor: T.white, overflow: "hidden" }}>
     <View style={{ padding: 18, gap: 13 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <Pressable accessibilityRole={onOpenProfile ? "button" : undefined} accessibilityLabel={onOpenProfile ? `View ${post.userName}'s profile` : undefined} disabled={!onOpenProfile} onPress={onOpenProfile} style={({ pressed }) => ({ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10, opacity: pressed && onOpenProfile ? 0.7 : 1 })}>
         <ProfileAvatar uri={post.userAvatarUrl} color={T.blue} size={42} label={`${post.userName}'s profile photo`} />
-        <View style={{ flex: 1, gap: 1 }}>
+        <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
           <Text style={{ color: T.dark, fontSize: 16, lineHeight: 20, fontWeight: "900" }} numberOfLines={1}>{post.userName}</Text>
           <Text style={{ color: T.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" }} numberOfLines={1}>{post.questTitle} · {formatDuration(post.elapsedSeconds)}</Text>
         </View>
-        <Ionicons name={post.postType === "proof" ? "shield-checkmark" : "checkmark-circle"} size={20} color={post.postType === "proof" ? T.orange : T.green} />
-      </View>
+      </Pressable>
+      <Ionicons name={post.postType === "proof" ? "shield-checkmark" : "checkmark-circle"} size={20} color={post.postType === "proof" ? T.orange : T.green} />
+    </View>
 
       {bodyCopy ? <Text style={{ color: T.dark, fontSize: 15, lineHeight: 22, fontWeight: "700" }}>{bodyCopy}</Text> : null}
 
@@ -298,13 +301,13 @@ function LeaderboardConfetti() {
   return <View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, height: 104, overflow: "hidden" }}>{pieces.map((piece, index) => <View key={index} style={{ position: "absolute", left: piece.left, top: piece.top, width: piece.width, height: piece.height, borderRadius: piece.height, backgroundColor: piece.color, transform: [{ rotate: piece.rotate }] }} />)}</View>;
 }
 
-function PodiumPlayer({ entry, placement }: { entry?: PartyLeaderboardEntry; placement: 1 | 2 | 3 }) {
+function PodiumPlayer({ entry, placement, onOpenProfile }: { entry?: PartyLeaderboardEntry; placement: 1 | 2 | 3; onOpenProfile: (userId: string) => void }) {
   const accent = placement === 1 ? T.yellow : placement === 2 ? T.blue : T.red;
   const avatarSize = placement === 1 ? 92 : 68;
   const podiumHeight = placement === 1 ? 82 : placement === 2 ? 62 : 52;
   const rank = entry?.rank ?? placement;
   if (!entry) return <View style={{ flex: 1, minWidth: 0, height: 282 }} />;
-  return <View style={{ flex: 1, minWidth: 0, height: 282, alignItems: "center", justifyContent: "flex-end" }}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={`View ${entry.displayName}'s profile`} onPress={() => onOpenProfile(entry.userId)} style={({ pressed }) => ({ flex: 1, minWidth: 0, height: 282, alignItems: "center", justifyContent: "flex-end", opacity: pressed ? 0.7 : 1 })}>
     <View style={{ position: "relative", marginTop: placement === 1 ? 25 : 0 }}>
       {placement === 1 ? <Text style={{ position: "absolute", top: -34, left: 0, right: 0, textAlign: "center", fontSize: 31, lineHeight: 34 }}>👑</Text> : null}
       <View style={{ width: avatarSize + 8, height: avatarSize + 8, borderRadius: (avatarSize + 8) / 2, padding: 4, backgroundColor: `${accent}25`, borderWidth: 3, borderColor: accent }}><Avatar uri={entry.avatarUrl} color={entry.avatarColor} name={entry.displayName} size={avatarSize} /></View>
@@ -315,11 +318,11 @@ function PodiumPlayer({ entry, placement }: { entry?: PartyLeaderboardEntry; pla
       <View accessibilityLabel={`Rank ${rank}`} style={{ position: "absolute", top: -20, width: 40, height: 40, borderRadius: 20, backgroundColor: accent, borderWidth: 3, borderColor: T.bg, alignItems: "center", justifyContent: "center" }}><Text style={{ color: T.dark, fontSize: 16, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{rank}</Text></View>
       {placement === 1 ? <Ionicons name="trophy" size={20} color={T.orange} /> : <Ionicons name="ribbon-outline" size={19} color={placement === 2 ? T.blue : T.red} />}
     </View>
-  </View>;
+  </Pressable>;
 }
 
-function Leaderboard({ party, stampSelf }: { party: PartyDetail; stampSelf: boolean }) {
-  const reducedMotion = useReducedMotion();
+function Leaderboard({ party, stampSelf, onOpenProfile }: { party: PartyDetail; stampSelf: boolean; onOpenProfile: (userId: string) => void }) {
+  const reducedMotion = useReducedMotionPreference();
   const viewerId = party.members[0]?.userId;
   const mutedText = "#655a60";
   const podiumEntries = party.leaderboard.slice(0, 3);
@@ -331,7 +334,7 @@ function Leaderboard({ party, stampSelf }: { party: PartyDetail; stampSelf: bool
     <View style={{ paddingTop: 10, paddingHorizontal: 4 }}>
       {stampSelf ? <LeaderboardConfetti /> : null}
       <View style={{ paddingHorizontal: 14, marginBottom: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 23 }}>Party standings</Text><View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><Ionicons name="flash" size={15} color={T.purple} /><Text style={{ color: mutedText, fontSize: 11, fontWeight: "900" }}>LIVE XP</Text></View></View>
-      <View style={{ flexDirection: "row", alignItems: "flex-end" }}><PodiumPlayer placement={2} entry={podiumEntries[1]} /><PodiumPlayer placement={1} entry={podiumEntries[0]} /><PodiumPlayer placement={3} entry={podiumEntries[2]} /></View>
+      <View style={{ flexDirection: "row", alignItems: "flex-end" }}><PodiumPlayer placement={2} entry={podiumEntries[1]} onOpenProfile={onOpenProfile} /><PodiumPlayer placement={1} entry={podiumEntries[0]} onOpenProfile={onOpenProfile} /><PodiumPlayer placement={3} entry={podiumEntries[2]} onOpenProfile={onOpenProfile} /></View>
     </View>
 
     {viewerEntry ? <Reanimated.View entering={stampSelf && !reducedMotion ? ZoomIn.springify().damping(17).stiffness(220) : FadeIn.duration(reducedMotion ? 1 : 180)} style={{ minHeight: 76, paddingHorizontal: 17, borderRadius: 18, backgroundColor: `${T.purple}16`, flexDirection: "row", alignItems: "center", gap: 12 }}><View style={{ width: 39, height: 39, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: `${T.purple}28` }}><Ionicons name="trophy" size={19} color={T.purple} /></View><View style={{ flex: 1, gap: 2 }}><Text style={{ color: T.dark, fontSize: 15, fontWeight: "900" }}>Your standing</Text><Text style={{ color: mutedText, fontSize: 11, fontWeight: "800" }}>{modeCopy}</Text></View><View style={{ alignItems: "flex-end" }}><Text style={{ color: T.purple, fontSize: 21, lineHeight: 24, fontWeight: "900", fontVariant: ["tabular-nums"] }}>#{viewerEntry.rank}</Text><Text style={{ color: T.purple, fontSize: 11, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{viewerEntry.xp} XP</Text></View></Reanimated.View> : null}
@@ -340,11 +343,11 @@ function Leaderboard({ party, stampSelf }: { party: PartyDetail; stampSelf: bool
       <View style={{ paddingHorizontal: 4, flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}><Text style={{ color: T.dark, fontSize: 17, fontWeight: "900" }}>More adventurers</Text><Text style={{ color: mutedText, fontSize: 11, fontWeight: "800" }}>{remainingEntries.length} ranked</Text></View>
       {remainingEntries.map((entry, index) => {
         const isViewer = entry.userId === viewerId;
-        return <Reanimated.View key={entry.userId} entering={stampSelf && isViewer && !reducedMotion ? ZoomIn.springify().damping(17).stiffness(220) : FadeInDown.delay(index * (reducedMotion ? 0 : 45)).duration(reducedMotion ? 1 : 170)} style={{ minHeight: 78, paddingHorizontal: 15, borderRadius: 18, backgroundColor: isViewer ? `${T.blue}14` : "#f2eef2", flexDirection: "row", alignItems: "center", gap: 12 }}>
+        return <Reanimated.View key={entry.userId} entering={stampSelf && isViewer && !reducedMotion ? ZoomIn.springify().damping(17).stiffness(220) : FadeInDown.delay(index * (reducedMotion ? 0 : 45)).duration(reducedMotion ? 1 : 170)}><Pressable accessibilityRole="button" accessibilityLabel={`View ${entry.displayName}'s profile`} onPress={() => onOpenProfile(entry.userId)} style={({ pressed }) => ({ minHeight: 78, paddingHorizontal: 15, borderRadius: 18, backgroundColor: isViewer ? `${T.blue}14` : "#f2eef2", flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}>
           <Avatar uri={entry.avatarUrl} color={entry.avatarColor} name={entry.displayName} size={48} />
           <View style={{ flex: 1, minWidth: 0, gap: 3 }}><Text style={{ color: T.dark, fontSize: 15, lineHeight: 19, fontWeight: "900" }} numberOfLines={1}>{entry.displayName}</Text><View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><Ionicons name="flash" size={13} color={T.purple} /><Text style={{ color: mutedText, fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] }}>{entry.xp} Party XP</Text></View></View>
           <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: `${isViewer ? T.blue : T.white}b8` }}><Text style={{ color: isViewer ? T.blue : T.muted, fontSize: 14, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{entry.rank}</Text></View>
-        </Reanimated.View>;
+        </Pressable></Reanimated.View>;
       })}
     </View> : null}
   </View>;
@@ -386,7 +389,7 @@ function CompletionSheet({ party, quest, onClose, onSubmit }: { party: PartyDeta
 }
 
 function CompletionCelebrationSheet({ celebration, onContinue }: { celebration: CompletionCelebration; onContinue: () => void }) {
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = useReducedMotionPreference();
   const colors = [T.blue, T.green, T.orange, T.pink, T.purple, T.yellow];
   if (!celebration) return null;
   const { quest, result } = celebration;
@@ -646,8 +649,8 @@ export function PartyDetailScreen() {
 
   return <Screen scroll={false} padded={false} contentStyle={{ paddingTop: 0 }}>
     <View style={{ flex: 1, width: "100%" }}>
-      {tab === "feed" ? <FlatList data={party.feed} keyExtractor={(post) => post.id} contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} removeClippedSubviews windowSize={7} initialNumToRender={4} maxToRenderPerBatch={4} updateCellsBatchingPeriod={80} contentContainerStyle={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: party.status === "active" ? 112 : 28, gap: 11, transform: [{ translateX: safeAreaOffset }] }} onViewableItemsChanged={({ viewableItems }) => { const first = viewableItems.find((item) => item.isViewable && item.index !== null)?.index; if (typeof first === "number") setActivePartyFeedIndex(first); }} ListHeaderComponent={<View style={{ gap: 16 }}><PartyHeader party={party} onBack={() => router.back()} onInfo={() => setInfoOpen(true)} /><PartyTabs active={tab} unreadFeed={party.unreadFeedCount ?? 0} unreadLeaderboard={party.unreadLeaderboardCount ?? 0} onChange={selectTab} /><View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Party Feed</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700", marginTop: 3 }}>Your crew’s adventures, just for this Party.</Text></View></View>} ListEmptyComponent={loading ? <PartyFeedLoading /> : <EmptyState emoji="📸" title="No Party posts yet" body="Your first completed quest will show up here." />} renderItem={({ item, index }) => <FeedPostCard post={item} loadMedia={Math.abs(index - activePartyFeedIndex) <= 3} onReact={(emoji) => reactToPartyFeed(item.id, emoji).then(() => load(true))} />} /> : <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: party.status === "active" ? 112 : 28, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
-        <PartyHeader party={party} onBack={() => router.back()} onInfo={() => setInfoOpen(true)} />
+      {tab === "feed" ? <FlatList data={party.feed} keyExtractor={(post) => post.id} contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} removeClippedSubviews windowSize={7} initialNumToRender={4} maxToRenderPerBatch={4} updateCellsBatchingPeriod={80} contentContainerStyle={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: party.status === "active" ? 112 : 28, gap: 11, transform: [{ translateX: safeAreaOffset }] }} onViewableItemsChanged={({ viewableItems }) => { const first = viewableItems.find((item) => item.isViewable && item.index !== null)?.index; if (typeof first === "number") setActivePartyFeedIndex(first); }} ListHeaderComponent={<View style={{ gap: 16 }}><PartyHeader party={party} onBack={() => router.back()} onInfo={() => setInfoOpen(true)} onOpenProfile={(userId) => router.push(`/add-friend/${userId}`)} /><PartyTabs active={tab} unreadFeed={party.unreadFeedCount ?? 0} unreadLeaderboard={party.unreadLeaderboardCount ?? 0} onChange={selectTab} /><View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Party Feed</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700", marginTop: 3 }}>Your crew’s adventures, just for this Party.</Text></View></View>} ListEmptyComponent={loading ? <PartyFeedLoading /> : <EmptyState emoji="📸" title="No Party posts yet" body="Your first completed quest will show up here." />} renderItem={({ item, index }) => { const author = party.members.find((member) => member.displayName === item.userName); return <FeedPostCard post={item} loadMedia={Math.abs(index - activePartyFeedIndex) <= 3} onOpenProfile={author ? () => router.push(`/add-friend/${author.userId}`) : undefined} onReact={(emoji) => reactToPartyFeed(item.id, emoji).then(() => load(true))} />; }} /> : <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: party.status === "active" ? 112 : 28, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
+        <PartyHeader party={party} onBack={() => router.back()} onInfo={() => setInfoOpen(true)} onOpenProfile={(userId) => router.push(`/add-friend/${userId}`)} />
         <PartyTabs active={tab} unreadFeed={party.unreadFeedCount ?? 0} unreadLeaderboard={party.unreadLeaderboardCount ?? 0} onChange={selectTab} />
         {tab === "quests" ? <View style={{ gap: 13 }}>
           <View style={{ gap: 5 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Active quest</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>{party.gameMode === "everyone_together" ? "One quest, one shared clock." : activeQuest ? "Complete or abandon your active quest before starting another." : "Choose a Party quest whenever you’re ready."}</Text></View>
@@ -657,7 +660,7 @@ export function PartyDetailScreen() {
           {visibleQuests.length ? visibleQuests.map((quest) => <QuestRow key={quest.questId} quest={quest} party={party} category={categoryForQuest(quest.questId)} launching={launchingQuestId === quest.questId} locked={party.gameMode === "free_for_all" && Boolean(activeQuest)} onStart={() => startQuest(quest)} onLocked={() => Alert.alert("Finish your active quest", `Complete or abandon “${activeQuest?.title ?? "your current quest"}” before starting another one.`)} />) : <EmptyState emoji="✨" title="All caught up" body="Start another quest or let the host add more." />}
           {party.completedQuests.length ? <View style={{ gap: 10, marginTop: 5 }}><View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>Completed quests</Text><Text style={{ color: T.green, fontSize: 11, fontWeight: "900" }}>{party.completedQuests.length} done</Text></View>{party.completedQuests.map((quest) => <CompletedQuestRow key={quest.id} quest={quest} shared={party.gameMode === "everyone_together"} />)}</View> : null}
         </View> : null}
-        {tab === "leaderboard" ? <Leaderboard party={party} stampSelf={stampLeaderboard} /> : null}
+        {tab === "leaderboard" ? <Leaderboard party={party} stampSelf={stampLeaderboard} onOpenProfile={(userId) => router.push(`/add-friend/${userId}`)} /> : null}
       </ScrollView>}
       {tab === "quests" && party.status === "active" ? <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingTop: 16, paddingBottom: 16, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, backgroundColor: T.white, borderTopWidth: 2, borderTopColor: T.border }}><PartyButton label={party.isHost ? "Add quests" : "Suggest quests"} icon="add" onPress={() => setPickerOpen(true)} /></View> : null}
       {pickerOpen ? <QuestPicker party={party} contentQuests={contentQuests} selectedIds={selectedQuestIds} onToggle={(id) => setSelectedQuestIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id])} onClose={() => setPickerOpen(false)} onConfirm={addOrSuggest} /> : null}

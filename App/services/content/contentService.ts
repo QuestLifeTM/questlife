@@ -53,7 +53,7 @@ export function formatTimeLabel(minutes: number) {
   return `${Number(hours.toFixed(1))} hours`;
 }
 
-function mapQuest(row: QuestRow, savedIds: Set<string>, completedIds: Set<string>): Quest {
+function mapQuest(row: QuestRow, savedDates: Map<string, string>, completedIds: Set<string>): Quest {
   return {
     id: row.id,
     title: row.title,
@@ -67,7 +67,8 @@ function mapQuest(row: QuestRow, savedIds: Set<string>, completedIds: Set<string
     status: row.status,
     featured: row.featured,
     color: questCategoryColors[row.category]?.text ?? row.accent_color,
-    saved: savedIds.has(row.id),
+    saved: savedDates.has(row.id),
+    savedAt: savedDates.get(row.id) ?? null,
     completed: completedIds.has(row.id),
     createdBy: row.created_by,
     createdByLabel: null,
@@ -81,18 +82,18 @@ function mapQuest(row: QuestRow, savedIds: Set<string>, completedIds: Set<string
   };
 }
 
-async function fetchSavedQuestIds() {
+async function fetchSavedQuestDates() {
   const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) return new Set<string>();
+  if (userError || !userData.user) return new Map<string, string>();
 
   const { data, error } = await supabase
     .from("saved_quests")
-    .select("quest_id")
+    .select("quest_id, created_at")
     .eq("user_id", userData.user.id);
 
   if (error) throw error;
 
-  return new Set((data ?? []).map((item) => item.quest_id as string));
+  return new Map((data ?? []).map((item) => [item.quest_id as string, item.created_at as string]));
 }
 
 async function fetchCompletedQuestIds() {
@@ -112,8 +113,8 @@ async function fetchCompletedQuestIds() {
 export async function fetchContentLibrary({ admin = false }: { admin?: boolean } = {}) {
   assertSupabaseConfigured();
 
-  const [savedIds, completedIds] = await Promise.all([
-    fetchSavedQuestIds(),
+  const [savedDates, completedIds] = await Promise.all([
+    fetchSavedQuestDates(),
     fetchCompletedQuestIds(),
   ]);
 
@@ -129,7 +130,7 @@ export async function fetchContentLibrary({ admin = false }: { admin?: boolean }
   const { data: questRows, error: questError } = await questQuery.returns<QuestRow[]>();
   if (questError) throw questError;
 
-  return { quests: (questRows ?? []).map((row) => mapQuest(row, savedIds, completedIds)) };
+  return { quests: (questRows ?? []).map((row) => mapQuest(row, savedDates, completedIds)) };
 }
 
 export async function getAdminMembership(): Promise<AdminMembership | null> {
@@ -194,7 +195,7 @@ export async function upsertQuest(input: QuestFormInput & { id?: string }) {
     title: input.title,
   });
 
-  return mapQuest(data, new Set(), new Set());
+  return mapQuest(data, new Map(), new Set());
 }
 
 export async function toggleSavedQuest(questId: string, saved: boolean) {

@@ -56,6 +56,7 @@ export type QuestFeedPost = {
   stats: QuestPostStats;
   visibility: "public" | "friends" | "private";
   likeCount: number;
+  likedByMe: boolean;
   commentCount: number;
   createdAt: string;
 };
@@ -92,6 +93,7 @@ export type ProfileOverview = {
     longestStreak: number;
     friendsCount: number;
     daysOnApp: number;
+    totalQuestDurationSeconds: number;
   };
   posts: QuestPost[];
   recentCompletions: ProfileRecentCompletion[];

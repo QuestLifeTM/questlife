@@ -5,6 +5,7 @@ import {
   cancelDuoStreakInvite,
   endDuoStreak,
   fetchStreakOverview,
+  restoreStreak,
   respondToDuoStreakInvite,
   sendDuoStreakInvite,
   sendDuoStreakNudge,
@@ -18,6 +19,7 @@ type StreaksContextValue = {
   error: string | null;
   refresh: () => Promise<void>;
   setVisibility: (visibility: StreakVisibility) => Promise<void>;
+  restorePersonalStreak: () => Promise<void>;
   inviteFriend: (friendId: string) => Promise<void>;
   respondToInvite: (inviteId: string, accept: boolean) => Promise<void>;
   cancelInvite: (inviteId: string) => Promise<void>;
@@ -31,6 +33,7 @@ const StreaksContext = createContext<StreaksContextValue>({
   error: null,
   refresh: async () => undefined,
   setVisibility: async () => undefined,
+  restorePersonalStreak: async () => undefined,
   inviteFriend: async () => undefined,
   respondToInvite: async () => undefined,
   cancelInvite: async () => undefined,
@@ -106,6 +109,11 @@ export function StreaksProvider({ children }: PropsWithChildren) {
     [runAndRefresh],
   );
 
+  const restorePersonalStreak = useCallback(
+    () => runAndRefresh(() => restoreStreak().then(() => undefined), "Unable to restore your streak."),
+    [runAndRefresh],
+  );
+
   const respondToInvite = useCallback(
     (inviteId: string, accept: boolean) =>
       runAndRefresh(() => respondToDuoStreakInvite(inviteId, accept), "Unable to respond to the invite."),
@@ -136,6 +144,7 @@ export function StreaksProvider({ children }: PropsWithChildren) {
       error,
       refresh,
       setVisibility,
+      restorePersonalStreak,
       inviteFriend,
       respondToInvite,
       cancelInvite,
@@ -148,6 +157,7 @@ export function StreaksProvider({ children }: PropsWithChildren) {
       error,
       refresh,
       setVisibility,
+      restorePersonalStreak,
       inviteFriend,
       respondToInvite,
       cancelInvite,

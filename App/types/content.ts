@@ -50,6 +50,7 @@ export type Quest = {
   featured: boolean;
   color: string;
   saved: boolean;
+  savedAt?: string | null;
   completed: boolean;
   createdBy?: string | null;
   createdByLabel?: string | null;

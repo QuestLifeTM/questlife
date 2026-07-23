@@ -5,7 +5,7 @@ import { Accelerometer } from "expo-sensors";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Image, ImageBackground, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, Easing, Image, ImageBackground, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AnimatedFlame } from "@/components/animated-flame";
@@ -13,8 +13,10 @@ import { ProfileAvatar } from "@/components/profile-avatar";
 import { QuestlifeFlame } from "@/components/questlife-flame";
 import { T } from "@/components/theme";
 import { EmptyState, Sheet, SoftButton, haptic, responsiveScreenGutter } from "@/components/ui";
+import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useStreaks } from "@/contexts/StreaksContext";
 import { useSocial } from "@/contexts/SocialContext";
+import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { toLocalDateKey } from "@/services/journal/journalService";
 import { DuoStreak, IncomingDuoInvite, OutgoingDuoInvite, StreakFriend } from "@/types/streaks";
 
@@ -85,18 +87,6 @@ function StreakVisibilityToggle({ value, onChange, reducedMotion }: { value: boo
       <Animated.View style={{ opacity: position, transform: [{ scale: checkScale }] }}><Ionicons name="checkmark" size={14} color={T.white} /></Animated.View>
     </Animated.View>
   </Pressable>;
-}
-
-function useReducedMotion() {
-  const [reducedMotion, setReducedMotion] = useState(false);
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReducedMotion);
-    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReducedMotion);
-    return () => subscription.remove();
-  }, []);
-
-  return reducedMotion;
 }
 
 function useBadgeTilt(enabled: boolean) {
@@ -242,12 +232,36 @@ function CalendarCard({ questDays, currentRange }: { questDays: Set<string>; cur
 }
 
 function PersonalContent() {
-  const { overview, setVisibility } = useStreaks();
+  const { overview, setVisibility, restorePersonalStreak } = useStreaks();
   const { overview: socialOverview } = useSocial();
-  const reducedMotion = useReducedMotion();
+  const { showFeedback } = useAppFeedback();
+  const router = useRouter();
+  const reducedMotion = useReducedMotionPreference();
+  const [restoring, setRestoring] = useState(false);
 
   if (!overview) return null;
   const { personal, friends, questDays } = overview;
+  const twoDaysAgo = new Date();
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+  const canRestore = personal.lastQuestOn === toLocalDateKey(twoDaysAgo);
+  const restore = () => {
+    if (restoring) return;
+    Alert.alert("Restore your streak?", "Use one grace day to cover yesterday. You can use this once every 30 days.", [
+      { text: "Not now", style: "cancel" },
+      { text: "Restore streak", onPress: () => void (async () => {
+        setRestoring(true);
+        try {
+          await restorePersonalStreak();
+          showFeedback({ message: "Your streak was restored with a grace day.", icon: "flame", color: STREAK_ORANGE });
+        } catch (error) {
+          const message = error instanceof Error && error.message.includes("COOLDOWN") ? "Your next streak recovery is available 30 days after the last one." : "We couldn't restore that streak. Please try again.";
+          showFeedback({ message, icon: "alert-circle", color: T.red });
+        } finally {
+          setRestoring(false);
+        }
+      })() },
+    ]);
+  };
   const currentRange = personal.currentStreak && personal.streakStartedOn && personal.lastQuestOn ? { start: personal.streakStartedOn, end: personal.lastQuestOn } : null;
   const leaderRows = [
     { id: "you", name: "You", avatarUrl: socialOverview?.me.avatarUrl ?? null, streak: personal.currentStreak, self: true },
@@ -259,14 +273,28 @@ function PersonalContent() {
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: T.dark, fontSize: 19, fontWeight: "900" }}>Streak leaderboard</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "800" }}>Personal streaks</Text></View>
       <WhitePanel style={{ padding: 3, gap: 0 }}>
         <View style={{ overflow: "hidden", borderRadius: 17 }}>
-          {leaderRows.map((row, index) => <View key={row.id} style={{ minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderBottomWidth: index === leaderRows.length - 1 ? 0 : 1.5, borderBottomColor: "#eee7e2", backgroundColor: row.self ? "#fff7f2" : T.white }}>
+          {leaderRows.map((row, index) => <Pressable key={row.id} accessibilityRole={row.self ? undefined : "button"} accessibilityLabel={row.self ? undefined : `View ${row.name}'s profile`} disabled={row.self} onPress={() => { if (!row.self) router.push(`/add-friend/${row.id}`); }} style={({ pressed }) => ({ minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderBottomWidth: index === leaderRows.length - 1 ? 0 : 1.5, borderBottomColor: "#eee7e2", backgroundColor: row.self ? "#fff7f2" : T.white, opacity: pressed && !row.self ? 0.7 : 1 })}>
             <Text style={{ width: 22, color: index === 0 ? STREAK_ORANGE : T.muted, fontSize: 16, fontWeight: "900" }}>{index + 1}</Text>
             <PersonAvatar name={row.name} avatarUrl={row.avatarUrl} seed={row.id} size={42} />
             <Text style={{ flex: 1, color: T.dark, fontSize: 16, fontWeight: "900" }}>{row.name}</Text>
             <View style={{ minWidth: 42, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4 }}><QuestlifeFlame size={20} /><Text style={{ color: STREAK_DEEP, fontSize: 16, fontWeight: "900" }}>{row.streak}</Text></View>
-          </View>)}
+          </Pressable>)}
         </View>
       </WhitePanel>
+      {canRestore ? (
+        <WhitePanel style={{ gap: 10, borderColor: `${STREAK_ORANGE}66`, backgroundColor: "#fff7f2" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: `${STREAK_ORANGE}18` }}>
+              <Ionicons name="shield-checkmark-outline" size={21} color={STREAK_ORANGE} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ color: STREAK_DEEP, fontSize: 15, fontWeight: "900" }}>Yesterday can be a grace day</Text>
+              <Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>Restore this streak once every 30 days. It never creates a fake quest.</Text>
+            </View>
+          </View>
+          <StreakActionButton label={restoring ? "Restoring..." : "Restore streak"} icon="shield-checkmark" disabled={restoring} onPress={restore} style={{ minHeight: 46 }} />
+        </WhitePanel>
+      ) : null}
       <View style={{ minHeight: 74, borderRadius: 18, paddingHorizontal: 15, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: personal.streakVisibility === "public" ? `${STREAK_ORANGE}10` : T.white, borderWidth: 2, borderColor: personal.streakVisibility === "public" ? STREAK_ORANGE : T.border }}>
         <View style={{ flex: 1, gap: 2 }}><Text style={{ color: T.dark, fontSize: 15, fontWeight: "900" }}>Show my streak</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>Let friends see you on their leaderboard</Text></View>
         <StreakVisibilityToggle value={personal.streakVisibility === "public"} reducedMotion={reducedMotion} onChange={() => setVisibility(personal.streakVisibility === "public" ? "private" : "public")} />
@@ -307,7 +335,7 @@ function FriendsContent() {
 }
 
 function AchievementsContent({ currentStreak }: { currentStreak: number }) {
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = useReducedMotionPreference();
   const tilt = useBadgeTilt(!reducedMotion && currentStreak >= ACHIEVEMENTS[0].days);
   return <View style={{ gap: 18 }}><View style={{ alignItems: "center", gap: 6, paddingVertical: 5 }}><Text style={{ color: T.dark, fontSize: 19, fontWeight: "900" }}>Streak achievements</Text><Text style={{ color: T.muted, fontSize: 13, fontWeight: "700", textAlign: "center" }}>Every day you show up makes your flame stronger.</Text></View><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>{ACHIEVEMENTS.map((achievement) => { const unlocked = currentStreak >= achievement.days; const progress = Math.min(1, currentStreak / achievement.days); return <WhitePanel key={achievement.days} style={{ width: "48%", alignItems: "center", gap: 8, opacity: unlocked ? 1 : 0.46, backgroundColor: unlocked ? "#fff6f0" : T.white, borderColor: unlocked ? "#f4c7ae" : "#eadfd9" }}><StreakBadge source={achievement.badge} days={achievement.days} unlocked={unlocked} tiltX={tilt.x} tiltY={tilt.y} /><Text style={{ color: T.dark, fontSize: 14, fontWeight: "900", textAlign: "center" }}>{achievement.days}-day streak</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "700", textAlign: "center" }}>{achievement.label}</Text><View style={{ width: "100%", height: 5, backgroundColor: "#eadfd9", borderRadius: 3, overflow: "hidden" }}><View style={{ width: `${Math.max(3, progress * 100)}%`, height: "100%", backgroundColor: unlocked ? STREAK_ORANGE : "#cfc5c1" }} /></View><Text style={{ color: unlocked ? STREAK_ORANGE : T.muted, fontSize: 11, fontWeight: "900" }}>{unlocked ? "UNLOCKED" : `${currentStreak}/${achievement.days}`}</Text></WhitePanel>; })}</View></View>;
 }
@@ -316,7 +344,7 @@ export function StreakScreen({ onBack }: { onBack: () => void }) {
   const { error, loading, overview, refresh } = useStreaks();
   const [activeTab, setActiveTab] = useState<StreakTab>("personal");
   const insets = useSafeAreaInsets();
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = useReducedMotionPreference();
   const gutter = responsiveScreenGutter(390);
   useEffect(() => { refresh(); }, [refresh]);
   return <View style={{ flex: 1, backgroundColor: T.bg }}><StatusBar style="light" translucent /><ScrollView contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} stickyHeaderIndices={[1]} contentContainerStyle={{ paddingBottom: insets.bottom + 108 }}><StreakHero days={overview?.personal.currentStreak ?? 0} onBack={onBack} topInset={insets.top} /><View style={{ backgroundColor: T.bg, paddingHorizontal: gutter }}><StreakTabs activeTab={activeTab} onChange={setActiveTab} inviteCount={overview?.incomingInvites.length ?? 0} reducedMotion={reducedMotion} /></View><View style={{ paddingHorizontal: gutter, paddingTop: 14 }}>{error ? <WhitePanel style={{ borderColor: `${T.red}77`, gap: 10 }}><Text style={{ color: T.red, fontWeight: "900" }}>{error}</Text><SoftButton label="Try again" inverse color={STREAK_ORANGE} onPress={refresh} /></WhitePanel> : null}{!overview && loading ? <View style={{ paddingVertical: 54, alignItems: "center", gap: 12 }}><ActivityIndicator color={STREAK_ORANGE} /><Text style={{ color: T.muted, fontWeight: "800" }}>Warming up your flame…</Text></View> : overview ? <StreakTabContent activeTab={activeTab} reducedMotion={reducedMotion}>{activeTab === "personal" ? <PersonalContent /> : activeTab === "friends" ? <FriendsContent /> : <AchievementsContent currentStreak={overview.personal.currentStreak} />}</StreakTabContent> : !error ? <EmptyState artwork={<QuestlifeFlame size={64} />} title="Streaks are warming up" body="Sign in and complete a quest to start tracking your streak." /> : null}</View></ScrollView></View>;

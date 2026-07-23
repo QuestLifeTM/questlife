@@ -44,6 +44,8 @@ export async function loadUserSettings(userId: string): Promise<UserSettings> {
     return {
       notifications: { ...defaultUserSettings.notifications, ...parsed.notifications },
       hapticFeedback: parsed.hapticFeedback ?? defaultUserSettings.hapticFeedback,
+      reduceMotion: parsed.reduceMotion ?? defaultUserSettings.reduceMotion,
+      highContrast: parsed.highContrast ?? defaultUserSettings.highContrast,
     };
   } catch {
     return defaultUserSettings;

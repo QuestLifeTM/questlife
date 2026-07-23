@@ -64,8 +64,9 @@ export function ContentProvider({ children }: PropsWithChildren) {
       const quest = quests.find((item) => item.id === questId);
       if (!quest) return false;
 
+      const nextSavedAt = quest.saved ? null : new Date().toISOString();
       setQuests((prev) =>
-        prev.map((item) => (item.id === questId ? { ...item, saved: !item.saved } : item)),
+        prev.map((item) => (item.id === questId ? { ...item, saved: !item.saved, savedAt: nextSavedAt } : item)),
       );
 
       try {
@@ -73,7 +74,7 @@ export function ContentProvider({ children }: PropsWithChildren) {
         return true;
       } catch (nextError) {
         setQuests((prev) =>
-          prev.map((item) => (item.id === questId ? { ...item, saved: quest.saved } : item)),
+          prev.map((item) => (item.id === questId ? { ...item, saved: quest.saved, savedAt: quest.savedAt } : item)),
         );
         setError(nextError instanceof Error ? nextError.message : "Unable to update saved quest.");
         return false;

@@ -98,6 +98,13 @@ export async function updateStreakVisibility(visibility: StreakVisibility) {
   if (error) throw error;
 }
 
+export async function restoreStreak() {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("restore_streak", { p_today: localToday() });
+  if (error) throw error;
+  return data as { currentStreak: number; recoveredOn: string };
+}
+
 export async function sendDuoStreakInvite(recipientId: string) {
   assertSupabaseConfigured();
   const { error } = await supabase.rpc("send_duo_streak_invite", { p_recipient: recipientId });

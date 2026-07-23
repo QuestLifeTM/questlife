@@ -185,6 +185,7 @@ type UserPackRow = {
   icon: string;
   accent_color: string;
   cover_image_url: string | null;
+  is_pinned: boolean;
   created_at: string;
 };
 
@@ -193,15 +194,20 @@ function isMissingCollectionCoverColumn(error: unknown) {
   return /cover_image_url/i.test(message) && /(column|schema cache)/i.test(message);
 }
 
+function isMissingCollectionPinnedColumn(error: unknown) {
+  const message = error instanceof Error ? error.message : typeof error === "object" && error !== null && "message" in error ? String(error.message) : String(error);
+  return /is_pinned/i.test(message) && /(column|schema cache)/i.test(message);
+}
+
 export async function fetchUserPacks(): Promise<UserPack[]> {
   assertSupabaseConfigured();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return [];
 
-  const [packResult, { data: questRows, error: questError }] = await Promise.all([
+  const [initialPackResult, { data: questRows, error: questError }] = await Promise.all([
     supabase
       .from("user_adventure_packs")
-      .select("id, title, description, icon, accent_color, cover_image_url, created_at")
+      .select("id, title, description, icon, accent_color, cover_image_url, is_pinned, created_at")
       .eq("user_id", userData.user.id)
       .order("created_at", { ascending: false })
       .returns<UserPackRow[]>(),
@@ -211,16 +217,26 @@ export async function fetchUserPacks(): Promise<UserPack[]> {
       .order("position", { ascending: true }),
   ]);
 
-  let packRows = packResult.data;
-  let packError = packResult.error;
+  let packRows = initialPackResult.data;
+  let packError = initialPackResult.error;
+  if (packError && isMissingCollectionPinnedColumn(packError)) {
+    const legacyPinnedResult = await supabase
+      .from("user_adventure_packs")
+      .select("id, title, description, icon, accent_color, cover_image_url, created_at")
+      .eq("user_id", userData.user.id)
+      .order("created_at", { ascending: false })
+      .returns<Omit<UserPackRow, "is_pinned">[]>();
+    packRows = (legacyPinnedResult.data ?? []).map((row) => ({ ...row, is_pinned: false }));
+    packError = legacyPinnedResult.error;
+  }
   if (packError && isMissingCollectionCoverColumn(packError)) {
     const legacyResult = await supabase
       .from("user_adventure_packs")
       .select("id, title, description, icon, accent_color, created_at")
       .eq("user_id", userData.user.id)
       .order("created_at", { ascending: false })
-      .returns<Omit<UserPackRow, "cover_image_url">[]>();
-    packRows = (legacyResult.data ?? []).map((row) => ({ ...row, cover_image_url: null }));
+      .returns<Omit<UserPackRow, "cover_image_url" | "is_pinned">[]>();
+    packRows = (legacyResult.data ?? []).map((row) => ({ ...row, cover_image_url: null, is_pinned: false }));
     packError = legacyResult.error;
   }
 
@@ -241,9 +257,10 @@ export async function fetchUserPacks(): Promise<UserPack[]> {
     icon: row.icon,
     accentColor: row.accent_color,
     coverImageUrl: row.cover_image_url,
+    isPinned: row.is_pinned ?? false,
     questIds: questsByPack.get(row.id) ?? [],
     createdAt: row.created_at,
-  }));
+  })).sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || b.createdAt.localeCompare(a.createdAt));
 }
 
 export async function upsertUserPack(input: {
@@ -253,6 +270,7 @@ export async function upsertUserPack(input: {
   icon: string;
   accentColor: string;
   coverImageUrl?: string | null;
+  isPinned?: boolean;
   questIds: string[];
 }): Promise<string> {
   assertSupabaseConfigured();
@@ -270,19 +288,35 @@ export async function upsertUserPack(input: {
     icon: input.icon || "🎒",
     accent_color: input.accentColor,
     cover_image_url: input.coverImageUrl ?? null,
+    is_pinned: input.isPinned ?? false,
     user_id: userData.user.id,
   };
 
-  const runUpsert = (nextPayload: typeof payload | Omit<typeof payload, "cover_image_url">) => {
+  const runUpsert = (nextPayload: Record<string, unknown>) => {
     const query = input.id
       ? supabase.from("user_adventure_packs").update(nextPayload).eq("id", input.id).eq("user_id", userData.user.id)
       : supabase.from("user_adventure_packs").insert(nextPayload);
     return query.select("id").single<{ id: string }>();
   };
 
-  let { data, error } = await runUpsert(payload);
+  if (input.isPinned) {
+    const { error: unpinError } = await supabase
+      .from("user_adventure_packs")
+      .update({ is_pinned: false })
+      .eq("user_id", userData.user.id)
+      .eq("is_pinned", true);
+    if (unpinError && !isMissingCollectionPinnedColumn(unpinError)) throw unpinError;
+  }
+
+  let nextPayload: Record<string, unknown> = payload;
+  let { data, error } = await runUpsert(nextPayload);
+  if (error && isMissingCollectionPinnedColumn(error)) {
+    const { is_pinned: _isPinned, ...legacyPayload } = nextPayload;
+    nextPayload = legacyPayload;
+    ({ data, error } = await runUpsert(nextPayload));
+  }
   if (error && isMissingCollectionCoverColumn(error)) {
-    const { cover_image_url: _coverImageUrl, ...legacyPayload } = payload;
+    const { cover_image_url: _coverImageUrl, ...legacyPayload } = nextPayload;
     ({ data, error } = await runUpsert(legacyPayload));
   }
   if (error || !data) throw error ?? new Error("Unable to save this collection.");

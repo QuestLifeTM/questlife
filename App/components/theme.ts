@@ -1,6 +1,6 @@
 import { questCategoryColors } from "@/types/content";
 
-export const T = {
+const standardTheme = {
   bg: "#fffcf5",
   dark: "#3d3438",
   muted: "#8a8186",
@@ -16,7 +16,31 @@ export const T = {
   purple: "#a29bfe",
   teal: "#00cec9",
   white: "#ffffff"
-} as const;
+};
+
+const highContrastTheme = {
+  bg: "#ffffff",
+  dark: "#171214",
+  muted: "#50474b",
+  blue: "#006dcc",
+  cyan: "#007b9f",
+  border: "#8a7e75",
+  pill: "#f6e8ef",
+  yellow: "#9b6900",
+  green: "#087d3e",
+  orange: "#a84e00",
+  red: "#b72e20",
+  pink: "#b01c62",
+  purple: "#5d4ab8",
+  teal: "#007f7a",
+  white: "#ffffff"
+};
+
+export const T = { ...standardTheme };
+
+export function setHighContrastTheme(enabled: boolean) {
+  Object.assign(T, enabled ? highContrastTheme : standardTheme);
+}
 
 export const radius = {
   sm: 14,
@@ -33,7 +57,9 @@ export const font = {
 };
 
 export const shadow = {
-  boxShadow: `4px 4px 0px ${T.border}`
+  get boxShadow() {
+    return `4px 4px 0px ${T.border}`;
+  }
 };
 
 export type Difficulty = "EASY" | "MEDIUM" | "HARD" | "FORMIDABLE";
