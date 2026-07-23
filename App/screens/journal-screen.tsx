@@ -222,7 +222,6 @@ function JournalCalendar({
   activeKey,
   todayKey,
   joinKey,
-  markedDates,
   onSelectDate
 }: {
   mode: CalendarMode;
@@ -230,7 +229,6 @@ function JournalCalendar({
   activeKey: string;
   todayKey: string;
   joinKey: string;
-  markedDates: Set<string>;
   onSelectDate: (key: string) => void;
 }) {
   const [width, setWidth] = useState(0);
@@ -315,7 +313,6 @@ function JournalCalendar({
     const inRange = dayKey >= joinKey && dayKey <= todayKey;
     const isActive = dayKey === activeKey;
     const isToday = dayKey === todayKey;
-    const hasActivity = markedDates.has(dayKey);
 
     return (
       <Pressable
@@ -350,9 +347,6 @@ function JournalCalendar({
             {day.getDate()}
           </Text>
         </View>
-        {hasActivity && !isActive ? (
-          <View style={{ position: "absolute", bottom: 2, width: 5, height: 5, borderRadius: 3, backgroundColor: T.blue }} />
-        ) : null}
       </Pressable>
     );
   }
@@ -959,12 +953,6 @@ export function JournalScreen() {
     return keys;
   }, [joinKey, todayKey]);
 
-  const markedDates = useMemo(() => {
-    const dates = new Set(Object.keys(data?.memoriesByDate ?? {}));
-    if (data?.activeQuest) dates.add(toLocalDateKey(new Date(data.activeQuest.startedAt)));
-    return dates;
-  }, [data]);
-
   const albumItems = useMemo<JournalMediaItem[]>(() => {
     const completedMedia = Object.entries(data?.memoriesByDate ?? {}).flatMap(([dateKey, memories]) => memories.flatMap((memory) => memory.photoPaths.map((source, index) => ({
       id: `memory-${memory.completionId}-${index}`,
@@ -1109,7 +1097,6 @@ export function JournalScreen() {
                   activeKey={activeKey}
                   todayKey={todayKey}
                   joinKey={joinKey}
-                  markedDates={markedDates}
                   onSelectDate={handleSelectDate}
                 />
               </Entrance>

@@ -15,6 +15,7 @@ import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { QuestEngineProvider } from "@/contexts/QuestEngineContext";
 import { QuestSaveProvider } from "@/contexts/QuestSaveContext";
 import { SocialProvider } from "@/contexts/SocialContext";
+import { SettingsProvider } from "@/contexts/SettingsContext";
 import { StreaksProvider } from "@/contexts/StreaksContext";
 
 export default function RootLayout() {
@@ -48,21 +49,23 @@ function SessionDataProviders({ children }: PropsWithChildren) {
   // User-scoped providers hold loaded data in memory. Remount them when the
   // account changes so a signed-out user (or the next user) never sees stale
   // data while the new session is loading.
-  return <ContentProvider key={session?.user.id ?? "signed-out"}>
-    <QuestEngineProvider>
-      <ActiveQuestProvider>
-        <StreaksProvider>
-          <SocialProvider>
-            <NotificationsProvider>
-              <QuestSaveProvider>{children}</QuestSaveProvider>
-            </NotificationsProvider>
-          </SocialProvider>
-        </StreaksProvider>
-      </ActiveQuestProvider>
-    </QuestEngineProvider>
-    <GlobalAnnouncement />
-    <RequiredProfileName />
-  </ContentProvider>;
+  return <SettingsProvider key={session?.user.id ?? "signed-out"}>
+    <ContentProvider key={session?.user.id ?? "signed-out"}>
+      <QuestEngineProvider>
+        <ActiveQuestProvider>
+          <StreaksProvider>
+            <SocialProvider>
+              <NotificationsProvider>
+                <QuestSaveProvider>{children}</QuestSaveProvider>
+              </NotificationsProvider>
+            </SocialProvider>
+          </StreaksProvider>
+        </ActiveQuestProvider>
+      </QuestEngineProvider>
+      <GlobalAnnouncement />
+      <RequiredProfileName />
+    </ContentProvider>
+  </SettingsProvider>;
 }
 
 function AppLayout() {
@@ -109,19 +112,15 @@ function AppLayout() {
         <Stack.Screen name="quest/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="active-quest" options={{ presentation: "card" }} />
         <Stack.Screen name="memory/[completionId]" options={{ presentation: "card" }} />
-        <Stack.Screen name="adventure-pack/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="collection/[id]" options={{ presentation: "card" }} />
-        <Stack.Screen name="create-collection" options={{ presentation: "card" }} />
         <Stack.Screen name="saved" options={{ presentation: "card" }} />
         <Stack.Screen name="quest-collections" options={{ presentation: "card" }} />
         <Stack.Screen name="manage-saved" options={{ presentation: "card" }} />
-        <Stack.Screen name="pack-library" options={{ presentation: "card" }} />
-        <Stack.Screen name="plan/pick-quests" options={{ presentation: "card" }} />
-        <Stack.Screen name="plan/save-pack" options={{ presentation: "card" }} />
         <Stack.Screen name="streak" options={{ presentation: "card" }} />
         <Stack.Screen name="streak-invite" options={{ presentation: "card" }} />
         <Stack.Screen name="party/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="notifications" options={{ presentation: "card" }} />
+        <Stack.Screen name="settings" options={{ presentation: "card" }} />
         <Stack.Screen name="friends" options={{ presentation: "card" }} />
         <Stack.Screen name="add-friends" options={{ presentation: "card" }} />
         <Stack.Screen name="add-friend/[userId]" options={{ presentation: "card" }} />

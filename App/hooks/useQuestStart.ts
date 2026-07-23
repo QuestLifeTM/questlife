@@ -19,7 +19,7 @@ export function useQuestStart(getQuest: (id?: string) => Quest | null) {
   const [starting, setStarting] = useState(false);
 
   const tryStart = useCallback(
-    async (input: { questId: string; source?: "explore" | "pack" | "plan" | "featured" | "saved" | "social"; packId?: string | null; confirmedRepeat?: boolean }) => {
+    async (input: { questId: string; source?: "explore" | "saved" | "social"; confirmedRepeat?: boolean }) => {
       setStarting(true);
       setBlock(null);
       try {

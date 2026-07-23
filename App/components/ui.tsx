@@ -22,6 +22,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { radius, shadow, T } from "@/components/theme";
+import { isHapticFeedbackEnabled } from "@/services/settings/settingsService";
 
 const MIN_SCREEN_GUTTER = 16;
 const MAX_SCREEN_GUTTER = 24;
@@ -50,6 +51,7 @@ export function useResponsiveScreenLayout(maxContentWidth = DEFAULT_CONTENT_MAX_
 }
 
 export function haptic() {
+  if (!isHapticFeedbackEnabled()) return;
   if (process.env.EXPO_OS === "ios") {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   }

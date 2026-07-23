@@ -1,12 +1,9 @@
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { toLocalDateKey } from "@/services/journal/journalService";
 import {
   adminPermissions,
   AdminMembership,
   AdminPermission,
-  AdventurePack,
-  AdventurePackFormInput,
   Quest,
   QuestFormInput,
   QuestStatus,
@@ -36,28 +33,6 @@ type QuestRow = {
   archived_at: string | null;
 };
 
-type AdventurePackRow = {
-  id: string;
-  title: string;
-  subtitle: string;
-  description: string | null;
-  status: QuestStatus;
-  accent_color: string;
-  background_color: string;
-  icon: string;
-  cover_image_url?: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-  published_at: string | null;
-  archived_at: string | null;
-};
-
-type PackQuestRow = {
-  adventure_pack_id: string;
-  quest_id: string;
-  position: number;
-};
-
 type AdminMembershipRow = {
   permissions: AdminPermission[] | null;
   role: AdminMembership["role"];
@@ -76,14 +51,6 @@ export function formatTimeLabel(minutes: number) {
   const hours = minutes / 60;
   if (Number.isInteger(hours)) return `${hours} hours`;
   return `${Number(hours.toFixed(1))} hours`;
-}
-
-export function formatPackTimeRange(minutes: number) {
-  if (!minutes) return "Flexible";
-  if (minutes < 60) return `${minutes} min`;
-  const hours = minutes / 60;
-  if (hours <= 1) return "1 hour";
-  return `${Math.round(hours * 10) / 10} hours`;
 }
 
 function mapQuest(row: QuestRow, savedIds: Set<string>, completedIds: Set<string>): Quest {
@@ -111,34 +78,6 @@ function mapQuest(row: QuestRow, savedIds: Set<string>, completedIds: Set<string
     reviewNote: row.review_note,
     reviewedAt: row.reviewed_at,
     reviewedBy: row.reviewed_by,
-  };
-}
-
-function mapPack(row: AdventurePackRow, questIds: string[], quests: Quest[]): AdventurePack {
-  const packQuests = questIds
-    .map((questId) => quests.find((quest) => quest.id === questId))
-    .filter(Boolean) as Quest[];
-  const visibleQuestIds = packQuests.map((quest) => quest.id);
-  const totalMinutes = packQuests.reduce((sum, quest) => sum + quest.timeMin, 0);
-
-  return {
-    id: row.id,
-    title: row.title,
-    subtitle: row.subtitle,
-    description: row.description ?? "",
-    status: row.status,
-    color: row.accent_color,
-    bgColor: row.background_color,
-    icon: row.icon,
-    questIds: visibleQuestIds,
-    questCount: visibleQuestIds.length,
-    timeMin: totalMinutes,
-    timeRange: formatPackTimeRange(totalMinutes),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    publishedAt: row.published_at,
-    archivedAt: row.archived_at,
-    coverImageUrl: row.cover_image_url ?? null,
   };
 }
 
@@ -181,7 +120,6 @@ export async function fetchContentLibrary({ admin = false }: { admin?: boolean }
   let questQuery = supabase
     .from("quests")
     .select("*")
-    .order("featured", { ascending: false })
     .order("updated_at", { ascending: false });
 
   if (!admin) {
@@ -191,42 +129,7 @@ export async function fetchContentLibrary({ admin = false }: { admin?: boolean }
   const { data: questRows, error: questError } = await questQuery.returns<QuestRow[]>();
   if (questError) throw questError;
 
-  const quests = (questRows ?? []).map((row) => mapQuest(row, savedIds, completedIds));
-
-  let packQuery = supabase
-    .from("adventure_packs")
-    .select("*")
-    .order("updated_at", { ascending: false });
-
-  if (!admin) {
-    packQuery = packQuery.eq("status", "published");
-  }
-
-  const [{ data: packRows, error: packError }, { data: packQuestRows, error: packQuestError }] =
-    await Promise.all([
-      packQuery.returns<AdventurePackRow[]>(),
-      supabase
-        .from("adventure_pack_quests")
-        .select("adventure_pack_id, quest_id, position")
-        .order("position", { ascending: true })
-        .returns<PackQuestRow[]>(),
-    ]);
-
-  if (packError) throw packError;
-  if (packQuestError) throw packQuestError;
-
-  const questIdsByPack = new Map<string, string[]>();
-  for (const item of packQuestRows ?? []) {
-    const current = questIdsByPack.get(item.adventure_pack_id) ?? [];
-    current.push(item.quest_id);
-    questIdsByPack.set(item.adventure_pack_id, current);
-  }
-
-  const adventurePacks = (packRows ?? [])
-    .map((row) => mapPack(row, questIdsByPack.get(row.id) ?? [], quests))
-    .filter((pack) => admin || pack.questCount > 0);
-
-  return { adventurePacks, quests };
+  return { quests: (questRows ?? []).map((row) => mapQuest(row, savedIds, completedIds)) };
 }
 
 export async function getAdminMembership(): Promise<AdminMembership | null> {
@@ -294,60 +197,6 @@ export async function upsertQuest(input: QuestFormInput & { id?: string }) {
   return mapQuest(data, new Set(), new Set());
 }
 
-export async function upsertAdventurePack(input: AdventurePackFormInput & { id?: string }) {
-  assertSupabaseConfigured();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) throw userError;
-
-  const payload = {
-    title: input.title.trim(),
-    subtitle: input.subtitle.trim(),
-    description: input.description.trim() || null,
-    status: input.status,
-    accent_color: input.color,
-    background_color: input.bgColor,
-    icon: input.icon.trim() || "🧭",
-    published_at: input.status === "published" ? new Date().toISOString() : null,
-    archived_at: input.status === "archived" ? new Date().toISOString() : null,
-    updated_by: userData.user?.id ?? null,
-    ...(input.id ? {} : { created_by: userData.user?.id ?? null }),
-  };
-
-  const query = input.id
-    ? supabase.from("adventure_packs").update(payload).eq("id", input.id)
-    : supabase.from("adventure_packs").insert(payload);
-
-  const { data, error } = await query.select("*").single<AdventurePackRow>();
-  if (error) throw error;
-
-  const packId = data.id;
-  const { error: deleteError } = await supabase
-    .from("adventure_pack_quests")
-    .delete()
-    .eq("adventure_pack_id", packId);
-  if (deleteError) throw deleteError;
-
-  if (input.questIds.length) {
-    const { error: insertError } = await supabase.from("adventure_pack_quests").insert(
-      input.questIds.map((questId, index) => ({
-        adventure_pack_id: packId,
-        position: index,
-        quest_id: questId,
-      })),
-    );
-    if (insertError) throw insertError;
-  }
-
-  await writeAudit(
-    input.id ? "adventure_pack.updated" : "adventure_pack.created",
-    "adventure_pack",
-    packId,
-    { status: input.status, title: input.title, questCount: input.questIds.length },
-  );
-
-  return data;
-}
-
 export async function toggleSavedQuest(questId: string, saved: boolean) {
   assertSupabaseConfigured();
   const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -369,23 +218,6 @@ export async function toggleSavedQuest(questId: string, saved: boolean) {
   });
   if (error) throw error;
   return true;
-}
-
-export async function completeQuest(questId: string, reflection?: string) {
-  assertSupabaseConfigured();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) throw userError;
-  if (!userData.user) throw new Error("No authenticated user.");
-
-  const { error } = await supabase.from("quest_completions").insert({
-    quest_id: questId,
-    reflection: reflection?.trim() || null,
-    user_id: userData.user.id,
-    // Local calendar date, so streak days roll over at the user's midnight.
-    completed_on: toLocalDateKey(new Date()),
-  });
-
-  if (error) throw error;
 }
 
 async function writeAudit(

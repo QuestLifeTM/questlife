@@ -62,26 +62,6 @@ export type Quest = {
   reviewedBy?: string | null;
 };
 
-export type AdventurePack = {
-  id: string;
-  title: string;
-  subtitle: string;
-  description: string;
-  status: QuestStatus;
-  color: string;
-  bgColor: string;
-  icon: string;
-  questIds: string[];
-  questCount: number;
-  timeMin: number;
-  timeRange: string;
-  createdAt?: string | null;
-  updatedAt?: string | null;
-  publishedAt?: string | null;
-  archivedAt?: string | null;
-  coverImageUrl?: string | null;
-};
-
 export type QuestFormInput = {
   title: string;
   category: QuestCategory;
@@ -94,17 +74,6 @@ export type QuestFormInput = {
   featured: boolean;
   color: string;
   reviewNote?: string | null;
-};
-
-export type AdventurePackFormInput = {
-  title: string;
-  subtitle: string;
-  description: string;
-  status: QuestStatus;
-  color: string;
-  bgColor: string;
-  icon: string;
-  questIds: string[];
 };
 
 export const adminPermissions = [

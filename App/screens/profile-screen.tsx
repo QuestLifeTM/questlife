@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
-import { EmptyState, Screen, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
+import { EmptyState, Screen, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { T } from "@/components/theme";
 import { QuestFeedThumbnail } from "@/components/quest-feed-card";
@@ -15,14 +15,6 @@ import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { fetchProfileOverview, updateProfile, uploadProfileAvatar } from "@/services/profile/profileService";
 import { ProfileOverview, QuestFeedPost } from "@/types/profile";
-
-type ProfileTab = "posts" | "growth" | "achievements";
-
-const profileTabs: ReadonlyArray<{ id: ProfileTab; label: string; icon: keyof typeof Ionicons.glyphMap; activeIcon: keyof typeof Ionicons.glyphMap }> = [
-  { id: "posts", label: "Posts", icon: "grid-outline", activeIcon: "grid" },
-  { id: "growth", label: "Personal Growth", icon: "trending-up-outline", activeIcon: "trending-up" },
-  { id: "achievements", label: "Achievements", icon: "trophy-outline", activeIcon: "trophy" },
-];
 
 function accountValue(metadata: unknown, key: string) {
   if (!metadata || typeof metadata !== "object") return "";
@@ -46,29 +38,16 @@ function ImageControl({ label, onPress, style }: { label: string; onPress: () =>
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [{ width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: T.white, borderWidth: 2, borderColor: T.border, boxShadow: `2px 2px 0px ${T.border}`, opacity: pressed ? 0.72 : 1 }, style]}><Ionicons name="image-outline" size={21} color={T.dark} /></Pressable>;
 }
 
-function ProfileTabSwitcher({ activeTab, onChange }: { activeTab: ProfileTab; onChange: (tab: ProfileTab) => void }) {
-  return <View accessibilityRole="tablist" style={{ width: "100%", maxWidth: 276, flexDirection: "row", borderBottomWidth: 1, borderBottomColor: T.border }}>
-    {profileTabs.map((tab) => {
-      const selected = tab.id === activeTab;
-      return <Pressable key={tab.id} accessibilityRole="tab" accessibilityLabel={tab.label} accessibilityState={{ selected }} onPress={() => onChange(tab.id)} hitSlop={8} style={({ pressed }) => ({ flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderBottomWidth: 2, borderBottomColor: selected ? T.dark : "transparent", opacity: pressed ? 0.66 : 1 })}>
-        <Ionicons name={selected ? tab.activeIcon : tab.icon} size={24} color={selected ? T.dark : "#6f767d"} />
-      </Pressable>;
-    })}
-  </View>;
-}
-
 export function ProfileScreen() {
   const router = useRouter();
-  const { signOut, user, refreshProfileName } = useAuth();
+  const { user, refreshProfileName } = useAuth();
   const { showFeedback } = useAppFeedback();
   const { refresh: refreshSocial } = useSocial();
   const { contentWidth, horizontalPadding, insets, safeAreaOffset } = useResponsiveScreenLayout();
   const [overview, setOverview] = useState<ProfileOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [error, setError] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
   const [draftBio, setDraftBio] = useState("");
@@ -175,7 +154,7 @@ export function ProfileScreen() {
         <View style={{ paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top - 4, 0) }}>
           <View style={{ height: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             {editing ? <HeaderControl label="Discard" onPress={discard} /> : <HeaderControl icon="create-outline" label="Edit profile" onPress={startEditing} />}
-            {editing ? <HeaderControl label={saving ? "Saving…" : "Save"} positive disabled={saving} onPress={() => void save()} /> : <HeaderControl icon="settings-outline" label="Open settings" onPress={() => setSettingsOpen(true)} />}
+            {editing ? <HeaderControl label={saving ? "Saving…" : "Save"} positive disabled={saving} onPress={() => void save()} /> : <HeaderControl icon="settings-outline" label="Open settings" onPress={() => router.push("/settings")} />}
           </View>
 
           <View style={{ alignItems: "center", paddingTop: editing ? 8 : 5 }}>
@@ -193,15 +172,7 @@ export function ProfileScreen() {
             {error ? <Text accessibilityRole="alert" style={{ marginTop: 7, color: T.red, fontFamily: "RubikBold", fontSize: 12, textAlign: "center" }}>{error}</Text> : null}
           </View>
 
-          <View
-            accessible={!editing}
-            importantForAccessibility={editing ? "no-hide-descendants" : "auto"}
-            onLayout={({ nativeEvent }) => setReadOnlyContentTop(nativeEvent.layout.y)}
-            pointerEvents={editing ? "none" : "auto"}
-            style={{ width: "100%", alignItems: "center", marginTop: 18 }}
-          >
-              <ProfileTabSwitcher activeTab={activeTab} onChange={setActiveTab} />
-          </View>
+          <View onLayout={({ nativeEvent }) => setReadOnlyContentTop(nativeEvent.layout.y)} />
         </View>
       </View>
       <View
@@ -209,9 +180,9 @@ export function ProfileScreen() {
         pointerEvents={editing ? "none" : "auto"}
         style={{ width: "100%" }}
       >
-      {activeTab === "posts" ? <View style={{ paddingHorizontal: horizontalPadding, paddingTop: 20 }}>
+      <View style={{ paddingHorizontal: horizontalPadding, paddingTop: 20 }}>
         {profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." />}
-      </View> : null}
+      </View>
       </View>
     </View>
     </ScrollView>
@@ -221,13 +192,6 @@ export function ProfileScreen() {
       <View style={{ flex: 1, backgroundColor: "rgba(255,252,245,0.48)" }} />
     </View> : null}
 
-    <Sheet visible={settingsOpen} onClose={() => setSettingsOpen(false)}>
-      <View style={{ padding: 24, gap: 16 }}>
-        <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Settings</Text>
-        <SoftButton label="Notifications" icon="notifications-outline" inverse color={T.blue} onPress={() => { setSettingsOpen(false); router.push("/notifications"); }} />
-        <SoftButton label="Sign out" icon="log-out-outline" inverse color={T.red} onPress={() => { setSettingsOpen(false); void signOut(); }} />
-      </View>
-    </Sheet>
     <QuestPostManagementSheet post={managedPost} visible={Boolean(managedPost)} onClose={() => setManagedPost(null)} onUpdated={() => { setManagedPost(null); void load(); }} onDeleted={() => { setManagedPost(null); void load(); }} />
 
   </View>;

@@ -5,7 +5,6 @@ import { compressFeedImage } from "@/services/media/feed-image";
 import {
   CompleteQuestInput,
   CompletionResult,
-  DailyPlan,
   QuestEngineState,
   QuestReviewData,
   UserPack,
@@ -70,15 +69,13 @@ export async function fetchEngineState(): Promise<QuestEngineState> {
 
 export async function startQuestSession(input: {
   questId: string;
-  source?: "explore" | "pack" | "plan" | "featured" | "saved" | "social";
-  packId?: string | null;
+  source?: "explore" | "saved" | "social";
 }) {
   assertSupabaseConfigured();
   const { data, error } = await supabase.rpc("start_quest_session", {
     p_quest_id: input.questId,
     p_today: today(),
     p_source: input.source ?? "explore",
-    p_pack_id: input.packId ?? null,
   });
   if (error) throw error;
   return data as { sessionId: string };
@@ -178,7 +175,7 @@ export async function uploadCollectionCover(localUri: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// User adventure packs
+// Quest Collections (the established database table names predate this UI).
 // ---------------------------------------------------------------------------
 
 type UserPackRow = {
@@ -342,131 +339,4 @@ export async function deleteUserPack(packId: string) {
   assertSupabaseConfigured();
   const { error } = await supabase.from("user_adventure_packs").delete().eq("id", packId);
   if (error) throw error;
-}
-
-// ---------------------------------------------------------------------------
-// Daily plans
-// ---------------------------------------------------------------------------
-
-type DailyPlanRow = {
-  id: string;
-  plan_on: string;
-  source_pack_id: string | null;
-};
-
-export async function fetchTodayPlan(): Promise<DailyPlan | null> {
-  assertSupabaseConfigured();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return null;
-
-  const { data: planRow, error } = await supabase
-    .from("daily_plans")
-    .select("id, plan_on, source_pack_id")
-    .eq("user_id", userData.user.id)
-    .eq("plan_on", today())
-    .maybeSingle<DailyPlanRow>();
-
-  if (error) throw error;
-  if (!planRow) return null;
-
-  const { data: questRows, error: questError } = await supabase
-    .from("daily_plan_quests")
-    .select("quest_id, position")
-    .eq("plan_id", planRow.id)
-    .order("position", { ascending: true });
-
-  if (questError) throw questError;
-
-  return {
-    id: planRow.id,
-    planOn: planRow.plan_on,
-    sourcePackId: planRow.source_pack_id,
-    questIds: (questRows ?? []).map((row) => row.quest_id as string),
-  };
-}
-
-export async function saveTodayPlan(input: { questIds: string[]; sourcePackId?: string | null }): Promise<DailyPlan | null> {
-  assertSupabaseConfigured();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) throw userError;
-  if (!userData.user) throw new Error("No authenticated user.");
-
-  const { data: planRow, error } = await supabase
-    .from("daily_plans")
-    .upsert(
-      {
-        user_id: userData.user.id,
-        plan_on: today(),
-        source_pack_id: input.sourcePackId ?? null,
-      },
-      { onConflict: "user_id,plan_on" },
-    )
-    .select("id, plan_on, source_pack_id")
-    .single<DailyPlanRow>();
-
-  if (error) throw error;
-
-  const { error: deleteError } = await supabase
-    .from("daily_plan_quests")
-    .delete()
-    .eq("plan_id", planRow.id);
-  if (deleteError) throw deleteError;
-
-  if (input.questIds.length) {
-    const { error: insertError } = await supabase.from("daily_plan_quests").insert(
-      input.questIds.map((questId, index) => ({
-        plan_id: planRow.id,
-        quest_id: questId,
-        position: index,
-      })),
-    );
-    if (insertError) throw insertError;
-  }
-
-  return {
-    id: planRow.id,
-    planOn: planRow.plan_on,
-    sourcePackId: planRow.source_pack_id,
-    questIds: input.questIds,
-  };
-}
-
-export async function clearTodayPlan() {
-  assertSupabaseConfigured();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return;
-
-  const { error } = await supabase
-    .from("daily_plans")
-    .delete()
-    .eq("user_id", userData.user.id)
-    .eq("plan_on", today());
-
-  if (error) throw error;
-}
-
-// ---------------------------------------------------------------------------
-// Featured batch for today
-// ---------------------------------------------------------------------------
-
-export async function fetchTodayFeaturedQuestIds(): Promise<string[]> {
-  assertSupabaseConfigured();
-
-  const { data: batch, error } = await supabase
-    .from("featured_quest_batches")
-    .select("id")
-    .eq("featured_on", today())
-    .maybeSingle<{ id: string }>();
-
-  if (error) throw error;
-  if (!batch) return [];
-
-  const { data: rows, error: questError } = await supabase
-    .from("featured_batch_quests")
-    .select("quest_id, position")
-    .eq("batch_id", batch.id)
-    .order("position", { ascending: true });
-
-  if (questError) throw questError;
-  return (rows ?? []).map((row) => row.quest_id as string);
 }

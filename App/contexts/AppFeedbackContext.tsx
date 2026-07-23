@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { PropsWithChildren, ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { T } from "@/components/theme";
 
@@ -31,7 +31,7 @@ export function AppFeedbackProvider({ children }: PropsWithChildren) {
   const showFeedback = useCallback((nextFeedback: AppFeedback) => setFeedback({
     icon: "checkmark",
     color: T.blue,
-    durationMs: 4_500,
+    durationMs: 2_500,
     ...nextFeedback,
   }), []);
 
@@ -49,9 +49,9 @@ export function AppFeedbackProvider({ children }: PropsWithChildren) {
   };
 
   return <AppFeedbackContext.Provider value={value}>
-    {children}
-    <Modal transparent visible={Boolean(feedback)} animationType="fade" onRequestClose={dismissFeedback}>
-      <View pointerEvents="box-none" style={{ flex: 1, justifyContent: "flex-end", paddingHorizontal: 14, paddingBottom: 24 }}>
+    <View style={{ flex: 1 }}>
+      {children}
+      <View pointerEvents="box-none" style={{ position: "absolute", inset: 0, justifyContent: "flex-end", paddingHorizontal: 14, paddingBottom: 24 }}>
         {feedback ? <View accessibilityRole="alert" style={{ minHeight: 66, flexDirection: "row", alignItems: "center", gap: 11, borderRadius: 18, backgroundColor: "rgba(61,52,56,0.9)", paddingHorizontal: 10, paddingVertical: 9, boxShadow: "0px 4px 12px rgba(61,52,56,0.22)" }}>
           <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: `${feedback.color}2a`, alignItems: "center", justifyContent: "center" }}>
             {feedback.iconElement ?? <Ionicons name={feedback.icon ?? "checkmark"} size={23} color={feedback.color} />}
@@ -62,7 +62,7 @@ export function AppFeedbackProvider({ children }: PropsWithChildren) {
           </Pressable> : null}
         </View> : null}
       </View>
-    </Modal>
+    </View>
   </AppFeedbackContext.Provider>;
 }
 

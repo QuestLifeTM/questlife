@@ -1,4 +1,5 @@
 import * as FileSystem from "expo-file-system/legacy";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as MediaLibrary from "expo-media-library";
 
 import { uploadQuestPhoto } from "@/services/engine/questEngineService";
@@ -8,12 +9,14 @@ export async function persistQuestPhoto(sessionId: string, temporaryUri: string)
   // The system camera returns a temporary URI on some Android devices. Save it
   // to the user's library first, then preserve a stable private copy for the
   // quest album and eventual upload.
-  try {
-    const mediaPermission = await MediaLibrary.requestPermissionsAsync(true);
-    if (mediaPermission.granted) await MediaLibrary.saveToLibraryAsync(temporaryUri);
-  } catch {
-    // The system camera may have already saved the capture. A media-library
-    // issue must never prevent the photo from being added to this quest.
+  if (Constants.executionEnvironment !== ExecutionEnvironment.StoreClient) {
+    try {
+      const mediaPermission = await MediaLibrary.requestPermissionsAsync(true);
+      if (mediaPermission.granted) await MediaLibrary.saveToLibraryAsync(temporaryUri);
+    } catch {
+      // The system camera may have already saved the capture. A media-library
+      // issue must never prevent the photo from being added to this quest.
+    }
   }
   const root = `${FileSystem.documentDirectory}active-quests/${sessionId}`;
   await FileSystem.makeDirectoryAsync(root, { intermediates: true });

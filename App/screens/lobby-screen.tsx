@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
+import { PropsWithChildren, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleProp, StyleSheet, Text, TextStyle, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
@@ -312,63 +312,15 @@ function ActiveQuestCard({
 
 function EmptyActiveQuest({
   loading,
-  nextQuest,
   onExplore,
-  onStartPlan,
-  starting,
   reducedMotion,
 }: {
   loading: boolean;
-  nextQuest: Quest | null;
   onExplore: () => void;
-  onStartPlan: () => void;
-  starting: boolean;
   reducedMotion: boolean;
 }) {
   if (loading) {
     return <LobbyLoadingCard reducedMotion={reducedMotion} />;
-  }
-
-  if (nextQuest) {
-    return (
-      <LobbyReveal motionKey={`planned-quest-${nextQuest.id}`} reducedMotion={reducedMotion}>
-        <Card style={styles.nextQuestCard}>
-        <View style={styles.nextQuestAccent} />
-        <View style={styles.nextQuestContent}>
-          <View style={styles.nextQuestTop}>
-            <Text style={styles.nextQuestLabel}>Up next from your plan</Text>
-            <PillStat icon="flash" text={`+${nextQuest.xp}`} />
-          </View>
-          <Text style={styles.nextQuestTitle} numberOfLines={2}>
-            {nextQuest.title}
-          </Text>
-          <Text style={styles.nextQuestBody} numberOfLines={2}>
-            {nextQuest.description}
-          </Text>
-          <View style={styles.nextQuestActions}>
-            <SoftButton
-              label={starting ? "Starting..." : "Start planned quest"}
-              icon="play"
-              onPress={onStartPlan}
-              color={T.blue}
-              style={styles.flexButton}
-            />
-            <Pressable
-              accessibilityLabel="Explore quests"
-              accessibilityRole="button"
-              onPress={() => {
-                haptic();
-                onExplore();
-              }}
-              style={({ pressed }) => [styles.iconOnlyButton, pressed ? styles.pressedSmall : null]}
-            >
-              <Ionicons name="compass" size={18} color={T.blue} />
-            </Pressable>
-          </View>
-        </View>
-        </Card>
-      </LobbyReveal>
-    );
   }
 
   return (
@@ -469,7 +421,7 @@ export function LobbyScreen() {
   const reducedMotion = useReducedMotionPreference();
   const { profileNameVersion, user } = useAuth();
   const { error: contentError, getQuest, loading, quests } = useContent();
-  const { engine, error: engineError, loading: engineLoading, refresh, saveActiveForLater, todayPlan } = useQuestEngine();
+  const { engine, error: engineError, loading: engineLoading, refresh, saveActiveForLater } = useQuestEngine();
   const { block, clearBlock, starting, tryStart } = useQuestStart(getQuest);
 
   const [savedSheet, setSavedSheet] = useState(false);
@@ -499,17 +451,12 @@ export function LobbyScreen() {
   const dailyUsed = engine?.dailyUsed ?? 0;
   const dailyLimit = engine?.dailyLimit ?? 5;
   const completions = engine?.todayCompletions ?? [];
-  const planQuests = useMemo(
-    () => (todayPlan?.questIds ?? []).map((id) => getQuest(id)).filter((quest): quest is Quest => Boolean(quest)),
-    [todayPlan, getQuest, quests],
-  );
   const lobbyStates = resolveLobbyStates({
     contentLoading: loading,
     contentError,
     engineLoading,
     engineError,
     hasActiveQuest: Boolean(activeQuest && engine?.activeSession),
-    hasPlan: planQuests.length > 0,
     hasCompletions: completions.length > 0,
     feedback: savedSheet ? "success" : "idle",
   });
@@ -520,20 +467,12 @@ export function LobbyScreen() {
     await refresh();
   }
 
-  async function startPlannedQuest(quest: Quest) {
-    const started = await tryStart({ questId: quest.id, source: "plan" });
-    if (started) {
-      await refresh();
-      router.push("/active-quest");
-    }
-  }
-
   return (
     <Screen padded={false} contentStyle={styles.screenContent}>
       <LobbyReveal motionKey="lobby-page" reducedMotion={reducedMotion}>
         <View
           style={[styles.container, { width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }]}
-          testID={`lobby-${lobbyStates.request}-${lobbyStates.activity}-${lobbyStates.plan}-${lobbyStates.history}-${lobbyStates.feedback}`}
+          testID={`lobby-${lobbyStates.request}-${lobbyStates.activity}-${lobbyStates.history}-${lobbyStates.feedback}`}
         >
         <View style={styles.header}>
           <LobbyAvatar uri={avatarUrl} onPress={() => router.navigate("/(tabs)/profile")} />
@@ -570,12 +509,7 @@ export function LobbyScreen() {
           ) : (
             <EmptyActiveQuest
               loading={loading || engineLoading}
-              nextQuest={planQuests[0] ?? null}
               onExplore={() => router.push("/explore")}
-              onStartPlan={() => {
-                if (planQuests[0]) startPlannedQuest(planQuests[0]);
-              }}
-              starting={starting}
               reducedMotion={reducedMotion}
             />
           )}
@@ -609,7 +543,7 @@ export function LobbyScreen() {
             }}
             onRepeatQuest={async () => {
               if (block?.type !== "repeat_quest") return;
-              const started = await tryStart({ questId: block.quest.id, source: "plan", confirmedRepeat: true });
+              const started = await tryStart({ questId: block.quest.id, source: "explore", confirmedRepeat: true });
               if (started) {
                 await refresh();
                 router.push("/active-quest");
@@ -988,62 +922,6 @@ const styles = StyleSheet.create({
   },
   emptyActions: {
     alignSelf: "stretch",
-  },
-  nextQuestCard: {
-    borderRadius: radius.lg,
-    flexDirection: "row",
-    padding: 0,
-    overflow: "hidden",
-  },
-  nextQuestAccent: {
-    width: 5,
-    backgroundColor: T.blue,
-  },
-  nextQuestContent: {
-    flex: 1,
-    gap: 7,
-    padding: 14,
-  },
-  nextQuestTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  nextQuestLabel: {
-    color: T.cyan,
-    fontSize: 10,
-    lineHeight: 13,
-    fontWeight: "900",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-  },
-  nextQuestTitle: {
-    color: T.dark,
-    fontSize: 16,
-    lineHeight: 20,
-    fontWeight: "900",
-  },
-  nextQuestBody: {
-    color: T.muted,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "600",
-  },
-  nextQuestActions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 2,
-  },
-  iconOnlyButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: `${T.blue}14`,
-    borderWidth: 2,
-    borderColor: `${T.blue}33`,
-    alignItems: "center",
-    justifyContent: "center",
   },
   flexButton: {
     flex: 1,

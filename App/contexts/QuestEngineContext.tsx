@@ -3,36 +3,28 @@ import { PropsWithChildren, createContext, useCallback, useContext, useEffect, u
 import { useAuth } from "@/contexts/AuthContext";
 import {
   abandonQuestSession,
-  clearTodayPlan,
   completeQuestV2,
   deleteUserPack,
   fetchEngineState,
-  fetchTodayFeaturedQuestIds,
-  fetchTodayPlan,
   fetchUserPacks,
   resetTodaySoloQuestCompletions,
   saveSessionForLater,
-  saveTodayPlan,
   startQuestSession,
   upsertUserPack,
 } from "@/services/engine/questEngineService";
-import { CompleteQuestInput, CompletionResult, DailyPlan, QuestEngineState, UserPack } from "@/types/engine";
+import { CompleteQuestInput, CompletionResult, QuestEngineState, UserPack } from "@/types/engine";
 
 type QuestEngineContextValue = {
   engine: QuestEngineState | null;
   userPacks: UserPack[];
-  todayPlan: DailyPlan | null;
-  featuredQuestIds: string[];
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  startQuest: (input: { questId: string; source?: "explore" | "pack" | "plan" | "featured" | "saved" | "social"; packId?: string | null }) => Promise<void>;
+  startQuest: (input: { questId: string; source?: "explore" | "saved" | "social" }) => Promise<void>;
   abandonActiveQuest: () => Promise<void>;
   saveActiveForLater: () => Promise<void>;
   completeQuest: (input: CompleteQuestInput) => Promise<CompletionResult>;
   resetTodaySoloCompletions: () => Promise<number>;
-  savePlan: (questIds: string[], sourcePackId?: string | null) => Promise<void>;
-  clearPlan: () => Promise<void>;
   saveUserPack: (input: { id?: string; title: string; description?: string | null; icon: string; accentColor: string; coverImageUrl?: string | null; questIds: string[] }) => Promise<void>;
   removeUserPack: (packId: string) => Promise<void>;
 };
@@ -40,8 +32,6 @@ type QuestEngineContextValue = {
 const QuestEngineContext = createContext<QuestEngineContextValue>({
   engine: null,
   userPacks: [],
-  todayPlan: null,
-  featuredQuestIds: [],
   loading: false,
   error: null,
   refresh: async () => undefined,
@@ -50,8 +40,6 @@ const QuestEngineContext = createContext<QuestEngineContextValue>({
   saveActiveForLater: async () => undefined,
   completeQuest: async () => ({ completionId: "", xpAwarded: 0, dailyUsed: 0, dailyLimit: 5 }),
   resetTodaySoloCompletions: async () => 0,
-  savePlan: async () => undefined,
-  clearPlan: async () => undefined,
   saveUserPack: async () => undefined,
   removeUserPack: async () => undefined,
 });
@@ -60,8 +48,6 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
   const { isConfigured, session } = useAuth();
   const [engine, setEngine] = useState<QuestEngineState | null>(null);
   const [userPacks, setUserPacks] = useState<UserPack[]>([]);
-  const [todayPlan, setTodayPlan] = useState<DailyPlan | null>(null);
-  const [featuredQuestIds, setFeaturedQuestIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,8 +55,6 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     if (!isConfigured || !session) {
       setEngine(null);
       setUserPacks([]);
-      setTodayPlan(null);
-      setFeaturedQuestIds([]);
       return;
     }
 
@@ -78,16 +62,12 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     setError(null);
 
     try {
-      const [engineState, packs, plan, featured] = await Promise.all([
+      const [engineState, packs] = await Promise.all([
         fetchEngineState(),
         fetchUserPacks(),
-        fetchTodayPlan(),
-        fetchTodayFeaturedQuestIds(),
       ]);
       setEngine(engineState);
       setUserPacks(packs);
-      setTodayPlan(plan);
-      setFeaturedQuestIds(featured);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Unable to load quest engine state.");
     } finally {
@@ -100,7 +80,7 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
   }, [refresh]);
 
   const startQuest = useCallback(
-    async (input: { questId: string; source?: "explore" | "pack" | "plan" | "featured" | "saved" | "social"; packId?: string | null }) => {
+    async (input: { questId: string; source?: "explore" | "saved" | "social" }) => {
       const session = await startQuestSession(input);
       try {
         setEngine(await fetchEngineState());
@@ -113,7 +93,6 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
             id: session.sessionId,
             questId: input.questId,
             source: input.source ?? "explore",
-            packId: input.packId ?? null,
             startedAt: new Date().toISOString(),
           },
         } : current);
@@ -166,16 +145,6 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     return removedCount;
   }, []);
 
-  const savePlan = useCallback(async (questIds: string[], sourcePackId?: string | null) => {
-    const plan = await saveTodayPlan({ questIds, sourcePackId });
-    setTodayPlan(plan);
-  }, []);
-
-  const clearPlan = useCallback(async () => {
-    await clearTodayPlan();
-    setTodayPlan(null);
-  }, []);
-
   const saveUserPack = useCallback(
     async (input: { id?: string; title: string; description?: string | null; icon: string; accentColor: string; coverImageUrl?: string | null; questIds: string[] }) => {
       await upsertUserPack(input);
@@ -193,8 +162,6 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     () => ({
       engine,
       userPacks,
-      todayPlan,
-      featuredQuestIds,
       loading,
       error,
       refresh,
@@ -203,16 +170,12 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
       saveActiveForLater,
       completeQuest,
       resetTodaySoloCompletions,
-      savePlan,
-      clearPlan,
       saveUserPack,
       removeUserPack,
     }),
     [
       engine,
       userPacks,
-      todayPlan,
-      featuredQuestIds,
       loading,
       error,
       refresh,
@@ -221,8 +184,6 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
       saveActiveForLater,
       completeQuest,
       resetTodaySoloCompletions,
-      savePlan,
-      clearPlan,
       saveUserPack,
       removeUserPack,
     ],

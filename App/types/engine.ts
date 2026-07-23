@@ -1,8 +1,7 @@
 export type ActiveQuestSession = {
   id: string;
   questId: string;
-  source: "explore" | "pack" | "plan" | "featured" | "saved" | "social";
-  packId: string | null;
+  source: "explore" | "saved" | "social";
   startedAt: string;
 };
 
@@ -61,11 +60,4 @@ export type UserPack = {
   coverImageUrl: string | null;
   questIds: string[];
   createdAt: string;
-};
-
-export type DailyPlan = {
-  id: string;
-  planOn: string;
-  sourcePackId: string | null;
-  questIds: string[];
 };

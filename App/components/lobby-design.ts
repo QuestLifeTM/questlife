@@ -61,22 +61,20 @@ export const lobbyDesign = {
 export type LobbyRequiredState =
   | "active-quest"
   | "no-active-quest"
-  | "planned-quest"
-  | "no-plan"
   | "no-completions"
   | "loading"
   | "error"
   | "success";
 
 type LobbyStateDefinition = {
-  group: "activity" | "plan" | "history" | "request" | "feedback";
-  primaryAction: "complete" | "start" | "plan" | "explore" | "retry" | "dismiss" | "none";
+  group: "activity" | "history" | "request" | "feedback";
+  primaryAction: "complete" | "start" | "explore" | "retry" | "dismiss" | "none";
   purpose: string;
 };
 
 /**
  * Required states are composable. For example, a ready Lobby can have an
- * active quest, a plan, and no completions at the same time.
+ * active quest and no completions at the same time.
  */
 export const lobbyStateDefinitions: Record<LobbyRequiredState, LobbyStateDefinition> = {
   "active-quest": {
@@ -88,16 +86,6 @@ export const lobbyStateDefinitions: Record<LobbyRequiredState, LobbyStateDefinit
     group: "activity",
     primaryAction: "explore",
     purpose: "Offer one clear route to a next quest when no session is active.",
-  },
-  "planned-quest": {
-    group: "plan",
-    primaryAction: "start",
-    purpose: "Make the first planned quest the fastest path forward.",
-  },
-  "no-plan": {
-    group: "plan",
-    primaryAction: "plan",
-    purpose: "Teach planning briefly and provide one direct setup action.",
   },
   "no-completions": {
     group: "history",
@@ -129,7 +117,6 @@ export type LobbyStateInput = {
   engineLoading: boolean;
   engineError?: string | null;
   hasActiveQuest: boolean;
-  hasPlan: boolean;
   hasCompletions: boolean;
   feedback?: LobbyFeedbackState;
 };
@@ -148,7 +135,6 @@ export function resolveLobbyStates({
   engineLoading,
   engineError,
   hasActiveQuest,
-  hasPlan,
   hasCompletions,
   feedback = "idle",
 }: LobbyStateInput) {
@@ -157,7 +143,6 @@ export function resolveLobbyStates({
   return {
     request,
     activity: hasActiveQuest ? "active-quest" : "no-active-quest",
-    plan: hasPlan ? "planned-quest" : "no-plan",
     history: hasCompletions ? "has-completions" : "no-completions",
     feedback,
   } as const;

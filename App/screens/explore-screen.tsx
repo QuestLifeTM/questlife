@@ -10,7 +10,7 @@ import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useQuestSave } from "@/contexts/QuestSaveContext";
 import { categories } from "@/data/questlife";
-import { AdventurePack, Quest, QuestDifficulty, questDifficulties } from "@/types/content";
+import { Quest, QuestDifficulty, questDifficulties } from "@/types/content";
 
 interface Filters {
   duration: string | null;
@@ -28,31 +28,6 @@ function sortQuests(list: Quest[], sortBy: string) {
 function publishedTime(quest: Quest) {
   const timestamp = Date.parse(quest.publishedAt ?? quest.createdAt ?? "");
   return Number.isNaN(timestamp) ? 0 : timestamp;
-}
-
-function SectionHeader({
-  icon,
-  title,
-  right,
-  subtitle
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  right?: React.ReactNode;
-  subtitle?: string;
-}) {
-  return (
-    <View style={{ gap: subtitle ? 4 : 0 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-          <Ionicons name={icon} size={21} color={T.blue} />
-          <Text style={{ color: T.dark, fontSize: 21, lineHeight: 28, fontWeight: "900" }}>{title}</Text>
-        </View>
-        {right}
-      </View>
-      {subtitle ? <Text style={{ color: T.muted, fontSize: 14, lineHeight: 20, fontWeight: "700" }}>{subtitle}</Text> : null}
-    </View>
-  );
 }
 
 function ExploreTag({ label, color, bg, compact = false }: { label: string; color: string; bg: string; compact?: boolean }) {
@@ -247,141 +222,6 @@ function MetaPill({ icon, text, color = T.blue }: { icon: keyof typeof Ionicons.
   );
 }
 
-function FeaturedQuestCard({ quest, width, onSave }: { quest: Quest; width: number; onSave: () => void }) {
-  const cat = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
-  const diff = difficultyColor[quest.difficulty];
-  const { userPacks } = useQuestEngine();
-  const savedAnywhere = quest.saved || userPacks.some((pack) => pack.questIds.includes(quest.id));
-
-  return (
-    <Link href={`/quest/${quest.id}`} asChild>
-      <Pressable style={({ pressed }) => ({ width, transform: [{ scale: pressed ? 0.985 : 1 }] })}>
-        <Card style={{ height: 216, borderRadius: 32, borderWidth: 1.875, padding: 0, overflow: "hidden", boxShadow: `4px 4px 0px ${T.border}` }}>
-          <View
-            style={{
-              height: 96,
-              paddingHorizontal: 20,
-              paddingTop: 20,
-              gap: 12,
-              backgroundColor: `${quest.color}12`,
-              borderBottomWidth: 1,
-              borderBottomColor: `${quest.color}20`
-            }}
-          >
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <ExploreTag compact label={quest.category} color={cat.text} bg={cat.bg} />
-              <ExploreTag compact label={quest.difficulty} color={diff.text} bg={diff.bg} />
-            </View>
-            <Text style={{ color: T.dark, fontSize: 19, lineHeight: 24, fontWeight: "900" }} numberOfLines={1}>
-              {quest.title}
-            </Text>
-          </View>
-
-          <View style={{ height: 116, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 }}>
-            <Text style={{ color: T.muted, fontSize: 13, lineHeight: 18, fontWeight: "700" }} numberOfLines={2}>
-              {quest.description}
-            </Text>
-
-            <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" }}>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <MetaPill icon="flash" text={`+${quest.xp}`} />
-                <MetaPill icon="time" text={quest.timeLabel} color={T.dark} />
-              </View>
-              <Pressable
-                onPress={(event) => {
-                  event.stopPropagation();
-                  onSave();
-                }}
-                style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: savedAnywhere ? `${T.blue}18` : T.border, alignItems: "center", justifyContent: "center" }}
-              >
-                <Ionicons name={savedAnywhere ? "bookmark" : "bookmark-outline"} size={15} color={savedAnywhere ? T.blue : T.muted} />
-              </Pressable>
-            </View>
-          </View>
-        </Card>
-      </Pressable>
-    </Link>
-  );
-}
-
-function FeaturedTodaySection({
-  featured,
-  sideGap,
-  width,
-  onSave
-}: {
-  featured: Quest[];
-  sideGap: number;
-  width: number;
-  onSave: (id: string) => void;
-}) {
-  const cardWidth = Math.min(306, width - sideGap * 2);
-  const cardGap = 12;
-
-  return (
-    <View style={{ height: 305, gap: 0 }}>
-      <View style={{ height: 47, paddingHorizontal: sideGap, paddingTop: 20, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Ionicons name="sparkles-outline" size={18} color={T.blue} />
-          <Text style={{ color: T.dark, fontSize: 18, lineHeight: 27, fontWeight: "900" }}>Featured Today</Text>
-        </View>
-        <Text style={{ color: T.muted, fontSize: 12, lineHeight: 18, fontWeight: "800", marginTop: 4 }}>1 / {featured.length}</Text>
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingLeft: sideGap, paddingRight: sideGap, gap: cardGap, paddingTop: 16, paddingBottom: 8 }}
-        snapToInterval={cardWidth + cardGap}
-        decelerationRate="fast"
-      >
-        {featured.map((quest) => (
-          <FeaturedQuestCard key={quest.id} quest={quest} width={cardWidth} onSave={() => onSave(quest.id)} />
-        ))}
-      </ScrollView>
-
-      <View style={{ height: 19, flexDirection: "row", alignSelf: "center", alignItems: "flex-end", gap: 6 }}>
-        {featured.map((quest, index) => (
-          <View key={quest.id} style={{ width: index === 0 ? 20 : 7, height: 7, borderRadius: 99, backgroundColor: index === 0 ? T.blue : T.border }} />
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function AdventurePackCard({ pack }: { pack: AdventurePack }) {
-  return (
-    <Link href={`/adventure-pack/${pack.id}`} asChild>
-      <Pressable style={({ pressed }) => ({ width: 285, transform: [{ scale: pressed ? 0.985 : 1 }] })}>
-        <Card style={{ height: 194, borderRadius: 24, padding: 0, overflow: "hidden", boxShadow: `4px 4px 0px ${T.border}` }}>
-          <View style={{ height: 94, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12, backgroundColor: pack.bgColor, borderBottomWidth: 1, borderBottomColor: T.border }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <ExploreTag label={`${pack.questCount} Quests`} color={pack.color} bg={`${pack.color}18`} />
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                <Ionicons name="time-outline" size={11} color={T.muted} />
-                <Text style={{ color: T.muted, fontSize: 13, fontWeight: "800" }}>{pack.timeRange}</Text>
-              </View>
-            </View>
-            <Text style={{ color: T.dark, fontSize: 21, lineHeight: 27, fontWeight: "900", marginTop: 8 }} numberOfLines={1}>{pack.icon} {pack.title}</Text>
-          </View>
-          <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 16, gap: 10 }}>
-            <Text style={{ color: T.muted, fontSize: 14, lineHeight: 20, fontWeight: "700" }} numberOfLines={2}>
-              {pack.subtitle}
-            </Text>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <MetaPill icon="flash" text={`${pack.questCount} steps`} color={pack.color} />
-              <View style={{ borderRadius: 99, backgroundColor: `${pack.color}14`, paddingHorizontal: 12, paddingVertical: 7, flexDirection: "row", gap: 5, alignItems: "center" }}>
-                <Text style={{ color: pack.color, fontSize: 13, fontWeight: "900" }}>Open</Text>
-                <Ionicons name="chevron-forward" size={11} color={pack.color} />
-              </View>
-            </View>
-          </View>
-        </Card>
-      </Pressable>
-    </Link>
-  );
-}
-
 function QuestFeedCard({ quest, onSave }: { quest: Quest; onSave: () => void }) {
   const cat = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
   const diff = difficultyColor[quest.difficulty];
@@ -435,8 +275,7 @@ function QuestFeedCard({ quest, onSave }: { quest: Quest; onSave: () => void }) 
 export function ExploreScreen() {
   const router = useRouter();
   const { contentWidth, horizontalPadding: sideGap, safeAreaOffset } = useResponsiveScreenLayout();
-  const { adventurePacks, error, loading, quests, refresh } = useContent();
-  const { featuredQuestIds } = useQuestEngine();
+  const { error, loading, quests, refresh } = useContent();
   const { openQuestSave } = useQuestSave();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
@@ -461,13 +300,6 @@ export function ExploreScreen() {
     return sortQuests(result, sortBy);
   }, [category, filters, quests, search, sortBy]);
 
-  const featured = useMemo(() => {
-    if (featuredQuestIds.length) {
-      return featuredQuestIds.map((id) => quests.find((q) => q.id === id)).filter(Boolean) as Quest[];
-    }
-    return quests.filter((quest) => quest.featured).slice(0, 6);
-  }, [featuredQuestIds, quests]);
-  const showDiscoverySections = !search && category === "All" && activeFilters === 0;
   const reset = () => {
     setSearch("");
     setCategory("All");
@@ -488,37 +320,7 @@ export function ExploreScreen() {
         />
       </View>
 
-      {showDiscoverySections ? (
-        <View style={{ width: contentWidth, gap: 13, marginTop: 20, transform: [{ translateX: safeAreaOffset }] }}>
-          {featured.length ? (
-            <FeaturedTodaySection featured={featured} sideGap={sideGap} width={contentWidth} onSave={openQuestSave} />
-          ) : null}
-
-          {adventurePacks.length ? (
-          <View style={{ gap: 12 }}>
-            <View style={{ paddingHorizontal: sideGap }}>
-              <SectionHeader
-                icon="add-circle"
-                title="Adventure Packs"
-                subtitle="Dedicated groups of quests for a bigger outing"
-                right={
-                  <Pressable onPress={() => router.push("/pack-library")}>
-                    <Text style={{ color: T.cyan, fontSize: 13, fontWeight: "900" }}>See More</Text>
-                  </Pressable>
-                }
-              />
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: sideGap, gap: 12, paddingBottom: 8 }}>
-              {adventurePacks.map((pack) => (
-                <AdventurePackCard key={pack.id} pack={pack} />
-              ))}
-            </ScrollView>
-          </View>
-          ) : null}
-        </View>
-      ) : null}
-
-      <View style={{ width: contentWidth, gap: 14, marginTop: showDiscoverySections ? 11 : 20, paddingHorizontal: sideGap, transform: [{ translateX: safeAreaOffset }] }}>
+      <View style={{ width: contentWidth, gap: 14, marginTop: 20, paddingHorizontal: sideGap, transform: [{ translateX: safeAreaOffset }] }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -sideGap }} contentContainerStyle={{ gap: 8, paddingHorizontal: sideGap, paddingBottom: 4 }}>
           {categories.map((item) => {
             const active = category === item;
