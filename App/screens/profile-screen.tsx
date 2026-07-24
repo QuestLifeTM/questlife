@@ -7,8 +7,9 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { EmptyState, Screen, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
+import { PartyCategoryIcon } from "@/components/party-category-icon";
 import { QuestlifeFlame } from "@/components/questlife-flame";
-import { T } from "@/components/theme";
+import { categoryColor, T } from "@/components/theme";
 import { QuestFeedThumbnail } from "@/components/quest-feed-card";
 import { QuestPostManagementSheet } from "@/components/quest-post-management-sheet";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,11 +43,46 @@ function ImageControl({ label, onPress, style }: { label: string; onPress: () =>
 
 type ProfileTab = "posts" | "stats";
 
+const trailRankColors = ["#D89A19", "#8996A3", "#B9754E"];
+
+function categoryLabel(category: string) {
+  return category.toLowerCase().replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 function ProfileTabButton({ tab, activeTab, onPress }: { tab: ProfileTab; activeTab: ProfileTab; onPress: () => void }) {
   const active = tab === activeTab;
   const label = tab === "posts" ? "Posts" : "Stats";
   const icon = tab === "posts" ? "grid-outline" : "stats-chart-outline";
   return <Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }} onPress={onPress} style={({ pressed }) => ({ flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", borderBottomWidth: active ? 3 : 0, borderBottomColor: active ? T.dark : "transparent", opacity: pressed ? 0.62 : 1 })}><Ionicons name={icon} size={25} color={active ? T.dark : T.muted} /></Pressable>;
+}
+
+function QuestTrail({ categories }: { categories: ProfileOverview["stats"]["topCategories"] }) {
+  const topCategories = categories.slice(0, 3);
+  const leadingCount = topCategories[0]?.completedQuests ?? 0;
+
+  return <View style={{ borderRadius: 20, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#dfd6cc", backgroundColor: T.white, padding: 16, gap: 14 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <View style={{ width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${T.purple}16` }}><Ionicons name="trail-sign" size={22} color={T.purple} /></View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 19, lineHeight: 24 }}>Your Quest Trail</Text>
+        <Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 17, fontWeight: "700" }}>The adventures you return to most</Text>
+      </View>
+    </View>
+    {topCategories.length ? <View>{topCategories.map((entry, index) => {
+      const category = categoryColor[entry.category];
+      const rankColor = trailRankColors[index];
+      const progress = leadingCount ? Math.max(8, Math.round((entry.completedQuests / leadingCount) * 100)) : 0;
+      return <View key={entry.category} accessibilityLabel={`Rank ${index + 1}: ${categoryLabel(entry.category)}, ${entry.completedQuests} completed quests`} style={{ paddingVertical: 11, gap: 8, borderTopWidth: index ? 1 : 0, borderTopColor: T.border }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={{ width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: `${rankColor}22` }}><Text style={{ color: rankColor, fontFamily: "RubikBlack", fontSize: 12, lineHeight: 15 }}>{index + 1}</Text></View>
+          <View style={{ width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: category.bg }}><PartyCategoryIcon category={entry.category} size={19} color={category.text} /></View>
+          <Text style={{ flex: 1, minWidth: 0, color: T.dark, fontFamily: "RubikBold", fontSize: 14, lineHeight: 19 }} numberOfLines={1}>{categoryLabel(entry.category)}</Text>
+          <Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16, fontVariant: ["tabular-nums"] }}>{entry.completedQuests} {entry.completedQuests === 1 ? "quest" : "quests"}</Text>
+        </View>
+        <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: leadingCount, now: entry.completedQuests, text: `${entry.completedQuests} completed quests` }} style={{ height: 7, marginLeft: 34, borderRadius: 4, overflow: "hidden", backgroundColor: category.bg }}><View style={{ width: `${progress}%`, height: "100%", borderRadius: 4, backgroundColor: category.text }} /></View>
+      </View>;
+    })}</View> : <View style={{ paddingVertical: 6, gap: 3 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 14, lineHeight: 19 }}>Your trail starts with one quest.</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 17, fontWeight: "700" }}>Complete adventures to reveal the categories you love most.</Text></View>}
+  </View>;
 }
 
 function ProfileStats({ overview }: { overview: ProfileOverview }) {
@@ -91,6 +127,7 @@ function ProfileStats({ overview }: { overview: ProfileOverview }) {
         <Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16, letterSpacing: 0.35, textTransform: "uppercase" }}>{timeMetric.label}</Text>
       </View>
     </View>
+    <QuestTrail categories={stats.topCategories ?? []} />
   </View>;
 }
 

@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -24,33 +23,26 @@ import { ActiveQuestPhoto } from "@/types/active-quest";
 import { CompletionResult } from "@/types/engine";
 
 type ActiveQuestTab = "map" | "album" | "entry";
-type QuestNotice = "active" | "paused" | "photo-saved" | "hold-to-finish" | "location-help";
+type QuestNotice = "active" | "paused" | "photo-saved" | "location-help";
 type CountdownStep = 3 | 2 | 1 | "GO";
 
-const BOTTOM_SHEET_CONTENT_HEIGHT = 248;
+const BOTTOM_SHEET_CONTENT_HEIGHT = 118;
 const MAP_NOTICE_BOTTOM_OFFSET = BOTTOM_SHEET_CONTENT_HEIGHT + 48;
 const MAP_RECENTER_BOTTOM_OFFSET = BOTTOM_SHEET_CONTENT_HEIGHT + 94;
-// Keep the visual fill aligned with the full confirmation gesture so the
-// completion sheet appears the moment the pill reaches the end.
-const END_QUEST_HOLD_DURATION = 2_000;
 const STALE_ACTIVE_QUEST_AFTER_MS = 4 * 60 * 60 * 1_000;
 
 type MapCoordinate = { latitude: number; longitude: number };
 
-function QuestNoticePill({ notice, accent, holdProgress, message }: { notice: QuestNotice; accent: string; holdProgress?: Animated.Value; message?: string | null }) {
+function QuestNoticePill({ notice, accent, message }: { notice: QuestNotice; accent: string; message?: string | null }) {
   const detail = notice === "active"
     ? { icon: "ellipse" as const, iconColor: T.green, label: "Quest in progress" }
     : notice === "paused"
       ? { icon: "pause" as const, iconColor: "#e7a52c", label: "Quest paused" }
       : notice === "photo-saved"
-        ? { icon: "checkmark-circle" as const, iconColor: T.green, label: "Photo saved to your album" }
-        : notice === "hold-to-finish"
-          ? { icon: "hand-left" as const, iconColor: T.red, label: "Hold End quest to finish" }
-          : { icon: "location-outline" as const, iconColor: accent, label: message ?? "Enable location to record your route" };
-  const fillWidth = holdProgress?.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] });
+        ? { icon: "checkmark-circle" as const, iconColor: T.green, label: "Photo saved to your memories" }
+        : { icon: "location-outline" as const, iconColor: accent, label: message ?? "Enable location to record your route" };
   return <View pointerEvents="none" style={{ position: "absolute", left: 20, right: 20, bottom: MAP_NOTICE_BOTTOM_OFFSET, alignItems: "center" }}>
     <View style={{ minHeight: 38, overflow: "hidden", flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.94)", paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: "rgba(232,223,213,0.84)", boxShadow: "0px 3px 10px rgba(61,52,56,0.12)" }}>
-      {fillWidth ? <Animated.View style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: fillWidth, backgroundColor: `${T.red}22` }} /> : null}
       <Ionicons name={detail.icon} size={notice === "active" ? 12 : 17} color={detail.iconColor} style={{ zIndex: 1 }} />
       <Text style={{ color: T.dark, fontSize: 13, lineHeight: 17, fontWeight: "900", zIndex: 1 }}>{detail.label}</Text>
     </View>
@@ -77,7 +69,7 @@ function CountdownOverlay({ step, accent }: { step: CountdownStep; accent: strin
 }
 
 function ActiveQuestTabs({ active, onChange, accent }: { active: ActiveQuestTab; onChange: (tab: ActiveQuestTab) => void; accent: string }) {
-  const tabs: { id: ActiveQuestTab; label: string }[] = [{ id: "map", label: "Map" }, { id: "album", label: "Album" }, { id: "entry", label: "Entry" }];
+  const tabs: { id: ActiveQuestTab; label: string }[] = [{ id: "map", label: "Map" }, { id: "album", label: "Memories" }, { id: "entry", label: "Reflection" }];
   return <View style={{ marginHorizontal: 20, padding: 5, flexDirection: "row", alignSelf: "stretch", borderRadius: 18, backgroundColor: "#f7f3ee", borderWidth: 1, borderColor: T.border }}>
     {tabs.map((tab) => {
       const selected = tab.id === active;
@@ -120,7 +112,7 @@ const LiveMap = memo(function LiveMap({ accent, route, renderRoute, checkpoints 
       {current && route.length > 1 ? <Marker coordinate={{ latitude: current.latitude, longitude: current.longitude }} anchor={{ x: 0.5, y: 0.5 }} title="Current route end"><View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 4, borderColor: T.white, backgroundColor: T.dark }} /></Marker> : null}
       {checkpoints.map((checkpoint) => <Marker key={checkpoint.id} coordinate={{ latitude: checkpoint.latitude, longitude: checkpoint.longitude }} title={checkpoint.label} pinColor={accent} />)}
     </MapView>
-    {!followingUser ? <Pressable accessibilityRole="button" accessibilityLabel="Recenter map on your route" onPress={() => setFollowingUser(true)} style={({ pressed }) => ({ position: "absolute", right: 18, bottom: MAP_RECENTER_BOTTOM_OFFSET, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: T.white, borderWidth: 1, borderColor: T.border, boxShadow: "0px 2px 6px rgba(61,52,56,0.14)", transform: [{ scale: pressed ? 0.94 : 1 }] })}><Ionicons name="locate" size={21} color={accent} /></Pressable> : null}
+    {!followingUser ? <Pressable accessibilityRole="button" accessibilityLabel="Recenter map on your route" onPress={() => setFollowingUser(true)} style={({ pressed }) => ({ position: "absolute", left: 18, bottom: MAP_RECENTER_BOTTOM_OFFSET, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: T.white, borderWidth: 1, borderColor: T.border, boxShadow: "0px 2px 6px rgba(61,52,56,0.14)", transform: [{ scale: pressed ? 0.94 : 1 }] })}><Ionicons name="locate" size={21} color={accent} /></Pressable> : null}
     {notice ? <QuestNoticePill notice={notice} accent={accent} message={trackingStatus === "permission-needed" || trackingStatus === "unavailable" ? trackingMessage : null} /> : null}
   </View>;
 });
@@ -149,8 +141,44 @@ function EntryPlaceholder({ quest, title, body, onChangeTitle, onChangeBody }: {
   </View>;
 }
 
-function RoundAction({ icon, label, color, inverse = false, onPress, onPressIn, onPressOut, holdToConfirm = false }: { icon: keyof typeof Ionicons.glyphMap; label: string; color: string; inverse?: boolean; onPress: () => void; onPressIn?: () => void; onPressOut?: () => void; holdToConfirm?: boolean }) {
-  return <View style={{ alignItems: "center", gap: 6 }}><Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityHint={holdToConfirm ? "Press and hold to finish this quest" : undefined} onPressIn={onPressIn} onPressOut={onPressOut} onPress={() => { if (!holdToConfirm) { haptic(); onPress(); } }} style={({ pressed }) => ({ width: 62, height: 62, borderRadius: 31, alignItems: "center", justifyContent: "center", backgroundColor: inverse ? T.white : color, borderWidth: inverse ? 2 : 0, borderColor: inverse ? color : "transparent", transform: [{ scale: pressed ? 0.94 : 1 }] })}><Ionicons name={icon} size={27} color={inverse ? color : T.white} /></Pressable><Text style={{ color: T.muted, fontSize: 12, lineHeight: 16, fontWeight: "900" }}>{label}</Text></View>;
+function FloatingQuestControls({ accent, duration, paused, takingPhoto, bottomInset, onTakePhoto, onUpdateMood, onQuickNote, onFinish, onTogglePaused }: { accent: string; duration: string; paused: boolean; takingPhoto: boolean; bottomInset: number; onTakePhoto: () => void; onUpdateMood: () => void; onQuickNote: () => void; onFinish: () => void; onTogglePaused: () => void }) {
+  const [open, setOpen] = useState(false);
+  const menuProgress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(menuProgress, { toValue: open ? 1 : 0, damping: 18, stiffness: 260, mass: 0.72, useNativeDriver: true }).start();
+  }, [menuProgress, open]);
+
+  useEffect(() => {
+    if (paused) setOpen(false);
+  }, [paused]);
+
+  const actions: Array<{ label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void }> = [
+    { label: "End quest", icon: "flag", color: T.red, onPress: onFinish },
+    { label: "Update mood", icon: "happy-outline", color: T.purple, onPress: onUpdateMood },
+    { label: "Quick note", icon: "create-outline", color: T.orange, onPress: onQuickNote },
+    { label: takingPhoto ? "Opening camera" : "Take photo", icon: takingPhoto ? "hourglass" : "camera", color: accent, onPress: onTakePhoto },
+  ];
+
+  return <View pointerEvents="box-none" style={{ position: "absolute", left: 20, right: 20, bottom: Math.max(bottomInset + 10, 18), flexDirection: "row", alignItems: "flex-end", gap: 12 }}>
+    <View style={{ flex: 1, minHeight: 74, borderRadius: 26, flexDirection: "row", alignItems: "center", paddingHorizontal: 18, gap: 12, backgroundColor: "rgba(255,255,255,0.96)", borderWidth: 1, borderColor: "rgba(232,223,213,0.94)", boxShadow: "0px 8px 22px rgba(35,40,37,0.20)" }}>
+      <View style={{ flex: 1, alignItems: "center", gap: 1 }}>
+        <Text style={{ color: T.dark, fontSize: 22, lineHeight: 27, fontWeight: "900", fontVariant: ["tabular-nums"], textAlign: "center" }}>{duration}</Text>
+        <Text style={{ color: T.muted, fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 0.45, textTransform: "uppercase", textAlign: "center" }}>{paused ? "Quest paused" : "Quest time"}</Text>
+      </View>
+      <View style={{ width: 1, alignSelf: "stretch", marginVertical: 13, backgroundColor: "rgba(232,223,213,0.92)" }} />
+      <Pressable accessibilityRole="button" accessibilityLabel={paused ? "Resume quest" : "Pause quest"} onPress={() => { haptic(); onTogglePaused(); }} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: paused ? `${T.green}18` : `${T.orange}18`, opacity: pressed ? 0.68 : 1, transform: [{ scale: pressed ? 0.93 : 1 }] })}><Ionicons name={paused ? "play" : "pause"} size={21} color={paused ? T.green : T.orange} /></Pressable>
+    </View>
+    <View style={{ width: 70, height: 70, overflow: "visible" }}>
+      {!paused ? <Animated.View pointerEvents={open ? "auto" : "none"} style={{ position: "absolute", right: 0, bottom: 82, width: 224, gap: 10, opacity: menuProgress, transform: [{ translateY: menuProgress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }, { scale: menuProgress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }}>
+        {actions.map((action, index) => <View key={action.label} style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
+          <View style={{ maxWidth: 150, minHeight: 38, borderRadius: 19, paddingHorizontal: 13, justifyContent: "center", backgroundColor: "rgba(255,255,255,0.96)", borderWidth: 1, borderColor: "rgba(232,223,213,0.94)", boxShadow: "0px 4px 13px rgba(35,40,37,0.16)" }}><Text numberOfLines={1} style={{ color: T.dark, fontSize: 13, lineHeight: 17, fontWeight: "900" }}>{action.label}</Text></View>
+          <Pressable accessibilityRole="button" accessibilityLabel={action.label} disabled={takingPhoto && index === 3} onPress={() => { haptic(); setOpen(false); action.onPress(); }} style={({ pressed }) => ({ width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: action.color, borderWidth: 3, borderColor: T.white, boxShadow: "0px 5px 13px rgba(35,40,37,0.20)", opacity: pressed ? 0.78 : 1, transform: [{ scale: pressed ? 0.93 : 1 }] })}><Ionicons name={action.icon} size={25} color={T.white} /></Pressable>
+        </View>)}
+      </Animated.View> : null}
+      {paused ? <Pressable accessibilityRole="button" accessibilityLabel="End quest" onPress={() => { haptic(); onFinish(); }} style={({ pressed }) => ({ position: "absolute", right: 0, bottom: 0, width: 70, height: 70, borderRadius: 35, alignItems: "center", justifyContent: "center", backgroundColor: T.red, borderWidth: 3, borderColor: T.white, boxShadow: "0px 8px 20px rgba(35,40,37,0.24)", transform: [{ scale: pressed ? 0.92 : 1 }] })}><Ionicons name="flag" size={29} color={T.white} /></Pressable> : <Pressable accessibilityRole="button" accessibilityLabel={open ? "Close quest actions" : "Open quest actions"} accessibilityState={{ expanded: open }} onPress={() => { haptic(); setOpen((current) => !current); }} style={({ pressed }) => ({ position: "absolute", right: 0, bottom: 0, width: 70, height: 70, borderRadius: 35, alignItems: "center", justifyContent: "center", backgroundColor: open ? T.dark : accent, borderWidth: 3, borderColor: T.white, boxShadow: "0px 8px 20px rgba(35,40,37,0.24)", transform: [{ scale: pressed ? 0.92 : 1 }] })}><Animated.View style={{ transform: [{ rotate: menuProgress.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] }) }] }}><Ionicons name="add" size={38} color={T.white} /></Animated.View></Pressable>}
+    </View>
+  </View>;
 }
 
 function StaleQuestActionButton({ label, icon, onPress, disabled = false, inverse = false }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void; disabled?: boolean; inverse?: boolean }) {
@@ -235,19 +263,20 @@ export function ActiveQuestScreen() {
   const [tab, setTab] = useState<ActiveQuestTab>("map");
   const [completeVisible, setCompleteVisible] = useState(false);
   const [takingPhoto, setTakingPhoto] = useState(false);
+  const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
+  const [pendingPhotoCaption, setPendingPhotoCaption] = useState("");
+  const [moodVisible, setMoodVisible] = useState(false);
+  const [selectedMood, setSelectedMood] = useState("Okay");
+  const [quickNoteVisible, setQuickNoteVisible] = useState(false);
+  const [quickNote, setQuickNote] = useState("");
   const [countdownStep, setCountdownStep] = useState<CountdownStep | null>(null);
   const [countdownLaunchAt, setCountdownLaunchAt] = useState<number | null>(null);
   const [startupCompleteForSession, setStartupCompleteForSession] = useState<string | null>(null);
   const [photoSavedVisible, setPhotoSavedVisible] = useState(false);
-  const [finishHintVisible, setFinishHintVisible] = useState(false);
   const [staleQuestReminderVisible, setStaleQuestReminderVisible] = useState(false);
   const [staleQuestActionBusy, setStaleQuestActionBusy] = useState(false);
   const [completionReward, setCompletionReward] = useState<{ result: CompletionResult; questTitle: string } | null>(null);
   const [deviceLocation, setDeviceLocation] = useState<MapCoordinate | null>(null);
-  const finishHoldProgress = useRef(new Animated.Value(0)).current;
-  const finishHoldAnimation = useRef<Animated.CompositeAnimation | null>(null);
-  const finishHoldTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const finishHoldCompleted = useRef(false);
   const countdownSessionRef = useRef<string | null>(null);
   const routeRecordingStartedSessionRef = useRef<string | null>(null);
   const staleQuestReminderShownForSessionRef = useRef<string | null>(null);
@@ -278,12 +307,15 @@ export function ActiveQuestScreen() {
   const [entryBody, setEntryBody] = useState("");
   const paused = snapshot?.session.recordingState === "paused";
   const countdownStartedAt = snapshot?.session.startedAt ?? session?.startedAt;
-  const elapsedDuration = useElapsedDuration(session?.startedAt);
+  // Keep the wall-clock duration for the stale-session safeguard, but render
+  // the timer from the pause-aware local recording record.
+  const wallElapsedDuration = useElapsedDuration(session?.startedAt);
+  const currentRecordingSegmentDuration = useElapsedDuration(snapshot?.session.activeSince);
+  const elapsedDuration = (snapshot?.session.activeDurationMs ?? 0) + (paused ? 0 : currentRecordingSegmentDuration);
   const isFreshSession = Boolean(session?.id && countdownStartedAt && Date.now() - new Date(countdownStartedAt).getTime() <= 15_000);
   const shouldPlayCountdown = isFreshSession && snapshot?.session.recordingState === "paused";
   const isCountdownPending = shouldPlayCountdown && countdownSessionRef.current !== session?.id && !countdownLaunchAt;
   const isStartingQuest = isCountdownPending || Boolean(countdownLaunchAt && startupCompleteForSession !== session?.id);
-  const statusNotice: QuestNotice = photoSavedVisible ? "photo-saved" : finishHintVisible ? "hold-to-finish" : paused ? "paused" : "active";
   useEffect(() => {
     if (quest && snapshot) {
       setEntryTitle(snapshot.session.entryTitle || `Day 1: ${quest.title}`);
@@ -300,10 +332,10 @@ export function ActiveQuestScreen() {
   }, [entryBody, entryTitle, saveEntry, snapshot]);
 
   useEffect(() => {
-    if (!session?.id || elapsedDuration < STALE_ACTIVE_QUEST_AFTER_MS || staleQuestReminderShownForSessionRef.current === session.id) return;
+    if (!session?.id || wallElapsedDuration < STALE_ACTIVE_QUEST_AFTER_MS || staleQuestReminderShownForSessionRef.current === session.id) return;
     staleQuestReminderShownForSessionRef.current = session.id;
     setStaleQuestReminderVisible(true);
-  }, [elapsedDuration, session?.id]);
+  }, [session?.id, wallElapsedDuration]);
 
   const resolveDeviceLocation = useCallback(async () => {
     const permission = await Location.getForegroundPermissionsAsync();
@@ -379,17 +411,6 @@ export function ActiveQuestScreen() {
     return () => clearTimeout(timer);
   }, [photoSavedVisible]);
 
-  useEffect(() => {
-    if (!finishHintVisible) return;
-    const timer = setTimeout(() => setFinishHintVisible(false), 2_800);
-    return () => clearTimeout(timer);
-  }, [finishHintVisible]);
-
-  useEffect(() => () => {
-    finishHoldAnimation.current?.stop();
-    if (finishHoldTimeout.current) clearTimeout(finishHoldTimeout.current);
-  }, []);
-
   const duration = formatElapsedFull(elapsedDuration);
 
   if (!session || !quest) return <View style={{ flex: 1, paddingTop: insets.top + 24, backgroundColor: T.bg }}><EmptyState emoji="🧭" title="No active quest" body="Start a solo quest from Explore to create its live home." /></View>;
@@ -397,33 +418,6 @@ export function ActiveQuestScreen() {
   const togglePaused = () => { void (paused ? resume() : pause()); };
   const enableRouteRecording = beginQuestRoute;
   const handleEnableRouteRecording = () => { void enableRouteRecording(); };
-  const beginFinishQuestHold = () => {
-    if (finishHoldTimeout.current) clearTimeout(finishHoldTimeout.current);
-    setFinishHintVisible(true);
-    finishHoldAnimation.current?.stop();
-    finishHoldProgress.setValue(0);
-    finishHoldCompleted.current = false;
-    finishHoldAnimation.current = Animated.timing(finishHoldProgress, { toValue: 1, duration: END_QUEST_HOLD_DURATION, useNativeDriver: false });
-    finishHoldAnimation.current.start();
-    // The visual and the confirmation start on the same press. Do not wait on
-    // Animated's completion callback: it can be delivered late after the fill
-    // has already reached the end, especially while the map is rendering.
-    finishHoldTimeout.current = setTimeout(() => {
-      if (finishHoldCompleted.current) return;
-      finishHoldCompleted.current = true;
-      finishHoldTimeout.current = null;
-      haptic();
-      setFinishHintVisible(false);
-      setCompleteVisible(true);
-    }, END_QUEST_HOLD_DURATION);
-  };
-  const cancelFinishQuestHold = () => {
-    if (finishHoldCompleted.current) return;
-    if (finishHoldTimeout.current) clearTimeout(finishHoldTimeout.current);
-    finishHoldTimeout.current = null;
-    finishHoldAnimation.current?.stop();
-    finishHoldProgress.setValue(0);
-  };
   const takePhoto = async () => {
     if (takingPhoto) return;
     setTakingPhoto(true);
@@ -451,8 +445,8 @@ export function ActiveQuestScreen() {
         quality: 0.78,
       });
       if (!result.canceled && result.assets[0]) {
-        await addPhoto(result.assets[0].uri);
-        setPhotoSavedVisible(true);
+        setPendingPhotoUri(result.assets[0].uri);
+        setPendingPhotoCaption("");
       }
     } catch (nextError) {
       Alert.alert(
@@ -464,6 +458,32 @@ export function ActiveQuestScreen() {
     } finally {
       setTakingPhoto(false);
     }
+  };
+  const appendToReflection = async (line: string) => {
+    const next = [entryBody.trim(), line].filter(Boolean).join("\n\n");
+    setEntryBody(next);
+    await saveEntry({ title: entryTitle || `Day 1: ${quest.title}`, body: next });
+  };
+  const saveMoodCheckIn = async () => {
+    await appendToReflection(`Check-in · ${selectedMood}`);
+    setMoodVisible(false);
+    showFeedback({ message: "Feeling check-in added to your quest timeline.", icon: "heart", color: T.purple });
+  };
+  const saveQuickNote = async () => {
+    const note = quickNote.trim();
+    if (!note) { setQuickNoteVisible(false); return; }
+    await appendToReflection(`Note · ${note}`);
+    setQuickNote("");
+    setQuickNoteVisible(false);
+    showFeedback({ message: "Quick note saved to your quest.", icon: "create", color: T.orange });
+  };
+  const savePendingPhoto = async () => {
+    if (!pendingPhotoUri) return;
+    await addPhoto(pendingPhotoUri);
+    if (pendingPhotoCaption.trim()) await appendToReflection(`Photo note · ${pendingPhotoCaption.trim()}`);
+    setPendingPhotoUri(null);
+    setPendingPhotoCaption("");
+    setPhotoSavedVisible(true);
   };
   const saveStaleQuestForLater = async () => {
     if (staleQuestActionBusy) return;
@@ -507,7 +527,7 @@ export function ActiveQuestScreen() {
     <View style={{ backgroundColor: T.white, paddingTop: insets.top + 10, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: T.border }}>
       <View style={{ paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <View style={{ flex: 1, gap: 3 }}>
-          <Text style={{ color: T.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" }}>ACTIVE QUEST</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: paused ? T.orange : T.green }} /><Text style={{ color: T.dark, fontSize: 13, lineHeight: 17, fontWeight: "900" }}>{paused ? "Quest paused" : "Quest in progress"}</Text></View>
           <Text numberOfLines={1} style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 25, lineHeight: 31, fontWeight: "900" }}>{quest.title}</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Leave active quest" onPress={() => router.back()} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, backgroundColor: "#f7f3ee", borderWidth: 1, borderColor: T.border, alignItems: "center", justifyContent: "center", transform: [{ scale: pressed ? 0.94 : 1 }] })}><Ionicons name="close" size={22} color={T.dark} /></Pressable>
@@ -517,30 +537,38 @@ export function ActiveQuestScreen() {
     <View style={{ flex: 1 }}>
       {tab === "map" ? isStartingQuest ? <QuestStartupSurface accent={accent} step={countdownStep} /> : <LiveMap accent={accent} route={snapshot?.route ?? []} renderRoute={snapshot?.renderRoute ?? []} deviceLocation={deviceLocation} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={null} onEnableTracking={handleEnableRouteRecording} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} /> : <EntryPlaceholder quest={quest} title={entryTitle} body={entryBody} onChangeTitle={setEntryTitle} onChangeBody={setEntryBody} />}
     </View>
-    {!countdownStep ? <QuestNoticePill notice={statusNotice} accent={accent} holdProgress={finishHintVisible ? finishHoldProgress : undefined} message={trackingMessage} /> : null}
-    <BlurView intensity={12} tint="light" style={{ position: "absolute", left: 0, right: 0, bottom: 0, minHeight: insets.bottom + BOTTOM_SHEET_CONTENT_HEIGHT, paddingTop: 12, paddingBottom: Math.max(insets.bottom + 8, 22), paddingHorizontal: 32, borderTopLeftRadius: 34, borderTopRightRadius: 34, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.48)", borderTopWidth: 1, borderColor: "rgba(232,223,213,0.58)", boxShadow: "0px -3px 16px rgba(61,52,56,0.10)", justifyContent: "space-between" }}>
-      <View style={{ alignSelf: "center", width: 42, height: 4, borderRadius: 2, backgroundColor: "rgba(210,199,188,0.70)" }} />
-      <View style={{ flexDirection: "row" }}>
-        <View style={{ flex: 1, alignItems: "center", gap: 3 }}>
-          <Text style={{ color: T.dark, fontSize: 28, lineHeight: 34, fontWeight: "900", fontVariant: ["tabular-nums"], textAlign: "center" }}>{snapshot?.photoCount ?? 0}</Text>
-          <Text style={{ color: T.muted, fontSize: 13, lineHeight: 17, fontWeight: "900", textTransform: "uppercase", textAlign: "center" }}>Photos</Text>
+    {!countdownStep && photoSavedVisible ? <QuestNoticePill notice="photo-saved" accent={accent} message={trackingMessage} /> : null}
+    <FloatingQuestControls accent={accent} duration={duration} paused={paused} takingPhoto={takingPhoto} bottomInset={insets.bottom} onTakePhoto={() => void takePhoto()} onUpdateMood={() => setMoodVisible(true)} onQuickNote={() => setQuickNoteVisible(true)} onFinish={() => setCompleteVisible(true)} onTogglePaused={togglePaused} />
+    <Sheet visible={moodVisible} onClose={() => setMoodVisible(false)} maxHeight="76%">
+      <View style={{ paddingHorizontal: 24, paddingBottom: 26, gap: 20 }}>
+        <View style={{ alignItems: "center", gap: 7, paddingTop: 4 }}>
+          <Text style={{ color: T.dark, fontSize: 24, lineHeight: 30, fontWeight: "900", textAlign: "center" }}>How does this moment feel?</Text>
+          <Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700", textAlign: "center" }}>Track how this moment felt.</Text>
         </View>
-        <View style={{ width: 1, marginVertical: 4, backgroundColor: T.border }} />
-        <View style={{ flex: 1, alignItems: "center", gap: 3 }}>
-          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={{ width: "100%", color: T.dark, fontSize: 28, lineHeight: 34, fontWeight: "900", fontVariant: ["tabular-nums"], textAlign: "center" }}>{((snapshot?.session.distanceMeters ?? 0) / 1_000).toFixed(2)} km</Text>
-          <Text style={{ color: T.muted, fontSize: 13, lineHeight: 17, fontWeight: "900", textTransform: "uppercase", textAlign: "center" }}>Distance</Text>
+        <View style={{ alignItems: "center", gap: 11 }}>
+          <View style={{ width: 112, height: 112, borderRadius: 56, alignItems: "center", justifyContent: "center", backgroundColor: `${T.orange}18`, borderWidth: 2, borderColor: `${T.orange}38`, boxShadow: "0px 10px 26px rgba(243,156,18,0.18)" }}><Text style={{ fontSize: 56 }}>{selectedMood === "Tough" ? "😣" : selectedMood === "Low" ? "😕" : selectedMood === "Okay" ? "😐" : selectedMood === "Good" ? "🙂" : "😄"}</Text></View>
+          <Text style={{ color: T.dark, fontSize: 30, lineHeight: 36, fontWeight: "900" }}>{selectedMood}</Text>
         </View>
+        <View accessibilityRole="radiogroup" style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 5, padding: 6, borderRadius: 25, backgroundColor: "#f7f3ee", borderWidth: 1, borderColor: T.border }}>{["Tough", "Low", "Okay", "Good", "Great"].map((mood) => <Pressable key={mood} accessibilityRole="radio" accessibilityState={{ checked: selectedMood === mood }} accessibilityLabel={mood} onPress={() => setSelectedMood(mood)} style={({ pressed }) => ({ width: 47, height: 47, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: selectedMood === mood ? T.white : "transparent", borderWidth: selectedMood === mood ? 1 : 0, borderColor: selectedMood === mood ? `${T.orange}4d` : "transparent", boxShadow: selectedMood === mood ? "0px 2px 7px rgba(61,52,56,0.10)" : "none", opacity: pressed ? 0.7 : 1 })}><Text style={{ fontSize: 23 }}>{mood === "Tough" ? "😣" : mood === "Low" ? "😕" : mood === "Okay" ? "😐" : mood === "Good" ? "🙂" : "😄"}</Text></Pressable>)}</View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Save check-in" onPress={() => void saveMoodCheckIn()} style={({ pressed }) => ({ minHeight: 58, borderRadius: 22, backgroundColor: T.blue, borderBottomWidth: 6, borderBottomColor: "#258fd8", alignItems: "center", justifyContent: "center", opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 17, lineHeight: 22, fontWeight: "900" }}>Save check-in</Text></Pressable>
       </View>
-      <View style={{ alignItems: "center", gap: 3, paddingVertical: 2 }}>
-        <Text style={{ color: T.dark, fontSize: 34, lineHeight: 40, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{duration}</Text>
-        <Text style={{ color: T.muted, fontSize: 13, lineHeight: 17, fontWeight: "900", textTransform: "uppercase" }}>Time</Text>
+    </Sheet>
+    <Sheet visible={quickNoteVisible} onClose={() => { setQuickNote(""); setQuickNoteVisible(false); }} maxHeight="58%">
+      <View style={{ paddingHorizontal: 24, paddingBottom: 26, gap: 14 }}>
+        <View style={{ gap: 3 }}><Text style={{ color: T.dark, fontSize: 24, lineHeight: 30, fontWeight: "900" }}>Quick note</Text><Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>Capture something before it slips away.</Text></View>
+        <TextInput value={quickNote} onChangeText={setQuickNote} autoFocus multiline textAlignVertical="top" placeholder="Found a hidden café." placeholderTextColor={T.muted} style={{ minHeight: 148, borderWidth: 2, borderColor: T.border, borderRadius: 18, padding: 14, color: T.dark, fontSize: 16, lineHeight: 23, fontWeight: "700", backgroundColor: T.bg }} />
+        <View style={{ flexDirection: "row", gap: 11 }}><Pressable accessibilityRole="button" accessibilityLabel="Delete note" onPress={() => { setQuickNote(""); setQuickNoteVisible(false); }} style={({ pressed }) => ({ flex: 1, minHeight: 54, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: `${T.red}12`, borderWidth: 1.5, borderColor: `${T.red}42`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.red, fontSize: 16, fontWeight: "900" }}>Delete</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Save note" onPress={() => void saveQuickNote()} style={({ pressed }) => ({ flex: 1, minHeight: 54, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: T.blue, borderBottomWidth: 5, borderBottomColor: "#258fd8", opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 16, fontWeight: "900" }}>Save</Text></Pressable></View>
       </View>
-      <View style={{ position: "relative", flexDirection: "row", alignItems: "flex-start", justifyContent: "center", marginHorizontal: -32, paddingTop: 12, paddingHorizontal: 32, borderTopWidth: 1, borderTopColor: "rgba(232,223,213,0.48)", backgroundColor: "rgba(255,255,255,0.16)" }}>
-        {paused ? <View style={{ position: "absolute", left: 32, top: 12, alignItems: "center" }}><RoundAction icon="stop" label="End quest" color={T.red} holdToConfirm onPress={() => undefined} onPressIn={beginFinishQuestHold} onPressOut={cancelFinishQuestHold} /></View> : null}
-        <View style={{ flex: 1, alignItems: "center" }}><RoundAction icon={paused ? "play" : "pause"} label={paused ? "Resume" : "Pause"} color={accent} onPress={togglePaused} /></View>
-        <View style={{ position: "absolute", right: 32, top: 12, alignItems: "center" }}><RoundAction icon={takingPhoto ? "hourglass" : "camera"} label="Take photo" color={accent} inverse onPress={() => void takePhoto()} /></View>
-      </View>
-    </BlurView>
+    </Sheet>
+    <Sheet visible={Boolean(pendingPhotoUri)} onClose={() => { setPendingPhotoUri(null); setPendingPhotoCaption(""); }} maxHeight="88%" fillHeight>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 26, gap: 14 }} keyboardShouldPersistTaps="handled">
+        <View style={{ gap: 3 }}><Text style={{ color: T.dark, fontSize: 24, lineHeight: 30, fontWeight: "900" }}>Your quest moment</Text><Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>Add a caption if you want to remember the detail later.</Text></View>
+        {pendingPhotoUri ? <Image source={{ uri: pendingPhotoUri }} resizeMode="cover" style={{ width: "100%", aspectRatio: 1, borderRadius: 22, backgroundColor: T.border }} /> : null}
+        <View style={{ gap: 6 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>Caption</Text><TextInput value={pendingPhotoCaption} onChangeText={setPendingPhotoCaption} multiline textAlignVertical="top" placeholder="What made this moment memorable?" placeholderTextColor={T.muted} style={{ minHeight: 96, borderWidth: 2, borderColor: T.border, borderRadius: 18, padding: 13, color: T.dark, fontSize: 15, lineHeight: 21, fontWeight: "700", backgroundColor: T.bg }} /></View>
+        <View style={{ flexDirection: "row", gap: 11 }}><Pressable accessibilityRole="button" accessibilityLabel="Retake photo" onPress={() => { setPendingPhotoUri(null); setPendingPhotoCaption(""); void takePhoto(); }} style={({ pressed }) => ({ flex: 1, minHeight: 51, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: `${accent}12`, borderWidth: 1.5, borderColor: `${accent}45`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: accent, fontSize: 15, fontWeight: "900" }}>Retake photo</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Never mind" onPress={() => { setPendingPhotoUri(null); setPendingPhotoCaption(""); }} style={({ pressed }) => ({ flex: 1, minHeight: 51, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "#f7f3ee", borderWidth: 1.5, borderColor: T.border, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.muted, fontSize: 15, fontWeight: "900" }}>Never mind</Text></Pressable></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Save photo" onPress={() => void savePendingPhoto()} style={({ pressed }) => ({ minHeight: 58, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: T.blue, borderBottomWidth: 6, borderBottomColor: "#258fd8", opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 17, fontWeight: "900" }}>Save photo</Text></Pressable>
+      </ScrollView>
+    </Sheet>
     <LogLoreFlow visible={completeVisible} quest={quest} initialTitle={snapshot?.session.entryTitle ?? ""} initialReflection={snapshot?.session.entryBody ?? ""} photoUris={(snapshot?.photos ?? []).map((photo) => photo.uri)} durationSeconds={Math.round((snapshot?.session.activeDurationMs ?? 0) / 1_000)} distanceMeters={snapshot?.session.distanceMeters ?? 0} onSaveDraft={(draft) => saveEntry(draft)} onClose={() => setCompleteVisible(false)} onFinished={async (result) => { await finishLocalQuest(); await refresh(); setCompleteVisible(false); setCompletionReward({ result, questTitle: quest.title }); }} />
     <StaleQuestReminder visible={staleQuestReminderVisible} elapsedLabel={formatElapsedFull(elapsedDuration)} busy={staleQuestActionBusy} onResume={() => setStaleQuestReminderVisible(false)} onSaveForLater={() => void saveStaleQuestForLater()} onAbandon={confirmAbandonStaleQuest} />
     <CompletionRewardMoment completion={completionReward?.result ?? null} questTitle={completionReward?.questTitle ?? ""} onJournal={() => { const completionId = completionReward?.result.completionId; setCompletionReward(null); router.replace(completionId ? `/memory/${completionId}` : "/(tabs)/journal"); }} onExplore={() => { setCompletionReward(null); router.replace("/(tabs)/explore"); }} />

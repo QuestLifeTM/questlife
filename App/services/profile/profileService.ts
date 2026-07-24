@@ -44,7 +44,12 @@ export async function fetchProfileOverview(userId?: string): Promise<ProfileOver
     isSelf: payload.isSelf,
     isFriend: payload.isFriend,
     profile: payload.profile ?? null,
-    stats: payload.stats,
+    stats: {
+      ...payload.stats,
+      // Older deployed schemas do not yet include the Quest Trail payload.
+      // Keep the profile usable while the matching migration rolls out.
+      topCategories: payload.stats?.topCategories ?? [],
+    },
     posts: payload.posts ?? [],
     recentCompletions: payload.recentCompletions ?? [],
   };

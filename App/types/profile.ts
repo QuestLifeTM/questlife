@@ -1,3 +1,5 @@
+import type { QuestCategory } from "@/types/content";
+
 export type Profile = {
   avatar_url: string | null;
   created_at: string;
@@ -94,6 +96,10 @@ export type ProfileOverview = {
     friendsCount: number;
     daysOnApp: number;
     totalQuestDurationSeconds: number;
+    topCategories: Array<{
+      category: QuestCategory;
+      completedQuests: number;
+    }>;
   };
   posts: QuestPost[];
   recentCompletions: ProfileRecentCompletion[];
