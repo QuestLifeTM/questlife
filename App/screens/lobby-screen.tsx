@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Pressable, StyleProp, StyleSheet, Text, TextStyle, View } from "react-native";
+import { Animated, Easing, Pressable, StyleProp, StyleSheet, Text, TextStyle, View, useWindowDimensions } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { getLobbyLayout, lobbyDesign, resolveLobbyStates } from "@/components/lobby-design";
@@ -330,6 +330,8 @@ function ActiveQuestCard({
   onView: () => void;
   reducedMotion: boolean;
 }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 390;
   const category = categoryColor[activeQuest.category] ?? { text: activeQuest.color, bg: `${activeQuest.color}18` };
   const difficulty = difficultyColor[activeQuest.difficulty];
 
@@ -344,7 +346,7 @@ function ActiveQuestCard({
             </View>
           </View>
           <View style={styles.activeCopy}>
-            <Text style={styles.activeTitle} numberOfLines={1}>{activeQuest.title}</Text>
+            <Text adjustsFontSizeToFit minimumFontScale={0.84} style={[styles.activeTitle, compact ? styles.activeTitleCompact : null]} numberOfLines={2}>{activeQuest.title}</Text>
             <Text style={styles.activeDescription} numberOfLines={2}>{activeQuest.description}</Text>
           </View>
           <View style={styles.activeStats}>
@@ -984,6 +986,10 @@ const styles = StyleSheet.create({
     fontSize: 23,
     lineHeight: 28,
     letterSpacing: -0.5,
+  },
+  activeTitleCompact: {
+    fontSize: 21,
+    lineHeight: 26,
   },
   activeCopy: { gap: 5 },
   activeDescription: {

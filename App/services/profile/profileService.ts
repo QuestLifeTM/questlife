@@ -1,10 +1,19 @@
-import { Profile, ProfileEditInput, ProfileOverview, QuestFeedPost, QuestPost, QuestPostStats, RequiredProfileName } from "@/types/profile";
+import { Profile, ProfileEditInput, ProfileOverview, ProfileStatVisibility, QuestFeedPost, QuestPost, QuestPostStats, RequiredProfileName } from "@/types/profile";
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { toLocalDateKey } from "@/services/journal/journalService";
 import type { QuestCategory } from "@/types/content";
 
 export type WeeklyCompletedQuestActivity = { day: string; value: number };
+export const DEFAULT_PROFILE_STAT_VISIBILITY: ProfileStatVisibility = {
+  highestStreak: true,
+  level: true,
+  questsDone: true,
+  timeSpent: true,
+  totalXp: true,
+  followers: true,
+  following: true,
+};
 export type ProfileQuestInsights = {
   completionRate: number | null;
   activeDaysThisMonth: number;
@@ -199,9 +208,14 @@ export async function fetchProfileOverview(userId?: string): Promise<ProfileOver
   return {
     isSelf: payload.isSelf,
     isFriend: payload.isFriend,
-    profile: payload.profile ?? null,
+    profile: payload.profile ? {
+      ...payload.profile,
+      statVisibility: { ...DEFAULT_PROFILE_STAT_VISIBILITY, ...(payload.profile.statVisibility ?? {}) },
+    } : null,
     stats: {
       ...payload.stats,
+      followers: payload.stats?.followers ?? 0,
+      following: payload.stats?.following ?? 0,
       // Older deployed schemas do not yet include the Quest Trail payload.
       // Keep the profile usable while the matching migration rolls out.
       topCategories,
@@ -243,6 +257,7 @@ export async function updateProfile(input: ProfileEditInput) {
   if (input.emoji !== undefined) payload.emoji = input.emoji;
   if (input.avatarColor !== undefined) payload.avatar_color = input.avatarColor;
   if (input.title !== undefined) payload.title = input.title?.trim() || null;
+  if (input.statVisibility !== undefined) payload.stat_visibility = input.statVisibility;
 
   const { error } = await supabase.from("profiles").update(payload).eq("id", userData.user.id);
   if (error) throw error;

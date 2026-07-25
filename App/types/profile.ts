@@ -1,5 +1,8 @@
 import type { QuestCategory } from "@/types/content";
 
+export type ProfileStatId = "highestStreak" | "level" | "questsDone" | "timeSpent" | "totalXp" | "followers" | "following";
+export type ProfileStatVisibility = Record<ProfileStatId, boolean>;
+
 export type Profile = {
   avatar_url: string | null;
   created_at: string;
@@ -88,6 +91,7 @@ export type ProfileOverview = {
     totalXp: number;
     joinedAt: string;
     streakVisibility: "public" | "private";
+    statVisibility: ProfileStatVisibility;
   } | null;
   stats: {
     totalQuests: number;
@@ -96,6 +100,8 @@ export type ProfileOverview = {
     friendsCount: number;
     daysOnApp: number;
     totalQuestDurationSeconds: number;
+    followers: number;
+    following: number;
     topCategories: Array<{
       category: QuestCategory;
       completedQuests: number;
@@ -113,6 +119,7 @@ export type ProfileEditInput = {
   emoji?: string;
   avatarColor?: string;
   title?: string | null;
+  statVisibility?: ProfileStatVisibility;
 };
 
 export type RequiredProfileName = Pick<Profile, "first_name" | "last_name">;

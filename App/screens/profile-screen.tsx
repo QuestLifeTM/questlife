@@ -3,7 +3,7 @@ import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Animated, Easing, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import { EmptyState, Header, Screen, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
@@ -18,8 +18,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { formatElapsedCompact } from "@/hooks/useElapsedTime";
-import { fetchProfileOverview, fetchProfileQuestInsights, fetchWeeklyCompletedQuestActivity, ProfileQuestInsights, updateProfile, uploadProfileAvatar, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
-import { levelForXp, ProfileOverview, QuestFeedPost } from "@/types/profile";
+import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
+import { DEFAULT_PROFILE_STAT_VISIBILITY, fetchProfileOverview, fetchProfileQuestInsights, fetchWeeklyCompletedQuestActivity, ProfileQuestInsights, updateProfile, uploadProfileAvatar, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
+import { levelForXp, ProfileOverview, ProfileStatId, ProfileStatVisibility, QuestFeedPost } from "@/types/profile";
 
 function accountValue(metadata: unknown, key: string) {
   if (!metadata || typeof metadata !== "object") return "";
@@ -78,6 +79,71 @@ function ImageControl({ label, onPress, style }: { label: string; onPress: () =>
 }
 
 type ProfileTab = "posts" | "stats";
+
+const PROFILE_STAT_PILL_WIDTH = 152;
+const PROFILE_STAT_PILL_GAP = 10;
+type ProfileCarouselMetric = { id: ProfileStatId; label: string; value: string; icon: keyof typeof Ionicons.glyphMap; color: string; background: string };
+
+function profileCarouselMetrics(overview: ProfileOverview): ProfileCarouselMetric[] {
+  const { profile, stats } = overview;
+  const level = levelForXp(profile?.totalXp ?? 0).level;
+  return [
+    { id: "highestStreak", label: "Highest streak", value: `${stats.longestStreak} days`, icon: "flame", color: T.orange, background: "#fff0df" },
+    { id: "level", label: "Level", value: `Level ${level}`, icon: "rocket", color: T.purple, background: "#f2eaff" },
+    { id: "questsDone", label: "Quests done", value: stats.totalQuests.toLocaleString(), icon: "checkmark-circle", color: T.green, background: "#e6f8ed" },
+    { id: "timeSpent", label: "Time spent", value: formatElapsedCompact((stats.totalQuestDurationSeconds ?? 0) * 1_000), icon: "time", color: T.blue, background: "#e5f3ff" },
+    { id: "totalXp", label: "Total XP", value: `${(profile?.totalXp ?? 0).toLocaleString()} XP`, icon: "flash", color: "#d39a00", background: "#fff7d8" },
+    { id: "followers", label: "Followers", value: (stats.followers ?? 0).toLocaleString(), icon: "people", color: T.pink, background: "#ffe8f3" },
+    { id: "following", label: "Following", value: (stats.following ?? 0).toLocaleString(), icon: "person-add", color: T.cyan, background: "#e1faff" },
+  ];
+}
+
+function ProfileStatMarquee({ overview, visibility }: { overview: ProfileOverview; visibility: ProfileStatVisibility }) {
+  const reduceMotion = useReducedMotionPreference();
+  const translateX = useRef(new Animated.Value(0)).current;
+  const metrics = profileCarouselMetrics(overview).filter((metric) => visibility[metric.id]);
+  const marqueeDistance = (PROFILE_STAT_PILL_WIDTH + PROFILE_STAT_PILL_GAP) * metrics.length;
+
+  useEffect(() => {
+    translateX.stopAnimation();
+    translateX.setValue(0);
+    if (reduceMotion) return;
+    if (!metrics.length) return;
+    const animation = Animated.loop(Animated.timing(translateX, { toValue: -marqueeDistance, duration: Math.max(7_000, metrics.length * 4_800), easing: Easing.linear, useNativeDriver: true }));
+    animation.start();
+    return () => animation.stop();
+  }, [marqueeDistance, metrics.length, reduceMotion, translateX]);
+
+  const pill = (metric: typeof metrics[number], index: number) => <View key={`${metric.label}-${index}`} style={{ width: PROFILE_STAT_PILL_WIDTH, minHeight: 48, paddingHorizontal: 12, borderRadius: 24, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: metric.background, borderWidth: 1.5, borderColor: `${metric.color}38` }}>
+    <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${metric.color}1c` }}><Ionicons name={metric.icon} size={16} color={metric.color} /></View>
+    <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={{ color: metric.color, fontFamily: "RubikBold", fontSize: 13, lineHeight: 16 }}>{metric.value}</Text><Text numberOfLines={1} style={{ color: T.muted, marginTop: 1, fontFamily: "RubikBold", fontSize: 9, lineHeight: 12, letterSpacing: 0.45, textTransform: "uppercase" }}>{metric.label}</Text></View>
+  </View>;
+
+  if (!metrics.length) return <View style={{ minHeight: 48, paddingHorizontal: 18, alignItems: "center", justifyContent: "center", backgroundColor: T.white }}><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12 }}>Choose a stat below to show it here.</Text></View>;
+  if (reduceMotion) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: PROFILE_STAT_PILL_GAP, paddingHorizontal: 2 }}>{metrics.map(pill)}</ScrollView>;
+
+  return <View accessibilityLabel={`Profile stats: ${metrics.map((metric) => `${metric.label} ${metric.value}`).join(", ")}`} style={{ overflow: "hidden" }}>
+    <Animated.View style={{ flexDirection: "row", gap: PROFILE_STAT_PILL_GAP, transform: [{ translateX }] }}>{[...metrics, ...metrics].map(pill)}</Animated.View>
+  </View>;
+}
+
+function ProfileStatVisibilityBento({ overview, visibility, onToggle }: { overview: ProfileOverview; visibility: ProfileStatVisibility; onToggle: (id: ProfileStatId) => void }) {
+  const shownCount = Object.values(visibility).filter(Boolean).length;
+  return <View style={{ width: "100%", marginTop: 14, gap: 9 }}>
+    <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20 }}>Carousel stats</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 11, lineHeight: 15 }}>Choose what friends can see · keep at least 3.</Text></View><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 11 }}>{shownCount}/7 shown</Text></View>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+      {profileCarouselMetrics(overview).map((metric) => {
+        const visible = visibility[metric.id];
+        const mustStayVisible = visible && shownCount <= 3;
+        return <View key={metric.id} style={{ width: "48.7%", minHeight: 68, padding: 10, borderRadius: 18, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: visible ? metric.background : T.white, borderWidth: 1.5, borderColor: visible ? `${metric.color}55` : T.border, opacity: visible ? 1 : 0.64 }}>
+          <View style={{ width: 27, height: 27, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${metric.color}1c` }}><Ionicons name={metric.icon} size={15} color={metric.color} /></View>
+          <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 11, lineHeight: 14 }}>{metric.label}</Text><Text numberOfLines={1} style={{ color: metric.color, marginTop: 1, fontFamily: "RubikBold", fontSize: 12, lineHeight: 15 }}>{metric.value}</Text></View>
+          <Pressable accessibilityRole="switch" accessibilityState={{ checked: visible, disabled: mustStayVisible }} accessibilityLabel={mustStayVisible ? `${metric.label} must remain visible because at least three stats are required` : `${visible ? "Hide" : "Show"} ${metric.label} from friends`} disabled={mustStayVisible} onPress={() => onToggle(metric.id)} hitSlop={6} style={({ pressed }) => ({ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: visible ? metric.color : T.bg, borderWidth: 1.5, borderColor: visible ? metric.color : T.border, opacity: mustStayVisible ? 0.5 : pressed ? 0.7 : 1 })}><Ionicons name={visible ? "eye" : "eye-off"} size={15} color={visible ? T.white : T.muted} /></Pressable>
+        </View>;
+      })}
+    </View>
+  </View>;
+}
 
 /** Starts chart motion only when the section actually enters the viewport. */
 function ScrollTriggered({ scrollY, children }: { scrollY: number; children: (active: boolean) => ReactNode }) {
@@ -195,6 +261,7 @@ export function ProfileScreen() {
   const [draftName, setDraftName] = useState("");
   const [draftBio, setDraftBio] = useState("");
   const [draftAvatarUri, setDraftAvatarUri] = useState<string | null>(null);
+  const [draftStatVisibility, setDraftStatVisibility] = useState<ProfileStatVisibility>(DEFAULT_PROFILE_STAT_VISIBILITY);
   const [readOnlyContentTop, setReadOnlyContentTop] = useState<number | null>(null);
   const [managedPost, setManagedPost] = useState<QuestFeedPost | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
@@ -204,17 +271,16 @@ export function ProfileScreen() {
     setLoading(true);
     try {
       const next = await fetchProfileOverview();
-      const [activity, nextInsights] = await Promise.all([
-        fetchWeeklyCompletedQuestActivity().catch(() => []),
-        next.profile ? fetchProfileQuestInsights(next.profile.userId).catch(() => null) : Promise.resolve(null),
-      ]);
       setOverview(next.profile ? next : null);
-      setWeeklyActivity(activity);
-      setInsights(nextInsights);
+      // Stats queries are intentionally deferred until the Stats tab is
+      // opened, keeping the default Profile view responsive.
+      setWeeklyActivity([]);
+      setInsights(null);
       if (next.profile) {
         setDraftName(fullProfileName(next.profile.displayName, user?.user_metadata));
         setDraftBio(next.profile.bio ?? "");
         setDraftAvatarUri(next.profile.avatarUrl);
+        setDraftStatVisibility({ ...DEFAULT_PROFILE_STAT_VISIBILITY, ...next.profile.statVisibility });
       }
     } finally {
       setLoading(false);
@@ -223,12 +289,27 @@ export function ProfileScreen() {
 
   useEffect(() => { void load(); }, [user?.id]);
 
+  useEffect(() => {
+    if (activeTab !== "stats" || !overview?.profile || insights !== null) return;
+    let mounted = true;
+    Promise.all([
+      fetchWeeklyCompletedQuestActivity().catch(() => []),
+      fetchProfileQuestInsights(overview.profile.userId).catch(() => null),
+    ]).then(([activity, nextInsights]) => {
+      if (!mounted) return;
+      setWeeklyActivity(activity);
+      setInsights(nextInsights);
+    });
+    return () => { mounted = false; };
+  }, [activeTab, insights, overview?.profile]);
+
   function startEditing() {
     if (!overview?.profile) return;
     setError(null);
     setDraftName(fullProfileName(overview.profile.displayName, user?.user_metadata));
     setDraftBio(overview.profile.bio ?? "");
     setDraftAvatarUri(overview.profile.avatarUrl);
+    setDraftStatVisibility({ ...DEFAULT_PROFILE_STAT_VISIBILITY, ...overview.profile.statVisibility });
     setEditing(true);
   }
 
@@ -237,6 +318,7 @@ export function ProfileScreen() {
     setDraftName(fullProfileName(overview.profile.displayName, user?.user_metadata));
     setDraftBio(overview.profile.bio ?? "");
     setDraftAvatarUri(overview.profile.avatarUrl);
+    setDraftStatVisibility({ ...DEFAULT_PROFILE_STAT_VISIBILITY, ...overview.profile.statVisibility });
     setError(null);
     setEditing(false);
   }
@@ -254,13 +336,17 @@ export function ProfileScreen() {
       setError("Add your name before saving.");
       return;
     }
+    if (Object.values(draftStatVisibility).filter(Boolean).length < 3) {
+      setError("Keep at least three carousel stats visible.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
       const avatarChanged = Boolean(draftAvatarUri && draftAvatarUri !== overview.profile.avatarUrl);
       const avatarUrl = avatarChanged ? await uploadProfileAvatar(draftAvatarUri!) : undefined;
       const metadataUsername = accountValue(user?.user_metadata, "username");
-      await updateProfile({ displayName, bio: draftBio, avatarUrl, username: !overview.profile.username && metadataUsername ? metadataUsername : undefined });
+      await updateProfile({ displayName, bio: draftBio, avatarUrl, username: !overview.profile.username && metadataUsername ? metadataUsername : undefined, statVisibility: draftStatVisibility });
       refreshProfileName();
       await refreshSocial();
       setEditing(false);
@@ -284,6 +370,7 @@ export function ProfileScreen() {
   const avatarUri = editing ? draftAvatarUri : profile.avatarUrl;
   const displayName = fullProfileName(profile.displayName, user?.user_metadata);
   const username = accountValue(user?.user_metadata, "username") || profile.username || "adventurer";
+  const carouselVisibility = editing ? draftStatVisibility : { ...DEFAULT_PROFILE_STAT_VISIBILITY, ...profile.statVisibility };
   const postTileSize = (contentWidth - horizontalPadding * 2 - 12) / 3;
   const profilePosts: QuestFeedPost[] = overview.posts.map((post) => ({
     ...post,
@@ -298,10 +385,10 @@ export function ProfileScreen() {
   }));
 
   return <View style={{ flex: 1, backgroundColor: T.bg }}>
-    <ScrollView scrollEnabled={!editing} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={(event) => setProfileScrollY(event.nativeEvent.contentOffset.y)} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + 112 }}>
+    <ScrollView contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={(event) => setProfileScrollY(event.nativeEvent.contentOffset.y)} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + 112 }}>
       <View style={{ width: contentWidth, transform: [{ translateX: safeAreaOffset }] }}>
       <View style={{ backgroundColor: T.bg }}>
-        <View style={{ paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top + 8, 20) }}>
+        <View style={{ paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top - 12, 12) }}>
           <Header
             animated={false}
             title="Profile"
@@ -314,10 +401,12 @@ export function ProfileScreen() {
               {editing ? <ImageControl label="Change profile picture" onPress={() => void chooseImage()} style={{ width: 34, height: 34, borderRadius: 11, position: "absolute", right: -10, bottom: -7, zIndex: 3, elevation: 3 }} /> : null}
             </View>
 
-            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 40, marginTop: 9, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12 }}><TextInput value={draftName} onChangeText={setDraftName} accessibilityLabel="Name" autoCapitalize="words" placeholder="Your name" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22, textAlign: "center", paddingVertical: 6 }} /></View> : <Text style={{ marginTop: 9, color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22, textAlign: "center" }}>{displayName}</Text>}
-            <Text style={{ marginTop: editing ? 9 : 4, color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22, textAlign: "center" }}>@{username}</Text>
+            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 40, marginTop: 9, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12 }}><TextInput value={draftName} onChangeText={setDraftName} accessibilityLabel="Name" autoCapitalize="words" placeholder="Your name" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center", paddingVertical: 6 }} /></View> : <Text style={{ marginTop: 9, color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center" }}>{displayName}</Text>}
+            <Text style={{ marginTop: editing ? 9 : 4, color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center" }}>@{username}</Text>
 
-            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 52, marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12, paddingVertical: 6 }}><TextInput value={draftBio} onChangeText={setDraftBio} accessibilityLabel="Bio" placeholder="Write a bio…" placeholderTextColor={T.muted} multiline maxLength={180} textAlignVertical="top" style={{ minHeight: 32, color: T.dark, fontFamily: "Rubik", fontSize: 17, lineHeight: 22 }} /></View> : <Text style={{ maxWidth: 286, marginTop: 8, color: profile.bio ? T.dark : T.muted, fontFamily: "Rubik", fontSize: 17, lineHeight: 22, textAlign: "center" }}>{profile.bio || "Tap the pencil icon to add a bio."}</Text>}
+            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 52, marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12, paddingVertical: 6 }}><TextInput value={draftBio} onChangeText={setDraftBio} accessibilityLabel="Bio" placeholder="Write a bio…" placeholderTextColor={T.muted} multiline maxLength={180} textAlignVertical="top" style={{ minHeight: 32, color: T.dark, fontFamily: "Rubik", fontSize: 15, lineHeight: 20 }} /></View> : <Text style={{ maxWidth: 286, marginTop: 8, color: profile.bio ? T.dark : T.muted, fontFamily: "Rubik", fontSize: 15, lineHeight: 20, textAlign: "center" }}>{profile.bio || "Tap the pencil icon to add a bio."}</Text>}
+            <View style={{ width: contentWidth, alignSelf: "stretch", marginHorizontal: -horizontalPadding, marginTop: 15 }}><ProfileStatMarquee overview={overview} visibility={carouselVisibility} /></View>
+            {editing ? <ProfileStatVisibilityBento overview={overview} visibility={draftStatVisibility} onToggle={(id) => setDraftStatVisibility((current) => ({ ...current, [id]: !current[id] }))} /> : null}
             {error ? <Text accessibilityRole="alert" style={{ marginTop: 7, color: T.red, fontFamily: "RubikBold", fontSize: 12, textAlign: "center" }}>{error}</Text> : null}
           </View>
 

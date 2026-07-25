@@ -55,6 +55,10 @@ export type ActiveChallenge = {
   partnerEmoji: string;
   iCompleted: boolean;
   partnerCompleted: boolean;
+  myCompletedAt: string | null;
+  partnerCompletedAt: string | null;
+  winner: "me" | "partner" | null;
+  isComplete: boolean;
   isOutgoingPending: boolean;
   createdAt: string;
 };

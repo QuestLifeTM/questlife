@@ -340,9 +340,9 @@ function AchievementsContent({ currentStreak }: { currentStreak: number }) {
   return <View style={{ gap: 18 }}><View style={{ alignItems: "center", gap: 6, paddingVertical: 5 }}><Text style={{ color: T.dark, fontSize: 19, fontWeight: "900" }}>Streak achievements</Text><Text style={{ color: T.muted, fontSize: 13, fontWeight: "700", textAlign: "center" }}>Every day you show up makes your flame stronger.</Text></View><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>{ACHIEVEMENTS.map((achievement) => { const unlocked = currentStreak >= achievement.days; const progress = Math.min(1, currentStreak / achievement.days); return <WhitePanel key={achievement.days} style={{ width: "48%", alignItems: "center", gap: 8, opacity: unlocked ? 1 : 0.46, backgroundColor: unlocked ? "#fff6f0" : T.white, borderColor: unlocked ? "#f4c7ae" : "#eadfd9" }}><StreakBadge source={achievement.badge} days={achievement.days} unlocked={unlocked} tiltX={tilt.x} tiltY={tilt.y} /><Text style={{ color: T.dark, fontSize: 14, fontWeight: "900", textAlign: "center" }}>{achievement.days}-day streak</Text><Text style={{ color: T.muted, fontSize: 11, fontWeight: "700", textAlign: "center" }}>{achievement.label}</Text><View style={{ width: "100%", height: 5, backgroundColor: "#eadfd9", borderRadius: 3, overflow: "hidden" }}><View style={{ width: `${Math.max(3, progress * 100)}%`, height: "100%", backgroundColor: unlocked ? STREAK_ORANGE : "#cfc5c1" }} /></View><Text style={{ color: unlocked ? STREAK_ORANGE : T.muted, fontSize: 11, fontWeight: "900" }}>{unlocked ? "UNLOCKED" : `${currentStreak}/${achievement.days}`}</Text></WhitePanel>; })}</View></View>;
 }
 
-export function StreakScreen({ onBack }: { onBack: () => void }) {
+export function StreakScreen({ initialTab = "personal", onBack }: { initialTab?: StreakTab; onBack: () => void }) {
   const { error, loading, overview, refresh } = useStreaks();
-  const [activeTab, setActiveTab] = useState<StreakTab>("personal");
+  const [activeTab, setActiveTab] = useState<StreakTab>(initialTab);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotionPreference();
   const gutter = responsiveScreenGutter(390);

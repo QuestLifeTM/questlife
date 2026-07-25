@@ -1,16 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Share } from "react-native";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Alert, Animated, Easing, FlatList, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AccessibilityInfo, Alert, Animated, Easing, FlatList, Image, Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import Reanimated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { QuestFeedCard } from "@/components/quest-feed-card";
 import { QuestlifeFlame } from "@/components/questlife-flame";
 import { categoryColor, radius, T } from "@/components/theme";
-import { Card, EmptyState, haptic, Header, IconButton, PillStat, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
+import { Card, EmptyState, haptic, Header, IconButton, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSocial } from "@/contexts/SocialContext";
@@ -19,7 +19,7 @@ import { fetchQuestSocialFeed } from "@/services/profile/profileService";
 import { resolvePartyMedia, uploadPartyMedia } from "@/services/social/socialService";
 import { Quest, QuestDifficulty, questDifficulties } from "@/types/content";
 import { QuestFeedPost } from "@/types/profile";
-import { CreatePartyInput, Party, PartyLocationType, PartyMode, PartyProofMode, PartyTemplate, SocialFriend } from "@/types/social";
+import { ActiveChallenge, CreatePartyInput, FriendRequest, IncomingChallenge, Party, PartyLocationType, PartyMode, PartyProofMode, PartyTemplate, SocialFriend } from "@/types/social";
 
 type Tab = "feed" | "friends" | "parties";
 type FeedScope = "public" | "friends";
@@ -63,26 +63,100 @@ function SectionTitle({ title, detail }: { title: string; detail?: string }) {
   );
 }
 
-function FriendRow({ friend, onChallenge, onShare, onOpenProfile }: { friend: SocialFriend; onChallenge: () => void; onShare: () => void; onOpenProfile: () => void }) {
-  return (
-    <Card style={{ borderRadius: 22, padding: 14, flexDirection: "row", alignItems: "center", gap: 12, boxShadow: "none" }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`View ${friend.displayName}'s profile`} onPress={onOpenProfile} style={({ pressed }) => ({ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.68 : 1 })}>
-      <ProfileAvatar uri={friend.avatarUrl} color={friend.avatarColor} label={`${friend.displayName}'s profile photo`} />
-      <View style={{ flex: 1, gap: 3 }}>
-        <Text style={{ color: T.dark, fontSize: 16, fontWeight: "900" }}>{friend.displayName}</Text>
-        <Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }} numberOfLines={1}>{friend.lastQuestTitle ? `Last: ${friend.lastQuestTitle}` : `@${friend.username ?? "adventurer"}`}</Text>
-        <View style={{ flexDirection: "row", gap: 6, marginTop: 2 }}>
-          <PillStat text={`Lv ${Math.floor(friend.totalXp / 500) + 1}`} color={T.blue} />
-          {friend.currentStreak !== null ? <PillStat iconElement={<QuestlifeFlame size={15} />} text={String(friend.currentStreak)} color={T.orange} /> : null}
-        </View>
-      </View>
+const FRIEND_REQUEST_EXPIRY_DAYS = 7;
+
+function FriendStreaksStrip({ friends, onOpenProfile, onAdd }: { friends: SocialFriend[]; onOpenProfile: (userId: string) => void; onAdd: () => void }) {
+  const { contentWidth, horizontalPadding } = useResponsiveScreenLayout();
+  const slotWidth = Math.floor((contentWidth - horizontalPadding * 2) / 4);
+  const avatarSize = Math.min(68, Math.max(48, slotWidth - 10));
+  const renderFriend = (friend: SocialFriend) => {
+    const streak = friend.currentStreak ?? 0;
+    const active = streak > 0;
+    return <Pressable key={friend.userId} accessibilityRole="button" accessibilityLabel={`View ${friend.displayName}'s streak`} onPress={() => onOpenProfile(friend.userId)} style={({ pressed }) => ({ width: slotWidth, alignItems: "center", gap: 5, opacity: pressed ? 0.7 : 1 })}>
+      <View style={{ width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2, overflow: "hidden", backgroundColor: `${friend.avatarColor}22` }}><ProfileAvatar uri={friend.avatarUrl} color={friend.avatarColor} size={avatarSize} label={`${friend.displayName}'s profile photo`} /></View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}><QuestlifeFlame size={15} style={{ opacity: active ? 1 : 0.32 }} /><Text style={{ color: active ? T.orange : T.muted, fontSize: 13, lineHeight: 16, fontWeight: "900" }}>{streak}</Text></View>
+    </Pressable>;
+  };
+
+  return <View style={{ gap: 10 }}>
+    <Text style={{ color: T.muted, fontSize: 13, fontWeight: "900", letterSpacing: 0.7, textTransform: "uppercase" }}>Friend streaks</Text>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: "flex-start" }}>
+      {friends.slice(0, 3).map(renderFriend)}
+      <Pressable accessibilityRole="button" accessibilityLabel="Add a friend to a streak" onPress={onAdd} style={({ pressed }) => ({ width: slotWidth, alignItems: "center", gap: 5, opacity: pressed ? 0.68 : 1 })}>
+        <View style={{ width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2, borderWidth: 2, borderStyle: "dashed", borderColor: "#a9a9a9", alignItems: "center", justifyContent: "center" }}><Ionicons name="add" size={Math.round(avatarSize * 0.5)} color="#a9a9a9" /></View>
+        <Text style={{ height: 16, color: "transparent", fontSize: 13 }}>0</Text>
       </Pressable>
-      <View style={{ gap: 6 }}>
-        <IconButton icon="paper-plane-outline" label={`Share with ${friend.displayName}`} color={T.cyan} onPress={onShare} />
-        <IconButton icon="flash-outline" label={`Challenge ${friend.displayName}`} color={T.orange} onPress={onChallenge} />
-      </View>
+      {friends.slice(3).map(renderFriend)}
+    </ScrollView>
+  </View>;
+}
+
+function FriendRequestCard({ request, onOpenProfile, onAccept, onDecline }: { request: FriendRequest; onOpenProfile: () => void; onAccept: () => void; onDecline: () => void }) {
+  const requestedAt = new Date(request.createdAt).getTime();
+  const hoursRemaining = Number.isNaN(requestedAt) ? null : Math.max(0, Math.ceil((requestedAt + FRIEND_REQUEST_EXPIRY_DAYS * 24 * 60 * 60_000 - Date.now()) / 3_600_000));
+  const expiry = hoursRemaining === null ? "Pending" : hoursRemaining < 24 ? `Expires in ${hoursRemaining}h` : `Expires in ${Math.ceil(hoursRemaining / 24)}d`;
+
+  return <Card style={{ borderRadius: 22, padding: 12, flexDirection: "row", alignItems: "center", gap: 10, boxShadow: "none", borderColor: `${T.green}55`, borderBottomWidth: 5, borderBottomColor: "#d7ecdf" }}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`View ${request.displayName}'s profile`} onPress={onOpenProfile}><ProfileAvatar uri={request.avatarUrl} color={request.avatarColor} size={44} label={`${request.displayName}'s profile photo`} /></Pressable>
+    <View style={{ flex: 1, minWidth: 0, gap: 2 }}><Text numberOfLines={1} style={{ color: T.dark, fontSize: 14, fontWeight: "900" }}>{request.displayName}</Text><Text numberOfLines={1} style={{ color: T.muted, fontSize: 11, fontWeight: "700" }}>{request.username ? `@${request.username}` : "QuestLife adventurer"}</Text></View>
+    <View style={{ alignItems: "flex-end", gap: 7 }}><Text style={{ color: T.muted, fontSize: 10, fontWeight: "900" }}>{expiry}</Text><View style={{ flexDirection: "row", gap: 6 }}><Pressable accessibilityRole="button" accessibilityLabel={`Accept ${request.displayName}'s friend request`} onPress={onAccept} style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: T.green, opacity: pressed ? 0.74 : 1 })}><Ionicons name="checkmark" size={18} color={T.white} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Decline ${request.displayName}'s friend request`} onPress={onDecline} style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: T.bg, borderWidth: 2, borderColor: T.border, opacity: pressed ? 0.74 : 1 })}><Ionicons name="close" size={17} color={T.muted} /></Pressable></View></View>
+  </Card>;
+}
+
+function FriendCard({ friend, onOpenProfile }: { friend: SocialFriend; onOpenProfile: () => void }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 390;
+  const level = Math.floor(friend.totalXp / 500) + 1;
+  const hasStreak = (friend.currentStreak ?? 0) > 0;
+  const isQuesting = Boolean(friend.questedToday && friend.lastQuestTitle);
+  const lastActiveAt = friend.lastQuestAt ? new Date(friend.lastQuestAt).getTime() : Number.NaN;
+  const elapsedMinutes = Number.isNaN(lastActiveAt) ? null : Math.max(0, Math.floor((Date.now() - lastActiveAt) / 60_000));
+  const activity = isQuesting
+    ? `On: ${friend.lastQuestTitle}`
+    : elapsedMinutes === null
+      ? null
+      : elapsedMinutes < 2
+        ? "Last active just now"
+        : elapsedMinutes < 60
+          ? `Last active ${elapsedMinutes}m ago`
+          : elapsedMinutes < 1_440
+            ? `Last active ${Math.floor(elapsedMinutes / 60)}h ago`
+            : `Last active ${Math.floor(elapsedMinutes / 1_440)}d ago`;
+
+  return (
+    <Card style={{ minHeight: 92, borderRadius: 32, paddingHorizontal: compact ? 12 : 14, paddingVertical: 10, boxShadow: "none", borderWidth: 2, borderColor: T.border, borderBottomWidth: 7, borderBottomColor: "#ded5ca" }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`View ${friend.displayName}'s profile`} onPress={onOpenProfile} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: compact ? 9 : 12, opacity: pressed ? 0.68 : 1 })}>
+        <View style={{ width: 66, height: 70, position: "relative", alignItems: "center" }}>
+          <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: `${friend.avatarColor}12`, borderWidth: 3, borderColor: `${friend.avatarColor}66`, alignItems: "center", justifyContent: "center" }}>
+            <ProfileAvatar uri={friend.avatarUrl} color={friend.avatarColor} size={54} label={`${friend.displayName}'s profile photo`} />
+          </View>
+          <View accessibilityLabel={`Level ${level}`} style={{ position: "absolute", bottom: 0, alignSelf: "center", minWidth: 35, height: 19, paddingHorizontal: 6, borderRadius: 10, backgroundColor: T.blue, borderWidth: 2, borderColor: T.white, alignItems: "center", justifyContent: "center" }}><Text style={{ color: T.white, fontSize: 10, lineHeight: 12, fontWeight: "900" }}>LV {level}</Text></View>
+        </View>
+        <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: compact ? 5 : 8 }}>
+            <Text adjustsFontSizeToFit minimumFontScale={0.78} style={{ flexShrink: 1, color: T.dark, fontSize: compact ? 17 : 18, lineHeight: compact ? 21 : 22, fontWeight: "900" }} numberOfLines={1}>{friend.displayName}</Text>
+            {hasStreak ? <View accessibilityLabel={`${friend.currentStreak} day streak`} style={{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 10, backgroundColor: `${T.orange}16` }}><Ionicons name="flame" size={13} color={T.orange} /><Text style={{ color: T.orange, fontSize: 11, lineHeight: 13, fontWeight: "900" }}>{friend.currentStreak}</Text></View> : null}
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}><Text adjustsFontSizeToFit minimumFontScale={0.8} style={{ flexShrink: 1, minWidth: 0, color: T.muted, fontSize: compact ? 11 : 12, lineHeight: 18, fontWeight: "700" }} numberOfLines={1}>{friend.username ? `@${friend.username}` : "QuestLife friend"}</Text>{activity ? <><View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: T.muted }} /><Text adjustsFontSizeToFit minimumFontScale={0.8} style={{ flexShrink: 1, minWidth: 0, color: isQuesting ? T.blue : T.muted, fontSize: compact ? 11 : 12, lineHeight: 18, fontWeight: "700" }} numberOfLines={1}>{activity}</Text></> : null}</View>
+        </View>
+        <Ionicons name="chevron-forward" size={22} color={T.border} />
+      </Pressable>
     </Card>
   );
+}
+
+function ChallengeInviteCard({ challenge, quest, action, onAccept, onDecline, onViewQuest }: { challenge: IncomingChallenge; quest?: Quest; action: "accept" | "decline" | null; onAccept: () => void; onDecline: () => void; onViewQuest: () => void }) {
+  const responding = action !== null;
+  const category = quest ? categoryColor[quest.category] : { text: T.blue, bg: `${T.blue}14` };
+  return <Card style={{ borderRadius: 25, padding: 16, gap: 14, boxShadow: "none", borderColor: `${T.blue}55`, borderBottomWidth: 5, borderBottomColor: "#b7ddff" }}><View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><View style={{ width: 43, height: 43, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: category.bg }}>{quest ? <PartyCategoryIcon category={quest.category} size={21} color={category.text} strokeWidth={2.2} /> : <Ionicons name="flash" size={21} color={T.blue} />}</View><View style={{ flex: 1, gap: 2 }}><Text style={{ color: T.blue, fontSize: 10, fontWeight: "900", letterSpacing: 0.75 }}>CHALLENGE INVITE</Text><Text style={{ color: T.dark, fontSize: 15, fontWeight: "900" }}>{challenge.senderName} wants to quest with you</Text></View></View><View style={{ gap: 6 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}><Text style={{ color: T.dark, flex: 1, fontSize: 19, lineHeight: 24, fontWeight: "900" }} numberOfLines={2}>{challenge.questTitle}</Text>{quest ? <View style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, backgroundColor: category.bg }}><Text style={{ color: category.text, fontSize: 10, fontWeight: "900", letterSpacing: 0.35 }}>{quest.category}</Text></View> : null}</View><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>Accept to start a verified challenge together · +{challenge.questXp} XP</Text></View><PartyButton label={action === "accept" ? "Accepting…" : "Accept challenge"} icon="flash" color={T.blue} disabled={responding} onPress={onAccept} /><SoftButton label={action === "decline" ? "Declining…" : "Decline"} icon="close" inverse color={T.muted} disabled={responding} onPress={onDecline} style={{ minHeight: 48 }} /><Pressable accessibilityRole="button" accessibilityLabel={`View ${challenge.questTitle}`} onPress={onViewQuest} disabled={responding} style={({ pressed }) => ({ alignSelf: "center", paddingHorizontal: 10, paddingVertical: 3, opacity: pressed || responding ? 0.55 : 1 })}><Text style={{ color: T.blue, fontSize: 12, fontWeight: "900" }}>View quest details</Text></Pressable></Card>;
+}
+
+function ActiveChallengeCard({ challenge, onStartQuest }: { challenge: ActiveChallenge; onStartQuest: () => void }) {
+  const waitingForPartner = challenge.iCompleted && !challenge.partnerCompleted;
+  const status = challenge.isOutgoingPending ? `Waiting for ${challenge.partnerName} to accept` : challenge.isComplete ? challenge.winner === "me" ? "You won — both completions are verified" : `${challenge.partnerName} won — both completions are verified` : waitingForPartner ? `Your completion is verified · waiting for ${challenge.partnerName}` : challenge.partnerCompleted ? `${challenge.partnerName} finished · your turn` : "Both adventurers are ready";
+  const statusColor = challenge.isComplete ? challenge.winner === "me" ? T.green : T.purple : challenge.partnerCompleted ? T.orange : T.blue;
+
+  return <Card style={{ borderRadius: 21, padding: 14, gap: 11, boxShadow: "none", borderBottomWidth: 4, borderBottomColor: T.border }}><View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}><View style={{ width: 39, height: 39, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${T.purple}14` }}><Ionicons name={challenge.isComplete ? "trophy" : "flag"} size={20} color={challenge.isComplete ? statusColor : T.purple} /></View><View style={{ flex: 1, minWidth: 0, gap: 2 }}><Text style={{ color: T.dark, fontSize: 15, fontWeight: "900" }} numberOfLines={2}>{challenge.questTitle}</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }} numberOfLines={1}>With {challenge.partnerName} · +{challenge.questXp} XP</Text></View></View><View style={{ flexDirection: "row", gap: 5 }}><View style={{ flex: 1, minHeight: 35, borderRadius: 12, paddingHorizontal: 9, alignItems: "center", justifyContent: "center", backgroundColor: challenge.iCompleted ? `${T.green}12` : T.bg }}><Text style={{ color: challenge.iCompleted ? T.green : T.muted, fontSize: 10, fontWeight: "900" }}>YOU {challenge.iCompleted ? "✓" : "—"}</Text></View><View style={{ flex: 1, minHeight: 35, borderRadius: 12, paddingHorizontal: 9, alignItems: "center", justifyContent: "center", backgroundColor: challenge.partnerCompleted ? `${T.green}12` : T.bg }}><Text style={{ color: challenge.partnerCompleted ? T.green : T.muted, fontSize: 10, fontWeight: "900" }}>{challenge.partnerName.toUpperCase()} {challenge.partnerCompleted ? "✓" : "—"}</Text></View></View><View style={{ borderRadius: 14, paddingHorizontal: 11, paddingVertical: 9, backgroundColor: `${statusColor}10`, borderWidth: 1, borderColor: `${statusColor}2A` }}><Text style={{ color: statusColor, fontSize: 12, lineHeight: 17, fontWeight: "800" }}>{status}</Text></View>{!challenge.isOutgoingPending && !challenge.iCompleted ? <PartyButton label={challenge.partnerCompleted ? "Complete your side" : "Start your side"} icon="play" color={T.blue} onPress={onStartQuest} compact /> : null}</Card>;
 }
 
 function partyDateLabel(endedAt: string | null) {
@@ -573,7 +647,7 @@ export function SocialScreen() {
   const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
   const { quests } = useContent();
   const { profileNameVersion } = useAuth();
-  const { overview, partyHub, loading, error, refresh, respondRequest, challengeFriend, shareQuestWith, respondToPartyInvite, joinPartyWithCode } = useSocial();
+  const { overview, partyHub, loading, error, refresh, respondRequest, respondToPartyInvite, joinPartyWithCode } = useSocial();
   const [tab, setTab] = useState<Tab>("feed");
   const [feedScope, setFeedScope] = useState<FeedScope>("public");
   const [feed, setFeed] = useState<QuestFeedPost[]>([]);
@@ -585,11 +659,12 @@ export function SocialScreen() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
   const [code, setCode] = useState("");
-  const [actionFriend, setActionFriend] = useState<SocialFriend | null>(null);
-  const [actionQuest, setActionQuest] = useState<string>("");
+
+  useFocusEffect(useCallback(() => {
+    setTab("feed");
+  }, []));
 
   const join = async () => { try { const partyId = await joinPartyWithCode(code); setCodeOpen(false); setCode(""); router.push(`/party/${partyId}`); } catch (nextError) { Alert.alert("Couldn’t join Party", nextError instanceof Error ? nextError.message : "Check the code and try again."); } };
-
   const loadFeed = async () => {
     setFeedLoading(true);
     setFeedError(null);
@@ -603,9 +678,9 @@ export function SocialScreen() {
   return (
     <Screen scroll={false} padded={false} contentStyle={{ alignItems: "center" }}>
       <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 14, transform: [{ translateX: safeAreaOffset }] }}>
-        <Header title="Social" subtitle="Quest crew updates" animated={false} />
+        <Header title="Social" subtitle="Quest crew updates" animated={false} right={tab === "friends" ? <IconButton icon="person-add" label="Add friends" color={T.blue} onPress={() => router.push("/add-friends")} /> : undefined} />
         <View style={{ flexDirection: "row", padding: 4, borderRadius: 24, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }}>
-          {(["feed", "friends", "parties"] as Tab[]).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} accessibilityLabel={`${item} tab`} onPress={() => { haptic(); setTab(item); }} style={({ pressed }) => ({ flex: 1, minHeight: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: tab === item ? T.dark : "transparent", opacity: pressed ? 0.8 : 1 })}><Text style={{ color: tab === item ? T.white : T.muted, fontSize: 13, fontWeight: "900", textTransform: "capitalize" }}>{item}</Text></Pressable>)}
+          {(["parties", "feed", "friends"] as Tab[]).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} accessibilityLabel={`${item} tab`} onPress={() => { haptic(); setTab(item); }} style={({ pressed }) => ({ flex: 1, minHeight: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: tab === item ? T.dark : "transparent", opacity: pressed ? 0.8 : 1 })}><Text style={{ color: tab === item ? T.white : T.muted, fontSize: 13, fontWeight: "900", textTransform: "capitalize" }}>{item}</Text></Pressable>)}
         </View>
         {tab === "feed" ? <View style={{ marginTop: 3, paddingTop: 13, borderTopWidth: 1, borderTopColor: "rgba(232,223,213,0.82)" }}><View accessibilityRole="tablist" style={{ flexDirection: "row", borderBottomWidth: 2, borderBottomColor: T.border, backgroundColor: "rgba(255,255,255,0.38)" }}>{(["public", "friends"] as FeedScope[]).map((scope) => <FeedScopeTab key={scope} scope={scope} active={feedScope === scope} onPress={() => setFeedScope(scope)} />)}</View></View> : null}
       </View>
@@ -613,13 +688,19 @@ export function SocialScreen() {
       {tab === "feed" ? <FlatList data={feed} keyExtractor={(post) => post.id} style={{ flex: 1, width: "100%" }} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} removeClippedSubviews windowSize={7} initialNumToRender={4} maxToRenderPerBatch={4} updateCellsBatchingPeriod={80} contentContainerStyle={{ alignItems: "center", paddingTop: 20, paddingBottom: 112, gap: 16 }} onViewableItemsChanged={({ viewableItems }) => { const first = viewableItems.find((item) => item.isViewable && item.index !== null)?.index; if (typeof first === "number") setActiveFeedIndex(first); }} ListHeaderComponent={feedError ? <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><Card style={{ borderRadius: 20, gap: 8 }}><Text style={{ color: T.red, fontWeight: "800" }}>{feedError}</Text><SoftButton label="Try again" icon="refresh" inverse color={T.blue} onPress={() => void loadFeed()} /></Card></View> : null} ListEmptyComponent={feedLoading ? <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><SocialFeedLoading /></View> : <EmptyState emoji={feedScope === "public" ? "🌍" : "🤝"} title={feedScope === "public" ? "No public posts yet" : "Your Friends feed is quiet"} body={feedScope === "public" ? "Complete a quest and share the first story with everyone." : "Follow friends, then their Friends-only quest posts will appear here."} action={<SoftButton label={feedScope === "public" ? "Explore quests" : "Find friends"} icon={feedScope === "public" ? "compass" : "person-add"} color={T.blue} onPress={() => router.push(feedScope === "public" ? "/(tabs)/explore" : "/add-friends")} />} />} renderItem={({ item, index }) => <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><QuestFeedCard post={item} loadMedia={Math.abs(index - activeFeedIndex) <= 3} onPostUpdated={(nextPost) => setFeed((current) => { const remainsVisible = feedScope === "public" ? nextPost.visibility === "public" : nextPost.visibility !== "private"; return remainsVisible ? current.map((post) => post.id === nextPost.id ? nextPost : post) : current.filter((post) => post.id !== nextPost.id); })} onPostDeleted={(postId) => setFeed((current) => current.filter((post) => post.id !== postId))} /></View>} /> : <ScrollView style={{ flex: 1, width: "100%" }} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingTop: 20, paddingBottom: 112 }}>
         <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
         {error ? <Card style={{ borderRadius: 20, gap: 8 }}><Text style={{ color: T.red, fontWeight: "800" }}>{error}</Text><SoftButton label="Retry" icon="refresh" inverse color={T.blue} onPress={refresh} /></Card> : null}
-        {tab === "friends" ? <View style={{ gap: 14 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <View style={{ gap: 2 }}><Text style={{ color: T.dark, fontSize: 20, fontWeight: "900" }}>Friends</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>Your quest crew</Text></View>
-            <IconButton icon="person-add" label="Add friends" color={T.blue} onPress={() => router.push("/add-friends")} />
+        {tab === "friends" ? <View style={{ gap: 16 }}>
+          <FriendStreaksStrip friends={overview?.friends ?? []} onOpenProfile={(userId) => router.push(`/add-friend/${userId}`)} onAdd={() => router.push({ pathname: "/streak", params: { tab: "friends" } })} />
+          {overview?.incomingRequests.length ? <View style={{ gap: 9 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: T.muted, fontSize: 13, fontWeight: "900", letterSpacing: 0.7, textTransform: "uppercase" }}>Friend requests</Text><Text style={{ color: T.muted, fontSize: 13, fontWeight: "900" }}>{overview.incomingRequests.length}</Text></View>
+            {overview.incomingRequests.map((request) => <FriendRequestCard key={request.id} request={request} onOpenProfile={() => router.push(`/add-friend/${request.userId}`)} onAccept={() => void respondRequest(request.id, true)} onDecline={() => void respondRequest(request.id, false)} />)}
+          </View> : null}
+          <View style={{ gap: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ color: T.muted, fontSize: 13, fontWeight: "900", letterSpacing: 0.7, textTransform: "uppercase" }}>Friends</Text>
+              <Text style={{ color: T.muted, fontSize: 13, fontWeight: "900" }}>{overview?.friends.length ?? 0}</Text>
+            </View>
+            {loading && !overview ? <EmptyState emoji="⏳" title="Finding your crew" body="Loading your friends…" /> : overview?.friends.length ? overview.friends.map((friend) => <FriendCard key={friend.userId} friend={friend} onOpenProfile={() => router.push(`/add-friend/${friend.userId}`)} />) : <EmptyState emoji="👋" title="Your crew starts here" body="Use the Add friends button above to build your crew." />}
           </View>
-          {overview?.incomingRequests.length ? <View style={{ gap: 9 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>Friend requests</Text>{overview.incomingRequests.map((request) => <Card key={request.id} style={{ borderRadius: 19, padding: 12, flexDirection: "row", alignItems: "center", gap: 10, boxShadow: "none", borderColor: `${T.green}55` }}><Pressable accessibilityRole="button" accessibilityLabel={`View ${request.displayName}'s profile`} onPress={() => router.push(`/add-friend/${request.userId}`)}><ProfileAvatar uri={request.avatarUrl} color={request.avatarColor} size={42} label={`${request.displayName}'s profile photo`} /></Pressable><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={{ color: T.dark, fontSize: 14, fontWeight: "900" }}>{request.displayName}</Text><Text numberOfLines={1} style={{ color: T.muted, fontSize: 11, fontWeight: "700" }}>{request.username ? `@${request.username}` : "Wants to be quest friends"}</Text></View><View style={{ flexDirection: "row", gap: 7 }}><Pressable accessibilityRole="button" accessibilityLabel={`Accept ${request.displayName}'s friend request`} onPress={() => void respondRequest(request.id, true)} style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: T.green, opacity: pressed ? 0.74 : 1 })}><Ionicons name="checkmark" size={20} color={T.white} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Decline ${request.displayName}'s friend request`} onPress={() => void respondRequest(request.id, false)} style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: T.bg, borderWidth: 2, borderColor: T.border, opacity: pressed ? 0.74 : 1 })}><Ionicons name="close" size={19} color={T.muted} /></Pressable></View></Card>)}</View> : null}
-          {loading && !overview ? <EmptyState emoji="⏳" title="Finding your crew" body="Loading your friends…" /> : overview?.friends.length ? overview.friends.map((friend) => <FriendRow key={friend.userId} friend={friend} onOpenProfile={() => router.push(`/add-friend/${friend.userId}`)} onShare={() => setActionFriend(friend)} onChallenge={() => setActionFriend(friend)} />) : <EmptyState emoji="👋" title="Your crew starts here" body="Use the Add friends button above to build your crew." />}
         </View> : <View style={{ gap: 18 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><View><Text style={{ color: T.dark, fontSize: 20, fontWeight: "900" }}>Parties</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>Quest together</Text></View><IconButton icon="information-circle-outline" label="How Parties work" onPress={() => setInfoOpen(true)} color={T.blue} /></View>
           <View style={{ flexDirection: "row", gap: 10 }}>
@@ -641,7 +722,6 @@ export function SocialScreen() {
       <Sheet visible={infoOpen} onClose={() => setInfoOpen(false)}><View style={{ padding: 24, gap: 14 }}><View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>How Parties work</Text><IconButton icon="close" label="Close Party information" onPress={() => setInfoOpen(false)} color={T.muted} /></View><Text style={{ color: T.muted, fontSize: 14, lineHeight: 21, fontWeight: "700" }}>Pick quests. Bring your people. Earn XP together.</Text><Choice selected title="Free for All" body="Any Party quest · base XP ranks." icon="walk" color={T.blue} onPress={() => undefined} /><Choice selected title="Everyone Together" body="Host starts · fastest earns more." icon="people" color={T.purple} onPress={() => undefined} /></View></Sheet>
       <Sheet visible={inviteOpen} onClose={() => setInviteOpen(false)}><ScrollView contentContainerStyle={{ padding: 24, gap: 14 }}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>Party Invites</Text><IconButton icon="close" label="Close Party Invites" onPress={() => setInviteOpen(false)} color={T.muted} /></View>{overview?.partyInvites.length ? overview.partyInvites.map((invite) => <Card key={invite.id} style={{ borderRadius: 20, gap: 12, boxShadow: "none", borderBottomWidth: 5, borderBottomColor: T.border }}><Text style={{ color: T.dark, fontSize: 16, fontWeight: "900" }}>{invite.senderName} invited you to {invite.partyName}</Text><View style={{ flexDirection: "row", gap: 10 }}><PartyButton label="Accept" onPress={() => respondToPartyInvite(invite.id, true).then(() => setInviteOpen(false))} color={T.green} compact style={{ flex: 1 }} /><SoftButton label="Decline" inverse color={T.muted} onPress={() => respondToPartyInvite(invite.id, false)} style={{ flex: 1, minHeight: 42 }} /></View></Card>) : <EmptyState emoji="✉️" title="No pending invites" body="Invites land here." />}</ScrollView></Sheet>
       <Sheet visible={codeOpen} onClose={() => setCodeOpen(false)}><View style={{ padding: 24, gap: 16 }}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>Enter Party code</Text><IconButton icon="close" label="Close join Party" onPress={() => setCodeOpen(false)} color={T.muted} /></View><TextInput autoCapitalize="characters" value={code} onChangeText={setCode} placeholder="ABC123" placeholderTextColor={T.muted} maxLength={6} style={{ height: 64, borderRadius: 18, borderWidth: 2, borderColor: T.border, color: T.dark, backgroundColor: T.white, textAlign: "center", fontSize: 25, letterSpacing: 4, fontWeight: "900" }} /><PartyButton label="Find Party" icon="search" onPress={join} disabled={code.trim().length !== 6} /></View></Sheet>
-      <Sheet visible={actionFriend !== null} onClose={() => { setActionFriend(null); setActionQuest(""); }}><View style={{ padding: 24, gap: 12 }}><Text style={{ color: T.dark, fontSize: 20, fontWeight: "900" }}>Send to {actionFriend?.displayName}</Text>{quests.slice(0, 6).map((quest) => <Pressable key={quest.id} onPress={() => setActionQuest(quest.id)} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 }}><Ionicons name={actionQuest === quest.id ? "radio-button-on" : "radio-button-off"} size={18} color={T.blue} /><Text style={{ color: T.dark, fontWeight: "800" }}>{quest.title}</Text></Pressable>)}<SoftButton label="Share quest" icon="paper-plane" onPress={() => { if (actionFriend && actionQuest) shareQuestWith(actionFriend.userId, actionQuest); setActionFriend(null); }} /><SoftButton label="Challenge friend" icon="flash" inverse color={T.orange} onPress={() => { if (actionFriend && actionQuest) challengeFriend(actionFriend.userId, actionQuest); setActionFriend(null); }} /></View></Sheet>
     </Screen>
   );
 }
