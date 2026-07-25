@@ -121,6 +121,21 @@ export async function signInWithEmail(email: string, password: string) {
   await rememberEmail(normalizedEmail);
 }
 
+/** Starts the passwordless email entry flow used by the welcome sheet. */
+export async function sendEmailSignInLink(email: string) {
+  assertSupabaseConfigured();
+
+  const { error } = await supabase.auth.signInWithOtp({
+    email: normalizeEmail(email),
+    options: {
+      emailRedirectTo: authRedirectTo,
+      shouldCreateUser: true,
+    },
+  });
+
+  if (error) throw error;
+}
+
 export async function getRegistrationAccountState(email: string): Promise<RegistrationAccountState> {
   assertSupabaseConfigured();
   const { data, error } = await supabase.rpc("get_public_account_registration_state", {

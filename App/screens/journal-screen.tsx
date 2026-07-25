@@ -28,7 +28,7 @@ import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMo
 type JournalTab = "journal" | "album";
 type CalendarMode = "week" | "month";
 type PartyDayCollection = { party: PartyJournalCard; dateKey: string };
-type JournalMediaItem = { id: string; source: string; dateKey: string; questTitle: string };
+type JournalMediaItem = { id: string; source: string; dateKey: string; questTitle: string; completionId?: string; activePhotoId?: number };
 
 const weekdayLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
@@ -571,7 +571,7 @@ function TodayMediaSection({ items, onOpenAlbum }: { items: JournalMediaItem[]; 
   );
 }
 
-function JournalAlbum({ items, onExplore }: { items: JournalMediaItem[]; onExplore: () => void }) {
+function JournalAlbum({ items, onExplore, onManageItem }: { items: JournalMediaItem[]; onExplore: () => void; onManageItem: (item: JournalMediaItem) => void }) {
   const resolvedItems = useResolvedMedia(items);
   const grouped = resolvedItems.reduce<Record<string, { questTitle: string; dateKey: string; items: (JournalMediaItem & { uri: string })[] }>>((groups, item) => {
     const key = `${item.dateKey}\u0001${item.questTitle}`;
@@ -589,7 +589,7 @@ function JournalAlbum({ items, onExplore }: { items: JournalMediaItem[]; onExplo
     {quests.map((quest) => <View key={`${quest.dateKey}-${quest.questTitle}`} style={{ gap: 10 }}>
       <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}><Text numberOfLines={1} style={{ flexShrink: 1, color: T.dark, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>{quest.questTitle}</Text><Text numberOfLines={1} style={{ color: T.muted, fontSize: 11, lineHeight: 16, fontWeight: "800" }}>· {displayDate(quest.dateKey)}</Text></View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {quest.items.map((item) => <View key={item.id} style={{ width: "23.2%", aspectRatio: 1, overflow: "hidden", borderRadius: 13, backgroundColor: T.border }}><Image source={{ uri: item.uri }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /></View>)}
+        {quest.items.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Manage photo from ${item.questTitle}`} onPress={() => onManageItem(item)} style={({ pressed }) => ({ width: "23.2%", aspectRatio: 1, overflow: "hidden", borderRadius: 13, backgroundColor: T.border, opacity: pressed ? 0.78 : 1 })}><Image source={{ uri: item.uri }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /><View pointerEvents="none" style={{ position: "absolute", top: 5, right: 5, width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.9)" }}><Ionicons name="ellipsis-horizontal" size={15} color={T.dark} /></View></Pressable>)}
       </View>
     </View>)}
   </View>;
@@ -959,12 +959,14 @@ export function JournalScreen() {
       source,
       dateKey,
       questTitle: memory.title,
+      completionId: memory.completionId,
     }))));
     const activeMedia = (activeQuestSnapshot?.photos ?? []).map((photo) => ({
       id: `active-${photo.id}`,
       source: photo.uri,
       dateKey: toLocalDateKey(new Date(photo.capturedAt)),
       questTitle: data?.activeQuest?.title ?? "Active quest",
+      activePhotoId: photo.id,
     }));
     return [...activeMedia, ...completedMedia];
   }, [activeQuestSnapshot?.photos, data?.activeQuest?.title, data?.memoriesByDate]);
@@ -1030,6 +1032,10 @@ export function JournalScreen() {
   }
 
   const goExplore = () => router.push("/explore");
+  const manageAlbumItem = (item: JournalMediaItem) => {
+    if (item.completionId) router.push(`/memory/${item.completionId}`);
+    else if (item.activePhotoId) router.push("/active-quest");
+  };
   const join = parseKey(joinKey);
 
   const sections = dayKeys.map((key, index) => {
@@ -1126,7 +1132,7 @@ export function JournalScreen() {
         ) : (
           <View style={{ alignItems: "center" }}>
             <Entrance style={{ width: contentWidth, paddingHorizontal: horizontalPadding, marginTop: 6, transform: [{ translateX: safeAreaOffset }] }}>
-              <JournalAlbum items={albumItems} onExplore={goExplore} />
+              <JournalAlbum items={albumItems} onExplore={goExplore} onManageItem={manageAlbumItem} />
             </Entrance>
           </View>
         )}

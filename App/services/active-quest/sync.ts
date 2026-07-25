@@ -1,6 +1,10 @@
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { getActiveQuestSnapshot } from "@/services/active-quest/local-store";
 
+const ROUTE_SYNC_INTERVAL_MS = 30_000;
+const lastRouteSyncAt = new Map<string, number>();
+const activeRouteSyncs = new Map<string, Promise<void>>();
+
 /**
  * Replays the complete local record with stable client keys. This is deliberately
  * idempotent: a crash between a network response and local state update simply
@@ -15,6 +19,8 @@ export async function syncActiveQuestRecord(sessionId: string) {
   if (!userId) return;
 
   const { session } = snapshot;
+  const pointSegments = new Map<number, { id: string; state: "active" | "paused" }>();
+  for (const segment of session.routeSegments) for (const pointId of segment.pointIds) pointSegments.set(pointId, { id: segment.id, state: segment.state });
   const snapshotResult = await supabase.from("quest_session_snapshots").upsert({
     session_id: session.sessionId,
     user_id: userId,
@@ -32,6 +38,7 @@ export async function syncActiveQuestRecord(sessionId: string) {
       longitude: point.longitude,
       capturedAt: point.capturedAt,
     })),
+    route_segments: session.routeSegments,
     updated_at: session.updatedAt,
   }, { onConflict: "session_id" });
   if (snapshotResult.error) throw snapshotResult.error;
@@ -48,6 +55,8 @@ export async function syncActiveQuestRecord(sessionId: string) {
       speed_meters_per_second: point.speed,
       altitude_meters: point.altitude,
       heading_degrees: point.heading,
+      segment_id: pointSegments.get(point.id)?.id ?? null,
+      segment_state: pointSegments.get(point.id)?.state ?? null,
     })), { onConflict: "session_id,client_point_id" });
     if (routeResult.error) throw routeResult.error;
   }
@@ -63,4 +72,13 @@ export async function syncActiveQuestRecord(sessionId: string) {
     })), { onConflict: "session_id,client_media_id" });
     if (mediaResult.error) throw mediaResult.error;
   }
+}
+
+/** Persists route progress periodically without issuing a write per GPS update. */
+export function queueActiveQuestRouteSync(sessionId: string) {
+  const now = Date.now();
+  if (now - (lastRouteSyncAt.get(sessionId) ?? 0) < ROUTE_SYNC_INTERVAL_MS || activeRouteSyncs.has(sessionId)) return;
+  lastRouteSyncAt.set(sessionId, now);
+  const task = syncActiveQuestRecord(sessionId).catch(() => undefined).finally(() => activeRouteSyncs.delete(sessionId));
+  activeRouteSyncs.set(sessionId, task);
 }

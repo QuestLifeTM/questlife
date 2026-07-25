@@ -377,24 +377,9 @@ function EmptyActiveQuest({
   return (
     <LobbyReveal motionKey="empty-active-quest" reducedMotion={reducedMotion}>
       <Card style={styles.emptyActiveCard}>
-        <View style={styles.emptyQuestStatus}>
-          <View style={styles.emptyQuestIcon}>
-            <Ionicons name="sparkles" size={22} color={T.blue} />
-          </View>
-          <Text style={styles.emptyQuestEyebrow}>Ready for a new quest</Text>
-        </View>
         <View style={styles.emptyQuestCopy}>
-          <Text style={styles.emptyQuestTitle}>No quest is active</Text>
-          <Text style={styles.emptyQuestBody}>Choose a small adventure that fits the time and energy you have today.</Text>
-        </View>
-        <View style={styles.emptyQuestGuide}>
-          <View style={styles.emptyQuestGuideIcon}>
-            <Ionicons name="time-outline" size={18} color={T.orange} />
-          </View>
-          <View style={styles.emptyQuestGuideCopy}>
-            <Text style={styles.emptyQuestGuideTitle}>Start with what you have</Text>
-            <Text style={styles.emptyQuestGuideBody}>Pick for me matches a quest to your time, setting, and recent adventure history.</Text>
-          </View>
+          <Text style={styles.emptyQuestTitle}>Choose your next quest</Text>
+          <Text style={styles.emptyQuestBody}>Get a quick match or explore on your own.</Text>
         </View>
         <View style={styles.emptyActions}>
           <Pressable accessibilityRole="button" accessibilityLabel="Pick a quest for me" onPress={() => { haptic(); onPickForMe(); }} style={({ pressed }) => [styles.activePrimaryButton, pressed ? styles.pressed : null]}><Ionicons name="sparkles" size={18} color={T.white} /><Text style={styles.activePrimaryText}>Pick for me</Text><Ionicons name="arrow-forward" size={18} color={T.white} /></Pressable>
@@ -690,7 +675,7 @@ export function LobbyScreen() {
         <EnergyCard dailyLimit={dailyLimit} dailyUsed={dailyUsed} reducedMotion={reducedMotion} />
 
         <View style={styles.section}>
-          <SectionHeader icon="sparkles" title="Active Quest" />
+          <SectionHeader icon="sparkles" title={activeQuest && engine?.activeSession ? "Active Quest" : "No Quest Is Active"} />
           {activeQuest && engine?.activeSession ? (
             <ActiveQuestCard
               activeQuest={activeQuest}
@@ -1087,16 +1072,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   emptyActiveCard: {
-    minHeight: 300,
     borderRadius: radius.sheet,
     borderWidth: 2,
     borderColor: T.border,
     backgroundColor: T.white,
     boxShadow: `4px 4px 0px ${T.border}`,
     alignItems: "stretch",
-    justifyContent: "space-between",
-    gap: 14,
-    padding: 18,
+    gap: 20,
+    padding: 20,
   },
   emptyLoadingCard: {
     borderRadius: radius.lg,
@@ -1105,29 +1088,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 22,
   },
-  emptyQuestStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
-  },
-  emptyQuestIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: `${T.blue}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyQuestEyebrow: {
-    color: T.blue,
-    fontFamily: "RubikBold",
-    fontSize: 11,
-    lineHeight: 15,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-  },
   emptyQuestCopy: {
-    gap: 5,
+    gap: 4,
   },
   emptyEmoji: {
     fontSize: 28,
@@ -1150,53 +1112,16 @@ const styles = StyleSheet.create({
   emptyQuestTitle: {
     color: T.dark,
     fontFamily: "RubikBlack",
-    fontSize: 23,
-    lineHeight: 28,
+    fontSize: 21,
+    lineHeight: 26,
     fontWeight: "900",
   },
   emptyQuestBody: {
     color: T.muted,
     fontFamily: "Rubik",
-    fontSize: 14,
-    lineHeight: 19,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: "700",
-  },
-  emptyQuestGuide: {
-    minHeight: 62,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: `${T.orange}0d`,
-    borderWidth: 1,
-    borderColor: `${T.orange}30`,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
-  },
-  emptyQuestGuideIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: `${T.orange}16`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyQuestGuideCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  emptyQuestGuideTitle: {
-    color: T.dark,
-    fontFamily: "RubikBold",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  emptyQuestGuideBody: {
-    color: T.muted,
-    fontFamily: "Rubik",
-    fontSize: 11,
-    lineHeight: 15,
   },
   emptyActions: {
     alignSelf: "stretch",

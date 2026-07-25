@@ -1,4 +1,5 @@
 export type ActiveQuestRecordingState = "recording" | "paused";
+export type ActiveQuestRouteSegmentState = "active" | "paused";
 
 export type ActiveQuestLocalSession = {
   sessionId: string;
@@ -14,6 +15,7 @@ export type ActiveQuestLocalSession = {
   trackingStatus: "idle" | "tracking" | "permission-needed" | "unavailable";
   lastLocationAt: string | null;
   completionSyncState: "idle" | "pending" | "synced";
+  routeSegments: ActiveQuestRouteSegment[];
   updatedAt: string;
 };
 
@@ -29,6 +31,20 @@ export type ActiveQuestRoutePoint = {
   heading: number | null;
 };
 
+export type ActiveQuestRouteSegment = {
+  id: string;
+  state: ActiveQuestRouteSegmentState;
+  startedAt: string;
+  endedAt: string | null;
+  pointIds: number[];
+};
+
+export type ActiveQuestRenderableSegment = {
+  id: string;
+  state: ActiveQuestRouteSegmentState;
+  points: ActiveQuestRoutePoint[];
+};
+
 /** Optional quest waypoints for future guided routes; absent for free-roam quests. */
 export type ActiveQuestCheckpoint = {
   id: string;
@@ -41,8 +57,10 @@ export type ActiveQuestSnapshot = {
   session: ActiveQuestLocalSession;
   route: ActiveQuestRoutePoint[];
   renderRoute: ActiveQuestRoutePoint[];
+  renderSegments: ActiveQuestRenderableSegment[];
   photoCount: number;
   photos: ActiveQuestPhoto[];
+  activity: ActiveQuestActivity[];
 };
 
 export type ActiveQuestPhoto = {
@@ -52,4 +70,18 @@ export type ActiveQuestPhoto = {
   capturedAt: string;
   syncStatus: "pending" | "uploading" | "synced" | "failed";
   remotePath: string | null;
+};
+
+export type ActiveQuestActivityKind = "note" | "photo" | "badge";
+
+/** A durable, chronological record of moments captured during a live quest. */
+export type ActiveQuestActivity = {
+  id: number;
+  sessionId: string;
+  kind: ActiveQuestActivityKind;
+  createdAt: string;
+  body: string | null;
+  caption: string | null;
+  photoId: number | null;
+  badgeLabel: string | null;
 };

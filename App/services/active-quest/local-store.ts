@@ -1,16 +1,21 @@
 import * as FileSystem from "expo-file-system/legacy";
 
-import { ActiveQuestLocalSession, ActiveQuestPhoto, ActiveQuestRecordingState, ActiveQuestRoutePoint, ActiveQuestSnapshot } from "@/types/active-quest";
-import { distanceBetweenMeters, routePointIsUsable, simplifyRouteForRendering } from "@/services/active-quest/route-filter";
+import { ActiveQuestActivity, ActiveQuestActivityKind, ActiveQuestLocalSession, ActiveQuestPhoto, ActiveQuestRecordingState, ActiveQuestRoutePoint, ActiveQuestRouteSegment, ActiveQuestSnapshot } from "@/types/active-quest";
+import { distanceBetweenMeters, simplifyRouteForRendering } from "@/services/active-quest/route-filter";
+import { isAcceptedQuestLocation, RawQuestLocation } from "@/services/active-quest/location-quality-filter";
+import { smoothQuestLocation } from "@/services/active-quest/location-smoothing";
+import { buildRenderableSegments } from "@/services/active-quest/route-segments";
 
 type ActiveQuestStore = {
   sessions: Record<string, ActiveQuestLocalSession>;
   route: ActiveQuestRoutePoint[];
   renderRoutes: Record<string, ActiveQuestRoutePoint[]>;
   photos: ActiveQuestPhoto[];
+  activity: ActiveQuestActivity[];
   trackingSessionId: string | null;
   nextPointId: number;
   nextPhotoId: number;
+  nextActivityId: number;
 };
 
 const STORE_URI = `${FileSystem.documentDirectory}active-quests/store.json`;
@@ -20,9 +25,11 @@ const EMPTY_STORE: ActiveQuestStore = {
   route: [],
   renderRoutes: {},
   photos: [],
+  activity: [],
   trackingSessionId: null,
   nextPointId: 1,
   nextPhotoId: 1,
+  nextActivityId: 1,
 };
 
 let cache: ActiveQuestStore | null = null;
@@ -30,7 +37,7 @@ let mutationQueue: Promise<void> = Promise.resolve();
 const listeners = new Set<() => void>();
 
 function freshStore(): ActiveQuestStore {
-  return { ...EMPTY_STORE, sessions: {}, route: [], renderRoutes: {}, photos: [] };
+  return { ...EMPTY_STORE, sessions: {}, route: [], renderRoutes: {}, photos: [], activity: [] };
 }
 
 async function loadStore() {
@@ -44,10 +51,12 @@ async function loadStore() {
       sessions: Object.fromEntries(Object.entries(parsed.sessions ?? {}).map(([id, session]) => [id, {
         ...session,
         completionSyncState: session.completionSyncState ?? "idle",
+        routeSegments: session.routeSegments ?? [{ id: `${id}-legacy`, state: "active", startedAt: session.startedAt, endedAt: null, pointIds: (parsed.route ?? []).filter((point) => point.sessionId === id).map((point) => point.id) }],
       }])),
       route: (parsed.route ?? []).map((point) => ({ ...point, altitude: point.altitude ?? null, heading: point.heading ?? null })),
       renderRoutes: parsed.renderRoutes ?? {},
       photos: parsed.photos ?? [],
+      activity: parsed.activity ?? [],
     };
   } catch {
     try {
@@ -59,10 +68,12 @@ async function loadStore() {
         sessions: Object.fromEntries(Object.entries(parsed.sessions ?? {}).map(([id, session]) => [id, {
           ...session,
           completionSyncState: session.completionSyncState ?? "idle",
+          routeSegments: session.routeSegments ?? [{ id: `${id}-legacy`, state: "active", startedAt: session.startedAt, endedAt: null, pointIds: (parsed.route ?? []).filter((point) => point.sessionId === id).map((point) => point.id) }],
         }])),
         route: (parsed.route ?? []).map((point) => ({ ...point, altitude: point.altitude ?? null, heading: point.heading ?? null })),
         renderRoutes: parsed.renderRoutes ?? {},
         photos: parsed.photos ?? [],
+        activity: parsed.activity ?? [],
       };
     } catch {
       cache = freshStore();
@@ -100,18 +111,19 @@ export function subscribeToActiveQuestStore(listener: () => void) {
   return () => { listeners.delete(listener); };
 }
 
-export async function ensureActiveQuestSession(input: { sessionId: string; questId: string; startedAt: string; entryTitle: string }) {
+export async function ensureActiveQuestSession(input: { sessionId: string; questId: string; startedAt: string; entryTitle: string; resumeExistingSession?: boolean }) {
   await mutate((store) => {
-    if (!store.sessions[input.sessionId]) {
+    const existing = store.sessions[input.sessionId];
+    if (!existing) {
       store.sessions[input.sessionId] = {
         sessionId: input.sessionId,
         questId: input.questId,
         startedAt: input.startedAt,
-        // The active-quest screen owns the start sequence. A new session is
-        // intentionally idle until its 3-2-1-GO countdown has completed.
-        recordingState: "paused",
-        pausedAt: input.startedAt,
-        activeSince: null,
+        // A new session waits for the 3-2-1-GO start sequence. A session
+        // restored on another device resumes as active instead of resetting.
+        recordingState: input.resumeExistingSession ? "recording" : "paused",
+        pausedAt: input.resumeExistingSession ? null : input.startedAt,
+        activeSince: input.resumeExistingSession ? input.startedAt : null,
         activeDurationMs: 0,
         distanceMeters: 0,
         entryTitle: input.entryTitle,
@@ -119,6 +131,17 @@ export async function ensureActiveQuestSession(input: { sessionId: string; quest
         trackingStatus: "idle",
         lastLocationAt: null,
         completionSyncState: "idle",
+        routeSegments: [],
+        updatedAt: new Date().toISOString(),
+      };
+    } else if (input.resumeExistingSession && existing.recordingState === "paused" && existing.activeDurationMs === 0 && !existing.activeSince && !store.route.some((point) => point.sessionId === input.sessionId)) {
+      // Repair the empty, device-local placeholder created by older builds
+      // when an already-active server session was opened on a second phone.
+      store.sessions[input.sessionId] = {
+        ...existing,
+        recordingState: "recording",
+        pausedAt: null,
+        activeSince: input.startedAt,
         updatedAt: new Date().toISOString(),
       };
     }
@@ -140,8 +163,12 @@ export async function getActiveQuestSnapshot(sessionId: string): Promise<ActiveQ
   const store = await loadStore();
   const route = store.route.filter((point) => point.sessionId === sessionId).sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
   const photos = store.photos.filter((photo) => photo.sessionId === sessionId).sort((a, b) => b.capturedAt.localeCompare(a.capturedAt));
+  // Activity reads like a story: the quest begins at the top and each new
+  // note, photo, or badge is appended further down the timeline.
+  const activity = store.activity.filter((item) => item.sessionId === sessionId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const renderSegments = buildRenderableSegments(session.routeSegments, route);
   const renderRoute = store.renderRoutes[sessionId] ?? simplifyRouteForRendering(route);
-  return { session, route, renderRoute, photoCount: photos.length, photos };
+  return { session, route, renderRoute, renderSegments, photoCount: photos.length, photos, activity };
 }
 
 export async function updateActiveQuestSession(sessionId: string, changes: Partial<Pick<ActiveQuestLocalSession, "recordingState" | "pausedAt" | "activeSince" | "activeDurationMs" | "distanceMeters" | "entryTitle" | "entryBody" | "trackingStatus" | "lastLocationAt" | "completionSyncState">>) {
@@ -154,26 +181,62 @@ export async function updateActiveQuestSession(sessionId: string, changes: Parti
   });
 }
 
+export async function setActiveQuestRecordingState(sessionId: string, recordingState: ActiveQuestRecordingState, changes: Pick<ActiveQuestLocalSession, "pausedAt" | "activeSince" | "activeDurationMs">) {
+  return mutate((store) => {
+    const current = store.sessions[sessionId];
+    if (!current || current.recordingState === recordingState) return current ?? null;
+    const now = new Date().toISOString();
+    const route = store.route.filter((point) => point.sessionId === sessionId).sort((a, b) => a.id - b.id);
+    const previousPoint = route.at(-1);
+    const nextState = recordingState === "recording" ? "active" : "paused";
+    const nextSegment: ActiveQuestRouteSegment = {
+      id: `${sessionId}-${Date.now()}`,
+      state: nextState,
+      startedAt: now,
+      endedAt: null,
+      // Repeat the shared boundary in the next segment so the route stays
+      // visually continuous when its color changes.
+      pointIds: previousPoint ? [previousPoint.id] : [],
+    };
+    store.sessions[sessionId] = {
+      ...current,
+      ...changes,
+      recordingState,
+      routeSegments: [...current.routeSegments.map((segment, index) => index === current.routeSegments.length - 1 && !segment.endedAt ? { ...segment, endedAt: now } : segment), nextSegment],
+      updatedAt: now,
+    };
+    return { ...store.sessions[sessionId] };
+  });
+}
+
 /**
  * Filters and appends under one serialized mutation so foreground and
  * background location sources cannot accept the same point concurrently.
  */
-export async function addAcceptedRoutePoint(sessionId: string, point: Omit<ActiveQuestRoutePoint, "id" | "sessionId">) {
+export async function addAcceptedRoutePoint(sessionId: string, point: RawQuestLocation) {
   return mutate((store) => {
     const session = store.sessions[sessionId];
-    if (!session || session.recordingState !== "recording") return false;
+    if (!session) return false;
     const previous = store.route
       .filter((routePoint) => routePoint.sessionId === sessionId)
       .sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0] ?? null;
-    if (!routePointIsUsable(point, previous)) return false;
+    if (!isAcceptedQuestLocation(point, previous)) return false;
+    const accepted = smoothQuestLocation(point, previous);
 
-    store.route.push({ id: store.nextPointId++, sessionId, ...point });
+    const nextPoint = { id: store.nextPointId++, sessionId, ...accepted };
+    store.route.push(nextPoint);
     const sessionRoute = store.route.filter((routePoint) => routePoint.sessionId === sessionId).sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
     store.renderRoutes[sessionId] = simplifyRouteForRendering(sessionRoute);
+    const currentSegment = session.routeSegments.at(-1);
+    const segmentState: ActiveQuestRouteSegment["state"] = session.recordingState === "recording" ? "active" : "paused";
+    const routeSegments = currentSegment && currentSegment.state === segmentState
+      ? [...session.routeSegments.slice(0, -1), { ...currentSegment, pointIds: [...currentSegment.pointIds, nextPoint.id] }]
+      : [...session.routeSegments, { id: `${sessionId}-${Date.now()}`, state: segmentState, startedAt: accepted.capturedAt, endedAt: null, pointIds: previous ? [previous.id, nextPoint.id] : [nextPoint.id] }];
     store.sessions[sessionId] = {
       ...session,
-      distanceMeters: session.distanceMeters + (previous ? distanceBetweenMeters(previous, point) : 0),
-      lastLocationAt: point.capturedAt,
+      routeSegments,
+      distanceMeters: session.distanceMeters + (previous ? distanceBetweenMeters(previous, accepted) : 0),
+      lastLocationAt: accepted.capturedAt,
       trackingStatus: "tracking",
       updatedAt: new Date().toISOString(),
     };
@@ -202,6 +265,55 @@ export async function addActiveQuestPhoto(sessionId: string, uri: string, captur
   });
 }
 
+export async function addActiveQuestActivity(sessionId: string, input: { kind: ActiveQuestActivityKind; body?: string; caption?: string; photoId?: number; badgeLabel?: string; createdAt?: string }) {
+  return mutate((store) => {
+    const session = store.sessions[sessionId];
+    if (!session) return null;
+    const activity: ActiveQuestActivity = {
+      id: store.nextActivityId++,
+      sessionId,
+      kind: input.kind,
+      createdAt: input.createdAt ?? new Date().toISOString(),
+      body: input.body?.trim() || null,
+      caption: input.caption?.trim() || null,
+      photoId: input.photoId ?? null,
+      badgeLabel: input.badgeLabel?.trim() || null,
+    };
+    store.activity.push(activity);
+    store.sessions[sessionId] = { ...session, updatedAt: activity.createdAt };
+    return { ...activity };
+  });
+}
+
+export async function updateActiveQuestActivity(id: number, changes: Partial<Pick<ActiveQuestActivity, "body" | "caption" | "badgeLabel">>) {
+  return mutate((store) => {
+    const index = store.activity.findIndex((item) => item.id === id);
+    if (index < 0) return null;
+    const current = store.activity[index];
+    const next = {
+      ...current,
+      body: changes.body === undefined ? current.body : changes.body?.trim() || null,
+      caption: changes.caption === undefined ? current.caption : changes.caption?.trim() || null,
+      badgeLabel: changes.badgeLabel === undefined ? current.badgeLabel : changes.badgeLabel?.trim() || null,
+    };
+    store.activity[index] = next;
+    const session = store.sessions[current.sessionId];
+    if (session) store.sessions[current.sessionId] = { ...session, updatedAt: new Date().toISOString() };
+    return { ...next };
+  });
+}
+
+export async function deleteActiveQuestActivity(id: number) {
+  return mutate((store) => {
+    const activity = store.activity.find((item) => item.id === id);
+    if (!activity) return null;
+    store.activity = store.activity.filter((item) => item.id !== id);
+    const session = store.sessions[activity.sessionId];
+    if (session) store.sessions[activity.sessionId] = { ...session, updatedAt: new Date().toISOString() };
+    return { ...activity };
+  });
+}
+
 export async function getActiveQuestPhotos(sessionId: string) {
   await mutationQueue;
   const store = await loadStore();
@@ -213,6 +325,18 @@ export async function updateActiveQuestPhoto(id: number, changes: Partial<Pick<A
     const index = store.photos.findIndex((photo) => photo.id === id);
     if (index < 0) return;
     store.photos[index] = { ...store.photos[index], ...changes };
+  });
+}
+
+export async function deleteActiveQuestPhoto(id: number) {
+  return mutate((store) => {
+    const photo = store.photos.find((item) => item.id === id);
+    if (!photo) return null;
+    store.photos = store.photos.filter((item) => item.id !== id);
+    store.activity = store.activity.filter((item) => item.photoId !== id);
+    const session = store.sessions[photo.sessionId];
+    if (session) store.sessions[photo.sessionId] = { ...session, updatedAt: new Date().toISOString() };
+    return { ...photo };
   });
 }
 
@@ -232,6 +356,7 @@ export async function clearActiveQuestSession(sessionId: string) {
     store.route = store.route.filter((point) => point.sessionId !== sessionId);
     delete store.renderRoutes[sessionId];
     store.photos = store.photos.filter((photo) => photo.sessionId !== sessionId);
+    store.activity = store.activity.filter((item) => item.sessionId !== sessionId);
     if (store.trackingSessionId === sessionId) store.trackingSessionId = null;
   });
 }

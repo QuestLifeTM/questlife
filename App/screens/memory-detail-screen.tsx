@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Image, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { AvatarPile } from "@/components/avatar-pile";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, GradientBand, IconButton, Screen, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
-import { fetchJournalMemory, resolveJournalMedia, updateJournalMemoryReflection } from "@/services/journal/journalService";
+import { deleteJournalMedia, fetchJournalMemory, resolveJournalMedia, updateJournalMemoryPhotos, updateJournalMemoryReflection, uploadJournalMedia } from "@/services/journal/journalService";
 import { JournalMemory } from "@/types/journal";
 
 const memoryDifficultyIcons: Record<JournalMemory["difficulty"], keyof typeof Ionicons.glyphMap> = {
@@ -41,6 +42,8 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
   const [reflectionDraft, setReflectionDraft] = useState("");
   const [savingReflection, setSavingReflection] = useState(false);
   const [reflectionError, setReflectionError] = useState<string | null>(null);
+  const [managedPhotoIndex, setManagedPhotoIndex] = useState<number | null>(null);
+  const [savingPhoto, setSavingPhoto] = useState(false);
   const { showFeedback } = useAppFeedback();
 
   useEffect(() => {
@@ -125,6 +128,48 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
       showFeedback({ message: "We couldn't open sharing right now.", icon: "alert-circle", color: T.red });
     }
   };
+  const replacePhoto = async () => {
+    if (managedPhotoIndex === null || savingPhoto) return;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.78 });
+      if (result.canceled || !result.assets[0]) return;
+      setSavingPhoto(true);
+      const nextPath = await uploadJournalMedia(result.assets[0].uri);
+      const previousPath = memory.photoPaths[managedPhotoIndex];
+      const photoPaths = memory.photoPaths.map((path, index) => index === managedPhotoIndex ? nextPath : path);
+      await updateJournalMemoryPhotos({ completionId: memory.completionId, photoPaths });
+      setMemory((current) => current ? { ...current, photoPaths } : current);
+      setManagedPhotoIndex(null);
+      void deleteJournalMedia([previousPath]);
+      showFeedback({ message: "Photo replaced.", icon: "checkmark-circle", color: actionColor });
+    } catch {
+      showFeedback({ message: "We couldn't replace that photo. Please try again.", icon: "alert-circle", color: T.red });
+    } finally {
+      setSavingPhoto(false);
+    }
+  };
+  const confirmDeletePhoto = () => {
+    if (managedPhotoIndex === null || savingPhoto) return;
+    Alert.alert("Delete photo?", "This removes it from this Journal memory.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => void (async () => {
+        setSavingPhoto(true);
+        try {
+          const removedPath = memory.photoPaths[managedPhotoIndex];
+          const photoPaths = memory.photoPaths.filter((_, index) => index !== managedPhotoIndex);
+          await updateJournalMemoryPhotos({ completionId: memory.completionId, photoPaths });
+          setMemory((current) => current ? { ...current, photoPaths } : current);
+          setManagedPhotoIndex(null);
+          void deleteJournalMedia([removedPath]);
+          showFeedback({ message: "Photo deleted.", icon: "trash", color: T.red });
+        } catch {
+          showFeedback({ message: "We couldn't delete that photo. Please try again.", icon: "alert-circle", color: T.red });
+        } finally {
+          setSavingPhoto(false);
+        }
+      })() },
+    ]);
+  };
 
   const actionColor = cat.text;
 
@@ -156,7 +201,7 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
 
           {memory.participants.length ? <Card style={{ flexDirection: "row", alignItems: "center", gap: 12 }}><AvatarPile people={memory.participants} size={32} /><View style={{ flex: 1, gap: 2 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 14 }}>Shared adventure</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 17 }}>You completed this with {memory.participants.length} other{memory.participants.length > 1 ? "s" : ""}.</Text></View></Card> : null}
 
-          {photoUrls.length ? <View style={{ gap: 10 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Photos from this quest</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{photoUrls.map((uri, index) => <Image key={uri} accessibilityLabel={`Quest photo ${index + 1} of ${photoUrls.length}`} source={{ uri }} style={{ width: 180, height: 132, borderRadius: radius.lg, backgroundColor: T.border }} />)}</ScrollView></View> : null}
+          {photoUrls.length ? <View style={{ gap: 10 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Photos from this quest</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{photoUrls.map((uri, index) => <View key={uri} style={{ width: 180, height: 132, overflow: "hidden", borderRadius: radius.lg, backgroundColor: T.border }}><Image accessibilityLabel={`Quest photo ${index + 1} of ${photoUrls.length}`} source={{ uri }} style={{ width: "100%", height: "100%" }} /><Pressable accessibilityRole="button" accessibilityLabel={`Manage photo ${index + 1}`} onPress={() => setManagedPhotoIndex(index)} hitSlop={7} style={({ pressed }) => ({ position: "absolute", top: 8, right: 8, width: 31, height: 31, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.94)", opacity: pressed ? 0.7 : 1 })}><Ionicons name="ellipsis-horizontal" size={18} color={T.dark} /></Pressable></View>)}</ScrollView></View> : null}
 
           <View style={{ gap: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Your reflection</Text><Pressable accessibilityRole="button" accessibilityLabel={memory.reflection ? "Edit reflection" : "Add a reflection"} onPress={openReflectionEditor} hitSlop={8} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: pressed ? 0.68 : 1 })}><Ionicons name={memory.reflection ? "create-outline" : "add-circle-outline"} size={16} color={actionColor} /><Text style={{ color: actionColor, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{memory.reflection ? "Edit" : "Add"}</Text></Pressable></View>
@@ -175,6 +220,14 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
           <TextInput value={reflectionDraft} onChangeText={setReflectionDraft} multiline textAlignVertical="top" autoFocus placeholder="What do you want to remember?" placeholderTextColor={T.muted} style={{ minHeight: 156, borderRadius: 18, borderWidth: 2, borderColor: T.border, backgroundColor: T.bg, padding: 13, color: T.dark, fontSize: 15, lineHeight: 22, fontWeight: "700" }} />
           {reflectionError ? <Text accessibilityRole="alert" style={{ color: T.red, fontSize: 12, lineHeight: 17, fontWeight: "800", textAlign: "center" }}>{reflectionError}</Text> : null}
           <View style={{ gap: 9 }}><SoftButton label={savingReflection ? "Saving..." : "Save reflection"} icon="checkmark" disabled={savingReflection} onPress={() => void saveReflection()} /><SoftButton label="Cancel" inverse color={T.muted} disabled={savingReflection} onPress={() => setReflectionEditorVisible(false)} /></View>
+        </View>
+      </Sheet>
+      <Sheet visible={managedPhotoIndex !== null} onClose={() => { if (!savingPhoto) setManagedPhotoIndex(null); }}>
+        <View style={{ padding: 24, gap: 13 }}>
+          <View style={{ gap: 3 }}><Text style={{ color: T.dark, fontSize: 22, lineHeight: 28, fontWeight: "900" }}>Manage photo</Text><Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>Replace it with another moment or remove it from this memory.</Text></View>
+          <SoftButton label={savingPhoto ? "Saving..." : "Replace photo"} icon="images-outline" disabled={savingPhoto} color={actionColor} onPress={() => void replacePhoto()} />
+          <SoftButton label="Delete photo" icon="trash-outline" inverse color={T.red} disabled={savingPhoto} onPress={confirmDeletePhoto} />
+          <SoftButton label="Cancel" inverse color={T.muted} disabled={savingPhoto} onPress={() => setManagedPhotoIndex(null)} />
         </View>
       </Sheet>
     </Screen>

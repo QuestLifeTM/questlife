@@ -2,6 +2,11 @@ import { Profile, ProfileEditInput, ProfileOverview, QuestFeedPost, QuestPost, Q
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { toLocalDateKey } from "@/services/journal/journalService";
+import type { QuestCategory } from "@/types/content";
+
+export type WeeklyCompletedQuestActivity = { day: string; value: number };
+
+type TrailCompletionRow = { quests: { category: QuestCategory } | null };
 
 function assertSupabaseConfigured() {
   if (!isSupabaseConfigured) throw new Error(SUPABASE_CONFIG_ERROR);
@@ -9,6 +14,45 @@ function assertSupabaseConfigured() {
 
 function today() {
   return toLocalDateKey(new Date());
+}
+
+function localDayKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/** Returns an exact, local-time seven-day count of the signed-in user's completions. */
+export async function fetchWeeklyCompletedQuestActivity(): Promise<WeeklyCompletedQuestActivity[]> {
+  assertSupabaseConfigured();
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - 6);
+  const end = new Date(now);
+  end.setHours(0, 0, 0, 0);
+  end.setDate(end.getDate() + 1);
+
+  const { data, error } = await supabase
+    .from("quest_completions")
+    .select("created_at")
+    .gte("created_at", start.toISOString())
+    .lt("created_at", end.toISOString())
+    .returns<Array<{ created_at: string }>>();
+  if (error) throw error;
+
+  const counts = new Map<string, number>();
+  for (const completion of data ?? []) {
+    const key = localDayKey(new Date(completion.created_at));
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return {
+      day: date.toLocaleDateString(undefined, { weekday: "narrow" }),
+      value: counts.get(localDayKey(date)) ?? 0,
+    };
+  });
 }
 
 export async function upsertOwnProfile(input: {
@@ -40,6 +84,28 @@ export async function fetchProfileOverview(userId?: string): Promise<ProfileOver
   if (error) throw error;
   const payload = data as ProfileOverview | null;
   if (!payload) throw new Error("Profile overview is unavailable.");
+  let topCategories = payload.stats?.topCategories ?? [];
+  // The overview RPC predates the Quest Rail in some deployments. Build the
+  // rail from the actual completion history so it always reflects the three
+  // quest categories this profile has participated in most often.
+  if (payload.profile?.userId) {
+    const { data: completions, error: trailError } = await supabase
+      .from("quest_completions")
+      .select("quests(category)")
+      .eq("user_id", payload.profile.userId)
+      .returns<TrailCompletionRow[]>();
+    if (!trailError) {
+      const counts = new Map<QuestCategory, number>();
+      for (const completion of completions ?? []) {
+        const category = completion.quests?.category;
+        if (category) counts.set(category, (counts.get(category) ?? 0) + 1);
+      }
+      topCategories = [...counts.entries()]
+        .map(([category, completedQuests]) => ({ category, completedQuests }))
+        .sort((a, b) => b.completedQuests - a.completedQuests || a.category.localeCompare(b.category))
+        .slice(0, 3);
+    }
+  }
   return {
     isSelf: payload.isSelf,
     isFriend: payload.isFriend,
@@ -48,7 +114,7 @@ export async function fetchProfileOverview(userId?: string): Promise<ProfileOver
       ...payload.stats,
       // Older deployed schemas do not yet include the Quest Trail payload.
       // Keep the profile usable while the matching migration rolls out.
-      topCategories: payload.stats?.topCategories ?? [],
+      topCategories,
     },
     posts: payload.posts ?? [],
     recentCompletions: payload.recentCompletions ?? [],

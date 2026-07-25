@@ -1,9 +1,10 @@
 import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import * as Location from "expo-location";
+import * as FileSystem from "expo-file-system/legacy";
 
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
-import { ensureActiveQuestSession, getActiveQuestSnapshot, getPendingCompletionSyncSessionIds, subscribeToActiveQuestStore, updateActiveQuestSession } from "@/services/active-quest/local-store";
+import { addActiveQuestActivity, deleteActiveQuestActivity, deleteActiveQuestPhoto, ensureActiveQuestSession, getActiveQuestSnapshot, getPendingCompletionSyncSessionIds, setActiveQuestRecordingState, subscribeToActiveQuestStore, updateActiveQuestActivity, updateActiveQuestSession } from "@/services/active-quest/local-store";
 import { persistQuestPhoto, retryQuestPhotoSync } from "@/services/active-quest/media";
 import { syncActiveQuestRecord } from "@/services/active-quest/sync";
 import { beginQuestLocationTracking, stopQuestLocationTracking } from "@/services/active-quest/tracking";
@@ -20,7 +21,11 @@ type ActiveQuestContextValue = {
   resume: () => Promise<void>;
   saveEntry: (input: { title: string; body: string }) => Promise<void>;
   enableTracking: () => Promise<void>;
-  addPhoto: (uri: string) => Promise<void>;
+  addActivityNote: (body: string) => Promise<void>;
+  addPhoto: (uri: string, caption?: string) => Promise<void>;
+  updateActivity: (id: number, value: string) => Promise<void>;
+  deleteActivity: (id: number) => Promise<void>;
+  deletePhoto: (id: number) => Promise<void>;
   finishLocalQuest: () => Promise<void>;
 };
 
@@ -34,7 +39,11 @@ const ActiveQuestContext = createContext<ActiveQuestContextValue>({
   resume: async () => undefined,
   saveEntry: async () => undefined,
   enableTracking: async () => undefined,
+  addActivityNote: async () => undefined,
   addPhoto: async () => undefined,
+  updateActivity: async () => undefined,
+  deleteActivity: async () => undefined,
+  deletePhoto: async () => undefined,
   finishLocalQuest: async () => undefined,
 });
 
@@ -101,7 +110,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     const appStateSubscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
         void reload();
-        if (snapshot?.session.recordingState === "recording" && snapshot.session.trackingStatus === "tracking") {
+        if (snapshot?.session.trackingStatus === "tracking") {
           void startForegroundLocationWatch(snapshot.session.sessionId);
         }
       } else {
@@ -109,15 +118,15 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
       }
     });
     return () => appStateSubscription.remove();
-  }, [reload, snapshot?.session.recordingState, snapshot?.session.sessionId, snapshot?.session.trackingStatus, startForegroundLocationWatch, stopForegroundLocationWatch]);
+  }, [reload, snapshot?.session.sessionId, snapshot?.session.trackingStatus, startForegroundLocationWatch, stopForegroundLocationWatch]);
 
   useEffect(() => {
-    if (snapshot?.session.recordingState === "recording" && snapshot.session.trackingStatus === "tracking") {
+    if (snapshot?.session.trackingStatus === "tracking") {
       void startForegroundLocationWatch(snapshot.session.sessionId);
     } else {
       stopForegroundLocationWatch();
     }
-  }, [snapshot?.session.recordingState, snapshot?.session.sessionId, snapshot?.session.trackingStatus, startForegroundLocationWatch, stopForegroundLocationWatch]);
+  }, [snapshot?.session.sessionId, snapshot?.session.trackingStatus, startForegroundLocationWatch, stopForegroundLocationWatch]);
 
   useEffect(() => () => stopForegroundLocationWatch(), [stopForegroundLocationWatch]);
 
@@ -134,9 +143,14 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
       questId: activeSession.questId,
       startedAt: activeSession.startedAt,
       entryTitle: "",
+      resumeExistingSession: Date.now() - new Date(activeSession.startedAt).getTime() > 15_000,
     })
-      .then(async () => {
+      .then(async (localSession) => {
         void retryQuestPhotoSync(activeSession.id);
+        if (localSession?.recordingState === "recording" && localSession.trackingStatus !== "tracking") {
+          const result = await beginQuestLocationTracking(activeSession.id);
+          if (result.started) await startForegroundLocationWatch(activeSession.id);
+        }
         return getActiveQuestSnapshot(activeSession.id);
       })
       .then((next) => {
@@ -146,33 +160,34 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
         if (mounted) setLoading(false);
       });
     return () => { mounted = false; };
-  }, [activeSession]);
+  }, [activeSession, startForegroundLocationWatch]);
 
   const pause = useCallback(async () => {
     if (!snapshot || snapshot.session.recordingState === "paused") return;
     const now = new Date().toISOString();
-    await updateActiveQuestSession(snapshot.session.sessionId, {
-      recordingState: "paused",
+    await setActiveQuestRecordingState(snapshot.session.sessionId, "paused", {
       pausedAt: now,
       activeSince: null,
       activeDurationMs: snapshot.session.activeDurationMs + elapsedSince(snapshot.session.activeSince),
     });
-    await stopQuestLocationTracking();
-    stopForegroundLocationWatch();
-    setTrackingMessage("Route recording is paused.");
+    setTrackingMessage("Quest time is paused. Your route is still recording.");
     await reload();
-  }, [reload, snapshot, stopForegroundLocationWatch]);
+  }, [reload, snapshot]);
 
   const resume = useCallback(async () => {
     if (!snapshot || snapshot.session.recordingState === "recording") return;
-    await updateActiveQuestSession(snapshot.session.sessionId, {
-      recordingState: "recording",
+    await setActiveQuestRecordingState(snapshot.session.sessionId, "recording", {
       pausedAt: null,
       activeSince: new Date().toISOString(),
+      activeDurationMs: snapshot.session.activeDurationMs,
     });
-    const result = await beginQuestLocationTracking(snapshot.session.sessionId);
-    if (result.started) await startForegroundLocationWatch(snapshot.session.sessionId);
-    setTrackingMessage(result.started ? (result.backgroundGranted ? "Route recording is on, even while your phone is locked." : "Route recording is on while QuestLife is open.") : result.reason);
+    if (snapshot.session.trackingStatus !== "tracking") {
+      const result = await beginQuestLocationTracking(snapshot.session.sessionId);
+      if (result.started) await startForegroundLocationWatch(snapshot.session.sessionId);
+      setTrackingMessage(result.started ? (result.backgroundGranted ? "Route recording is on, even while your phone is locked." : "Route recording is on while QuestLife is open.") : result.reason);
+    } else {
+      setTrackingMessage("Quest time resumed. Your route is still recording.");
+    }
     await reload();
   }, [reload, snapshot, startForegroundLocationWatch]);
 
@@ -190,12 +205,50 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     await reload();
   }, [reload, snapshot, startForegroundLocationWatch]);
 
-  const addPhoto = useCallback(async (uri: string) => {
-    if (!snapshot) return;
-    await persistQuestPhoto(snapshot.session.sessionId, uri);
+  const addActivityNote = useCallback(async (body: string) => {
+    if (!snapshot || !body.trim()) return;
+    await addActiveQuestActivity(snapshot.session.sessionId, { kind: "note", body });
     await reload();
     void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
   }, [reload, snapshot]);
+
+  const addPhoto = useCallback(async (uri: string, caption?: string) => {
+    if (!snapshot) return;
+    const photo = await persistQuestPhoto(snapshot.session.sessionId, uri);
+    await addActiveQuestActivity(snapshot.session.sessionId, { kind: "photo", photoId: photo.id, caption });
+    await reload();
+    void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
+  }, [reload, snapshot]);
+
+  const updateActivity = useCallback(async (id: number, value: string) => {
+    if (!snapshot) return;
+    const item = snapshot.activity.find((activity) => activity.id === id);
+    if (!item) return;
+    await updateActiveQuestActivity(id, item.kind === "photo" ? { caption: value } : { body: value });
+    await reload();
+  }, [reload, snapshot]);
+
+  const deletePhoto = useCallback(async (id: number) => {
+    const photo = await deleteActiveQuestPhoto(id);
+    if (!photo) return;
+    try { await FileSystem.deleteAsync(photo.uri, { idempotent: true }); } catch { /* Local metadata has already been safely removed. */ }
+    await reload();
+    void syncActiveQuestRecord(photo.sessionId).catch(() => undefined);
+  }, [reload]);
+
+  const deleteActivity = useCallback(async (id: number) => {
+    if (!snapshot) return;
+    const item = snapshot.activity.find((activity) => activity.id === id);
+    if (!item) return;
+    if (item.photoId) {
+      await deletePhoto(item.photoId);
+      return;
+    }
+    const removed = await deleteActiveQuestActivity(id);
+    if (!removed) return;
+    await reload();
+    void syncActiveQuestRecord(removed.sessionId).catch(() => undefined);
+  }, [deletePhoto, reload, snapshot]);
 
   const finishLocalQuest = useCallback(async () => {
     if (!snapshot) return;
@@ -208,7 +261,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     setSnapshot(null);
   }, [retryCompletedRouteSync, snapshot, stopForegroundLocationWatch]);
 
-  const value = useMemo(() => ({ snapshot, liveLocation, loading, trackingMessage, reload, pause, resume, saveEntry, enableTracking, addPhoto, finishLocalQuest }), [snapshot, liveLocation, loading, trackingMessage, reload, pause, resume, saveEntry, enableTracking, addPhoto, finishLocalQuest]);
+  const value = useMemo(() => ({ snapshot, liveLocation, loading, trackingMessage, reload, pause, resume, saveEntry, enableTracking, addActivityNote, addPhoto, updateActivity, deleteActivity, deletePhoto, finishLocalQuest }), [snapshot, liveLocation, loading, trackingMessage, reload, pause, resume, saveEntry, enableTracking, addActivityNote, addPhoto, updateActivity, deleteActivity, deletePhoto, finishLocalQuest]);
   return <ActiveQuestContext.Provider value={value}>{children}</ActiveQuestContext.Provider>;
 }
 

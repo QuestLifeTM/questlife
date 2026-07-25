@@ -2,6 +2,7 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 
 import { addAcceptedRoutePoint } from "@/services/active-quest/local-store";
+import { queueActiveQuestRouteSync } from "@/services/active-quest/sync";
 
 export const ACTIVE_QUEST_LOCATION_TASK = "questlife-active-quest-location";
 
@@ -15,7 +16,9 @@ export async function persistQuestLocation(sessionId: string, location: Location
     altitude: location.coords.altitude,
     heading: location.coords.heading,
   };
-  return addAcceptedRoutePoint(sessionId, next);
+  const accepted = await addAcceptedRoutePoint(sessionId, next);
+  if (accepted) queueActiveQuestRouteSync(sessionId);
+  return accepted;
 }
 
 if (!TaskManager.isTaskDefined(ACTIVE_QUEST_LOCATION_TASK)) {

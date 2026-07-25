@@ -4,6 +4,7 @@ import * as MediaLibrary from "expo-media-library";
 
 import { uploadQuestPhoto } from "@/services/engine/questEngineService";
 import { addActiveQuestPhoto, getActiveQuestPhotos, updateActiveQuestPhoto } from "@/services/active-quest/local-store";
+import { compressFeedImage } from "@/services/media/feed-image";
 
 export async function persistQuestPhoto(sessionId: string, temporaryUri: string) {
   // The system camera returns a temporary URI on some Android devices. Save it
@@ -18,13 +19,21 @@ export async function persistQuestPhoto(sessionId: string, temporaryUri: string)
       // issue must never prevent the photo from being added to this quest.
     }
   }
+  // Keep a display-ready JPEG in the quest store. This substantially reduces
+  // upload and scrolling cost without changing the original camera roll copy.
+  let compressedUri = temporaryUri;
+  try {
+    compressedUri = await compressFeedImage(temporaryUri);
+  } catch {
+    // Preserve the moment even if a device cannot transform this camera file.
+  }
   const root = `${FileSystem.documentDirectory}active-quests/${sessionId}`;
   await FileSystem.makeDirectoryAsync(root, { intermediates: true });
   const uri = `${root}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
-  await FileSystem.copyAsync({ from: temporaryUri, to: uri });
+  await FileSystem.copyAsync({ from: compressedUri, to: uri });
   const photoId = await addActiveQuestPhoto(sessionId, uri);
   void syncQuestPhoto(photoId, uri);
-  return uri;
+  return { id: photoId, uri };
 }
 
 async function syncQuestPhoto(id: number, uri: string) {

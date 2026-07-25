@@ -224,6 +224,28 @@ export async function updateJournalMemoryReflection(input: { completionId: strin
   if (error) throw error;
 }
 
+/** Replaces the ordered photo list for one of the user's completed memories. */
+export async function updateJournalMemoryPhotos(input: { completionId: string; photoPaths: string[] }) {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  const { error } = await supabase
+    .from("quest_completions")
+    .update({ photo_urls: input.photoPaths })
+    .eq("id", input.completionId)
+    .eq("user_id", userData.user.id);
+  if (error) throw error;
+}
+
+/** Removes private Journal-media objects after their database references are gone. */
+export async function deleteJournalMedia(paths: string[]) {
+  const privatePaths = paths.filter((path) => !/^https?:\/\//i.test(path));
+  if (!privatePaths.length || !isSupabaseConfigured) return;
+  await supabase.storage.from("journal-media").remove(privatePaths);
+}
+
 export async function resolveJournalMedia(paths: string[]) {
   if (!paths.length) return [];
   assertSupabaseConfigured();

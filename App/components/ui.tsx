@@ -295,7 +295,9 @@ export function IconButton({
         transform: [{ scale: pressed ? 0.9 : 1 }]
       })}
     >
-      <Ionicons name={icon} size={19} color={color} />
+      <View style={{ transform: [{ translateX: 2 }, { translateY: 2 }] }}>
+        <Ionicons name={icon} size={19} color={color} />
+      </View>
       {badge !== undefined ? (
         <View style={{ position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: T.cyan, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
           <Text style={{ color: T.white, fontWeight: "900", fontSize: 10 }}>{badge}</Text>

@@ -5,18 +5,19 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
-import { EmptyState, Screen, useResponsiveScreenLayout } from "@/components/ui";
+import { EmptyState, Header, Screen, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
 import { QuestlifeFlame } from "@/components/questlife-flame";
 import { categoryColor, T } from "@/components/theme";
 import { QuestFeedThumbnail } from "@/components/quest-feed-card";
 import { QuestPostManagementSheet } from "@/components/quest-post-management-sheet";
+import { ActivityChartCard } from "@/components/activity-chart-card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { formatElapsedCompact } from "@/hooks/useElapsedTime";
-import { fetchProfileOverview, updateProfile, uploadProfileAvatar } from "@/services/profile/profileService";
+import { fetchProfileOverview, fetchWeeklyCompletedQuestActivity, updateProfile, uploadProfileAvatar, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
 import { levelForXp, ProfileOverview, QuestFeedPost } from "@/types/profile";
 
 function accountValue(metadata: unknown, key: string) {
@@ -30,10 +31,44 @@ function fullProfileName(displayName: string, metadata: unknown) {
   return displayName.trim().split(/\s+/).filter(Boolean).length >= 2 ? displayName : fullName || displayName;
 }
 
-function HeaderControl({ label, icon, positive = false, disabled = false, onPress }: { label?: string; icon?: keyof typeof Ionicons.glyphMap; positive?: boolean; disabled?: boolean; onPress: () => void }) {
-  return <Pressable disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={label ?? "Profile control"} onPress={onPress} hitSlop={8} style={({ pressed }) => ({ minWidth: 40, minHeight: 40, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 4, opacity: disabled ? 0.45 : pressed ? 0.66 : 1 })}>
-    {icon ? <Ionicons name={icon} size={20} color={T.dark} /> : <Text style={{ color: positive ? T.green : T.dark, fontFamily: "RubikBold", fontSize: 15 }}>{label}</Text>}
-    {positive ? <Ionicons name="checkmark-circle" size={18} color={T.green} /> : null}
+function HeaderControl({ label, positive = false, disabled = false, onPress }: { label: string; positive?: boolean; disabled?: boolean; onPress: () => void }) {
+  return <Pressable disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={label} onPress={onPress} style={({ pressed }) => ({ minHeight: 42, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 5, borderRadius: 21, backgroundColor: T.white, borderWidth: 2, borderColor: T.border, opacity: disabled ? 0.45 : pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.96 : 1 }] })}>
+    <Text style={{ color: positive ? T.green : T.dark, fontFamily: "RubikBold", fontSize: 14, lineHeight: 18 }}>{label}</Text>
+    {positive ? <Ionicons name="checkmark" size={16} color={T.green} /> : null}
+  </Pressable>;
+}
+
+/**
+ * The profile header is an identity surface, so its utilities get a more
+ * considered treatment than the app-wide icon button: a coloured inner disk,
+ * an ivory outer ring, and a small offset shadow make the pair feel tangible
+ * without competing with the profile itself.
+ */
+function ProfileHeaderIconButton({ icon, label, color, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; color: string; onPress: () => void }) {
+  return <Pressable
+    accessibilityRole="button"
+    accessibilityLabel={label}
+    hitSlop={6}
+    onPress={() => {
+      haptic();
+      onPress();
+    }}
+    style={({ pressed }) => ({
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: T.white,
+      borderWidth: 1,
+      borderColor: `${color}2b`,
+      boxShadow: pressed ? "0px 1px 3px rgba(61,52,56,0.12)" : "0px 5px 12px rgba(61,52,56,0.13)",
+      transform: [{ scale: pressed ? 0.94 : 1 }, { translateY: pressed ? 2 : 0 }],
+    })}
+  >
+    <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: `${color}16`, borderWidth: 1, borderColor: `${color}26` }}>
+      <Ionicons name={icon} size={20} color={color} />
+    </View>
   </Pressable>;
 }
 
@@ -85,17 +120,19 @@ function QuestTrail({ categories }: { categories: ProfileOverview["stats"]["topC
   </View>;
 }
 
-function ProfileStats({ overview }: { overview: ProfileOverview }) {
+function ProfileStats({ overview, weeklyActivity }: { overview: ProfileOverview; weeklyActivity: WeeklyCompletedQuestActivity[] }) {
   const { profile, stats } = overview;
   const { level, intoLevel, toNext, progress } = levelForXp(profile?.totalXp ?? 0);
   const nextLevel = level + 1;
   const xpRemaining = Math.max(0, toNext - intoLevel);
   const timeSpent = formatElapsedCompact((stats.totalQuestDurationSeconds ?? 0) * 1_000);
-  const primaryMetrics = [
-    { label: "Longest streak", value: `${stats.longestStreak}d`, icon: <QuestlifeFlame size={26} /> },
-    { label: "Quests done", value: stats.totalQuests.toLocaleString(), icon: <Ionicons name="checkmark-circle" size={25} color={T.green} /> },
+  const weeklyTotal = weeklyActivity.reduce((total, point) => total + point.value, 0);
+  const overviewMetrics = [
+    { label: "Longest streak", value: `${stats.longestStreak}d`, icon: <QuestlifeFlame size={25} />, accent: T.orange },
+    { label: "Quests done", value: stats.totalQuests.toLocaleString(), icon: <Ionicons name="checkmark-circle" size={24} color={T.green} />, accent: T.green },
+    { label: "Time spent", value: timeSpent, icon: <Ionicons name="time" size={25} color={T.blue} />, accent: T.blue },
+    { label: "Total XP earned", value: (profile?.totalXp ?? 0).toLocaleString(), icon: <Ionicons name="flash" size={25} color={T.yellow} />, accent: T.yellow },
   ];
-  const timeMetric = { label: "Time spent", value: timeSpent, icon: <Ionicons name="time" size={27} color={T.blue} /> };
 
   return <View style={{ gap: 12 }}>
     <View style={{ borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 6, borderBottomColor: "#dfd6cc", backgroundColor: T.white, padding: 16, gap: 13 }}>
@@ -108,23 +145,17 @@ function ProfileStats({ overview }: { overview: ProfileOverview }) {
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: T.blue, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{intoLevel.toLocaleString()} / {toNext.toLocaleString()} XP</Text><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 11, lineHeight: 15 }}>Level {nextLevel}</Text></View>
       </View>
     </View>
-    <View style={{ borderRadius: 20, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#dfd6cc", backgroundColor: T.white, overflow: "hidden" }}>
-      <View style={{ minHeight: 100, flexDirection: "row" }}>
-        {primaryMetrics.map((metric, index) => <View key={metric.label} style={{ flex: 1, minWidth: 0, flexDirection: "row" }}>
-          {index ? <View style={{ width: 1, marginVertical: 16, backgroundColor: T.border }} /> : null}
-          <View style={{ flex: 1, minWidth: 0, paddingHorizontal: 8, paddingVertical: 16, alignItems: "center", justifyContent: "center", gap: 9 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 29 }}>{metric.icon}<Text adjustsFontSizeToFit minimumFontScale={0.8} numberOfLines={1} style={{ flexShrink: 1, color: T.dark, fontFamily: "RubikBold", fontSize: 24, lineHeight: 29, fontVariant: ["tabular-nums"] }}>{metric.value}</Text></View>
-            <Text numberOfLines={1} style={{ width: "100%", color: T.muted, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16, letterSpacing: 0.35, textTransform: "uppercase", textAlign: "center" }}>{metric.label}</Text>
+    <ActivityChartCard totalValue={String(weeklyTotal)} data={weeklyActivity} />
+    <View style={{ gap: 10 }}>
+      <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 19, lineHeight: 24 }}>Overview</Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+        {overviewMetrics.map((metric) => <View key={metric.label} style={{ width: "48.5%", minHeight: 104, borderRadius: 20, borderWidth: 2, borderColor: T.border, borderBottomWidth: 4, borderBottomColor: "#dfd6cc", backgroundColor: T.white, paddingHorizontal: 10, paddingVertical: 14, alignItems: "center", justifyContent: "center", gap: 7 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 29 }}>
+            <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${metric.accent}18` }}>{metric.icon}</View>
+            <Text adjustsFontSizeToFit minimumFontScale={0.74} numberOfLines={1} style={{ flexShrink: 1, color: T.dark, fontFamily: "RubikBold", fontSize: 23, lineHeight: 28, fontVariant: ["tabular-nums"] }}>{metric.value}</Text>
           </View>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={{ width: "100%", color: T.muted, fontFamily: "RubikBold", fontSize: 11, lineHeight: 15, letterSpacing: 0.3, textTransform: "uppercase", textAlign: "center" }}>{metric.label}</Text>
         </View>)}
-      </View>
-      <View style={{ height: 1, marginHorizontal: 16, backgroundColor: T.border }} />
-      <View style={{ minHeight: 90, paddingHorizontal: 16, paddingVertical: 15, alignItems: "center", justifyContent: "center", gap: 8 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, minHeight: 29 }}>
-          {timeMetric.icon}
-          <Text adjustsFontSizeToFit minimumFontScale={0.8} numberOfLines={1} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 24, lineHeight: 29, fontVariant: ["tabular-nums"] }}>{timeMetric.value}</Text>
-        </View>
-        <Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16, letterSpacing: 0.35, textTransform: "uppercase" }}>{timeMetric.label}</Text>
       </View>
     </View>
     <QuestTrail categories={stats.topCategories ?? []} />
@@ -138,6 +169,7 @@ export function ProfileScreen() {
   const { refresh: refreshSocial } = useSocial();
   const { contentWidth, horizontalPadding, insets, safeAreaOffset } = useResponsiveScreenLayout();
   const [overview, setOverview] = useState<ProfileOverview | null>(null);
+  const [weeklyActivity, setWeeklyActivity] = useState<WeeklyCompletedQuestActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -152,8 +184,12 @@ export function ProfileScreen() {
   async function load() {
     setLoading(true);
     try {
-      const next = await fetchProfileOverview();
+      const [next, activity] = await Promise.all([
+        fetchProfileOverview(),
+        fetchWeeklyCompletedQuestActivity().catch(() => []),
+      ]);
       setOverview(next.profile ? next : null);
+      setWeeklyActivity(activity);
       if (next.profile) {
         setDraftName(fullProfileName(next.profile.displayName, user?.user_metadata));
         setDraftBio(next.profile.bio ?? "");
@@ -223,11 +259,10 @@ export function ProfileScreen() {
   if (loading && !overview) return <Screen><EmptyState emoji="⏳" title="Loading profile" body="Gathering your QuestLife identity…" /></Screen>;
   if (!overview?.profile) return <Screen><EmptyState emoji="!" title="Profile unavailable" body="Sign in to view your profile." /></Screen>;
 
-  const { profile, stats } = overview;
+  const { profile } = overview;
   const avatarUri = editing ? draftAvatarUri : profile.avatarUrl;
   const displayName = fullProfileName(profile.displayName, user?.user_metadata);
   const username = accountValue(user?.user_metadata, "username") || profile.username || "adventurer";
-  const hasCompletedQuest = stats.totalQuests > 0;
   const postTileSize = (contentWidth - horizontalPadding * 2 - 12) / 3;
   const profilePosts: QuestFeedPost[] = overview.posts.map((post) => ({
     ...post,
@@ -245,24 +280,23 @@ export function ProfileScreen() {
     <ScrollView scrollEnabled={!editing} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + 112 }}>
       <View style={{ width: contentWidth, transform: [{ translateX: safeAreaOffset }] }}>
       <View style={{ backgroundColor: T.bg }}>
-        <View style={{ paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top - 4, 0) }}>
-          <View style={{ height: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            {editing ? <HeaderControl label="Discard" onPress={discard} /> : <HeaderControl icon="create-outline" label="Edit profile" onPress={startEditing} />}
-            {editing ? <HeaderControl label={saving ? "Saving…" : "Save"} positive disabled={saving} onPress={() => void save()} /> : <HeaderControl icon="settings-outline" label="Open settings" onPress={() => router.push("/settings")} />}
-          </View>
+        <View style={{ paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top + 8, 20) }}>
+          <Header
+            animated={false}
+            title="Profile"
+            right={editing ? <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><HeaderControl label="Discard" onPress={discard} /><HeaderControl label={saving ? "Saving…" : "Save"} positive disabled={saving} onPress={() => void save()} /></View> : <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}><ProfileHeaderIconButton icon="create" label="Edit profile" color={T.blue} onPress={startEditing} /><ProfileHeaderIconButton icon="settings" label="Open settings" color={T.dark} onPress={() => router.push("/settings")} /></View>}
+          />
 
-          <View style={{ alignItems: "center", paddingTop: editing ? 8 : 5 }}>
+          <View style={{ alignItems: "center", paddingTop: editing ? 4 : 2 }}>
             <View style={{ marginTop: editing ? 7 : 0, position: "relative" }}>
-              <ProfileAvatar uri={avatarUri} size={92} label={`${displayName}'s profile photo`} />
+              <ProfileAvatar uri={avatarUri} size={98} label={`${displayName}'s profile photo`} />
               {editing ? <ImageControl label="Change profile picture" onPress={() => void chooseImage()} style={{ width: 34, height: 34, borderRadius: 11, position: "absolute", right: -10, bottom: -7, zIndex: 3, elevation: 3 }} /> : null}
             </View>
 
-            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 40, marginTop: 9, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12 }}><TextInput value={draftName} onChangeText={setDraftName} accessibilityLabel="Name" autoCapitalize="words" placeholder="Your name" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 14, lineHeight: 19, textAlign: "center", paddingVertical: 6 }} /></View> : <Text style={{ marginTop: 9, color: T.dark, fontFamily: "RubikBold", fontSize: 14, lineHeight: 19, textAlign: "center" }}>{displayName}</Text>}
-            <Text style={{ marginTop: editing ? 9 : 4, color: T.dark, fontFamily: "RubikBold", fontSize: 14, lineHeight: 19, textAlign: "center" }}>
-              @{username}{hasCompletedQuest ? `  •  ${stats.totalQuests.toLocaleString()} ${stats.totalQuests === 1 ? "Quest" : "Quests"} Done` : ""}
-            </Text>
+            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 40, marginTop: 9, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12 }}><TextInput value={draftName} onChangeText={setDraftName} accessibilityLabel="Name" autoCapitalize="words" placeholder="Your name" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22, textAlign: "center", paddingVertical: 6 }} /></View> : <Text style={{ marginTop: 9, color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22, textAlign: "center" }}>{displayName}</Text>}
+            <Text style={{ marginTop: editing ? 9 : 4, color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22, textAlign: "center" }}>@{username}</Text>
 
-            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 52, marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12, paddingVertical: 6 }}><TextInput value={draftBio} onChangeText={setDraftBio} accessibilityLabel="Bio" placeholder="Write a bio…" placeholderTextColor={T.muted} multiline maxLength={180} textAlignVertical="top" style={{ minHeight: 32, color: T.dark, fontFamily: "Rubik", fontSize: 14, lineHeight: 18 }} /></View> : <Text style={{ maxWidth: 286, marginTop: 8, color: profile.bio ? T.dark : T.muted, fontFamily: "Rubik", fontSize: 14, lineHeight: 19, textAlign: "center" }}>{profile.bio || "Tap the pencil icon to add a bio."}</Text>}
+            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 52, marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12, paddingVertical: 6 }}><TextInput value={draftBio} onChangeText={setDraftBio} accessibilityLabel="Bio" placeholder="Write a bio…" placeholderTextColor={T.muted} multiline maxLength={180} textAlignVertical="top" style={{ minHeight: 32, color: T.dark, fontFamily: "Rubik", fontSize: 17, lineHeight: 22 }} /></View> : <Text style={{ maxWidth: 286, marginTop: 8, color: profile.bio ? T.dark : T.muted, fontFamily: "Rubik", fontSize: 17, lineHeight: 22, textAlign: "center" }}>{profile.bio || "Tap the pencil icon to add a bio."}</Text>}
             {error ? <Text accessibilityRole="alert" style={{ marginTop: 7, color: T.red, fontFamily: "RubikBold", fontSize: 12, textAlign: "center" }}>{error}</Text> : null}
           </View>
 
@@ -280,7 +314,7 @@ export function ProfileScreen() {
           <ProfileTabButton tab="stats" activeTab={activeTab} onPress={() => setActiveTab("stats")} />
         </View>
         <View style={{ marginTop: 16 }}>
-          {activeTab === "posts" ? (profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." />) : <ProfileStats overview={overview} />}
+          {activeTab === "posts" ? (profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." />) : <ProfileStats overview={overview} weeklyActivity={weeklyActivity} />}
         </View>
       </View>
       </View>
