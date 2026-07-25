@@ -259,5 +259,11 @@ export type SocialOverview = {
 
 export type ProfileSearchResult = SocialProfile & {
   isFriend: boolean;
+  isFollowing: boolean;
+  followsYou: boolean;
   requestStatus: string | null;
+};
+
+export type FollowerProfile = SocialProfile & {
+  followedAt: string;
 };

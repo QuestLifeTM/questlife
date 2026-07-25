@@ -8,6 +8,7 @@ import {
   PartyCompletionResult,
   PartyDetail,
   PartyHub,
+  FollowerProfile,
   ProfileSearchResult,
   SocialOverview,
 } from "@/types/social";
@@ -122,6 +123,31 @@ export async function cancelFriendRequest(requestId: string) {
 export async function removeFriend(userId: string) {
   assertSupabaseConfigured();
   const { error } = await supabase.rpc("remove_friend", { p_user: userId });
+  if (error) throw error;
+}
+
+export async function followProfile(userId: string) {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("follow_profile", { p_user: userId });
+  if (error) throw error;
+}
+
+export async function unfollowProfile(userId: string) {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("unfollow_profile", { p_user: userId });
+  if (error) throw error;
+}
+
+export async function fetchFollowers(): Promise<FollowerProfile[]> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("get_profile_followers");
+  if (error) throw error;
+  return (data ?? []) as FollowerProfile[];
+}
+
+export async function removeFollower(userId: string) {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("remove_profile_follower", { p_user: userId });
   if (error) throw error;
 }
 

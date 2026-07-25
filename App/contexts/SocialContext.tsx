@@ -11,11 +11,13 @@ import {
   fetchPartyDetail,
   fetchPartyHub,
   fetchSocialOverview,
+  followProfile,
   inviteToParty,
   leaveParty,
   joinPartyByCode,
   markPartyNotificationsRead,
   removeFriend,
+  unfollowProfile,
   respondFriendRequest,
   respondPartyInvite,
   respondQuestChallenge,
@@ -42,6 +44,8 @@ type SocialContextValue = {
   refresh: () => Promise<void>;
   searchUsers: (query: string) => Promise<ProfileSearchResult[]>;
   addFriend: (userId: string) => Promise<void>;
+  follow: (userId: string) => Promise<void>;
+  unfollow: (userId: string) => Promise<void>;
   respondRequest: (requestId: string, accept: boolean) => Promise<void>;
   cancelRequest: (requestId: string) => Promise<void>;
   unfriend: (userId: string) => Promise<void>;
@@ -77,6 +81,8 @@ const SocialContext = createContext<SocialContextValue>({
   refresh: async () => undefined,
   searchUsers: async () => [],
   addFriend: async () => undefined,
+  follow: async () => undefined,
+  unfollow: async () => undefined,
   respondRequest: async () => undefined,
   cancelRequest: async () => undefined,
   unfriend: async () => undefined,
@@ -156,6 +162,8 @@ export function SocialProvider({ children }: PropsWithChildren) {
       refresh,
       searchUsers: searchProfiles,
       addFriend: (userId: string) => runAndRefresh(() => sendFriendRequest(userId), "Unable to send friend request."),
+      follow: (userId: string) => runAndRefresh(() => followProfile(userId), "Unable to follow this adventurer."),
+      unfollow: (userId: string) => runAndRefresh(() => unfollowProfile(userId), "Unable to unfollow this adventurer."),
       respondRequest: (requestId: string, accept: boolean) =>
         runAndRefresh(() => respondFriendRequest(requestId, accept), "Unable to respond to request."),
       cancelRequest: (requestId: string) => runAndRefresh(() => cancelFriendRequest(requestId), "Unable to cancel request."),

@@ -35,14 +35,14 @@ function FriendActionButton({ label, icon, color = T.blue, onPress, style }: { l
 }
 
 function PersonRow({ person, onAdd }: { person: ProfileSearchResult; onAdd: (person: ProfileSearchResult) => void }) {
-  const status = person.isFriend ? "Friends" : person.requestStatus ? "Pending" : null;
+  const status = person.isFriend ? "Friends" : person.isFollowing ? "Following" : null;
   return <View style={{ minHeight: 72, flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 9 }}>
     <ProfileAvatar uri={person.avatarUrl} color={person.avatarColor} size={48} label={`${person.displayName}'s profile photo`} />
     <View style={{ flex: 1, gap: 2 }}>
       <Text selectable style={{ color: T.dark, fontSize: 15, fontWeight: "900" }} numberOfLines={1}>{person.displayName}</Text>
       <Text selectable style={{ color: T.muted, fontSize: 12, fontWeight: "700" }} numberOfLines={1}>{person.username ? `@${person.username}` : "QuestLife adventurer"}</Text>
     </View>
-    {status ? <View style={{ minHeight: 34, paddingHorizontal: 11, borderRadius: 13, backgroundColor: person.isFriend ? `${T.green}16` : `${T.blue}16`, alignItems: "center", justifyContent: "center" }}><Text style={{ color: person.isFriend ? T.green : T.blue, fontSize: 11, fontWeight: "900" }}>{status}</Text></View> : <Pressable accessibilityRole="button" accessibilityLabel={`Add ${person.displayName}`} onPress={() => onAdd(person)} style={({ pressed }) => ({ minHeight: 42, paddingHorizontal: 14, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: T.blue, borderBottomWidth: 4, borderBottomColor: "#258fd8", transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 12, fontWeight: "900", letterSpacing: 0.45 }}>ADD</Text></Pressable>}
+    {status ? <View style={{ minHeight: 34, paddingHorizontal: 11, borderRadius: 13, backgroundColor: person.isFriend ? `${T.green}16` : `${T.blue}16`, alignItems: "center", justifyContent: "center" }}><Text style={{ color: person.isFriend ? T.green : T.blue, fontSize: 11, fontWeight: "900" }}>{status}</Text></View> : <Pressable accessibilityRole="button" accessibilityLabel={`Follow ${person.displayName}`} onPress={() => onAdd(person)} style={({ pressed }) => ({ minHeight: 42, paddingHorizontal: 14, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: T.blue, borderBottomWidth: 4, borderBottomColor: "#258fd8", transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 12, fontWeight: "900", letterSpacing: 0.45 }}>FOLLOW</Text></Pressable>}
   </View>;
 }
 
@@ -50,7 +50,7 @@ export function AddFriendsScreen() {
   const router = useRouter();
   const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
   const insets = useSafeAreaInsets();
-  const { overview, searchUsers, addFriend } = useSocial();
+  const { overview, searchUsers, follow } = useSocial();
   const [activeTab, setActiveTab] = useState<DiscoveryTab>("suggested");
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<ProfileSearchResult[]>([]);
@@ -84,13 +84,13 @@ export function AddFriendsScreen() {
 
   async function addPerson(person: ProfileSearchResult) {
     try {
-      await addFriend(person.userId);
-      const pending = { ...person, requestStatus: "pending:outgoing" };
-      setSuggestions((items) => items.map((item) => item.userId === person.userId ? pending : item));
-      setSearchResults((items) => items.map((item) => item.userId === person.userId ? pending : item));
-      setContacts((items) => items.map((item) => item.userId === person.userId ? pending : item));
+      await follow(person.userId);
+      const following = { ...person, isFollowing: true, isFriend: person.followsYou };
+      setSuggestions((items) => items.map((item) => item.userId === person.userId ? following : item));
+      setSearchResults((items) => items.map((item) => item.userId === person.userId ? following : item));
+      setContacts((items) => items.map((item) => item.userId === person.userId ? following : item));
     } catch {
-      Alert.alert("Couldn’t send request", "Please try again in a moment.");
+      Alert.alert("Couldn’t follow", "Please try again in a moment.");
     }
   }
 

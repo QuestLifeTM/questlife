@@ -1,4 +1,4 @@
-import { Profile, ProfileEditInput, ProfileOverview, ProfileStatVisibility, QuestFeedPost, QuestPost, QuestPostStats, RequiredProfileName } from "@/types/profile";
+import { Profile, ProfileEditInput, ProfileOverview, ProfilePrivacy, ProfileStatVisibility, QuestFeedPost, QuestPost, QuestPostStats, RequiredProfileName } from "@/types/profile";
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { toLocalDateKey } from "@/services/journal/journalService";
@@ -13,6 +13,11 @@ export const DEFAULT_PROFILE_STAT_VISIBILITY: ProfileStatVisibility = {
   totalXp: true,
   followers: true,
   following: true,
+};
+export const DEFAULT_PROFILE_PRIVACY: ProfilePrivacy = {
+  stats: "public",
+  bio: "public",
+  posts: "public",
 };
 export type ProfileQuestInsights = {
   completionRate: number | null;
@@ -208,9 +213,12 @@ export async function fetchProfileOverview(userId?: string): Promise<ProfileOver
   return {
     isSelf: payload.isSelf,
     isFriend: payload.isFriend,
+    isFollowing: payload.isFollowing ?? false,
+    followsYou: payload.followsYou ?? false,
     profile: payload.profile ? {
       ...payload.profile,
       statVisibility: { ...DEFAULT_PROFILE_STAT_VISIBILITY, ...(payload.profile.statVisibility ?? {}) },
+      privacy: { ...DEFAULT_PROFILE_PRIVACY, ...(payload.profile.privacy ?? {}) },
     } : null,
     stats: {
       ...payload.stats,
@@ -258,9 +266,21 @@ export async function updateProfile(input: ProfileEditInput) {
   if (input.avatarColor !== undefined) payload.avatar_color = input.avatarColor;
   if (input.title !== undefined) payload.title = input.title?.trim() || null;
   if (input.statVisibility !== undefined) payload.stat_visibility = input.statVisibility;
+  if (input.privacy !== undefined) payload.profile_privacy = input.privacy;
 
   const { error } = await supabase.from("profiles").update(payload).eq("id", userData.user.id);
-  if (error) throw error;
+  if (!error) return;
+
+  // Let ordinary profile edits keep working while the visibility migration is
+  // rolling out to an existing project. The next save after migration will
+  // persist the selected stat settings as well.
+  const missingVisibilityColumn = (input.statVisibility !== undefined || input.privacy !== undefined) && (error.code === "42703" || /stat_visibility|profile_privacy/i.test(error.message));
+  if (!missingVisibilityColumn) throw error;
+
+  delete payload.stat_visibility;
+  delete payload.profile_privacy;
+  const { error: fallbackError } = await supabase.from("profiles").update(payload).eq("id", userData.user.id);
+  if (fallbackError) throw fallbackError;
 }
 
 async function uploadProfileImage(localUri: string) {

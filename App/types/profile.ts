@@ -2,6 +2,12 @@ import type { QuestCategory } from "@/types/content";
 
 export type ProfileStatId = "highestStreak" | "level" | "questsDone" | "timeSpent" | "totalXp" | "followers" | "following";
 export type ProfileStatVisibility = Record<ProfileStatId, boolean>;
+export type ProfileAudience = "public" | "followers" | "private";
+export type ProfilePrivacy = {
+  stats: ProfileAudience;
+  bio: Exclude<ProfileAudience, "private">;
+  posts: ProfileAudience;
+};
 
 export type Profile = {
   avatar_url: string | null;
@@ -78,6 +84,8 @@ export type ProfileRecentCompletion = {
 export type ProfileOverview = {
   isSelf: boolean;
   isFriend: boolean;
+  isFollowing: boolean;
+  followsYou: boolean;
   profile: {
     userId: string;
     username: string | null;
@@ -92,6 +100,7 @@ export type ProfileOverview = {
     joinedAt: string;
     streakVisibility: "public" | "private";
     statVisibility: ProfileStatVisibility;
+    privacy: ProfilePrivacy;
   } | null;
   stats: {
     totalQuests: number;
@@ -120,6 +129,7 @@ export type ProfileEditInput = {
   avatarColor?: string;
   title?: string | null;
   statVisibility?: ProfileStatVisibility;
+  privacy?: ProfilePrivacy;
 };
 
 export type RequiredProfileName = Pick<Profile, "first_name" | "last_name">;

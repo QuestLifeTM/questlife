@@ -341,8 +341,8 @@ function ActiveQuestCard({
         <View style={styles.activeCard}>
           <View style={styles.activeTopRow}>
             <View style={styles.metaRow}>
-              <Tag label={activeQuest.category} color={category.text} bg={category.bg} />
-              <Tag label={activeQuest.difficulty} color={difficulty.text} bg={difficulty.bg} />
+              <ActiveQuestMetaPill label={activeQuest.category} color={category.text} background={category.bg} maxWidth="60%" />
+              <ActiveQuestMetaPill label={activeQuest.difficulty} color={difficulty.text} background={difficulty.bg} maxWidth="34%" />
             </View>
           </View>
           <View style={styles.activeCopy}>
@@ -359,6 +359,10 @@ function ActiveQuestCard({
       </View>
     </LobbyReveal>
   );
+}
+
+function ActiveQuestMetaPill({ label, color, background, maxWidth }: { label: string; color: string; background: string; maxWidth: `${number}%` }) {
+  return <View style={{ maxWidth, minHeight: 32, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, alignSelf: "flex-start", justifyContent: "center", backgroundColor: background }}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={{ color, fontFamily: "RubikBold", fontSize: 11, lineHeight: 14, letterSpacing: 0.55, textTransform: "uppercase" }}>{label}</Text></View>;
 }
 
 function EmptyActiveQuest({
@@ -978,6 +982,7 @@ const styles = StyleSheet.create({
   activeTopRow: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: -7,
   },
   activeTitle: {
     color: T.dark,

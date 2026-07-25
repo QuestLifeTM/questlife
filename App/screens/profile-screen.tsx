@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Animated, Easing, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 
-import { EmptyState, Header, Screen, haptic, useResponsiveScreenLayout } from "@/components/ui";
+import { EmptyState, Header, Screen, Sheet, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
 import { QuestlifeFlame } from "@/components/questlife-flame";
@@ -19,8 +19,10 @@ import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { formatElapsedCompact } from "@/hooks/useElapsedTime";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
-import { DEFAULT_PROFILE_STAT_VISIBILITY, fetchProfileOverview, fetchProfileQuestInsights, fetchWeeklyCompletedQuestActivity, ProfileQuestInsights, updateProfile, uploadProfileAvatar, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
-import { levelForXp, ProfileOverview, ProfileStatId, ProfileStatVisibility, QuestFeedPost } from "@/types/profile";
+import { DEFAULT_PROFILE_PRIVACY, DEFAULT_PROFILE_STAT_VISIBILITY, fetchProfileOverview, fetchProfileQuestInsights, fetchWeeklyCompletedQuestActivity, ProfileQuestInsights, updateProfile, uploadProfileAvatar, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
+import { fetchFollowers, removeFollower } from "@/services/social/socialService";
+import { levelForXp, ProfileAudience, ProfileOverview, ProfilePrivacy, ProfileStatId, ProfileStatVisibility, QuestFeedPost } from "@/types/profile";
+import { FollowerProfile } from "@/types/social";
 
 function accountValue(metadata: unknown, key: string) {
   if (!metadata || typeof metadata !== "object") return "";
@@ -98,7 +100,7 @@ function profileCarouselMetrics(overview: ProfileOverview): ProfileCarouselMetri
   ];
 }
 
-function ProfileStatMarquee({ overview, visibility }: { overview: ProfileOverview; visibility: ProfileStatVisibility }) {
+export function ProfileStatMarquee({ overview, visibility }: { overview: ProfileOverview; visibility: ProfileStatVisibility }) {
   const reduceMotion = useReducedMotionPreference();
   const translateX = useRef(new Animated.Value(0)).current;
   const metrics = profileCarouselMetrics(overview).filter((metric) => visibility[metric.id]);
@@ -119,7 +121,7 @@ function ProfileStatMarquee({ overview, visibility }: { overview: ProfileOvervie
     <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={{ color: metric.color, fontFamily: "RubikBold", fontSize: 13, lineHeight: 16 }}>{metric.value}</Text><Text numberOfLines={1} style={{ color: T.muted, marginTop: 1, fontFamily: "RubikBold", fontSize: 9, lineHeight: 12, letterSpacing: 0.45, textTransform: "uppercase" }}>{metric.label}</Text></View>
   </View>;
 
-  if (!metrics.length) return <View style={{ minHeight: 48, paddingHorizontal: 18, alignItems: "center", justifyContent: "center", backgroundColor: T.white }}><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12 }}>Choose a stat below to show it here.</Text></View>;
+  if (!metrics.length) return <View style={{ minHeight: 48, paddingHorizontal: 18, alignItems: "center", justifyContent: "center", backgroundColor: T.white }}><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12 }}>These profile stats are private.</Text></View>;
   if (reduceMotion) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: PROFILE_STAT_PILL_GAP, paddingHorizontal: 2 }}>{metrics.map(pill)}</ScrollView>;
 
   return <View accessibilityLabel={`Profile stats: ${metrics.map((metric) => `${metric.label} ${metric.value}`).join(", ")}`} style={{ overflow: "hidden" }}>
@@ -130,7 +132,7 @@ function ProfileStatMarquee({ overview, visibility }: { overview: ProfileOvervie
 function ProfileStatVisibilityBento({ overview, visibility, onToggle }: { overview: ProfileOverview; visibility: ProfileStatVisibility; onToggle: (id: ProfileStatId) => void }) {
   const shownCount = Object.values(visibility).filter(Boolean).length;
   return <View style={{ width: "100%", marginTop: 14, gap: 9 }}>
-    <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20 }}>Carousel stats</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 11, lineHeight: 15 }}>Choose what friends can see · keep at least 3.</Text></View><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 11 }}>{shownCount}/7 shown</Text></View>
+    <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20 }}>Carousel stats</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 11, lineHeight: 15 }}>Choose what to include · keep at least 3.</Text></View><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 11 }}>{shownCount}/7 shown</Text></View>
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
       {profileCarouselMetrics(overview).map((metric) => {
         const visible = visibility[metric.id];
@@ -143,6 +145,29 @@ function ProfileStatVisibilityBento({ overview, visibility, onToggle }: { overvi
       })}
     </View>
   </View>;
+}
+
+const audienceLabels: Record<ProfileAudience, string> = { public: "Everyone", followers: "Followers", private: "Only me" };
+
+function ProfilePrivacyControls({ privacy, hasBio, onChange }: { privacy: ProfilePrivacy; hasBio: boolean; onChange: (next: ProfilePrivacy) => void }) {
+  const rows: Array<{ key: keyof ProfilePrivacy; label: string; detail: string; options: ProfileAudience[] }> = [
+    { key: "stats", label: "Stats carousel", detail: "Who can see your selected stats", options: ["public", "followers", "private"] },
+    { key: "bio", label: "Bio", detail: hasBio ? "Who can read your bio" : "Add a bio to share it", options: ["public", "followers"] },
+    { key: "posts", label: "Posts", detail: "Who can view your quest posts", options: ["public", "followers", "private"] },
+  ];
+  return <View style={{ width: "100%", marginTop: 16, gap: 9 }}>
+    <View><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20 }}>Profile visibility</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 11, lineHeight: 15 }}>Your name and @username are always visible.</Text></View>
+    {rows.map((row) => <View key={row.key} style={{ minHeight: 80, padding: 11, borderRadius: 18, gap: 8, backgroundColor: T.white, borderWidth: 1.5, borderColor: T.border }}><View><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{row.label}</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 10, lineHeight: 14 }}>{row.detail}</Text></View><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{row.options.map((option) => { const active = privacy[row.key] === option; return <Pressable key={option} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => onChange({ ...privacy, [row.key]: option } as ProfilePrivacy)} style={({ pressed }) => ({ minHeight: 30, paddingHorizontal: 9, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: active ? T.blue : T.bg, borderWidth: 1.5, borderColor: active ? T.blue : T.border, opacity: pressed ? 0.72 : 1 })}><Text style={{ color: active ? T.white : T.muted, fontFamily: "RubikBold", fontSize: 10 }}>{audienceLabels[option]}</Text></Pressable>; })}</View></View>)}
+  </View>;
+}
+
+function FollowerManagerSheet({ visible, onClose, onChanged }: { visible: boolean; onClose: () => void; onChanged: () => void }) {
+  const [followers, setFollowers] = useState<FollowerProfile[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  useEffect(() => { if (!visible) return; setLoading(true); fetchFollowers().then(setFollowers).catch(() => setFollowers([])).finally(() => setLoading(false)); }, [visible]);
+  async function remove(person: FollowerProfile) { if (removingId) return; setRemovingId(person.userId); try { await removeFollower(person.userId); setFollowers((current) => current.filter((item) => item.userId !== person.userId)); onChanged(); } finally { setRemovingId(null); } }
+  return <Sheet visible={visible} onClose={onClose} maxHeight="78%"><View style={{ paddingHorizontal: 22, paddingBottom: 18, gap: 13 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 22 }}>Followers</Text><Text style={{ color: T.muted, marginTop: 3, fontFamily: "Rubik", fontSize: 12 }}>Remove anyone you no longer want following you.</Text></View>{loading ? <EmptyState emoji="⏳" title="Loading followers" body="" /> : !followers.length ? <EmptyState emoji="👋" title="No followers yet" body="When someone follows you, they’ll appear here." /> : <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>{followers.map((person) => <View key={person.userId} style={{ minHeight: 62, flexDirection: "row", alignItems: "center", gap: 10 }}><ProfileAvatar uri={person.avatarUrl} color={person.avatarColor} size={42} label={`${person.displayName}'s profile photo`} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 13 }}>{person.displayName}</Text><Text numberOfLines={1} style={{ color: T.muted, marginTop: 2, fontFamily: "Rubik", fontSize: 11 }}>{person.username ? `@${person.username}` : "QuestLife adventurer"}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Remove ${person.displayName} as a follower`} onPress={() => void remove(person)} style={({ pressed }) => ({ minHeight: 36, paddingHorizontal: 10, borderRadius: 13, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: `${T.red}66`, backgroundColor: `${T.red}0c`, opacity: removingId === person.userId ? 0.45 : pressed ? 0.68 : 1 })}><Text style={{ color: T.red, fontFamily: "RubikBold", fontSize: 11 }}>{removingId === person.userId ? "Removing…" : "Remove"}</Text></Pressable></View>)}</ScrollView>}</View></Sheet>;
 }
 
 /** Starts chart motion only when the section actually enters the viewport. */
@@ -262,6 +287,8 @@ export function ProfileScreen() {
   const [draftBio, setDraftBio] = useState("");
   const [draftAvatarUri, setDraftAvatarUri] = useState<string | null>(null);
   const [draftStatVisibility, setDraftStatVisibility] = useState<ProfileStatVisibility>(DEFAULT_PROFILE_STAT_VISIBILITY);
+  const [draftPrivacy, setDraftPrivacy] = useState<ProfilePrivacy>(DEFAULT_PROFILE_PRIVACY);
+  const [followersOpen, setFollowersOpen] = useState(false);
   const [readOnlyContentTop, setReadOnlyContentTop] = useState<number | null>(null);
   const [managedPost, setManagedPost] = useState<QuestFeedPost | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
@@ -281,6 +308,7 @@ export function ProfileScreen() {
         setDraftBio(next.profile.bio ?? "");
         setDraftAvatarUri(next.profile.avatarUrl);
         setDraftStatVisibility({ ...DEFAULT_PROFILE_STAT_VISIBILITY, ...next.profile.statVisibility });
+        setDraftPrivacy({ ...DEFAULT_PROFILE_PRIVACY, ...next.profile.privacy });
       }
     } finally {
       setLoading(false);
@@ -310,6 +338,7 @@ export function ProfileScreen() {
     setDraftBio(overview.profile.bio ?? "");
     setDraftAvatarUri(overview.profile.avatarUrl);
     setDraftStatVisibility({ ...DEFAULT_PROFILE_STAT_VISIBILITY, ...overview.profile.statVisibility });
+    setDraftPrivacy({ ...DEFAULT_PROFILE_PRIVACY, ...overview.profile.privacy });
     setEditing(true);
   }
 
@@ -319,6 +348,7 @@ export function ProfileScreen() {
     setDraftBio(overview.profile.bio ?? "");
     setDraftAvatarUri(overview.profile.avatarUrl);
     setDraftStatVisibility({ ...DEFAULT_PROFILE_STAT_VISIBILITY, ...overview.profile.statVisibility });
+    setDraftPrivacy({ ...DEFAULT_PROFILE_PRIVACY, ...overview.profile.privacy });
     setError(null);
     setEditing(false);
   }
@@ -346,7 +376,7 @@ export function ProfileScreen() {
       const avatarChanged = Boolean(draftAvatarUri && draftAvatarUri !== overview.profile.avatarUrl);
       const avatarUrl = avatarChanged ? await uploadProfileAvatar(draftAvatarUri!) : undefined;
       const metadataUsername = accountValue(user?.user_metadata, "username");
-      await updateProfile({ displayName, bio: draftBio, avatarUrl, username: !overview.profile.username && metadataUsername ? metadataUsername : undefined, statVisibility: draftStatVisibility });
+      await updateProfile({ displayName, bio: draftBio, avatarUrl, username: !overview.profile.username && metadataUsername ? metadataUsername : undefined, statVisibility: draftStatVisibility, privacy: draftPrivacy });
       refreshProfileName();
       await refreshSocial();
       setEditing(false);
@@ -385,7 +415,7 @@ export function ProfileScreen() {
   }));
 
   return <View style={{ flex: 1, backgroundColor: T.bg }}>
-    <ScrollView contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={(event) => setProfileScrollY(event.nativeEvent.contentOffset.y)} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + 112 }}>
+    <ScrollView contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={(event) => setProfileScrollY(event.nativeEvent.contentOffset.y)} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + (editing ? 178 : 112) }}>
       <View style={{ width: contentWidth, transform: [{ translateX: safeAreaOffset }] }}>
       <View style={{ backgroundColor: T.bg }}>
         <View style={{ paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top - 12, 12) }}>
@@ -406,7 +436,7 @@ export function ProfileScreen() {
 
             {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 52, marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12, paddingVertical: 6 }}><TextInput value={draftBio} onChangeText={setDraftBio} accessibilityLabel="Bio" placeholder="Write a bio…" placeholderTextColor={T.muted} multiline maxLength={180} textAlignVertical="top" style={{ minHeight: 32, color: T.dark, fontFamily: "Rubik", fontSize: 15, lineHeight: 20 }} /></View> : <Text style={{ maxWidth: 286, marginTop: 8, color: profile.bio ? T.dark : T.muted, fontFamily: "Rubik", fontSize: 15, lineHeight: 20, textAlign: "center" }}>{profile.bio || "Tap the pencil icon to add a bio."}</Text>}
             <View style={{ width: contentWidth, alignSelf: "stretch", marginHorizontal: -horizontalPadding, marginTop: 15 }}><ProfileStatMarquee overview={overview} visibility={carouselVisibility} /></View>
-            {editing ? <ProfileStatVisibilityBento overview={overview} visibility={draftStatVisibility} onToggle={(id) => setDraftStatVisibility((current) => ({ ...current, [id]: !current[id] }))} /> : null}
+            {editing ? <><ProfileStatVisibilityBento overview={overview} visibility={draftStatVisibility} onToggle={(id) => setDraftStatVisibility((current) => ({ ...current, [id]: !current[id] }))} /><ProfilePrivacyControls privacy={draftPrivacy} hasBio={Boolean(draftBio.trim())} onChange={setDraftPrivacy} /></> : <Pressable accessibilityRole="button" accessibilityLabel="Manage followers" onPress={() => setFollowersOpen(true)} style={({ pressed }) => ({ minHeight: 34, marginTop: 12, paddingHorizontal: 11, borderRadius: 13, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: `${T.pink}12`, borderWidth: 1, borderColor: `${T.pink}42`, opacity: pressed ? 0.7 : 1 })}><Ionicons name="people" size={14} color={T.pink} /><Text style={{ color: T.pink, fontFamily: "RubikBold", fontSize: 11 }}>{overview.stats.followers.toLocaleString()} follower{overview.stats.followers === 1 ? "" : "s"}</Text></Pressable>}
             {error ? <Text accessibilityRole="alert" style={{ marginTop: 7, color: T.red, fontFamily: "RubikBold", fontSize: 12, textAlign: "center" }}>{error}</Text> : null}
           </View>
 
@@ -431,12 +461,18 @@ export function ProfileScreen() {
     </View>
     </ScrollView>
 
+    {editing ? <View style={{ position: "absolute", right: 0, bottom: 0, left: 0, zIndex: 20, elevation: 20, flexDirection: "row", gap: 10, paddingHorizontal: horizontalPadding, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 14), backgroundColor: "rgba(255,252,245,0.97)", borderTopWidth: 1, borderTopColor: T.border }}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Discard profile changes" onPress={discard} style={({ pressed }) => ({ flex: 1, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: T.border, backgroundColor: T.white, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 14 }}>Discard</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Save profile changes" disabled={saving} onPress={() => void save()} style={({ pressed }) => ({ flex: 1, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: T.blue, borderBottomWidth: 4, borderBottomColor: "#258fd8", opacity: saving ? 0.55 : pressed ? 0.72 : 1 })}><Text style={{ color: T.white, fontFamily: "RubikBold", fontSize: 14 }}>{saving ? "Saving…" : "Save"}</Text></Pressable>
+    </View> : null}
+
     {editing && readOnlyContentTop !== null ? <View pointerEvents="none" style={{ position: "absolute", top: readOnlyContentTop, right: 0, bottom: 0, left: 0, overflow: "hidden" }}>
       <BlurView tint="light" intensity={16} style={{ position: "absolute", inset: 0 }} />
       <View style={{ flex: 1, backgroundColor: "rgba(255,252,245,0.48)" }} />
     </View> : null}
 
     <QuestPostManagementSheet post={managedPost} visible={Boolean(managedPost)} onClose={() => setManagedPost(null)} onUpdated={() => { setManagedPost(null); void load(); }} onDeleted={() => { setManagedPost(null); void load(); }} />
+    <FollowerManagerSheet visible={followersOpen} onClose={() => setFollowersOpen(false)} onChanged={() => void load()} />
 
   </View>;
 }
