@@ -2,8 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import { EmptyState, Header, Screen, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
@@ -13,11 +13,12 @@ import { categoryColor, T } from "@/components/theme";
 import { QuestFeedThumbnail } from "@/components/quest-feed-card";
 import { QuestPostManagementSheet } from "@/components/quest-post-management-sheet";
 import { ActivityChartCard } from "@/components/activity-chart-card";
+import { ProfileInsightsDashboard } from "@/components/profile-insights-dashboard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { formatElapsedCompact } from "@/hooks/useElapsedTime";
-import { fetchProfileOverview, fetchWeeklyCompletedQuestActivity, updateProfile, uploadProfileAvatar, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
+import { fetchProfileOverview, fetchProfileQuestInsights, fetchWeeklyCompletedQuestActivity, ProfileQuestInsights, updateProfile, uploadProfileAvatar, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
 import { levelForXp, ProfileOverview, QuestFeedPost } from "@/types/profile";
 
 function accountValue(metadata: unknown, key: string) {
@@ -78,6 +79,21 @@ function ImageControl({ label, onPress, style }: { label: string; onPress: () =>
 
 type ProfileTab = "posts" | "stats";
 
+/** Starts chart motion only when the section actually enters the viewport. */
+function ScrollTriggered({ scrollY, children }: { scrollY: number; children: (active: boolean) => ReactNode }) {
+  const { height } = useWindowDimensions();
+  const ref = useRef<View>(null);
+  const [active, setActive] = useState(false);
+  useEffect(() => {
+    if (active) return;
+    const frame = requestAnimationFrame(() => ref.current?.measureInWindow((_, y, __, sectionHeight) => {
+      if (y < height - 64 && y + sectionHeight > 0) setActive(true);
+    }));
+    return () => cancelAnimationFrame(frame);
+  }, [active, height, scrollY]);
+  return <View ref={ref} onLayout={() => {}}>{children(active)}</View>;
+}
+
 const trailRankColors = ["#D89A19", "#8996A3", "#B9754E"];
 
 function categoryLabel(category: string) {
@@ -120,7 +136,7 @@ function QuestTrail({ categories }: { categories: ProfileOverview["stats"]["topC
   </View>;
 }
 
-function ProfileStats({ overview, weeklyActivity }: { overview: ProfileOverview; weeklyActivity: WeeklyCompletedQuestActivity[] }) {
+function ProfileStats({ overview, weeklyActivity, insights, scrollY }: { overview: ProfileOverview; weeklyActivity: WeeklyCompletedQuestActivity[]; insights: ProfileQuestInsights | null; scrollY: number }) {
   const { profile, stats } = overview;
   const { level, intoLevel, toNext, progress } = levelForXp(profile?.totalXp ?? 0);
   const nextLevel = level + 1;
@@ -145,7 +161,7 @@ function ProfileStats({ overview, weeklyActivity }: { overview: ProfileOverview;
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: T.blue, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{intoLevel.toLocaleString()} / {toNext.toLocaleString()} XP</Text><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 11, lineHeight: 15 }}>Level {nextLevel}</Text></View>
       </View>
     </View>
-    <ActivityChartCard totalValue={String(weeklyTotal)} data={weeklyActivity} />
+    <ScrollTriggered scrollY={scrollY}>{(active) => <ActivityChartCard totalValue={String(weeklyTotal)} data={weeklyActivity} active={active} />}</ScrollTriggered>
     <View style={{ gap: 10 }}>
       <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 19, lineHeight: 24 }}>Overview</Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
@@ -159,6 +175,7 @@ function ProfileStats({ overview, weeklyActivity }: { overview: ProfileOverview;
       </View>
     </View>
     <QuestTrail categories={stats.topCategories ?? []} />
+    {insights ? <ScrollTriggered scrollY={scrollY}>{(active) => <ProfileInsightsDashboard insights={insights} active={active} />}</ScrollTriggered> : null}
   </View>;
 }
 
@@ -170,6 +187,7 @@ export function ProfileScreen() {
   const { contentWidth, horizontalPadding, insets, safeAreaOffset } = useResponsiveScreenLayout();
   const [overview, setOverview] = useState<ProfileOverview | null>(null);
   const [weeklyActivity, setWeeklyActivity] = useState<WeeklyCompletedQuestActivity[]>([]);
+  const [insights, setInsights] = useState<ProfileQuestInsights | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -180,16 +198,19 @@ export function ProfileScreen() {
   const [readOnlyContentTop, setReadOnlyContentTop] = useState<number | null>(null);
   const [managedPost, setManagedPost] = useState<QuestFeedPost | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
+  const [profileScrollY, setProfileScrollY] = useState(0);
 
   async function load() {
     setLoading(true);
     try {
-      const [next, activity] = await Promise.all([
-        fetchProfileOverview(),
+      const next = await fetchProfileOverview();
+      const [activity, nextInsights] = await Promise.all([
         fetchWeeklyCompletedQuestActivity().catch(() => []),
+        next.profile ? fetchProfileQuestInsights(next.profile.userId).catch(() => null) : Promise.resolve(null),
       ]);
       setOverview(next.profile ? next : null);
       setWeeklyActivity(activity);
+      setInsights(nextInsights);
       if (next.profile) {
         setDraftName(fullProfileName(next.profile.displayName, user?.user_metadata));
         setDraftBio(next.profile.bio ?? "");
@@ -277,7 +298,7 @@ export function ProfileScreen() {
   }));
 
   return <View style={{ flex: 1, backgroundColor: T.bg }}>
-    <ScrollView scrollEnabled={!editing} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + 112 }}>
+    <ScrollView scrollEnabled={!editing} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={(event) => setProfileScrollY(event.nativeEvent.contentOffset.y)} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + 112 }}>
       <View style={{ width: contentWidth, transform: [{ translateX: safeAreaOffset }] }}>
       <View style={{ backgroundColor: T.bg }}>
         <View style={{ paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top + 8, 20) }}>
@@ -314,7 +335,7 @@ export function ProfileScreen() {
           <ProfileTabButton tab="stats" activeTab={activeTab} onPress={() => setActiveTab("stats")} />
         </View>
         <View style={{ marginTop: 16 }}>
-          {activeTab === "posts" ? (profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." />) : <ProfileStats overview={overview} weeklyActivity={weeklyActivity} />}
+          {activeTab === "posts" ? (profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." />) : <ProfileStats overview={overview} weeklyActivity={weeklyActivity} insights={insights} scrollY={profileScrollY} />}
         </View>
       </View>
       </View>

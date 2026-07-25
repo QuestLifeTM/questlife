@@ -16,10 +16,11 @@ type ActivityChartCardProps = {
   totalValue: string;
   data: ActivityDataPoint[];
   style?: StyleProp<ViewStyle>;
+  active?: boolean;
 };
 
 /** A native, seven-day completed-quest chart for the Profile stats screen. */
-export function ActivityChartCard({ title = "Weekly activity", totalValue, data, style }: ActivityChartCardProps) {
+export function ActivityChartCard({ title = "Weekly activity", totalValue, data, style, active = true }: ActivityChartCardProps) {
   const reduceMotion = useReducedMotionPreference();
   const progress = useRef<Animated.Value[]>([]);
   const maxValue = useMemo(() => Math.max(1, ...data.map((item) => item.value)), [data]);
@@ -32,11 +33,11 @@ export function ActivityChartCard({ title = "Weekly activity", totalValue, data,
       value.setValue(reduceMotion ? 1 : 0);
       return Animated.timing(value, { toValue: 1, duration: 460, useNativeDriver: false });
     });
-    if (reduceMotion) return;
+    if (!active || reduceMotion) return;
     const sequence = Animated.stagger(70, animations);
     sequence.start();
     return () => sequence.stop();
-  }, [data, reduceMotion]);
+  }, [active, data, reduceMotion]);
 
   return (
     <Card style={[{ borderRadius: 24, padding: 18, gap: 18 }, style]}>

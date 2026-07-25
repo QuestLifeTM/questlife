@@ -5,8 +5,27 @@ import { toLocalDateKey } from "@/services/journal/journalService";
 import type { QuestCategory } from "@/types/content";
 
 export type WeeklyCompletedQuestActivity = { day: string; value: number };
+export type ProfileQuestInsights = {
+  completionRate: number | null;
+  activeDaysThisMonth: number;
+  completedThisMonth: number;
+  monthlyGoal: number;
+  averageQuestMinutes: number;
+  bestWeekCompletions: number;
+  questVariety: number;
+  preferredTimeLabel: string | null;
+  photosCaptured: number;
+  categoryBreakdown: Array<{ category: QuestCategory; count: number }>;
+  difficultyBreakdown: Array<{ difficulty: string; count: number }>;
+  monthlyWeeks: Array<{ label: string; value: number }>;
+};
 
 type TrailCompletionRow = { quests: { category: QuestCategory } | null };
+type InsightCompletionRow = {
+  created_at: string;
+  photo_urls: string[] | null;
+  quests: { category: QuestCategory; difficulty: string; estimated_minutes: number } | null;
+};
 
 function assertSupabaseConfigured() {
   if (!isSupabaseConfigured) throw new Error(SUPABASE_CONFIG_ERROR);
@@ -53,6 +72,77 @@ export async function fetchWeeklyCompletedQuestActivity(): Promise<WeeklyComplet
       value: counts.get(localDayKey(date)) ?? 0,
     };
   });
+}
+
+/** Builds the profile dashboard from durable completion/session history. */
+export async function fetchProfileQuestInsights(userId: string): Promise<ProfileQuestInsights> {
+  assertSupabaseConfigured();
+  const [{ data: completions, error: completionError }, { data: sessions, error: sessionError }] = await Promise.all([
+    supabase
+      .from("quest_completions")
+      .select("created_at, photo_urls, quests(category, difficulty, estimated_minutes)")
+      .eq("user_id", userId)
+      .returns<InsightCompletionRow[]>(),
+    supabase.from("quest_sessions").select("status").eq("user_id", userId).returns<Array<{ status: string }>>(),
+  ]);
+  if (completionError) throw completionError;
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const categoryCounts = new Map<QuestCategory, number>();
+  const difficultyCounts = new Map<string, number>();
+  const activeDays = new Set<string>();
+  const hourlyCounts = new Array<number>(24).fill(0);
+  const weeklyCounts = new Map<number, number>();
+  let estimatedMinutes = 0;
+  let photosCaptured = 0;
+
+  for (const completion of completions ?? []) {
+    const completedAt = new Date(completion.created_at);
+    const quest = completion.quests;
+    if (quest) {
+      categoryCounts.set(quest.category, (categoryCounts.get(quest.category) ?? 0) + 1);
+      difficultyCounts.set(quest.difficulty, (difficultyCounts.get(quest.difficulty) ?? 0) + 1);
+      estimatedMinutes += quest.estimated_minutes;
+    }
+    photosCaptured += completion.photo_urls?.length ?? 0;
+    hourlyCounts[completedAt.getHours()] += 1;
+    if (completedAt >= monthStart) activeDays.add(localDayKey(completedAt));
+    const weekStart = new Date(completedAt);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+    const key = weekStart.getTime();
+    weeklyCounts.set(key, (weeklyCounts.get(key) ?? 0) + 1);
+  }
+
+  const monthWeeks = Array.from({ length: 4 }, (_, index) => {
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7) - (3 - index) * 7);
+    return { label: start.toLocaleDateString(undefined, { month: "short", day: "numeric" }), value: weeklyCounts.get(start.getTime()) ?? 0 };
+  });
+  const preferredHour = hourlyCounts.reduce((best, count, hour) => count > hourlyCounts[best] ? hour : best, 0);
+  const hasPreferredTime = hourlyCounts[preferredHour] > 0;
+  const preferredTimeLabel = !hasPreferredTime ? null : preferredHour < 12 ? "Morning explorer" : preferredHour < 17 ? "Afternoon adventurer" : "Evening explorer";
+  const completedThisMonth = (completions ?? []).filter((completion) => new Date(completion.created_at) >= monthStart).length;
+  const totalSessions = sessions?.length ?? 0;
+  const completedSessions = sessions?.filter((session) => session.status === "completed").length ?? 0;
+  const completionRate = sessionError || !totalSessions ? null : Math.round((completedSessions / totalSessions) * 100);
+
+  return {
+    completionRate,
+    activeDaysThisMonth: activeDays.size,
+    completedThisMonth,
+    monthlyGoal: Math.max(8, Math.min(24, Math.ceil(Math.max(completedThisMonth, 1) / 4) * 8)),
+    averageQuestMinutes: completions?.length ? Math.round(estimatedMinutes / completions.length) : 0,
+    bestWeekCompletions: Math.max(0, ...weeklyCounts.values()),
+    questVariety: new Set((completions ?? []).filter((completion) => new Date(completion.created_at) >= monthStart).map((completion) => completion.quests?.category).filter(Boolean)).size,
+    preferredTimeLabel,
+    photosCaptured,
+    categoryBreakdown: [...categoryCounts.entries()].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count || a.category.localeCompare(b.category)),
+    difficultyBreakdown: [...difficultyCounts.entries()].map(([difficulty, count]) => ({ difficulty, count })).sort((a, b) => b.count - a.count || a.difficulty.localeCompare(b.difficulty)),
+    monthlyWeeks: monthWeeks,
+  };
 }
 
 export async function upsertOwnProfile(input: {
