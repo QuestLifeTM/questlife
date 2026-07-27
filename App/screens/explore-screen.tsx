@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import Reanimated from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
 import { categoryColor, difficultyColor, T } from "@/components/theme";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
 import { Card, EmptyState, Header, Screen, Sheet, SoftButton, haptic, useResponsiveScreenLayout } from "@/components/ui";
+import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useQuestSave } from "@/contexts/QuestSaveContext";
@@ -32,7 +34,7 @@ function publishedTime(quest: Quest) {
 
 function ExploreTag({ label, color, bg, compact = false }: { label: string; color: string; bg: string; compact?: boolean }) {
   return (
-    <View style={{ borderRadius: 99, paddingHorizontal: compact ? 10 : 12, paddingVertical: compact ? 4 : 6, backgroundColor: bg, alignSelf: "flex-start" }}>
+    <View style={{ borderRadius: 99, paddingHorizontal: compact ? 10 : 12, paddingVertical: compact ? 4 : 6, backgroundColor: bg, borderWidth: 2, borderColor: color, borderBottomWidth: compact ? 3 : 4, borderBottomColor: `${color}88`, alignSelf: "flex-start" }}>
       <Text style={{ color, fontSize: compact ? 10 : 12, lineHeight: compact ? 15 : 16, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>{label}</Text>
     </View>
   );
@@ -65,10 +67,10 @@ function ExploreIconButton({
         alignItems: "center",
         justifyContent: "center",
         boxShadow: `3px 3px 0px ${T.border}`,
-        transform: [{ scale: pressed ? 0.92 : 1 }]
+        transform: [{ scale: pressed ? 0.92 : 1 }, { rotate: pressed && icon === "folder-open-outline" ? "-6deg" : "0deg" }]
       })}
     >
-      <Ionicons name={icon} size={16} color={color} />
+      <Ionicons name={icon} size={icon === "folder-open-outline" ? 19 : 16} color={color} />
       {badge !== undefined ? (
         <View style={{ position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: T.cyan, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
           <Text style={{ color: T.white, fontWeight: "900", fontSize: 10 }}>{badge}</Text>
@@ -194,11 +196,13 @@ function FilterChoice({
       onPress={onPress}
       style={({ pressed }) => ({
         width: "30%",
-        minHeight: 54,
-        borderRadius: 18,
+        minHeight: 42,
+        borderRadius: 22,
         borderWidth: 2,
         borderColor: selected ? color : T.border,
         backgroundColor: selected ? `${color}0f` : T.white,
+        borderBottomWidth: selected ? 4 : 2,
+        borderBottomColor: selected ? `${color}88` : T.border,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
@@ -222,47 +226,6 @@ function MetaPill({ icon, text, color = T.blue }: { icon: keyof typeof Ionicons.
   );
 }
 
-function QuickQuestFilter({ value, onChange }: { value: 5 | 10 | 20 | null; onChange: (value: 5 | 10 | 20 | null) => void }) {
-  return (
-    <View style={{ gap: 8 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-        <Ionicons name="flash" size={16} color={T.orange} />
-        <Text style={{ color: T.dark, fontSize: 14, lineHeight: 18, fontWeight: "900" }}>Quick quests</Text>
-      </View>
-      <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: 8 }}>
-        {([5, 10, 20] as const).map((minutes) => {
-          const selected = value === minutes;
-          return (
-            <Pressable
-              key={minutes}
-              accessibilityRole="radio"
-              accessibilityState={{ selected }}
-              accessibilityLabel={`${minutes} minutes or less`}
-              onPress={() => {
-                haptic();
-                onChange(selected ? null : minutes);
-              }}
-              style={({ pressed }) => ({
-                flex: 1,
-                minHeight: 42,
-                borderRadius: 14,
-                borderWidth: 2,
-                borderColor: selected ? T.orange : T.border,
-                backgroundColor: selected ? `${T.orange}14` : T.white,
-                alignItems: "center",
-                justifyContent: "center",
-                transform: [{ scale: pressed ? 0.97 : 1 }],
-              })}
-            >
-              <Text style={{ color: selected ? T.orange : T.muted, fontSize: 13, lineHeight: 17, fontWeight: "900" }}>{minutes} min</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
 function ExploreQuestSkeleton() {
   return <Card style={{ minHeight: 172, borderRadius: 24, padding: 16, gap: 12, boxShadow: `4px 4px 0px ${T.border}` }}><View accessibilityRole="progressbar" accessibilityLabel="Loading quest" style={{ flex: 1, gap: 12 }}><View style={{ flexDirection: "row", gap: 7 }}><View style={{ width: 78, height: 24, borderRadius: 12, backgroundColor: T.border }} /><View style={{ width: 62, height: 24, borderRadius: 12, backgroundColor: T.border }} /></View><View style={{ width: "76%", height: 22, borderRadius: 8, backgroundColor: T.border }} /><View style={{ width: "96%", height: 12, borderRadius: 6, backgroundColor: T.border }} /><View style={{ width: "68%", height: 12, borderRadius: 6, backgroundColor: T.border }} /><View style={{ marginTop: "auto", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><View style={{ width: 72, height: 28, borderRadius: 14, backgroundColor: T.border }} /><View style={{ width: 76, height: 34, borderRadius: 17, backgroundColor: `${T.blue}22` }} /></View></View></Card>;
 }
@@ -275,12 +238,13 @@ function QuestFeedCard({ quest, onSave }: { quest: Quest; onSave: () => void }) 
   const cat = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
   const diff = difficultyColor[quest.difficulty];
   const { userPacks } = useQuestEngine();
+  const [cardPressed, setCardPressed] = useState(false);
   const savedAnywhere = quest.saved || userPacks.some((pack) => pack.questIds.includes(quest.id));
 
   return (
     <Link href={`/quest/${quest.id}`} asChild>
-      <Pressable style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.99 : 1 }] })}>
-        <Card style={{ width: "100%", minHeight: quest.description.length > 84 ? 198 : 172, borderRadius: 24, padding: 0, overflow: "hidden", boxShadow: `4px 4px 0px ${T.border}` }}>
+      <Pressable onPressIn={() => setCardPressed(true)} onPressOut={() => setCardPressed(false)} style={{ transform: [{ scale: cardPressed ? 0.99 : 1 }] }}>
+        <Card style={{ width: "100%", minHeight: quest.description.length > 84 ? 190 : 166, borderRadius: 24, padding: 0, overflow: "hidden", boxShadow: `4px 4px 0px ${T.border}` }}>
           <View style={{ flexDirection: "row", flex: 1 }}>
             <View style={{ width: 5, backgroundColor: quest.color }} />
             <View style={{ flex: 1, padding: 16, gap: 8 }}>
@@ -308,9 +272,8 @@ function QuestFeedCard({ quest, onSave }: { quest: Quest; onSave: () => void }) 
                   <MetaPill icon="flash" text={`+${quest.xp} XP`} />
                   <MetaPill icon="time" text={quest.timeLabel} color={T.dark} />
                 </View>
-                <View style={{ minWidth: 74, minHeight: 30, borderRadius: 16, backgroundColor: T.blue, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 12 }}>
-                  <Text style={{ color: T.white, fontSize: 13, fontWeight: "900" }}>Start</Text>
-                  <Ionicons name="chevron-forward" size={12} color={T.white} />
+                <View style={{ minWidth: 74, minHeight: 36, borderRadius: 22, backgroundColor: T.blue, borderBottomWidth: cardPressed ? 1 : 4, borderBottomColor: "#258fd8", alignItems: "center", justifyContent: "center", paddingHorizontal: 12, transform: [{ translateY: cardPressed ? 3 : 0 }] }}>
+                  <Text style={{ color: T.white, fontFamily: "RubikBlack", fontSize: 13, letterSpacing: 0.55 }}>MORE INFO</Text>
                 </View>
               </View>
             </View>
@@ -330,18 +293,16 @@ export function ExploreScreen() {
   const [category, setCategory] = useState("All");
   const [sortBy, setSortBy] = useState("Best Match");
   const [filters, setFilters] = useState<Filters>({ duration: null, difficulty: null });
-  const [quickDuration, setQuickDuration] = useState<5 | 10 | 20 | null>(null);
   const [filterVisible, setFilterVisible] = useState(false);
   const feedCardWidth = contentWidth - sideGap * 2;
 
-  const activeFilters = [filters.duration, filters.difficulty, quickDuration].filter(Boolean).length;
+  const activeFilters = [filters.duration, filters.difficulty].filter(Boolean).length;
   const feed = useMemo(() => {
     let result = quests.filter((quest) => {
       const query = search.trim().toLowerCase();
       if (query && !`${quest.title} ${quest.description} ${quest.category}`.toLowerCase().includes(query)) return false;
       if (category !== "All" && quest.category !== category) return false;
       if (filters.difficulty && quest.difficulty !== filters.difficulty) return false;
-      if (quickDuration && quest.timeMin > quickDuration) return false;
       if (filters.duration === "Under 30min" && quest.timeMin >= 30) return false;
       if (filters.duration === "30-60min" && (quest.timeMin < 30 || quest.timeMin > 60)) return false;
       if (filters.duration === "1-2h" && (quest.timeMin < 60 || quest.timeMin > 120)) return false;
@@ -349,81 +310,56 @@ export function ExploreScreen() {
       return true;
     });
     return sortQuests(result, sortBy);
-  }, [category, filters, quickDuration, quests, search, sortBy]);
+  }, [category, filters, quests, search, sortBy]);
 
   const reset = () => {
     setSearch("");
     setCategory("All");
     setSortBy("Best Match");
     setFilters({ duration: null, difficulty: null });
-    setQuickDuration(null);
   };
+  const { onScroll, scrollY } = useTopScrollBlur();
 
   return (
-    <Screen padded={false} contentStyle={{ alignItems: "center", gap: 0 }}>
-      <View style={{ width: contentWidth, paddingHorizontal: sideGap, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
-        <Header title="Explore" subtitle="Find your next adventure" right={<ExploreIconButton icon="folder-open-outline" onPress={() => router.push("/saved")} />} animated={false} />
-
-        <ExploreSearch
-          value={search}
-          onChangeText={setSearch}
-          onFilter={() => setFilterVisible(true)}
-          activeControls={sortBy !== "Best Match" || activeFilters > 0}
-        />
-      </View>
-
-      <View style={{ width: contentWidth, gap: 14, marginTop: 20, paddingHorizontal: sideGap, transform: [{ translateX: safeAreaOffset }] }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -sideGap }} contentContainerStyle={{ gap: 8, paddingHorizontal: sideGap, paddingBottom: 4 }}>
-          {categories.map((item) => {
-            const active = category === item;
-            const tone = item === "All" ? null : categoryColor[item];
-            return (
-              <Pressable
-                key={item}
-                onPress={() => setCategory(item)}
-                style={{
-                  borderRadius: 99,
-                  paddingVertical: 10,
-                  paddingHorizontal: 16,
-                  backgroundColor: active ? tone?.text ?? T.dark : tone?.bg ?? T.white,
-                  borderWidth: 2,
-                  borderColor: active ? tone?.text ?? T.dark : tone?.bg ?? T.border,
-                  boxShadow: active ? "none" : `2px 2px 0px ${T.border}`
-                }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  {item === "All" ? <Ionicons name="apps" size={15} color={active ? T.white : T.muted} /> : <PartyCategoryIcon category={item} size={16} color={active ? T.white : tone?.text} />}
-                  <Text style={{ color: active ? T.white : tone?.text ?? T.muted, fontWeight: "900", fontSize: 13 }}>{item}</Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        <QuickQuestFilter value={quickDuration} onChange={setQuickDuration} />
-
-        <View style={{ gap: 12, paddingHorizontal: 0, alignItems: "center" }}>
-          <View style={{ width: "100%", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={{ color: T.dark, fontSize: 21, lineHeight: 28, fontWeight: "900" }}>{category === "All" ? "All Quests" : category}</Text>
-            <Text style={{ color: T.muted, fontWeight: "800", fontSize: 13 }}>{feed.length} quests</Text>
-          </View>
-          {loading ? (
-            <ExploreLoadingList />
-          ) : error ? (
-            <Card style={{ borderRadius: 24 }}>
-              <EmptyState emoji="!" title="Could not load quests" body={error} action={<SoftButton label="Try again" icon="refresh" onPress={refresh} />} />
-            </Card>
-          ) : feed.length ? feed.map((quest) => (
-            <View key={quest.id} style={{ width: feedCardWidth }}>
-              <QuestFeedCard quest={quest} onSave={() => openQuestSave(quest.id)} />
+    <Screen scroll={false} padded={false} ambientGlow={false} contentStyle={{ alignItems: "center" }}>
+      <Reanimated.FlatList
+        data={loading || error ? [] : feed}
+        keyExtractor={(quest) => quest.id}
+        style={{ width: "100%" }}
+        contentContainerStyle={{ alignItems: "center", paddingBottom: 112 }}
+        initialNumToRender={3}
+        maxToRenderPerBatch={3}
+        updateCellsBatchingPeriod={40}
+        windowSize={5}
+        removeClippedSubviews
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        ListHeaderComponent={
+          <>
+            <View style={{ width: contentWidth, paddingHorizontal: sideGap, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
+              <Header title="Explore" subtitle="Find your next adventure" right={<ExploreIconButton icon="folder-open-outline" color={T.blue} onPress={() => router.push("/saved")} />} animated={false} />
+              <ExploreSearch value={search} onChangeText={setSearch} onFilter={() => setFilterVisible(true)} activeControls={sortBy !== "Best Match" || activeFilters > 0} />
             </View>
-          )) : (
-            <Card style={{ borderRadius: 24 }}>
-              <EmptyState emoji="🔍" title="No quests found" body="Create and publish quests in the admin dashboard, or adjust your filters." action={<SoftButton label="Reset all filters" icon="refresh" onPress={reset} />} />
-            </Card>
-          )}
-        </View>
-      </View>
+            <View style={{ width: contentWidth, gap: 14, marginTop: 20, paddingHorizontal: sideGap, transform: [{ translateX: safeAreaOffset }] }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -sideGap }} contentContainerStyle={{ gap: 8, paddingHorizontal: sideGap, paddingBottom: 4 }}>
+                {categories.map((item) => {
+                  const active = category === item;
+                  const tone = item === "All" ? null : categoryColor[item];
+                  return <Pressable key={item} onPress={() => { haptic(); setCategory(item); }} style={({ pressed }) => ({ borderRadius: 99, paddingVertical: 10, paddingHorizontal: 16, backgroundColor: active ? tone?.bg ?? T.dark : T.white, borderWidth: 2, borderColor: tone?.text ?? T.dark, borderBottomWidth: pressed ? 1 : 4, borderBottomColor: `${tone?.text ?? T.dark}88`, opacity: pressed ? 0.9 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>{item === "All" ? <Ionicons name="apps" size={15} color={active ? T.white : T.muted} /> : <PartyCategoryIcon category={item} size={16} color={tone?.text} />}<Text style={{ color: item === "All" && active ? T.white : tone?.text ?? T.muted, fontWeight: "900", fontSize: 13 }}>{item}</Text></View></Pressable>;
+                })}
+              </ScrollView>
+              <View style={{ width: "100%", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ color: T.dark, fontSize: 21, lineHeight: 28, fontWeight: "900" }}>{category === "All" ? "All Quests" : `${category.charAt(0)}${category.slice(1).toLowerCase()}`}</Text>
+                <Text style={{ color: T.muted, fontWeight: "800", fontSize: 13 }}>{feed.length} quests</Text>
+              </View>
+            </View>
+          </>
+        }
+        ListHeaderComponentStyle={{ width: "100%", marginBottom: 12 }}
+        renderItem={({ item }) => <View style={{ width: feedCardWidth, marginBottom: 12 }}><QuestFeedCard quest={item} onSave={() => openQuestSave(item.id)} /></View>}
+        ListEmptyComponent={<View style={{ width: feedCardWidth }}>{loading ? <ExploreLoadingList /> : error ? <Card style={{ borderRadius: 24 }}><EmptyState emoji="!" title="Could not load quests" body={error} action={<SoftButton label="Try again" icon="refresh" onPress={refresh} />} /></Card> : <Card style={{ borderRadius: 24 }}><EmptyState emoji="🔍" title="No quests found" body="Create and publish quests in the admin dashboard, or adjust your filters." action={<SoftButton label="Reset all filters" icon="refresh" onPress={reset} />} /></Card>}</View>}
+      />
+      <ScrollTopBlur scrollY={scrollY} />
 
       <Sheet visible={filterVisible} onClose={() => setFilterVisible(false)} maxHeight="90%">
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, gap: 18 }}>
@@ -437,7 +373,7 @@ export function ExploreScreen() {
                 <Text style={{ color: T.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" }}>Customize how you see quests</Text>
               </View>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Reset sort and filters" hitSlop={6} onPress={() => { setSortBy("Best Match"); setFilters({ duration: null, difficulty: null }); setQuickDuration(null); }} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: pressed ? 0.72 : 1 })}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Reset sort and filters" hitSlop={6} onPress={() => { setSortBy("Best Match"); setFilters({ duration: null, difficulty: null }); }} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: pressed ? 0.72 : 1 })}>
               <Ionicons name="reload-outline" size={17} color={T.muted} />
               <Text style={{ color: T.muted, fontSize: 12, fontWeight: "800" }}>Reset</Text>
             </Pressable>
@@ -445,7 +381,7 @@ export function ExploreScreen() {
 
           <View style={{ gap: 10 }}>
             <Text style={{ color: T.muted, fontWeight: "900", textTransform: "uppercase", fontSize: 11, letterSpacing: 0.8 }}>Sort by</Text>
-            <View accessibilityRole="radiogroup" style={{ height: 104, flexDirection: "row", borderWidth: 1.5, borderColor: T.border, borderRadius: 18, overflow: "hidden" }}>
+            <View accessibilityRole="radiogroup" style={{ height: 86, flexDirection: "row", borderWidth: 1.5, borderColor: T.border, borderRadius: 18, overflow: "hidden" }}>
               {compactSortOptions.map((option) => {
                 const selected = option.value === sortBy;
                 const color = selected ? T.blue : T.muted;

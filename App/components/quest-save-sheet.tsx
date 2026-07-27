@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { PartyCategoryIcon } from "@/components/party-category-icon";
+import { CollectionPickerSkeleton } from "@/components/collection-loading-skeleton";
 import { T } from "@/components/theme";
 import { Sheet } from "@/components/ui";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
@@ -72,7 +73,7 @@ function CollectionThumbnail({ pack }: { pack: UserPack }) {
 }
 
 export function QuestSaveSheet({ quest, visible, onClose, onSaveSelections, onToggleSaved }: QuestSaveSheetProps) {
-  const { saveUserPack, userPacks } = useQuestEngine();
+  const { saveUserPack, userPacks, loading } = useQuestEngine();
   const [mode, setMode] = useState<"collections" | "create">("collections");
   const [collectionName, setCollectionName] = useState("");
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
@@ -243,7 +244,7 @@ export function QuestSaveSheet({ quest, visible, onClose, onSaveSelections, onTo
             </Pressable>
           </View>
 
-          {collections.length ? <View style={{ gap: 10 }}>
+          {loading ? <CollectionPickerSkeleton rows={3} /> : collections.length ? <View style={{ gap: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 16 }}>Add to a collection</Text>
               <Pressable accessibilityRole="button" accessibilityLabel="Create a new collection" onPress={() => setMode("create")} hitSlop={6}>

@@ -12,3 +12,9 @@ export async function addQuestPostComment(postId: string, body: string, parentId
   const { error } = await supabase.rpc("add_quest_post_comment", { p_post_id: postId, p_body: body, p_parent_id: parentId });
   if (error) throw error;
 }
+
+export async function deleteQuestPostComment(commentId: string) {
+  const { data, error } = await supabase.rpc("delete_quest_post_comment", { p_comment_id: commentId });
+  if (error) throw error;
+  return data as { id: string; deletedReplyCount: number };
+}

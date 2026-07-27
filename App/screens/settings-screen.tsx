@@ -7,6 +7,7 @@ import { Modal, Pressable, ScrollView, Share, Text, TextInput, View } from "reac
 import { QuestlifeFlame } from "@/components/questlife-flame";
 import { T } from "@/components/theme";
 import { Screen, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
+import { BackIcon } from "@/components/back-icon";
 import { deleteOwnAccount } from "@/services/account/accountService";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,7 +34,7 @@ function iconTint(color: string) {
 
 function SettingsHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
   const router = useRouter();
-  return <View style={{ paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1.5, borderBottomColor: T.border }}><View style={{ minHeight: 76, flexDirection: "row", alignItems: "center", gap: 12 }}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 21, borderWidth: 2, borderColor: T.border, alignItems: "center", justifyContent: "center", backgroundColor: T.white, boxShadow: "2px 2px 0px #e8dfd5", opacity: pressed ? 0.72 : 1 })}><Ionicons name="chevron-back" size={21} color={T.dark} /></Pressable><View style={{ gap: 2 }}><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 11, letterSpacing: 0.55, textTransform: "uppercase" }}>{eyebrow}</Text><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 25, lineHeight: 30 }}>{title}</Text></View></View></View>;
+  return <View style={{ paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1.5, borderBottomColor: T.border }}><View style={{ minHeight: 76, flexDirection: "row", alignItems: "center", gap: 12 }}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 21, borderWidth: 2, borderColor: T.border, alignItems: "center", justifyContent: "center", backgroundColor: T.white, boxShadow: "2px 2px 0px #e8dfd5", opacity: pressed ? 0.72 : 1, transform: [{ scale: pressed ? 0.9 : 1 }, { translateX: pressed ? -3 : 0 }, { translateY: pressed ? 2 : 0 }] })}><BackIcon /></Pressable><View style={{ gap: 2 }}><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 11, letterSpacing: 0.55, textTransform: "uppercase" }}>{eyebrow}</Text><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 25, lineHeight: 30 }}>{title}</Text></View></View></View>;
 }
 
 function SettingsPage({ eyebrow = "Your account", title, children }: { eyebrow?: string; title: string; children: React.ReactNode }) {

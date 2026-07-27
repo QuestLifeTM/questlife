@@ -5,14 +5,17 @@ import { Accelerometer } from "expo-sensors";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Animated, Easing, Image, ImageBackground, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Animated, Easing, Image, ImageBackground, Pressable, ScrollView, Text, View } from "react-native";
+import Reanimated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AnimatedFlame } from "@/components/animated-flame";
+import { BackIcon } from "@/components/back-icon";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { QuestlifeFlame } from "@/components/questlife-flame";
 import { T } from "@/components/theme";
 import { EmptyState, Sheet, SoftButton, haptic, responsiveScreenGutter } from "@/components/ui";
+import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useStreaks } from "@/contexts/StreaksContext";
 import { useSocial } from "@/contexts/SocialContext";
@@ -152,8 +155,8 @@ function StreakHero({ days, onBack, topInset }: { days: number; onBack: () => vo
     <View style={{ height: 384 }}>
       <ImageBackground source={require("@/assets/streaks/streak-hero-orange-v4.png")} resizeMode="cover" style={{ height: 306, overflow: "hidden", paddingHorizontal: 20 }}>
         <View style={{ height: topInset + 54, paddingTop: topInset + 6, flexDirection: "row", alignItems: "center", justifyContent: "flex-end" }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 21, backgroundColor: T.white, borderWidth: 3, borderColor: T.border, alignItems: "center", justifyContent: "center", transform: [{ scale: pressed ? 0.92 : 1 }] })}>
-            <Ionicons name="arrow-back" size={24} color={STREAK_INK} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 21, backgroundColor: T.white, borderWidth: 3, borderColor: T.border, alignItems: "center", justifyContent: "center", transform: [{ scale: pressed ? 0.9 : 1 }, { translateX: pressed ? -3 : 0 }, { translateY: pressed ? 2 : 0 }] })}>
+            <BackIcon color={STREAK_ORANGE} />
           </Pressable>
         </View>
         <View style={{ alignItems: "center", paddingTop: 10, transform: [{ translateY: -10 }] }}>
@@ -197,6 +200,44 @@ function StreakTabs({ activeTab, onChange, inviteCount, reducedMotion }: { activ
     {tabWidth ? <Animated.View pointerEvents="none" style={{ position: "absolute", bottom: -2, left: 0, width: tabWidth / labels.length, height: 4, borderRadius: 2, backgroundColor: STREAK_ORANGE, transform: [{ translateX: underlineX }] }} /> : null}
     {labels.map(({ key, label }) => { const selected = key === activeTab; return <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => { haptic(); onChange(key); }} style={({ pressed }) => ({ flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", transform: [{ scale: pressed ? 0.97 : 1 }] })}><View style={{ flexDirection: "row", gap: 5, alignItems: "center" }}><Text numberOfLines={1} style={{ color: selected ? STREAK_ORANGE : T.muted, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>{label}</Text>{key === "friends" && inviteCount > 0 ? <View style={{ minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: STREAK_ORANGE }}><Text style={{ color: T.white, fontSize: 9, fontWeight: "900" }}>{inviteCount}</Text></View> : null}</View></Pressable>; })}
   </View>;
+}
+
+function StreakSkeletonBlock({ width = "100%", height, radius = 8 }: { width?: number | `${number}%`; height: number; radius?: number }) {
+  return <View accessibilityRole="progressbar" style={{ width, height, borderRadius: radius, backgroundColor: "#eee7e2" }} />;
+}
+
+function StreakLoadingHero({ onBack, topInset }: { onBack: () => void; topInset: number }) {
+  return <View style={{ height: 384 }}>
+    <ImageBackground source={require("@/assets/streaks/streak-hero-orange-v4.png")} resizeMode="cover" style={{ height: 306, overflow: "hidden", paddingHorizontal: 20 }}>
+      <View style={{ height: topInset + 54, paddingTop: topInset + 6, flexDirection: "row", alignItems: "center", justifyContent: "flex-end" }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 21, backgroundColor: T.white, borderWidth: 3, borderColor: T.border, alignItems: "center", justifyContent: "center", transform: [{ scale: pressed ? 0.9 : 1 }, { translateX: pressed ? -3 : 0 }, { translateY: pressed ? 2 : 0 }] })}><BackIcon color={STREAK_ORANGE} /></Pressable>
+      </View>
+      <View style={{ alignItems: "center", gap: 10, paddingTop: 12 }}><StreakSkeletonBlock width={86} height={52} radius={14} /><StreakSkeletonBlock width={142} height={27} radius={9} /></View>
+    </ImageBackground>
+    <WhitePanel style={{ position: "absolute", top: 246, left: 20, right: 20, gap: 14, borderColor: "#f4c7ae", borderBottomColor: "#eebf9f" }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}><StreakSkeletonBlock width={120} height={15} /><StreakSkeletonBlock width={62} height={13} /></View>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>{WEEKDAYS.map((day, index) => <View key={`${day}-${index}`} style={{ alignItems: "center", gap: 7 }}><StreakSkeletonBlock width={15} height={10} radius={4} /><StreakSkeletonBlock width={31} height={31} radius={16} /></View>)}</View>
+    </WhitePanel>
+  </View>;
+}
+
+function PersonalLoadingSkeleton() {
+  return <View accessibilityLabel="Loading personal streak" style={{ gap: 18 }}>
+    <View style={{ gap: 11 }}><View style={{ flexDirection: "row", justifyContent: "space-between" }}><StreakSkeletonBlock width={148} height={20} /><StreakSkeletonBlock width={96} height={13} /></View><WhitePanel style={{ padding: 3, gap: 0 }}>{[0, 1, 2].map((row) => <View key={row} style={{ minHeight: 72, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: row === 2 ? 0 : 1.5, borderBottomColor: "#eee7e2" }}><StreakSkeletonBlock width={20} height={16} /><StreakSkeletonBlock width={42} height={42} radius={21} /><StreakSkeletonBlock width="42%" height={16} /><StreakSkeletonBlock width={42} height={16} /></View>)}</WhitePanel><WhitePanel style={{ minHeight: 74, flexDirection: "row", alignItems: "center", gap: 12 }}><View style={{ flex: 1, gap: 7 }}><StreakSkeletonBlock width={112} height={15} /><StreakSkeletonBlock width="78%" height={12} /></View><StreakSkeletonBlock width={58} height={34} radius={17} /></WhitePanel></View>
+    <View style={{ gap: 9 }}><StreakSkeletonBlock width={160} height={20} /><WhitePanel style={{ gap: 15 }}><View style={{ flexDirection: "row", justifyContent: "space-between" }}><StreakSkeletonBlock width={34} height={34} radius={17} /><StreakSkeletonBlock width={138} height={22} /><StreakSkeletonBlock width={34} height={34} radius={17} /></View><StreakSkeletonBlock height={1} /><View style={{ gap: 10 }}>{[0, 1, 2, 3, 4].map((row) => <View key={row} style={{ flexDirection: "row", justifyContent: "space-between" }}>{WEEKDAYS.map((day, index) => <StreakSkeletonBlock key={`${day}-${index}`} width={32} height={32} radius={16} />)}</View>)}</View></WhitePanel></View>
+  </View>;
+}
+
+function FriendsLoadingSkeleton() {
+  return <View accessibilityLabel="Loading friend streaks" style={{ gap: 18 }}><View style={{ gap: 10 }}><StreakSkeletonBlock width={122} height={20} />{[0, 1].map((card) => <WhitePanel key={card} style={{ gap: 13 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}><StreakSkeletonBlock width={48} height={48} radius={24} /><View style={{ flex: 1, gap: 7 }}><StreakSkeletonBlock width="48%" height={16} /><StreakSkeletonBlock width="68%" height={12} /></View><StreakSkeletonBlock width={38} height={24} /></View><View style={{ flexDirection: "row", gap: 8 }}><StreakSkeletonBlock width="50%" height={38} radius={12} /><StreakSkeletonBlock width="50%" height={38} radius={12} /></View><StreakSkeletonBlock height={46} radius={18} /></WhitePanel>)}</View><WhitePanel style={{ minHeight: 70, flexDirection: "row", alignItems: "center", gap: 12 }}><StreakSkeletonBlock width={42} height={42} radius={21} /><StreakSkeletonBlock width="48%" height={16} /></WhitePanel></View>;
+}
+
+function AchievementsLoadingSkeleton() {
+  return <View accessibilityLabel="Loading streak achievements" style={{ gap: 18 }}><View style={{ alignItems: "center", gap: 8, paddingVertical: 5 }}><StreakSkeletonBlock width={174} height={20} /><StreakSkeletonBlock width="72%" height={13} /></View><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>{Array.from({ length: 6 }, (_, index) => <WhitePanel key={index} style={{ width: "48%", alignItems: "center", gap: 8 }}><StreakSkeletonBlock width={78} height={78} radius={39} /><StreakSkeletonBlock width="70%" height={14} /><StreakSkeletonBlock width="88%" height={11} /><StreakSkeletonBlock width="100%" height={5} radius={3} /></WhitePanel>)}</View></View>;
+}
+
+function StreakLoadingContent({ activeTab }: { activeTab: StreakTab }) {
+  return activeTab === "personal" ? <PersonalLoadingSkeleton /> : activeTab === "friends" ? <FriendsLoadingSkeleton /> : <AchievementsLoadingSkeleton />;
 }
 
 function StreakTabContent({ activeTab, reducedMotion, children }: { activeTab: StreakTab; reducedMotion: boolean; children: React.ReactNode }) {
@@ -346,6 +387,8 @@ export function StreakScreen({ initialTab = "personal", onBack }: { initialTab?:
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotionPreference();
   const gutter = responsiveScreenGutter(390);
+  const { onScroll, scrollY } = useTopScrollBlur();
   useEffect(() => { refresh(); }, [refresh]);
-  return <View style={{ flex: 1, backgroundColor: T.bg }}><StatusBar style="light" translucent /><ScrollView contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} stickyHeaderIndices={[1]} contentContainerStyle={{ paddingBottom: insets.bottom + 108 }}><StreakHero days={overview?.personal.currentStreak ?? 0} onBack={onBack} topInset={insets.top} /><View style={{ backgroundColor: T.bg, paddingHorizontal: gutter }}><StreakTabs activeTab={activeTab} onChange={setActiveTab} inviteCount={overview?.incomingInvites.length ?? 0} reducedMotion={reducedMotion} /></View><View style={{ paddingHorizontal: gutter, paddingTop: 14 }}>{error ? <WhitePanel style={{ borderColor: `${T.red}77`, gap: 10 }}><Text style={{ color: T.red, fontWeight: "900" }}>{error}</Text><SoftButton label="Try again" inverse color={STREAK_ORANGE} onPress={refresh} /></WhitePanel> : null}{!overview && loading ? <View style={{ paddingVertical: 54, alignItems: "center", gap: 12 }}><ActivityIndicator color={STREAK_ORANGE} /><Text style={{ color: T.muted, fontWeight: "800" }}>Warming up your flame…</Text></View> : overview ? <StreakTabContent activeTab={activeTab} reducedMotion={reducedMotion}>{activeTab === "personal" ? <PersonalContent /> : activeTab === "friends" ? <FriendsContent /> : <AchievementsContent currentStreak={overview.personal.currentStreak} />}</StreakTabContent> : !error ? <EmptyState artwork={<QuestlifeFlame size={64} />} title="Streaks are warming up" body="Sign in and complete a quest to start tracking your streak." /> : null}</View></ScrollView></View>;
+  const initialLoading = loading && !overview;
+  return <View style={{ flex: 1, backgroundColor: T.bg }}><StatusBar style="light" translucent /><Reanimated.ScrollView onScroll={onScroll} scrollEventThrottle={16} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} stickyHeaderIndices={[1]} contentContainerStyle={{ paddingBottom: insets.bottom + 108 }}>{initialLoading ? <StreakLoadingHero onBack={onBack} topInset={insets.top} /> : <StreakHero days={overview?.personal.currentStreak ?? 0} onBack={onBack} topInset={insets.top} />}<View style={{ backgroundColor: T.bg, paddingHorizontal: gutter }}><StreakTabs activeTab={activeTab} onChange={setActiveTab} inviteCount={overview?.incomingInvites.length ?? 0} reducedMotion={reducedMotion} /></View><View style={{ paddingHorizontal: gutter, paddingTop: 14 }}>{error ? <WhitePanel style={{ borderColor: `${T.red}77`, gap: 10 }}><Text style={{ color: T.red, fontWeight: "900" }}>{error}</Text><SoftButton label="Try again" inverse color={STREAK_ORANGE} onPress={refresh} /></WhitePanel> : null}{initialLoading ? <StreakLoadingContent activeTab={activeTab} /> : overview ? <StreakTabContent activeTab={activeTab} reducedMotion={reducedMotion}>{activeTab === "personal" ? <PersonalContent /> : activeTab === "friends" ? <FriendsContent /> : <AchievementsContent currentStreak={overview.personal.currentStreak} />}</StreakTabContent> : !error ? <EmptyState artwork={<QuestlifeFlame size={64} />} title="Streaks are warming up" body="Sign in and complete a quest to start tracking your streak." /> : null}</View></Reanimated.ScrollView><ScrollTopBlur scrollY={scrollY} /></View>;
 }

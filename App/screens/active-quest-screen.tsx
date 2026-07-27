@@ -11,7 +11,7 @@ import * as Location from "expo-location";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { LogLoreFlow } from "@/components/log-lore-flow";
+import { CompletionDestination, LogLoreFlow } from "@/components/log-lore-flow";
 import { CachedImage } from "@/components/cached-image";
 import { QuestlifeFlame } from "@/components/questlife-flame";
 import { categoryColor, T } from "@/components/theme";
@@ -103,7 +103,7 @@ const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoin
     <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: `${accent}1c`, alignItems: "center", justifyContent: "center" }}><Ionicons name="location-outline" size={27} color={accent} /></View>
     <Text style={{ color: T.dark, fontSize: 19, lineHeight: 25, fontWeight: "900", textAlign: "center" }}>Ready to map your quest</Text>
     <Text style={{ color: T.muted, maxWidth: 280, fontSize: 14, lineHeight: 20, fontWeight: "600", textAlign: "center" }}>Enable location to centre the map on where you actually are and start recording your route.</Text>
-    <Pressable accessibilityRole="button" onPress={onEnableTracking} style={({ pressed }) => ({ minHeight: 48, marginTop: 4, borderRadius: 24, paddingHorizontal: 18, alignItems: "center", justifyContent: "center", backgroundColor: accent, transform: [{ scale: pressed ? 0.97 : 1 }] })}><Text style={{ color: T.white, fontSize: 14, fontWeight: "900" }}>Enable route recording</Text></Pressable>
+    <Pressable accessibilityRole="button" onPress={onEnableTracking} style={({ pressed }) => ({ minHeight: 58, marginTop: 4, borderRadius: 20, paddingHorizontal: 18, alignItems: "center", justifyContent: "center", backgroundColor: accent, borderBottomWidth: 6, borderBottomColor: "#258fd8", transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 14, fontWeight: "900" }}>Enable route recording</Text></Pressable>
     {notice ? <QuestNoticePill notice={notice} accent={accent} message={trackingMessage} /> : null}
   </View>;
 
@@ -240,7 +240,7 @@ function FloatingQuestControls({ accent, duration, paused, takingPhoto, bottomIn
 }
 
 function StaleQuestActionButton({ label, icon, onPress, disabled = false, inverse = false }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void; disabled?: boolean; inverse?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={() => { if (!disabled) { haptic(); onPress(); } }} style={({ pressed }) => ({ minHeight: 56, borderRadius: 28, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: inverse ? T.white : T.blue, borderWidth: inverse ? 3 : 0, borderColor: inverse ? T.border : "transparent", borderBottomWidth: inverse ? 3 : 5, borderBottomColor: inverse ? T.border : "#258fd8", opacity: disabled ? 0.5 : 1, transform: [{ translateY: pressed && !disabled ? 3 : 0 }] })}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={() => { if (!disabled) { haptic(); onPress(); } }} style={({ pressed }) => ({ minHeight: 58, borderRadius: 20, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: inverse ? T.white : T.blue, borderWidth: inverse ? 3 : 0, borderColor: inverse ? T.border : "transparent", borderBottomWidth: inverse ? 3 : 6, borderBottomColor: inverse ? T.border : "#258fd8", opacity: disabled ? 0.5 : 1, transform: [{ translateY: pressed && !disabled ? 3 : 0 }] })}>
     <Ionicons name={icon} size={21} color={inverse ? T.blue : T.white} />
     <Text style={{ color: inverse ? T.blue : T.white, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22, fontWeight: "900" }}>{label}</Text>
   </Pressable>;
@@ -279,36 +279,45 @@ function StaleQuestReminder({
   );
 }
 
-function CompletionRewardMoment({
+function QuestCompletionScreen({
   completion,
   questTitle,
-  onJournal,
-  onExplore,
+  destination,
+  onClose,
 }: {
-  completion: CompletionResult | null;
+  completion: CompletionResult;
   questTitle: string;
-  onJournal: () => void;
-  onExplore: () => void;
+  destination: CompletionDestination;
+  onClose: () => void;
 }) {
-  if (!completion) return null;
+  const insets = useSafeAreaInsets();
   const energyLeft = Math.max(0, completion.dailyLimit - completion.dailyUsed);
   return (
-    <Sheet visible={Boolean(completion)} onClose={onJournal} maxHeight="76%">
-      <View style={{ paddingHorizontal: 24, paddingBottom: 26, gap: 15 }}>
-        <View style={{ alignItems: "center", gap: 7 }}>
-          <View style={{ width: 70, height: 70, borderRadius: 25, alignItems: "center", justifyContent: "center", backgroundColor: `${T.yellow}32`, borderWidth: 2, borderColor: `${T.orange}55`, borderBottomWidth: 5, borderBottomColor: `${T.orange}88` }}><Ionicons name="trophy" size={35} color={T.orange} /></View>
-          <Text style={{ color: T.dark, fontSize: 26, lineHeight: 32, fontWeight: "900", textAlign: "center" }}>Quest complete!</Text>
-          <Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700", textAlign: "center" }}>{questTitle}</Text>
-        </View>
-        <View style={{ borderRadius: 19, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#e6ddd2", backgroundColor: T.white, overflow: "hidden" }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 13, borderBottomWidth: 1, borderBottomColor: T.border }}><View style={{ width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: `${T.blue}16` }}><Ionicons name="flash" size={21} color={T.blue} /></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>+{completion.xpAwarded} XP earned</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>A little more progress toward your next level.</Text></View></View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 13, borderBottomWidth: 1, borderBottomColor: T.border }}><View style={{ width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: `${T.orange}16` }}><QuestlifeFlame size={25} /></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>Your streak is covered today</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>Today now counts as a completed day.</Text></View></View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 13 }}><View style={{ width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: `${T.green}16` }}><Ionicons name="battery-half" size={21} color={T.green} /></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>{energyLeft ? `${energyLeft} ${energyLeft === 1 ? "quest" : "quests"} of energy left` : "Today's energy is complete"}</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>{energyLeft ? "You can keep exploring whenever it feels right." : "Rest up. Your energy resets at midnight."}</Text></View></View>
-        </View>
-        <View style={{ gap: 9 }}><SoftButton label="View your Journal" icon="book" onPress={onJournal} />{energyLeft ? <SoftButton label="Find another quest" icon="compass" inverse color={T.blue} onPress={onExplore} /> : null}</View>
+    <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top + 10 }}>
+      <StatusBar style="dark" />
+      <View style={{ alignItems: "flex-end", paddingHorizontal: 20 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={destination === "feed" ? "Close and open your feed" : "Close and open your Journal"} onPress={onClose} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: T.white, borderWidth: 2, borderColor: T.border, boxShadow: "2px 3px 0px #e6ddd2", opacity: pressed ? 0.72 : 1, transform: [{ translateY: pressed ? 2 : 0 }] })}><Ionicons name="close" size={23} color={T.dark} /></Pressable>
       </View>
-    </Sheet>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 56, gap: 22 }} showsVerticalScrollIndicator={false}>
+        <View style={{ alignItems: "center", gap: 10 }}>
+          <View style={{ width: 104, height: 104, borderRadius: 36, alignItems: "center", justifyContent: "center", backgroundColor: `${T.yellow}32`, borderWidth: 3, borderColor: `${T.orange}55`, borderBottomWidth: 7, borderBottomColor: `${T.orange}88`, boxShadow: `0px 12px 26px ${T.orange}2e` }}><Ionicons name="trophy" size={53} color={T.orange} /></View>
+          <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 31, lineHeight: 37, textAlign: "center" }}>Quest complete!</Text>
+          <Text style={{ color: T.muted, fontSize: 15, lineHeight: 22, fontWeight: "700", textAlign: "center" }} numberOfLines={2}>{questTitle}</Text>
+        </View>
+        <View style={{ borderRadius: 24, borderWidth: 2, borderColor: T.border, borderBottomWidth: 6, borderBottomColor: "#e6ddd2", backgroundColor: T.white, overflow: "hidden" }}>
+          <View style={{ padding: 18, alignItems: "center", gap: 4, backgroundColor: `${T.blue}08` }}><Text style={{ color: T.blue, fontFamily: "RubikBlack", fontSize: 30, lineHeight: 36 }}>+{completion.xpAwarded} XP</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>earned for this quest</Text></View>
+          <View style={{ height: 1, backgroundColor: T.border }} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 15 }}><View style={{ width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${T.orange}16` }}><QuestlifeFlame size={26} /></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>Your streak is covered today</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>Today counts as a completed day.</Text></View></View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 15, paddingBottom: 16 }}><View style={{ width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${T.green}16` }}><Ionicons name="battery-half" size={22} color={T.green} /></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>{energyLeft ? `${energyLeft} ${energyLeft === 1 ? "quest" : "quests"} of energy left` : "Today's energy is complete"}</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>{energyLeft ? "You can keep exploring whenever it feels right." : "Rest up. Your energy resets at midnight."}</Text></View></View>
+        </View>
+        <Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700", textAlign: "center" }}>Your {destination === "feed" ? "post is live in the feed" : "memory is saved in your Journal"}. Close this celebration when you’re ready.</Text>
+      </ScrollView>
+    </View>
   );
+}
+
+function ActiveQuestLoadingSkeleton() {
+  return <View accessibilityRole="progressbar" accessibilityLabel="Loading active quest" style={{ flex: 1, backgroundColor: T.bg, paddingHorizontal: 20, paddingTop: 24, gap: 16 }}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: T.border }} /><View style={{ width: 112, height: 18, borderRadius: 9, backgroundColor: T.border }} /><View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: T.border }} /></View><View style={{ height: 128, borderRadius: 26, backgroundColor: `${T.blue}10`, gap: 12, padding: 20 }}><View style={{ width: "42%", height: 14, borderRadius: 7, backgroundColor: T.border }} /><View style={{ width: "78%", height: 27, borderRadius: 9, backgroundColor: T.border }} /><View style={{ width: "58%", height: 13, borderRadius: 7, backgroundColor: T.border }} /></View><View style={{ flexDirection: "row", gap: 10 }}><View style={{ flex: 1, height: 94, borderRadius: 22, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }} /><View style={{ flex: 1, height: 94, borderRadius: 22, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }} /></View><View style={{ flex: 1, borderRadius: 24, backgroundColor: T.white, borderWidth: 2, borderColor: T.border, padding: 16, gap: 12 }}><View style={{ width: "36%", height: 16, borderRadius: 8, backgroundColor: T.border }} /><View style={{ width: "100%", height: 12, borderRadius: 6, backgroundColor: T.border }} /><View style={{ width: "82%", height: 12, borderRadius: 6, backgroundColor: T.border }} /><View style={{ width: "67%", height: 12, borderRadius: 6, backgroundColor: T.border }} /></View><View style={{ height: 58, borderRadius: 20, backgroundColor: `${T.blue}26` }} /></View>;
 }
 
 export function ActiveQuestScreen() {
@@ -334,7 +343,7 @@ export function ActiveQuestScreen() {
   const [photoSavedVisible, setPhotoSavedVisible] = useState(false);
   const [staleQuestReminderVisible, setStaleQuestReminderVisible] = useState(false);
   const [staleQuestActionBusy, setStaleQuestActionBusy] = useState(false);
-  const [completionReward, setCompletionReward] = useState<{ result: CompletionResult; questTitle: string } | null>(null);
+  const [completionReward, setCompletionReward] = useState<{ result: CompletionResult; questTitle: string; destination: CompletionDestination } | null>(null);
   const [deviceLocation, setDeviceLocation] = useState<MapCoordinate | null>(null);
   const countdownSessionRef = useRef<string | null>(null);
   const routeRecordingStartedSessionRef = useRef<string | null>(null);
@@ -454,6 +463,21 @@ export function ActiveQuestScreen() {
   }, [photoSavedVisible]);
 
   const duration = formatElapsedFull(elapsedDuration);
+
+  if (completionReward) {
+    return <QuestCompletionScreen
+      completion={completionReward.result}
+      questTitle={completionReward.questTitle}
+      destination={completionReward.destination}
+      onClose={() => {
+        const destination = completionReward.destination;
+        setCompletionReward(null);
+        router.replace(destination === "feed" ? "/(tabs)/social" : "/(tabs)/journal");
+      }}
+    />;
+  }
+
+  if (activeQuestLoading && session) return <ActiveQuestLoadingSkeleton />;
 
   if (!session || !quest) return <View style={{ flex: 1, paddingTop: insets.top + 24, backgroundColor: T.bg }}><EmptyState emoji="🧭" title="No active quest" body="Start a solo quest from Explore to create its live home." /></View>;
 
@@ -628,8 +652,7 @@ export function ActiveQuestScreen() {
         <View style={{ flexDirection: "row", gap: 10 }}><Pressable accessibilityRole="button" accessibilityLabel="Delete activity" onPress={confirmDeleteManagedItem} style={({ pressed }) => ({ flex: 1, minHeight: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: `${T.red}12`, borderWidth: 1.5, borderColor: `${T.red}45`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.red, fontSize: 15, fontWeight: "900" }}>Delete</Text></Pressable>{managedActivity ? <Pressable accessibilityRole="button" accessibilityLabel="Save activity changes" onPress={() => void saveActivityEdit()} style={({ pressed }) => ({ flex: 1, minHeight: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: accent, borderBottomWidth: 5, borderBottomColor: `${accent}a8`, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 15, fontWeight: "900" }}>Save changes</Text></Pressable> : null}</View>
       </View>
     </Sheet>
-    <LogLoreFlow visible={completeVisible} quest={quest} initialTitle={snapshot?.session.entryTitle ?? ""} initialReflection={snapshot?.session.entryBody ?? ""} photoUris={(snapshot?.photos ?? []).map((photo) => photo.uri)} durationSeconds={Math.round((snapshot?.session.activeDurationMs ?? 0) / 1_000)} distanceMeters={snapshot?.session.distanceMeters ?? 0} onSaveDraft={(draft) => saveEntry(draft)} onClose={() => setCompleteVisible(false)} onFinished={async (result) => { await finishLocalQuest(); await refresh(); setCompleteVisible(false); setCompletionReward({ result, questTitle: quest.title }); }} />
+    <LogLoreFlow visible={completeVisible} quest={quest} initialTitle={snapshot?.session.entryTitle ?? ""} initialReflection={snapshot?.session.entryBody ?? ""} photoUris={(snapshot?.photos ?? []).map((photo) => photo.uri)} durationSeconds={Math.round((snapshot?.session.activeDurationMs ?? 0) / 1_000)} distanceMeters={snapshot?.session.distanceMeters ?? 0} onSaveDraft={(draft) => saveEntry(draft)} onClose={() => setCompleteVisible(false)} onFinished={async (result, destination) => { await finishLocalQuest(); await refresh(); setCompleteVisible(false); setCompletionReward({ result, questTitle: quest.title, destination }); }} />
     <StaleQuestReminder visible={staleQuestReminderVisible} elapsedLabel={formatElapsedFull(elapsedDuration)} busy={staleQuestActionBusy} onResume={() => setStaleQuestReminderVisible(false)} onSaveForLater={() => void saveStaleQuestForLater()} onAbandon={confirmAbandonStaleQuest} />
-    <CompletionRewardMoment completion={completionReward?.result ?? null} questTitle={completionReward?.questTitle ?? ""} onJournal={() => { const completionId = completionReward?.result.completionId; setCompletionReward(null); router.replace(completionId ? `/memory/${completionId}` : "/(tabs)/journal"); }} onExplore={() => { setCompletionReward(null); router.replace("/(tabs)/explore"); }} />
   </View>;
 }

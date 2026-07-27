@@ -1,28 +1,34 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { T } from "@/components/theme";
 import { Sheet } from "@/components/ui";
-import { addQuestPostComment, fetchQuestPostComments, QuestPostComment } from "@/services/profile/commentService";
+import { useAuth } from "@/contexts/AuthContext";
+import { addQuestPostComment, deleteQuestPostComment, fetchQuestPostComments, QuestPostComment } from "@/services/profile/commentService";
 
 function CommentAvatar({ comment, size = 36 }: { comment: QuestPostComment; size?: number }) {
   return <ProfileAvatar uri={comment.avatarUrl} color={comment.avatarColor} size={size} label={`${comment.displayName}'s profile photo`} />;
 }
 
 export function QuestCommentsSheet({ postId, visible, onClose, onCountChange }: { postId: string; visible: boolean; onClose: () => void; onCountChange: (count: number) => void }) {
+  const { user } = useAuth();
   const [comments, setComments] = useState<QuestPostComment[]>([]);
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<QuestPostComment | null>(null);
   const [sending, setSending] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+
+  const refreshComments = useCallback(async () => {
+    const items = await fetchQuestPostComments(postId);
+    setComments(items);
+    onCountChange(items.length);
+  }, [onCountChange, postId]);
 
   useEffect(() => {
     if (!visible) return;
-    fetchQuestPostComments(postId).then((items) => {
-      setComments(items);
-      onCountChange(items.length);
-    }).catch(() => setComments([]));
-  }, [onCountChange, postId, visible]);
+    void refreshComments().catch(() => setComments([]));
+  }, [refreshComments, visible]);
 
   const submit = async () => {
     if (!draft.trim() || sending) return;
@@ -31,12 +37,39 @@ export function QuestCommentsSheet({ postId, visible, onClose, onCountChange }: 
       await addQuestPostComment(postId, draft, replyTo?.id ?? null);
       setDraft("");
       setReplyTo(null);
-      const items = await fetchQuestPostComments(postId);
-      setComments(items);
-      onCountChange(items.length);
+      await refreshComments();
     } finally {
       setSending(false);
     }
+  };
+
+  const removeComment = async (comment: QuestPostComment) => {
+    if (deletingCommentId) return;
+    setDeletingCommentId(comment.id);
+    try {
+      await deleteQuestPostComment(comment.id);
+      if (replyTo?.id === comment.id || replyTo?.parentId === comment.id) setReplyTo(null);
+      await refreshComments();
+    } catch {
+      Alert.alert("Couldn’t delete comment", "Please try again.");
+    } finally {
+      setDeletingCommentId(null);
+    }
+  };
+
+  const confirmDelete = (comment: QuestPostComment) => {
+    const replyCount = comments.filter((reply) => reply.parentId === comment.id).length;
+    const hasReplies = replyCount > 0;
+    Alert.alert(
+      hasReplies ? "Delete comment and replies?" : "Delete comment?",
+      hasReplies
+        ? `This will permanently delete your comment and ${replyCount} repl${replyCount === 1 ? "y" : "ies"}. The affected reply author${replyCount === 1 ? " will" : "s will"} be notified.`
+        : "This will permanently delete your comment.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => void removeComment(comment) },
+      ],
+    );
   };
 
   return <Sheet visible={visible} onClose={onClose} maxHeight="84%" fillHeight>
@@ -51,14 +84,18 @@ export function QuestCommentsSheet({ postId, visible, onClose, onCountChange }: 
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={{ color: T.dark, fontSize: 13, fontWeight: "900" }}>@{comment.username ?? comment.displayName.replace(/\s+/g, "").toLowerCase()}</Text>
               <Text style={{ color: T.dark, fontSize: 14, lineHeight: 20, fontWeight: "600" }}>{comment.body}</Text>
-              <Pressable onPress={() => setReplyTo(comment)}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900" }}>Reply</Text></Pressable>
+              <View style={{ flexDirection: "row", gap: 14 }}>
+                <Pressable disabled={Boolean(deletingCommentId)} onPress={() => setReplyTo(comment)}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900" }}>Reply</Text></Pressable>
+                {comment.userId === user?.id ? <Pressable disabled={Boolean(deletingCommentId)} onPress={() => confirmDelete(comment)}><Text style={{ color: T.red, fontSize: 11, fontWeight: "900" }}>{deletingCommentId === comment.id ? "Deleting…" : "Delete"}</Text></Pressable> : null}
+              </View>
             </View>
           </View>
           {comments.filter((reply) => reply.parentId === comment.id).map((reply) => <View key={reply.id} style={{ marginLeft: 46, flexDirection: "row", gap: 8 }}>
             <CommentAvatar comment={reply} size={25} />
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, gap: 3 }}>
               <Text style={{ color: T.dark, fontSize: 12, fontWeight: "900" }}>@{reply.username ?? reply.displayName.replace(/\s+/g, "").toLowerCase()}</Text>
               <Text style={{ color: T.dark, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{reply.body}</Text>
+              {reply.userId === user?.id ? <Pressable disabled={Boolean(deletingCommentId)} onPress={() => confirmDelete(reply)}><Text style={{ color: T.red, fontSize: 11, fontWeight: "900" }}>{deletingCommentId === reply.id ? "Deleting…" : "Delete"}</Text></Pressable> : null}
             </View>
           </View>)}
         </View>) : <Text style={{ color: T.muted, fontSize: 14, fontWeight: "700", textAlign: "center", marginTop: 32 }}>Start the conversation.</Text>}

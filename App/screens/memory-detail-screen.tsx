@@ -2,10 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Image, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
+import Reanimated from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
 import { AvatarPile } from "@/components/avatar-pile";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, GradientBand, IconButton, Screen, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
+import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { deleteJournalMedia, fetchJournalMemory, resolveJournalMedia, updateJournalMemoryPhotos, updateJournalMemoryReflection, uploadJournalMedia } from "@/services/journal/journalService";
 import { JournalMemory } from "@/types/journal";
@@ -18,7 +20,7 @@ const memoryDifficultyIcons: Record<JournalMemory["difficulty"], keyof typeof Io
 };
 
 function MemoryHeaderPill({ label, color, backgroundColor, icon }: { label: string; color: string; backgroundColor: string; icon: React.ReactNode }) {
-  return <View style={{ minHeight: 27, paddingHorizontal: 8, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, backgroundColor, borderWidth: 1, borderColor: `${color}20` }}>{icon}<Text numberOfLines={1} style={{ color, fontFamily: "RubikBlack", fontSize: 10, lineHeight: 12, letterSpacing: 0.45, textTransform: "uppercase" }}>{label}</Text></View>;
+  return <View style={{ minHeight: 29, paddingHorizontal: 10, borderRadius: 99, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, backgroundColor, borderWidth: 2, borderColor: color, borderBottomWidth: 3, borderBottomColor: `${color}88` }}>{icon}<Text numberOfLines={1} style={{ color, fontFamily: "RubikBlack", fontSize: 10, lineHeight: 12, letterSpacing: 0.45, textTransform: "uppercase" }}>{label}</Text></View>;
 }
 
 function MemoryStat({ label, value, icon, color, bordered }: { label: string; value: string; icon: keyof typeof Ionicons.glyphMap; color: string; bordered?: boolean }) {
@@ -172,6 +174,7 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
   };
 
   const actionColor = cat.text;
+  const { onScroll, scrollY } = useTopScrollBlur();
 
   return (
     <Screen scroll={false} padded={false}>
@@ -192,7 +195,7 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
           </View>
         </GradientBand>
 
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ ...edgePadding, paddingTop: 12, paddingBottom: 18, gap: 25 }}>
+        <Reanimated.ScrollView onScroll={onScroll} scrollEventThrottle={16} style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ ...edgePadding, paddingTop: 12, paddingBottom: 18, gap: 25 }}>
           <View style={{ minHeight: 78, borderRadius: 20, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, flexDirection: "row", alignItems: "center", paddingVertical: 13, boxShadow: `3px 4px 0px ${T.border}` }}>
             <MemoryStat label="XP earned" value={`+${memory.xp}`} icon="flash" color={actionColor} />
             <MemoryStat label="Duration" value={`${memory.timeMin}m`} icon="time" color={actionColor} bordered />
@@ -207,7 +210,8 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Your reflection</Text><Pressable accessibilityRole="button" accessibilityLabel={memory.reflection ? "Edit reflection" : "Add a reflection"} onPress={openReflectionEditor} hitSlop={8} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: pressed ? 0.68 : 1 })}><Ionicons name={memory.reflection ? "create-outline" : "add-circle-outline"} size={16} color={actionColor} /><Text style={{ color: actionColor, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{memory.reflection ? "Edit" : "Add"}</Text></Pressable></View>
             {memory.reflection ? <Pressable accessibilityRole="button" accessibilityLabel="Edit reflection" onPress={openReflectionEditor}><Card style={{ backgroundColor: `${actionColor}0b`, borderColor: `${actionColor}30`, gap: 0 }}><Text style={{ color: T.dark, fontFamily: "Rubik", fontSize: 16, lineHeight: 24 }}>“{memory.reflection}”</Text></Card></Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Add a reflection" onPress={openReflectionEditor}><View style={{ minHeight: 118, borderRadius: 20, borderWidth: 2, borderColor: `${actionColor}45`, backgroundColor: `${actionColor}0b`, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, gap: 8 }}><Ionicons name="create-outline" size={24} color={actionColor} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 14 }}>Add a thought to this memory</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 18, textAlign: "center" }}>A sentence is enough to help future you remember this moment.</Text></View></Pressable>}
           </View>
-        </ScrollView>
+        </Reanimated.ScrollView>
+        <ScrollTopBlur scrollY={scrollY} />
 
         <View style={{ ...edgePadding, paddingTop: 12, paddingBottom: Math.max(insets.bottom + 8, 16), gap: 10, borderTopWidth: 1, borderTopColor: T.border, backgroundColor: T.bg }}>
           <MemoryAction label="Share" icon="share-outline" color={actionColor} inverse fullWidth onPress={() => void shareMemory()} />

@@ -4,6 +4,7 @@ import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { PropsWithChildren, useEffect, useRef } from "react";
+import Reanimated from "react-native-reanimated";
 import {
   Animated,
   KeyboardAvoidingView,
@@ -22,11 +23,26 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { radius, shadow, T } from "@/components/theme";
+import { BackIcon } from "@/components/back-icon";
+import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { isHapticFeedbackEnabled } from "@/services/settings/settingsService";
 
 const MIN_SCREEN_GUTTER = 16;
 const MAX_SCREEN_GUTTER = 24;
 const DEFAULT_CONTENT_MAX_WIDTH = 520;
+const NAVIGATION_PRESS_COOLDOWN_MS = 650;
+
+/** Prevents rapid taps from queuing duplicate navigation actions before a route mounts. */
+export function usePressGuard() {
+  const lastPressAt = useRef(0);
+
+  return (action: () => void) => {
+    const now = Date.now();
+    if (now - lastPressAt.current < NAVIGATION_PRESS_COOLDOWN_MS) return;
+    lastPressAt.current = now;
+    action();
+  };
+}
 
 export function responsiveScreenGutter(width: number) {
   return Math.round(Math.min(MAX_SCREEN_GUTTER, Math.max(MIN_SCREEN_GUTTER, width * 0.05)));
@@ -59,16 +75,18 @@ export function Screen({
   children,
   scroll = true,
   padded = true,
-  contentStyle
-}: PropsWithChildren<{ scroll?: boolean; padded?: boolean; contentStyle?: StyleProp<ViewStyle> }>) {
+  contentStyle,
+  ambientGlow = true
+}: PropsWithChildren<{ scroll?: boolean; padded?: boolean; contentStyle?: StyleProp<ViewStyle>; ambientGlow?: boolean }>) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const topPadding = Math.max(insets.top + 8, 20);
   const horizontalPadding = responsiveScreenGutter(width);
+  const { onScroll, scrollY } = useTopScrollBlur();
   if (!scroll) {
     return (
       <View style={{ flex: 1, backgroundColor: T.bg }}>
-        <AmbientGlow />
+        {ambientGlow ? <AmbientGlow /> : null}
         <View style={[{ flex: 1, paddingTop: topPadding }, padded && { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }, contentStyle]}>
           {children}
         </View>
@@ -77,10 +95,12 @@ export function Screen({
   }
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <AmbientGlow />
-      <ScrollView
+      {ambientGlow ? <AmbientGlow /> : null}
+      <Reanimated.ScrollView
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         contentContainerStyle={[
           { paddingTop: topPadding, paddingBottom: insets.bottom + 112, gap: 18 },
           padded && { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding },
@@ -88,7 +108,8 @@ export function Screen({
         ]}
       >
         {children}
-      </ScrollView>
+      </Reanimated.ScrollView>
+      <ScrollTopBlur scrollY={scrollY} />
     </View>
   );
 }
@@ -226,20 +247,23 @@ export function SoftButton({
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const guardPress = usePressGuard();
   return (
     <Pressable
       disabled={disabled}
       accessibilityState={{ disabled }}
       onPress={() => {
         if (disabled) return;
-        haptic();
-        onPress?.();
+        guardPress(() => {
+          haptic();
+          onPress?.();
+        });
       }}
       style={({ pressed }) => [
         {
-          minHeight: 48,
+          minHeight: 58,
           paddingHorizontal: 18,
-          borderRadius: 28,
+          borderRadius: 20,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "center",
@@ -274,13 +298,17 @@ export function IconButton({
   badge?: string | number;
   label?: string;
 }) {
+  const isBackButton = icon === "chevron-back" || icon === "arrow-back";
+  const guardPress = usePressGuard();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={() => {
-        haptic();
-        onPress?.();
+        guardPress(() => {
+          haptic();
+          onPress?.();
+        });
       }}
       style={({ pressed }) => ({
         width: 44,
@@ -292,24 +320,26 @@ export function IconButton({
         alignItems: "center",
         justifyContent: "center",
         ...shadow,
-        transform: [{ scale: pressed ? 0.9 : 1 }]
+        transform: [{ scale: pressed ? 0.9 : 1 }, { translateY: pressed ? 2 : 0 }]
       })}
     >
-      <View style={{ transform: [{ translateX: 2 }, { translateY: 2 }] }}>
-        <Ionicons name={icon} size={19} color={color} />
-      </View>
-      {badge !== undefined ? (
-        <View style={{ position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: T.cyan, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
-          <Text style={{ color: T.white, fontWeight: "900", fontSize: 10 }}>{badge}</Text>
+      {({ pressed }) => <>
+        <View style={{ transform: [{ translateX: isBackButton ? (pressed ? -3 : 0) : 2 }, { translateY: isBackButton ? 0 : 2 }] }}>
+          {isBackButton ? <BackIcon size={22} /> : <Ionicons name={icon} size={19} color={color} />}
         </View>
-      ) : null}
+        {badge !== undefined ? (
+          <View style={{ position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: T.cyan, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
+            <Text style={{ color: T.white, fontWeight: "900", fontSize: 10 }}>{badge}</Text>
+          </View>
+        ) : null}
+      </>}
     </Pressable>
   );
 }
 
 export function Tag({ label, color, bg }: { label: string; color: string; bg: string }) {
   return (
-    <View style={{ borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: bg, alignSelf: "flex-start" }}>
+    <View style={{ borderRadius: 99, paddingHorizontal: 11, paddingVertical: 5, backgroundColor: bg, borderWidth: 2, borderColor: color, borderBottomWidth: 4, borderBottomColor: `${color}88`, alignSelf: "flex-start" }}>
       <Text style={{ color, fontSize: 10, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>{label}</Text>
     </View>
   );

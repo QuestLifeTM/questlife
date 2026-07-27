@@ -13,6 +13,7 @@ export type AppNotificationKind =
   | "journal_entry_ready"
   | "friend_request"
   | "friend_accepted"
+  | "comment_reply_deleted"
   | "quest_challenge"
   | "party_invite"
   | "party_completed"

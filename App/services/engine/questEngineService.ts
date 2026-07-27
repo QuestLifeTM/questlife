@@ -334,12 +334,13 @@ export async function upsertUserPack(input: {
   if (deleteError) throw deleteError;
 
   if (questIds.length) {
-    const { error: insertError } = await supabase.from("user_adventure_pack_quests").insert(
+    const { error: insertError } = await supabase.from("user_adventure_pack_quests").upsert(
       questIds.map((questId, index) => ({
         user_pack_id: data.id,
         quest_id: questId,
         position: index,
       })),
+      { onConflict: "user_pack_id,quest_id", ignoreDuplicates: true },
     );
     if (insertError) {
       // The API has no transaction boundary across a parent update and this
@@ -347,12 +348,13 @@ export async function upsertUserPack(input: {
       // error so a failed save cannot empty an existing collection.
       const previousMemberships = existingQuestRows ?? [];
       if (previousMemberships.length) {
-        await supabase.from("user_adventure_pack_quests").insert(
+        await supabase.from("user_adventure_pack_quests").upsert(
           previousMemberships.map((row) => ({
             user_pack_id: data.id,
             quest_id: row.quest_id,
             position: row.position,
           })),
+          { onConflict: "user_pack_id,quest_id", ignoreDuplicates: true },
         );
       }
       if (!input.id) {

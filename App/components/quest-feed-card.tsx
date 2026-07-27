@@ -6,6 +6,7 @@ import { FlatList, LayoutChangeEvent, Pressable, Text, View } from "react-native
 import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
 
 import { PartyCategoryIcon } from "@/components/party-category-icon";
+import { HeartIcon } from "@/components/heart-icon";
 import { CachedImage } from "@/components/cached-image";
 import { T } from "@/components/theme";
 import { QuestCategory } from "@/types/content";
@@ -31,9 +32,9 @@ function CompletionStatus({ rating, durationSeconds, durationVisible }: { rating
 function FeedEngagement({ post, onToggle }: { post: QuestFeedPost; onToggle: () => Promise<void> }) {
   const [pending, setPending] = useState(false);
   const inspired = post.likedByMe;
-  return <Pressable accessibilityRole="button" accessibilityLabel={inspired ? "Remove inspiration" : "This quest inspired me"} accessibilityState={{ selected: inspired, busy: pending }} disabled={pending} onPress={() => { setPending(true); onToggle().finally(() => setPending(false)); }} style={({ pressed }) => ({ minHeight: 38, minWidth: 76, borderRadius: 19, paddingHorizontal: 11, backgroundColor: inspired ? "#ffe5bd" : "#fff0da", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, opacity: pending ? 0.62 : 1, transform: [{ scale: pressed ? 0.96 : 1 }] })}>
-    <Ionicons name={inspired ? "flame" : "flame-outline"} size={17} color={T.orange} />
-    <Text style={{ color: T.dark, fontSize: 13, lineHeight: 16, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{post.likeCount}</Text>
+  return <Pressable accessibilityRole="button" accessibilityLabel={inspired ? "Remove heart" : "Heart this quest"} accessibilityState={{ selected: inspired, busy: pending }} disabled={pending} onPress={() => { setPending(true); onToggle().finally(() => setPending(false)); }} style={({ pressed }) => ({ minHeight: 38, minWidth: 76, borderRadius: 19, paddingHorizontal: 10, backgroundColor: inspired ? "#ffe4ea" : "#fff7f9", borderWidth: 2, borderColor: "#FF6B81", borderBottomWidth: pressed ? 2 : 4, borderBottomColor: "#d94d65", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, opacity: pending ? 0.62 : 1, transform: [{ translateY: pressed ? 2 : 0 }] })}>
+    <HeartIcon filled={inspired} size={18} />
+    <Text style={{ color: "#FF6B81", fontSize: 13, lineHeight: 16, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{post.likeCount}</Text>
   </Pressable>;
 }
 

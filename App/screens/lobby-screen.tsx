@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Pressable, StyleProp, StyleSheet, Text, TextStyle, View, useWindowDimensions } from "react-native";
-import Svg, { Path } from "react-native-svg";
+import Svg, { Path, Rect } from "react-native-svg";
 
 import { getLobbyLayout, lobbyDesign, resolveLobbyStates } from "@/components/lobby-design";
 import { ProfileAvatar } from "@/components/profile-avatar";
@@ -12,6 +12,7 @@ import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
 import { Card, PillStat, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { useContent } from "@/contexts/ContentContext";
+import { useNotifications } from "@/contexts/NotificationsContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useStreaks } from "@/contexts/StreaksContext";
 import { formatElapsedCompact, useElapsedDuration } from "@/hooks/useElapsedTime";
@@ -186,7 +187,31 @@ function LobbyAvatar({ uri, onPress }: { uri: string | null; onPress: () => void
   );
 }
 
-function LobbyBellButton({ onPress }: { onPress: () => void }) {
+function LobbyBellButton({ onPress, reducedMotion, hasUnreadNotifications }: { onPress: () => void; reducedMotion: boolean; hasUnreadNotifications: boolean }) {
+  const rotation = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reducedMotion || !hasUnreadNotifications) {
+      rotation.setValue(0);
+      return;
+    }
+
+    const ring = () => {
+      Animated.sequence([
+        Animated.timing(rotation, { toValue: -1, duration: 75, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(rotation, { toValue: 1, duration: 105, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(rotation, { toValue: -0.7, duration: 90, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(rotation, { toValue: 0, duration: 90, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      ]).start();
+    };
+
+    const interval = setInterval(ring, 3_000);
+    return () => {
+      clearInterval(interval);
+      rotation.stopAnimation();
+    };
+  }, [hasUnreadNotifications, reducedMotion, rotation]);
+
   return (
     <Pressable
       accessibilityLabel="Open notifications"
@@ -197,7 +222,9 @@ function LobbyBellButton({ onPress }: { onPress: () => void }) {
       }}
       style={({ pressed }) => [styles.bellButton, pressed ? styles.pressedSmall : null]}
     >
-      <Ionicons name="notifications-outline" size={17} color={T.muted} />
+      <Animated.View style={{ position: "relative", transform: [{ rotate: rotation.interpolate({ inputRange: [-1, 0, 1], outputRange: ["-11deg", "0deg", "11deg"] }) }] }}>
+        <LobbyBellGlyph hasUnreadNotifications={hasUnreadNotifications} />
+      </Animated.View>
     </Pressable>
   );
 }
@@ -232,6 +259,10 @@ function CompletedHeadingIcon() {
   return <Svg width={17} height={12} viewBox="0 0 17 12" fill="none"><Path d="M15.5722 0.916016L5.49609 10.9922L0.916016 6.41212" stroke="#4DA8FF" strokeWidth={1.83203} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
 }
 
+function CompletedEmptyFlagIcon() {
+  return <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" style={{ transform: [{ translateX: 2 }] }}><Path d="M5 3V21" stroke="#FF4560" strokeWidth={2} strokeLinecap="round" /><Path d="M5 4H17.5L14.5 8.5L17.5 13H5V4Z" fill="#FF4560" /></Svg>;
+}
+
 function EnergyCard({
   dailyLimit,
   dailyUsed,
@@ -259,7 +290,7 @@ function EnergyCard({
           </View>
           <LobbySwapText text={dailyLimit > 0 ? `${dailyUsed} of ${dailyLimit} quests completed` : `${dailyUsed} quests completed · Unlimited`} style={styles.energySubtitle} reducedMotion={reducedMotion} />
         </View>
-        <View style={[styles.energyPill, limitReached ? styles.energyPillDone : null]}>
+        <View style={[styles.energyPill, limitReached ? styles.energyPillDone : null, dailyLimit === 0 ? styles.energyPillUnlimited : null]}>
           <LobbySwapText text={dailyLimit > 0 ? (limitReached ? "Limit reached" : resetLabel) : "No limit"} style={[styles.energyPillText, limitReached ? styles.energyPillTextDone : null]} reducedMotion={reducedMotion} />
         </View>
       </View>
@@ -281,42 +312,53 @@ function EnergyCard({
 }
 
 function ClockIcon() {
-  return <Svg width={18} height={18} viewBox="0 0 18 18" fill="none"><Path d="M9 16.5C13.1421 16.5 16.5 13.1421 16.5 9C16.5 4.85786 13.1421 1.5 9 1.5C4.85786 1.5 1.5 4.85786 1.5 9C1.5 13.1421 4.85786 16.5 9 16.5Z" stroke="#F39C12" strokeWidth={1.875} strokeLinecap="round" strokeLinejoin="round" /><Path d="M9 4.5V9L12 10.5" stroke="#F39C12" strokeWidth={1.875} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
+  return <Ionicons name="time" size={18} color={T.dark} />;
 }
 
 function RewardIcon() {
-  return <Svg width={18} height={18} viewBox="0 0 18 18"><Path d="M8.64376 1.72117C8.67662 1.65477 8.7274 1.59887 8.79035 1.55979C8.85329 1.52071 8.92591 1.5 9.00001 1.5C9.0741 1.5 9.14672 1.52071 9.20967 1.55979C9.27262 1.59887 9.32339 1.65477 9.35626 1.72117L11.0888 5.23042C11.2029 5.4614 11.3714 5.66123 11.5797 5.81276C11.7881 5.96429 12.0301 6.063 12.285 6.10042L16.1595 6.66742C16.2329 6.67806 16.3019 6.70902 16.3586 6.75682C16.4154 6.80462 16.4576 6.86733 16.4805 6.93788C16.5035 7.00842 16.5062 7.08398 16.4884 7.156C16.4707 7.22802 16.4331 7.29363 16.38 7.34542L13.578 10.0739C13.3932 10.254 13.255 10.4763 13.1751 10.7216C13.0953 10.967 13.0763 11.2281 13.1198 11.4824L13.7813 15.3374C13.7942 15.4108 13.7863 15.4863 13.7584 15.5554C13.7305 15.6245 13.6837 15.6844 13.6234 15.7282C13.5631 15.772 13.4917 15.7979 13.4174 15.8031C13.3431 15.8083 13.2688 15.7924 13.203 15.7574L9.73951 13.9364C9.51129 13.8166 9.25739 13.754 8.99963 13.754C8.74187 13.754 8.48797 13.8166 8.25976 13.9364L4.79701 15.7574C4.73126 15.7922 4.65705 15.8079 4.58285 15.8026C4.50864 15.7973 4.4374 15.7713 4.37723 15.7276C4.31706 15.6838 4.27038 15.6241 4.2425 15.5551C4.21462 15.4861 4.20665 15.4107 4.21951 15.3374L4.88026 11.4832C4.9239 11.2287 4.90499 10.9675 4.82516 10.722C4.74533 10.4764 4.60696 10.254 4.42201 10.0739L1.62001 7.34617C1.56645 7.29444 1.5285 7.22872 1.51048 7.15648C1.49246 7.08423 1.49508 7.00838 1.51807 6.93756C1.54105 6.86674 1.58346 6.8038 1.64046 6.75591C1.69747 6.70801 1.76678 6.67709 1.84051 6.66667L5.71426 6.10042C5.96945 6.06329 6.2118 5.96471 6.42044 5.81316C6.62909 5.66161 6.79778 5.46162 6.91201 5.23042L8.64376 1.72117Z" fill="#A06BFF" stroke="#A06BFF" strokeWidth={1.875} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
+  return <Ionicons name="flash" size={18} color={T.blue} />;
 }
 
-function LobbyLoadingCard({ reducedMotion }: { reducedMotion: boolean }) {
-  const pulse = useRef(new Animated.Value(1)).current;
+function LobbyBellGlyph({ hasUnreadNotifications }: { hasUnreadNotifications: boolean }) {
+  return <Svg width={16} height={20} viewBox="0 0 16 20" fill="none" style={{ transform: [{ translateX: 2 }] }}>
+    <Path d="M0 17V15H2V8C2 6.61667 2.41667 5.3875 3.25 4.3125C4.08333 3.2375 5.16667 2.53333 6.5 2.2V1.5C6.5 1.08333 6.64583 0.729167 6.9375 0.4375C7.22917 0.145833 7.58333 0 8 0C8.41667 0 8.77083 0.145833 9.0625 0.4375C9.35417 0.729167 9.5 1.08333 9.5 1.5V2.2C10.8333 2.53333 11.9167 3.2375 12.75 4.3125C13.5833 5.3875 14 6.61667 14 8V15H16V17H0V17M8 9.5V9.5V9.5V9.5V9.5V9.5V9.5V9.5V9.5M8 20C7.45 20 6.97917 19.8042 6.5875 19.4125C6.19583 19.0208 6 18.55 6 18H10C10 18.55 9.80417 19.0208 9.4125 19.4125C9.02083 19.8042 8.55 20 8 20V20M4 15H12V8C12 6.9 11.6083 5.95833 10.825 5.175C10.0417 4.39167 9.1 4 8 4C6.9 4 5.95833 4.39167 5.175 5.175C4.39167 5.95833 4 6.9 4 8V15V15" fill="black" />
+    {hasUnreadNotifications ? <Rect x={9.5} y={1.5} width={7} height={7} rx={3.5} fill="#E85D3F" stroke="#222222" /> : null}
+  </Svg>;
+}
 
-  useEffect(() => {
-    if (reducedMotion) {
-      pulse.setValue(1);
-      return;
-    }
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.55, duration: 520, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 520, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ]),
-    );
-    animation.start();
-    return () => animation.stop();
-  }, [pulse, reducedMotion]);
+function LobbySkeletonBlock({ width, height, radius = 8 }: { width: number | `${number}%`; height: number; radius?: number }) {
+  return <View style={{ width, height, borderRadius: radius, backgroundColor: T.border }} />;
+}
 
-  return (
-    <LobbyReveal motionKey="lobby-loading" reducedMotion={reducedMotion}>
-      <Animated.View style={{ opacity: pulse }}>
-        <Card style={styles.emptyLoadingCard}>
-          <Text style={styles.emptyEmoji}>⏳</Text>
-          <Text style={styles.emptyLoadingTitle}>Checking your quest status</Text>
-          <Text style={styles.emptyLoadingBody}>QuestLife is catching up with your latest adventure.</Text>
-        </Card>
-      </Animated.View>
-    </LobbyReveal>
-  );
+function LobbyLoadingSkeleton({ contentWidth, horizontalPadding, safeAreaOffset }: { contentWidth: number; horizontalPadding: number; safeAreaOffset: number }) {
+  return <View accessibilityRole="progressbar" accessibilityLabel="Loading lobby" style={[styles.container, { width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }]}>
+    <View style={styles.header}>
+      <LobbySkeletonBlock width={58} height={58} radius={29} />
+      <View style={{ flex: 1, gap: 7 }}><LobbySkeletonBlock width="64%" height={14} /><LobbySkeletonBlock width="46%" height={20} /></View>
+      <LobbySkeletonBlock width={72} height={42} radius={21} />
+      <LobbySkeletonBlock width={42} height={42} radius={21} />
+    </View>
+
+    <View style={styles.energySection}>
+      <View style={styles.energyHeaderRow}><View style={{ flex: 1, gap: 7 }}><LobbySkeletonBlock width="46%" height={22} /><LobbySkeletonBlock width="78%" height={13} /></View><LobbySkeletonBlock width={104} height={34} radius={17} /></View>
+      <LobbySkeletonBlock width="100%" height={18} radius={9} />
+    </View>
+
+    <View style={styles.section}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}><LobbySkeletonBlock width={28} height={28} radius={14} /><LobbySkeletonBlock width={146} height={24} /></View>
+      <Card style={{ minHeight: 300, borderRadius: radius.sheet, padding: 20, gap: 17 }}>
+        <View style={{ flexDirection: "row", gap: 8 }}><LobbySkeletonBlock width={112} height={32} radius={16} /><LobbySkeletonBlock width={70} height={32} radius={16} /></View>
+        <View style={{ gap: 9 }}><LobbySkeletonBlock width="78%" height={26} /><LobbySkeletonBlock width="100%" height={14} /><LobbySkeletonBlock width="72%" height={14} /></View>
+        <View style={{ minHeight: 92, borderRadius: 22, backgroundColor: T.bg, flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 14 }}><View style={{ flex: 1, gap: 8 }}><LobbySkeletonBlock width="48%" height={12} /><LobbySkeletonBlock width="74%" height={22} /></View><View style={{ width: 1, alignSelf: "stretch", backgroundColor: T.border }} /><View style={{ flex: 1, gap: 8 }}><LobbySkeletonBlock width="52%" height={12} /><LobbySkeletonBlock width="68%" height={22} /></View></View>
+        <LobbySkeletonBlock width="100%" height={58} radius={20} />
+      </Card>
+    </View>
+
+    <View style={styles.section}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}><LobbySkeletonBlock width={28} height={28} radius={14} /><LobbySkeletonBlock width={176} height={24} /></View>
+      <Card style={{ minHeight: 88, borderRadius: 24, flexDirection: "row", alignItems: "center", gap: 12 }}><LobbySkeletonBlock width={44} height={44} radius={14} /><View style={{ flex: 1, gap: 8 }}><LobbySkeletonBlock width="58%" height={16} /><LobbySkeletonBlock width="84%" height={12} /></View></Card>
+    </View>
+  </View>;
 }
 
 function ActiveQuestCard({
@@ -350,7 +392,7 @@ function ActiveQuestCard({
             <Text style={styles.activeDescription} numberOfLines={2}>{activeQuest.description}</Text>
           </View>
           <View style={styles.activeStats}>
-            <View style={styles.activeStatCell}><View style={styles.timeIconWrap}><ClockIcon /></View><View style={styles.statCopy}><Text style={[styles.statLabel, styles.timeLabel]}>Time elapsed</Text><Text numberOfLines={1} style={[styles.statValue, styles.elapsedStatValue]}>{elapsedLabel}</Text></View></View>
+            <View style={styles.activeStatCell}><View style={styles.timeIconWrap}><ClockIcon /></View><View style={styles.statCopy}><Text style={[styles.statLabel, styles.timeLabel]}>Time</Text><Text numberOfLines={1} style={[styles.statValue, styles.elapsedStatValue]}>{elapsedLabel}</Text></View></View>
             <View style={styles.statDivider} />
             <View style={styles.activeStatCell}><View style={styles.rewardIconWrap}><RewardIcon /></View><View style={styles.statCopy}><Text style={[styles.statLabel, styles.rewardLabel]}>Reward</Text><Text style={styles.statValue}>+{activeQuest.xp} XP</Text></View></View>
           </View>
@@ -362,24 +404,18 @@ function ActiveQuestCard({
 }
 
 function ActiveQuestMetaPill({ label, color, background, maxWidth }: { label: string; color: string; background: string; maxWidth: `${number}%` }) {
-  return <View style={{ maxWidth, minHeight: 32, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, alignSelf: "flex-start", justifyContent: "center", backgroundColor: background }}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={{ color, fontFamily: "RubikBold", fontSize: 11, lineHeight: 14, letterSpacing: 0.55, textTransform: "uppercase" }}>{label}</Text></View>;
+  return <View style={{ maxWidth, minHeight: 32, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 99, alignSelf: "flex-start", justifyContent: "center", backgroundColor: background, borderWidth: 2, borderColor: color, borderBottomWidth: 4, borderBottomColor: `${color}88` }}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={{ color, fontFamily: "RubikBold", fontSize: 11, lineHeight: 14, letterSpacing: 0.55, textTransform: "uppercase" }}>{label}</Text></View>;
 }
 
 function EmptyActiveQuest({
-  loading,
   onExplore,
   onPickForMe,
   reducedMotion,
 }: {
-  loading: boolean;
   onExplore: () => void;
   onPickForMe: () => void;
   reducedMotion: boolean;
 }) {
-  if (loading) {
-    return <LobbyLoadingCard reducedMotion={reducedMotion} />;
-  }
-
   return (
     <LobbyReveal motionKey="empty-active-quest" reducedMotion={reducedMotion}>
       <Card style={styles.emptyActiveCard}>
@@ -526,7 +562,7 @@ function CompletedSection({
         <LobbyReveal motionKey="completed-empty" reducedMotion={reducedMotion}>
           <Card style={styles.completedEmpty}>
             <View style={styles.completedEmptyIcon}>
-              <Text style={styles.completedEmptyEmoji}>📋</Text>
+              <CompletedEmptyFlagIcon />
             </View>
             <View style={styles.completedEmptyCopy}>
               <Text style={styles.completedEmptyTitle}>Nothing completed yet</Text>
@@ -567,6 +603,7 @@ export function LobbyScreen() {
   const reducedMotion = useReducedMotionPreference();
   const { profileNameVersion, user } = useAuth();
   const { error: contentError, getQuest, loading, quests } = useContent();
+  const { unreadCount } = useNotifications();
   const { engine, error: engineError, loading: engineLoading, refresh, saveActiveForLater } = useQuestEngine();
   const { overview: streakOverview } = useStreaks();
   const { block, clearBlock, starting, tryStart } = useQuestStart(getQuest);
@@ -638,6 +675,7 @@ export function LobbyScreen() {
     hasCompletions: completions.length > 0,
     feedback: savedSheet ? "success" : "idle",
   });
+  const isInitialLobbyLoad = !contentError && !engineError && ((loading && !quests.length) || (engineLoading && !engine));
 
   async function handleSaveForLater() {
     await saveActiveForLater();
@@ -647,7 +685,7 @@ export function LobbyScreen() {
 
   return (
     <Screen padded={false} contentStyle={styles.screenContent}>
-      <LobbyReveal motionKey="lobby-page" reducedMotion={reducedMotion}>
+      {isInitialLobbyLoad ? <LobbyLoadingSkeleton contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} /> : <LobbyReveal motionKey="lobby-page" reducedMotion={reducedMotion}>
         <View
           style={[styles.container, { width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }]}
           testID={`lobby-${lobbyStates.request}-${lobbyStates.activity}-${lobbyStates.history}-${lobbyStates.feedback}`}
@@ -674,7 +712,7 @@ export function LobbyScreen() {
           </View>
           <View style={styles.headerActions}>
             <StreakPill compact={compact} />
-            <LobbyBellButton onPress={() => router.push("/notifications")} />
+            <LobbyBellButton onPress={() => router.push("/notifications")} reducedMotion={reducedMotion} hasUnreadNotifications={unreadCount > 0} />
           </View>
         </View>
 
@@ -691,7 +729,6 @@ export function LobbyScreen() {
             />
           ) : (
             <EmptyActiveQuest
-              loading={loading || engineLoading}
               onExplore={() => router.push("/explore")}
               onPickForMe={() => {
                 setPickAttempt(0);
@@ -704,7 +741,7 @@ export function LobbyScreen() {
 
         <CompletedSection completions={completions} getQuest={getQuest} onOpenJournal={() => router.push("/journal")} reducedMotion={reducedMotion} />
         </View>
-      </LobbyReveal>
+      </LobbyReveal>}
 
       <Sheet visible={savedSheet} onClose={() => setSavedSheet(false)}>
         <View style={styles.savedSheet}>
@@ -781,6 +818,7 @@ const styles = StyleSheet.create({
   },
   container: {
     gap: lobbyDesign.spacing.section,
+    marginTop: -8,
   },
   header: {
     minHeight: 58,
@@ -906,6 +944,13 @@ const styles = StyleSheet.create({
   energyPillDone: {
     backgroundColor: `${T.red}12`,
   },
+  energyPillUnlimited: {
+    backgroundColor: `${T.cyan}14`,
+    borderWidth: 2,
+    borderColor: T.cyan,
+    borderBottomWidth: 4,
+    borderBottomColor: `${T.cyan}88`,
+  },
   energyPillText: {
     color: T.cyan,
     fontSize: 10,
@@ -986,7 +1031,6 @@ const styles = StyleSheet.create({
   },
   activeTitle: {
     color: T.dark,
-    fontFamily: "RubikBlack",
     fontWeight: "900",
     fontSize: 23,
     lineHeight: 28,
@@ -1030,7 +1074,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(243,156,18,0.12)",
+    backgroundColor: "#f2eef2",
   },
   rewardIconWrap: {
     width: 34,
@@ -1038,19 +1082,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(160,107,255,0.12)",
+    backgroundColor: `${T.blue}14`,
   },
   statLabel: {
     fontFamily: "RubikBlack",
     fontWeight: "600",
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 15.5,
+    lineHeight: 20,
   },
-  timeLabel: { color: T.orange },
-  rewardLabel: { color: "#a06bff" },
+  timeLabel: { color: T.dark },
+  rewardLabel: { color: T.blue },
   statValue: {
     color: T.dark,
-    fontFamily: "RubikBlack",
     fontWeight: "900",
     fontSize: 17,
     lineHeight: 23,
@@ -1066,14 +1109,15 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(232,223,213,0.5)",
   },
   activePrimaryButton: {
-    minHeight: 52,
-    borderRadius: 26,
+    minHeight: 58,
+    borderRadius: 20,
     backgroundColor: T.blue,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 9,
-    boxShadow: "0px 3px 0px rgba(49,140,223,0.42)",
+    borderBottomWidth: 6,
+    borderBottomColor: "#258fd8",
   },
   activePrimaryText: {
     color: T.white,
@@ -1092,33 +1136,8 @@ const styles = StyleSheet.create({
     gap: 20,
     padding: 20,
   },
-  emptyLoadingCard: {
-    borderRadius: radius.lg,
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 22,
-    paddingVertical: 22,
-  },
   emptyQuestCopy: {
     gap: 4,
-  },
-  emptyEmoji: {
-    fontSize: 28,
-    lineHeight: 35,
-  },
-  emptyLoadingTitle: {
-    color: T.dark,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: "900",
-    textAlign: "center",
-  },
-  emptyLoadingBody: {
-    color: T.muted,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "600",
-    textAlign: "center",
   },
   emptyQuestTitle: {
     color: T.dark,
@@ -1314,15 +1333,12 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   completedEmptyIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: `${T.muted}12`,
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "#FF456014",
     alignItems: "center",
     justifyContent: "center",
-  },
-  completedEmptyEmoji: {
-    fontSize: 24,
   },
   completedEmptyCopy: {
     flex: 1,
