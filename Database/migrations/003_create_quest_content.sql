@@ -67,10 +67,8 @@ create table if not exists public.quests (
     'ADVENTURE',
     'FOOD AND DRINKS',
     'FITNESS',
-    'NATURE',
     'CREATIVITY',
     'EVENTS',
-    'SKILLS',
     'SOCIAL',
     'WILD CARD'
   )),

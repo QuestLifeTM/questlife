@@ -23,8 +23,6 @@ const categoryButtonColors: Record<Quest["category"], string> = {
   ADVENTURE: "#4D9CFF",
   "FOOD AND DRINKS": "#E67E22",
   FITNESS: "#E84C63",
-  NATURE: "#25A75D",
-  SKILLS: "#C59212",
   EVENTS: "#D83B7D",
   CREATIVITY: "#8549D6",
   "WILD CARD": "#B83CD1",

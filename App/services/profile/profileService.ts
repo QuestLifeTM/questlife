@@ -2,7 +2,7 @@ import { Profile, ProfileEditInput, ProfileOverview, ProfilePrivacy, ProfileStat
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { toLocalDateKey } from "@/services/journal/journalService";
-import type { QuestCategory } from "@/types/content";
+import { normalizeQuestCategory, questCategoryColors, type QuestCategory } from "@/types/content";
 
 export type WeeklyCompletedQuestActivity = { day: string; value: number };
 export const DEFAULT_PROFILE_STAT_VISIBILITY: ProfileStatVisibility = {
@@ -34,11 +34,11 @@ export type ProfileQuestInsights = {
   monthlyWeeks: Array<{ label: string; value: number }>;
 };
 
-type TrailCompletionRow = { quests: { category: QuestCategory } | null };
+type TrailCompletionRow = { quests: { category: string } | null };
 type InsightCompletionRow = {
   created_at: string;
   photo_urls: string[] | null;
-  quests: { category: QuestCategory; difficulty: string; estimated_minutes: number } | null;
+  quests: { category: string; difficulty: string; estimated_minutes: number } | null;
 };
 
 function assertSupabaseConfigured() {
@@ -115,7 +115,8 @@ export async function fetchProfileQuestInsights(userId: string): Promise<Profile
     const completedAt = new Date(completion.created_at);
     const quest = completion.quests;
     if (quest) {
-      categoryCounts.set(quest.category, (categoryCounts.get(quest.category) ?? 0) + 1);
+      const category = normalizeQuestCategory(quest.category);
+      categoryCounts.set(category, (categoryCounts.get(category) ?? 0) + 1);
       difficultyCounts.set(quest.difficulty, (difficultyCounts.get(quest.difficulty) ?? 0) + 1);
       estimatedMinutes += quest.estimated_minutes;
     }
@@ -150,7 +151,7 @@ export async function fetchProfileQuestInsights(userId: string): Promise<Profile
     monthlyGoal: Math.max(8, Math.min(24, Math.ceil(Math.max(completedThisMonth, 1) / 4) * 8)),
     averageQuestMinutes: completions?.length ? Math.round(estimatedMinutes / completions.length) : 0,
     bestWeekCompletions: Math.max(0, ...weeklyCounts.values()),
-    questVariety: new Set((completions ?? []).filter((completion) => new Date(completion.created_at) >= monthStart).map((completion) => completion.quests?.category).filter(Boolean)).size,
+    questVariety: new Set((completions ?? []).filter((completion) => new Date(completion.created_at) >= monthStart).map((completion) => completion.quests ? normalizeQuestCategory(completion.quests.category) : null).filter(Boolean)).size,
     preferredTimeLabel,
     photosCaptured,
     categoryBreakdown: [...categoryCounts.entries()].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count || a.category.localeCompare(b.category)),
@@ -188,7 +189,7 @@ export async function fetchProfileOverview(userId?: string): Promise<ProfileOver
   if (error) throw error;
   const payload = data as ProfileOverview | null;
   if (!payload) throw new Error("Profile overview is unavailable.");
-  let topCategories = payload.stats?.topCategories ?? [];
+  let topCategories = (payload.stats?.topCategories ?? []).map((item) => ({ ...item, category: normalizeQuestCategory(item.category) }));
   // The overview RPC predates the Quest Rail in some deployments. Build the
   // rail from the actual completion history so it always reflects the three
   // quest categories this profile has participated in most often.
@@ -201,7 +202,7 @@ export async function fetchProfileOverview(userId?: string): Promise<ProfileOver
     if (!trailError) {
       const counts = new Map<QuestCategory, number>();
       for (const completion of completions ?? []) {
-        const category = completion.quests?.category;
+        const category = completion.quests ? normalizeQuestCategory(completion.quests.category) : null;
         if (category) counts.set(category, (counts.get(category) ?? 0) + 1);
       }
       topCategories = [...counts.entries()]
@@ -228,7 +229,10 @@ export async function fetchProfileOverview(userId?: string): Promise<ProfileOver
       // Keep the profile usable while the matching migration rolls out.
       topCategories,
     },
-    posts: payload.posts ?? [],
+    posts: (payload.posts ?? []).map((post) => {
+      const category = normalizeQuestCategory(post.questCategory);
+      return { ...post, questCategory: category, questColor: questCategoryColors[category].text };
+    }),
     recentCompletions: payload.recentCompletions ?? [],
   };
 }
@@ -430,21 +434,17 @@ export async function updateQuestPost(postId: string, input: {
   if (error) throw error;
 }
 
-export async function togglePostLike(postId: string, liked: boolean) {
+export async function setPostLike(postId: string, userId: string, shouldLike: boolean) {
   assertSupabaseConfigured();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) throw userError;
-  if (!userData.user) throw new Error("No authenticated user.");
 
-  if (liked) {
-    const { error } = await supabase.from("post_likes").delete().match({ post_id: postId, user_id: userData.user.id });
+  if (!shouldLike) {
+    const { error } = await supabase.from("post_likes").delete().match({ post_id: postId, user_id: userId });
     if (error) throw error;
-    return false;
+    return;
   }
 
-  const { error } = await supabase.from("post_likes").upsert({ post_id: postId, user_id: userData.user.id });
+  const { error } = await supabase.from("post_likes").upsert({ post_id: postId, user_id: userId });
   if (error) throw error;
-  return true;
 }
 
 export type { ProfileOverview, QuestFeedPost, QuestPost };

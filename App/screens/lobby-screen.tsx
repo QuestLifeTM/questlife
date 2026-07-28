@@ -112,8 +112,8 @@ function greetingFor(date: Date, hasCompletedQuestToday: boolean, shuffle: numbe
 type PickTime = 10 | 20 | 40 | "any";
 type PickSetting = "indoors" | "outdoors" | "either";
 
-const outdoorCategories = new Set<Quest["category"]>(["ADVENTURE", "FITNESS", "NATURE", "EVENTS"]);
-const indoorCategories = new Set<Quest["category"]>(["CREATIVITY", "FOOD AND DRINKS", "SKILLS"]);
+const outdoorCategories = new Set<Quest["category"]>(["ADVENTURE", "FITNESS", "EVENTS"]);
+const indoorCategories = new Set<Quest["category"]>(["CREATIVITY", "FOOD AND DRINKS"]);
 
 function recommendationFor({
   quests,

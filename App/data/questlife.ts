@@ -20,6 +20,6 @@ export const badges = [
   { id: "b3", emoji: "📝", title: "Storyteller", desc: "Write 5 reflections", unlocked: true, date: "Jun 26" },
   { id: "b4", emoji: "✌️", title: "Double Dip", desc: "2 quests in one day", unlocked: true, date: "Jun 25" },
   { id: "b7", emoji: "👟", title: "First Step", desc: "Complete first quest", unlocked: true, date: "May 23" },
-  { id: "b2", emoji: "🗺️", title: "Explorer", desc: "10 nature quests", unlocked: false, progress: 7, total: 10 },
+  { id: "b2", emoji: "🗺️", title: "Explorer", desc: "10 adventure quests", unlocked: false, progress: 7, total: 10 },
   { id: "b5", emoji: "🦉", title: "Night Owl", desc: "5 evening quests", unlocked: false, progress: 3, total: 5 },
 ];

@@ -1,12 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Contacts from "expo-contacts";
-import * as Clipboard from "expo-clipboard";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Linking from "expo-linking";
+import * as Sharing from "expo-sharing";
 import { useRouter } from "expo-router";
 import QRCode from "react-native-qrcode-svg";
-import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, Share, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Animated, Platform, Pressable, ScrollView, Share, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, EmptyState, haptic, Header, IconButton, Screen, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
@@ -22,6 +22,42 @@ function DiscoveryTabButton({ tab, active, icon, label, onPress }: { tab: Discov
     <View style={{ width: 34, height: 30, borderRadius: 11, backgroundColor: active ? `${T.blue}16` : "transparent", alignItems: "center", justifyContent: "center" }}><Ionicons name={icon} size={23} color={active ? T.blue : T.muted} /></View>
     <Text style={{ color: active ? T.dark : T.muted, fontSize: 11, fontWeight: "900", textAlign: "center" }}>{label}</Text>
   </Pressable>;
+}
+
+function LoadingBlock({ width, height, radius = 8 }: { width: number | `${number}%`; height: number; radius?: number }) {
+  const opacity = useRef(new Animated.Value(0.42)).current;
+  useEffect(() => {
+    const animation = Animated.loop(Animated.sequence([
+      Animated.timing(opacity, { toValue: 0.8, duration: 720, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0.42, duration: 720, useNativeDriver: true }),
+    ]));
+    animation.start();
+    return () => animation.stop();
+  }, [opacity]);
+  return <Animated.View accessibilityRole="progressbar" style={{ width, height, borderRadius: radius, backgroundColor: "#dfe7ed", opacity }} />;
+}
+
+function PeopleLoadingSkeleton({ rows = 3 }: { rows?: number }) {
+  return <View accessibilityLabel="Loading people">
+    <Card style={{ borderRadius: 22, paddingHorizontal: 14, paddingVertical: 4, boxShadow: "none" }}>
+    {Array.from({ length: rows }, (_, index) => <View key={index} style={{ minHeight: 72, flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 9, borderBottomWidth: index === rows - 1 ? 0 : 1, borderBottomColor: T.border }}>
+      <LoadingBlock width={48} height={48} radius={24} />
+      <View style={{ flex: 1, gap: 7 }}><LoadingBlock width={index === 1 ? "48%" : "62%"} height={15} /><LoadingBlock width={index === 2 ? "34%" : "43%"} height={11} /></View>
+      <LoadingBlock width={76} height={38} radius={14} />
+    </View>)}
+    </Card>
+  </View>;
+}
+
+function QrLoadingSkeleton() {
+  return <View accessibilityLabel="Loading your QR code" style={{ gap: 14, alignItems: "center", paddingTop: 10 }}>
+    <LoadingBlock width={184} height={22} radius={9} />
+    <Card style={{ borderRadius: 26, padding: 18, alignItems: "center", gap: 13, borderColor: `${T.blue}30`, borderBottomWidth: 5, borderBottomColor: "#d8eafa" }}>
+      <LoadingBlock width={220} height={220} radius={20} />
+      <LoadingBlock width={246} height={12} /><LoadingBlock width={194} height={12} />
+    </Card>
+    <View style={{ flexDirection: "row", gap: 10, width: "100%" }}><LoadingBlock width="50%" height={52} radius={18} /><LoadingBlock width="50%" height={52} radius={18} /></View>
+  </View>;
 }
 
 function FriendActionButton({ label, icon, color = T.blue, onPress, style }: { label: string; icon: keyof typeof Ionicons.glyphMap; color?: string; onPress: () => void; style?: object }) {
@@ -50,7 +86,7 @@ export function AddFriendsScreen() {
   const router = useRouter();
   const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
   const insets = useSafeAreaInsets();
-  const { overview, searchUsers, follow } = useSocial();
+  const { overview, loading: socialLoading, searchUsers, follow } = useSocial();
   const [activeTab, setActiveTab] = useState<DiscoveryTab>("suggested");
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<ProfileSearchResult[]>([]);
@@ -59,8 +95,9 @@ export function AddFriendsScreen() {
   const [contactsLoaded, setContactsLoaded] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(true);
   const [loadingContacts, setLoadingContacts] = useState(false);
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [loadingSearch, setLoadingSearch] = useState(false);
+  const [sharingQr, setSharingQr] = useState(false);
+  const qrCodeRef = useRef<{ toDataURL: (callback: (data: string) => void) => void } | null>(null);
 
   const ownUserId = overview?.me?.userId;
   const profileUrl = useMemo(() => ownUserId ? Linking.createURL("/add-friend", { queryParams: { userId: ownUserId } }) : "questlife://add-friend", [ownUserId]);
@@ -74,10 +111,11 @@ export function AddFriendsScreen() {
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (trimmed.length < 2) { setSearchResults([]); return; }
+    if (trimmed.length < 2) { setSearchResults([]); setLoadingSearch(false); return; }
     let current = true;
     const timeout = setTimeout(() => {
-      searchUsers(trimmed).then((people) => { if (current) setSearchResults(people); }).catch(() => { if (current) setSearchResults([]); });
+      setLoadingSearch(true);
+      searchUsers(trimmed).then((people) => { if (current) setSearchResults(people); }).catch(() => { if (current) setSearchResults([]); }).finally(() => { if (current) setLoadingSearch(false); });
     }, 220);
     return () => { current = false; clearTimeout(timeout); };
   }, [query, searchUsers]);
@@ -113,23 +151,16 @@ export function AddFriendsScreen() {
     }
   }
 
-  async function openScanner() {
-    if (!cameraPermission?.granted) {
-      const permission = await requestCameraPermission();
-      if (!permission.granted) return;
-    }
-    setCameraOpen(true);
-  }
+  async function openSystemCamera() {
+    const cameraUrl = Platform.OS === "android"
+      ? "intent:#Intent;action=android.media.action.IMAGE_CAPTURE;end"
+      : "camera://";
 
-  function scanned(data: string) {
-    const parsed = Linking.parse(data);
-    const userId = typeof parsed.queryParams?.userId === "string" ? parsed.queryParams.userId : null;
-    if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
-      Alert.alert("That isn’t a QuestLife profile QR code", "Try scanning a friend’s QuestLife code.");
-      return;
+    try {
+      await Linking.openURL(cameraUrl);
+    } catch {
+      Alert.alert("Open your Camera", "Open your phone’s Camera app and point it at the QuestLife QR code. The code will bring you back to the right profile automatically.");
     }
-    setCameraOpen(false);
-    router.push({ pathname: "/add-friend/[userId]", params: { userId } });
   }
 
   async function inviteFriends() {
@@ -140,9 +171,27 @@ export function AddFriendsScreen() {
     }
   }
 
+  async function shareQrCode() {
+    if (sharingQr || !qrCodeRef.current) return;
+    setSharingQr(true);
+    try {
+      if (!await Sharing.isAvailableAsync()) throw new Error("Sharing is unavailable on this device.");
+      const pngData = await new Promise<string>((resolve) => qrCodeRef.current?.toDataURL(resolve));
+      const cacheDirectory = FileSystem.cacheDirectory;
+      if (!cacheDirectory) throw new Error("Temporary storage is unavailable.");
+      const fileUri = `${cacheDirectory}questlife-qr-code.png`;
+      await FileSystem.writeAsStringAsync(fileUri, pngData, { encoding: FileSystem.EncodingType.Base64 });
+      await Sharing.shareAsync(fileUri, { mimeType: "image/png", UTI: "public.png", dialogTitle: "Share your QuestLife QR code" });
+    } catch {
+      Alert.alert("Couldn’t share QR code", "Please try again in a moment.");
+    } finally {
+      setSharingQr(false);
+    }
+  }
+
   return <Screen scroll={false} padded={false} contentStyle={{ flex: 1 }}>
     <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, gap: 15, transform: [{ translateX: safeAreaOffset }] }}>
-      <Header title="Add Friends" subtitle="Build your quest crew" animated={false} right={<IconButton icon="arrow-back" label="Back to Social" onPress={() => router.back()} color={T.dark} />} />
+      <Header title="Add Friends" subtitle="Build your quest crew" animated={false} right={<IconButton icon="arrow-back" label="Back to Social Friends" onPress={() => router.replace({ pathname: "/(tabs)/social", params: { tab: "friends" } })} color={T.dark} />} />
       <View style={{ height: 52, borderRadius: 18, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, flexDirection: "row", alignItems: "center", paddingHorizontal: 14, gap: 9 }}>
         <Ionicons name="search" size={19} color={T.muted} />
         <TextInput autoFocus value={query} onChangeText={setQuery} placeholder="Search by username" placeholderTextColor={T.muted} autoCapitalize="none" autoCorrect={false} style={{ flex: 1, color: T.dark, fontSize: 15, fontWeight: "700", paddingVertical: 0 }} />
@@ -159,20 +208,18 @@ export function AddFriendsScreen() {
       {query.trim().length >= 2 || activeTab === "suggested" || activeTab === "contacts" ? <View style={{ gap: 8 }}>
         <Text style={{ color: T.dark, fontSize: 13, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" }}>{query.trim().length >= 2 ? "Search results" : activeTab === "contacts" ? "Friends from your contacts" : "People you might know"}</Text>
         {activeTab === "contacts" && !contacts.length && !loadingContacts && !query.trim() ? <Card style={{ borderRadius: 22, alignItems: "center", gap: 12, paddingVertical: 28 }}><View style={{ width: 54, height: 54, borderRadius: 19, backgroundColor: `${T.purple}16`, alignItems: "center", justifyContent: "center" }}><Ionicons name="book-outline" size={26} color={T.purple} /></View><Text style={{ color: T.dark, fontSize: 18, fontWeight: "900" }}>{contactsLoaded ? "No contacts on QuestLife yet" : "Connect your contacts"}</Text><Text style={{ color: T.muted, textAlign: "center", fontSize: 13, lineHeight: 19, fontWeight: "700" }}>{contactsLoaded ? "Invite them below, or search by username instead." : "We’ll only look for people already using QuestLife."}</Text><FriendActionButton label={contactsLoaded ? "Check again" : "Connect securely"} icon={contactsLoaded ? "refresh" : "link-outline"} color={T.purple} onPress={connectContacts} /></Card> : null}
-        {loadingSuggestions && activeTab === "suggested" ? <EmptyState emoji="⏳" title="Finding your people" body="Looking for adventurers to meet." /> : null}
-        {loadingContacts ? <EmptyState emoji="⏳" title="Checking contacts" body="Looking for your people on QuestLife." /> : null}
-        {!loadingSuggestions && !loadingContacts && displayedPeople.length ? <Card style={{ borderRadius: 22, paddingHorizontal: 14, paddingVertical: 4, boxShadow: "none" }}>{displayedPeople.map((person, index) => <View key={person.userId} style={{ borderBottomWidth: index === displayedPeople.length - 1 ? 0 : 1, borderBottomColor: T.border }}><PersonRow person={person} onAdd={addPerson} /></View>)}</Card> : null}
-        {!loadingSuggestions && !loadingContacts && query.trim().length >= 2 && !displayedPeople.length ? <EmptyState emoji="🔎" title="No adventurers found" body="Try a different username." /> : null}
+        {loadingSearch || (loadingSuggestions && activeTab === "suggested") || loadingContacts ? <PeopleLoadingSkeleton /> : null}
+        {!loadingSearch && !loadingSuggestions && !loadingContacts && displayedPeople.length ? <Card style={{ borderRadius: 22, paddingHorizontal: 14, paddingVertical: 4, boxShadow: "none" }}>{displayedPeople.map((person, index) => <View key={person.userId} style={{ borderBottomWidth: index === displayedPeople.length - 1 ? 0 : 1, borderBottomColor: T.border }}><PersonRow person={person} onAdd={addPerson} /></View>)}</Card> : null}
+        {!loadingSearch && !loadingSuggestions && !loadingContacts && query.trim().length >= 2 && !displayedPeople.length ? <EmptyState emoji="🔎" title="No adventurers found" body="Try a different username." /> : null}
       </View> : null}
-      {activeTab === "qr" && !query.trim() ? <View style={{ gap: 14, alignItems: "center", paddingTop: 10 }}>
+      {activeTab === "qr" && !query.trim() ? socialLoading || !overview ? <QrLoadingSkeleton /> : <View style={{ gap: 14, alignItems: "center", paddingTop: 10 }}>
         <Text style={{ color: T.dark, fontSize: 19, fontWeight: "900", textAlign: "center" }}>Your QuestLife QR code</Text>
         <Card style={{ borderRadius: 26, padding: 18, alignItems: "center", gap: 13, borderColor: `${T.blue}55`, borderBottomWidth: 5, borderBottomColor: "#a8d8ff" }}>
-          <View style={{ padding: 12, borderRadius: 20, backgroundColor: T.white }}><QRCode value={profileUrl} size={196} color={T.dark} backgroundColor={T.white} /></View>
+          <View style={{ padding: 12, borderRadius: 20, backgroundColor: T.white }}><QRCode getRef={(ref) => { qrCodeRef.current = ref; }} value={profileUrl} size={196} color={T.dark} backgroundColor={T.white} /></View>
           <Text selectable style={{ color: T.muted, fontSize: 12, textAlign: "center", lineHeight: 18, fontWeight: "700" }}>Friends can scan this with their phone camera to open your profile and add you.</Text>
         </Card>
-        <View style={{ flexDirection: "row", gap: 10, width: "100%" }}><SoftButton label="Copy link" icon="copy-outline" inverse color={T.blue} onPress={() => Clipboard.setStringAsync(profileUrl)} style={{ flex: 1, minHeight: 52, borderRadius: 18 }} /><FriendActionButton label="Scan a code" icon="scan-outline" color={T.blue} onPress={openScanner} style={{ flex: 1 }} /></View>
+        <View style={{ flexDirection: "row", gap: 10, width: "100%" }}><FriendActionButton label={sharingQr ? "Preparing…" : "Share QR"} icon="share-social-outline" color={T.blue} onPress={() => void shareQrCode()} style={{ flex: 1 }} /><FriendActionButton label="Scan a code" icon="camera-outline" color={T.blue} onPress={() => void openSystemCamera()} style={{ flex: 1 }} /></View>
       </View> : null}
-      {cameraOpen ? <View style={{ overflow: "hidden", height: 330, borderRadius: 26, borderWidth: 2, borderColor: T.blue, backgroundColor: T.dark }}><CameraView style={{ flex: 1 }} facing="back" barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={({ data }) => scanned(data)} /><Pressable accessibilityLabel="Close QR scanner" onPress={() => setCameraOpen(false)} style={{ position: "absolute", top: 12, right: 12, width: 40, height: 40, borderRadius: 20, backgroundColor: T.white, alignItems: "center", justifyContent: "center" }}><Ionicons name="close" size={22} color={T.dark} /></Pressable></View> : null}
       </View>
     </ScrollView>
     <View style={{ alignItems: "center", borderTopWidth: 2, borderTopColor: T.border, backgroundColor: T.bg, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 12), paddingHorizontal: horizontalPadding }}>

@@ -1,12 +1,12 @@
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { compressFeedImage } from "@/services/media/feed-image";
-import { Quest } from "@/types/content";
+import { normalizeQuestCategory, Quest } from "@/types/content";
 import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMood, PartyJournalCard, journalMoods } from "@/types/journal";
 
 type CompletionQuestRow = {
   title: string;
-  category: Quest["category"];
+  category: string;
   experience_points: number;
   difficulty: Quest["difficulty"];
   accent_color: string;
@@ -37,7 +37,7 @@ type ActiveSessionRow = {
 };
 
 type CompletionHistoryRow = {
-  quests: { category: Quest["category"] } | null;
+  quests: { category: string } | null;
 };
 
 export type QuestHistorySignal = {
@@ -72,7 +72,7 @@ function mapMemory(row: CompletionRow): JournalMemory | null {
     reflection: row.reflection,
     completedAt: row.created_at,
     xp: row.quests.experience_points,
-    category: row.quests.category,
+    category: normalizeQuestCategory(row.quests.category),
     difficulty: row.quests.difficulty,
     color: row.quests.accent_color,
     timeMin: row.quests.estimated_minutes,
@@ -94,7 +94,7 @@ function mapActiveQuest(row: ActiveSessionRow | null): JournalActiveQuest | null
     questId: row.quest_id,
     title: row.quests.title,
     startedAt: row.started_at,
-    category: row.quests.category,
+    category: normalizeQuestCategory(row.quests.category),
     difficulty: row.quests.difficulty,
     color: row.quests.accent_color,
   };
@@ -111,7 +111,13 @@ async function fetchJournalEntries(userId: string) {
     .eq("user_id", userId)
     .returns<JournalEntryRow[]>();
 
-  if (error) return entriesByDate;
+  // Keep older app installations readable while the migration rolls out, but
+  // surface every other failure so the UI never mistakes a network or policy
+  // error for an empty journal.
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return entriesByDate;
+    throw error;
+  }
 
   for (const row of data ?? []) {
     entriesByDate[row.entry_date] = mapEntry(row);
@@ -184,7 +190,8 @@ export async function fetchQuestHistorySignals(): Promise<QuestHistorySignal[]> 
   const counts = new Map<Quest["category"], number>();
   for (const row of data ?? []) {
     if (!row.quests) continue;
-    counts.set(row.quests.category, (counts.get(row.quests.category) ?? 0) + 1);
+    const category = normalizeQuestCategory(row.quests.category);
+    counts.set(category, (counts.get(category) ?? 0) + 1);
   }
   return [...counts.entries()]
     .map(([category, completedThisMonth]) => ({ category, completedThisMonth }))

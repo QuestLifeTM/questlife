@@ -8,12 +8,13 @@ import {
   QuestFormInput,
   QuestStatus,
   questCategoryColors,
+  normalizeQuestCategory,
 } from "@/types/content";
 
 type QuestRow = {
   id: string;
   title: string;
-  category: Quest["category"];
+  category: string;
   experience_points: number;
   description: string;
   steps: string[] | null;
@@ -54,10 +55,11 @@ export function formatTimeLabel(minutes: number) {
 }
 
 function mapQuest(row: QuestRow, savedDates: Map<string, string>, completedIds: Set<string>): Quest {
+  const category = normalizeQuestCategory(row.category);
   return {
     id: row.id,
     title: row.title,
-    category: row.category,
+    category,
     xp: row.experience_points,
     description: row.description,
     steps: row.steps ?? [],
@@ -66,7 +68,7 @@ function mapQuest(row: QuestRow, savedDates: Map<string, string>, completedIds: 
     difficulty: row.difficulty,
     status: row.status,
     featured: row.featured,
-    color: questCategoryColors[row.category]?.text ?? row.accent_color,
+    color: questCategoryColors[category].text,
     saved: savedDates.has(row.id),
     savedAt: savedDates.get(row.id) ?? null,
     completed: completedIds.has(row.id),
@@ -110,6 +112,19 @@ async function fetchCompletedQuestIds() {
   return new Set((data ?? []).map((item) => item.quest_id as string));
 }
 
+async function fetchQuestRows(admin: boolean) {
+  let questQuery = supabase
+    .from("quests")
+    .select("*")
+    .order("updated_at", { ascending: false });
+
+  if (!admin) questQuery = questQuery.eq("status", "published");
+
+  const { data, error } = await questQuery.returns<QuestRow[]>();
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function fetchContentLibrary({ admin = false }: { admin?: boolean } = {}) {
   assertSupabaseConfigured();
 
@@ -118,19 +133,15 @@ export async function fetchContentLibrary({ admin = false }: { admin?: boolean }
     fetchCompletedQuestIds(),
   ]);
 
-  let questQuery = supabase
-    .from("quests")
-    .select("*")
-    .order("updated_at", { ascending: false });
+  const questRows = await fetchQuestRows(admin);
+  return { quests: questRows.map((row) => mapQuest(row, savedDates, completedIds)) };
+}
 
-  if (!admin) {
-    questQuery = questQuery.eq("status", "published");
-  }
-
-  const { data: questRows, error: questError } = await questQuery.returns<QuestRow[]>();
-  if (questError) throw questError;
-
-  return { quests: (questRows ?? []).map((row) => mapQuest(row, savedDates, completedIds)) };
+/** Content-only refresh for admin-published changes; user state stays in memory. */
+export async function fetchPublishedQuestCatalog() {
+  assertSupabaseConfigured();
+  const questRows = await fetchQuestRows(false);
+  return questRows.map((row) => mapQuest(row, new Map(), new Set()));
 }
 
 export async function getAdminMembership(): Promise<AdminMembership | null> {

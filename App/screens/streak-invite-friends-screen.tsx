@@ -49,7 +49,7 @@ export function StreakInviteFriendsScreen() {
     <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 14, transform: [{ translateX: safeAreaOffset }] }}>
       <View style={{ minHeight: 60, flexDirection: "row", alignItems: "center", gap: 12 }}>
         <IconButton icon="chevron-back" label="Back to streaks" onPress={() => router.back()} color={T.dark} />
-        <View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 23, fontWeight: "900" }}>Invite a friend</Text><Text style={{ color: T.muted, fontSize: 13, fontWeight: "700" }}>Choose a friend for a shared streak.</Text></View>
+        <View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 23, fontWeight: "900" }}>Invite a friend</Text><Text style={{ color: T.muted, fontSize: 13, fontWeight: "700" }}>It starts after they accept and advances when you both quest that day.</Text></View>
       </View>
 
       <View style={{ minHeight: 52, borderRadius: 18, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, flexDirection: "row", alignItems: "center", paddingHorizontal: 14, gap: 9 }}>

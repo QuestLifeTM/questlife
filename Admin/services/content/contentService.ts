@@ -15,12 +15,13 @@ import {
   QuestFormInput,
   QuestStatus,
   questCategoryColors,
+  normalizeQuestCategory,
 } from "@/types/content";
 
 type QuestRow = {
   id: string;
   title: string;
-  category: Quest["category"];
+  category: string;
   experience_points: number;
   description: string;
   steps: string[] | null;
@@ -197,10 +198,11 @@ function mapQuest(
   completedIds: Set<string>,
   profileLabels: Map<string, string> = new Map(),
 ): Quest {
+  const category = normalizeQuestCategory(row.category);
   return {
     id: row.id,
     title: row.title,
-    category: row.category,
+    category,
     xp: row.experience_points,
     description: row.description,
     steps: row.steps ?? [],
@@ -209,7 +211,7 @@ function mapQuest(
     difficulty: row.difficulty,
     status: row.status,
     featured: row.featured,
-    color: questCategoryColors[row.category]?.text ?? row.accent_color,
+    color: questCategoryColors[category].text,
     saved: savedIds.has(row.id),
     completed: completedIds.has(row.id),
     createdBy: row.created_by,

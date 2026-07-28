@@ -286,7 +286,7 @@ function QuestFeedCard({ quest, onSave }: { quest: Quest; onSave: () => void }) 
 
 export function ExploreScreen() {
   const router = useRouter();
-  const { contentWidth, horizontalPadding: sideGap, safeAreaOffset } = useResponsiveScreenLayout();
+  const { contentWidth, horizontalPadding: sideGap, safeAreaOffset, insets } = useResponsiveScreenLayout();
   const { error, loading, quests, refresh } = useContent();
   const { openQuestSave } = useQuestSave();
   const [search, setSearch] = useState("");
@@ -321,7 +321,7 @@ export function ExploreScreen() {
   const { onScroll, scrollY } = useTopScrollBlur();
 
   return (
-    <Screen scroll={false} padded={false} ambientGlow={false} contentStyle={{ alignItems: "center" }}>
+    <Screen scroll={false} padded={false} ambientGlow={false} contentStyle={{ alignItems: "center", paddingTop: Math.max(insets.top - 12, 12) }}>
       <Reanimated.FlatList
         data={loading || error ? [] : feed}
         keyExtractor={(quest) => quest.id}

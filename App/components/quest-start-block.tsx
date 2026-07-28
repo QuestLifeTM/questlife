@@ -9,10 +9,8 @@ const repeatQuestPresentation: Record<QuestCategory, { accent: string; encourage
   ADVENTURE: { accent: T.blue, encouragement: "Take a different path this time." },
   "FOOD AND DRINKS": { accent: T.orange, encouragement: "Try a new flavor or bring someone along." },
   FITNESS: { accent: T.red, encouragement: "Keep your momentum going." },
-  NATURE: { accent: "#198754", encouragement: "Step outside for another reset." },
   CREATIVITY: { accent: T.purple, encouragement: "Make something new from the same spark." },
   EVENTS: { accent: T.pink, encouragement: "Make another moment of it." },
-  SKILLS: { accent: "#9b6900", encouragement: "One more round builds the skill." },
   SOCIAL: { accent: "#087d73", encouragement: "Bring someone along this time." },
   "WILD CARD": { accent: "#9b42b6", encouragement: "See where round two takes you." },
 };

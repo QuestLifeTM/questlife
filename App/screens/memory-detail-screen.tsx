@@ -6,7 +6,7 @@ import Reanimated from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
 import { AvatarPile } from "@/components/avatar-pile";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
-import { Card, EmptyState, GradientBand, IconButton, Screen, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
+import { Card, EmptyState, GradientBand, IconButton, Screen, Sheet, SoftButton, haptic, usePressGuard, useResponsiveScreenLayout } from "@/components/ui";
 import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { deleteJournalMedia, fetchJournalMemory, resolveJournalMedia, updateJournalMemoryPhotos, updateJournalMemoryReflection, uploadJournalMedia } from "@/services/journal/journalService";
@@ -32,6 +32,43 @@ function MemoryAction({ label, icon, color, onPress, inverse = false, fullWidth 
   return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => ({ flex: fullWidth ? undefined : 1, minHeight: 54, borderRadius: 19, borderWidth: inverse ? 2 : 0, borderColor: inverse ? color : "transparent", borderBottomWidth: inverse ? 4 : 5, borderBottomColor: inverse ? `${color}99` : "rgba(61,52,56,0.22)", backgroundColor: inverse ? T.white : color, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7, paddingHorizontal: 10, opacity: pressed ? 0.86 : 1, transform: [{ translateY: pressed ? 2 : 0 }] })}><Ionicons name={icon} size={18} color={textColor} /><Text numberOfLines={1} style={{ color: textColor, fontFamily: "RubikBold", fontSize: 14, textAlign: "center" }}>{label}</Text></Pressable>;
 }
 
+function MemorySheetButton({ label, icon, color, onPress, disabled = false, variant = "primary" }: { label: string; icon?: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; disabled?: boolean; variant?: "primary" | "destructive" | "neutral" }) {
+  const guardPress = usePressGuard();
+  const filled = variant === "primary";
+  const borderColor = variant === "destructive" ? color : T.border;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={() => guardPress(() => {
+        haptic();
+        onPress();
+      })}
+      style={({ pressed }) => ({
+        minHeight: 58,
+        paddingHorizontal: 18,
+        borderRadius: 20,
+        backgroundColor: filled ? color : T.white,
+        borderWidth: filled ? 0 : 2,
+        borderColor: filled ? "transparent" : borderColor,
+        borderBottomWidth: filled ? 6 : 4,
+        borderBottomColor: filled ? "rgba(61,52,56,0.24)" : variant === "destructive" ? `${color}88` : "#d7cec2",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        opacity: disabled ? 0.5 : 1,
+        transform: [{ translateY: pressed && !disabled ? 3 : 0 }]
+      })}
+    >
+      {icon ? <Ionicons name={icon} size={19} color={filled ? T.white : color} /> : null}
+      <Text style={{ color: filled ? T.white : color, fontFamily: "RubikBold", fontSize: 15, letterSpacing: 0.15 }}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export function MemoryDetailScreen({ completionId, onBack }: { completionId?: string; onBack: () => void }) {
   const router = useRouter();
   const { horizontalPadding, insets } = useResponsiveScreenLayout();
@@ -47,6 +84,10 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
   const [managedPhotoIndex, setManagedPhotoIndex] = useState<number | null>(null);
   const [savingPhoto, setSavingPhoto] = useState(false);
   const { showFeedback } = useAppFeedback();
+  // This must run before the loading return below. A memory can render once
+  // without data and then again with data, so calling it only for the latter
+  // would change this screen's hook order.
+  const { onScroll, scrollY } = useTopScrollBlur();
 
   useEffect(() => {
     let mounted = true;
@@ -174,8 +215,6 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
   };
 
   const actionColor = cat.text;
-  const { onScroll, scrollY } = useTopScrollBlur();
-
   return (
     <Screen scroll={false} padded={false}>
       <View style={{ flex: 1 }}>
@@ -229,9 +268,9 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
       <Sheet visible={managedPhotoIndex !== null} onClose={() => { if (!savingPhoto) setManagedPhotoIndex(null); }}>
         <View style={{ padding: 24, gap: 13 }}>
           <View style={{ gap: 3 }}><Text style={{ color: T.dark, fontSize: 22, lineHeight: 28, fontWeight: "900" }}>Manage photo</Text><Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>Replace it with another moment or remove it from this memory.</Text></View>
-          <SoftButton label={savingPhoto ? "Saving..." : "Replace photo"} icon="images-outline" disabled={savingPhoto} color={actionColor} onPress={() => void replacePhoto()} />
-          <SoftButton label="Delete photo" icon="trash-outline" inverse color={T.red} disabled={savingPhoto} onPress={confirmDeletePhoto} />
-          <SoftButton label="Cancel" inverse color={T.muted} disabled={savingPhoto} onPress={() => setManagedPhotoIndex(null)} />
+          <MemorySheetButton label={savingPhoto ? "Saving..." : "Replace photo"} icon="images-outline" disabled={savingPhoto} color={actionColor} onPress={() => void replacePhoto()} />
+          <MemorySheetButton label="Delete photo" icon="trash-outline" disabled={savingPhoto} color={T.red} variant="destructive" onPress={confirmDeletePhoto} />
+          <MemorySheetButton label="Cancel" disabled={savingPhoto} color={T.muted} variant="neutral" onPress={() => setManagedPhotoIndex(null)} />
         </View>
       </Sheet>
     </Screen>

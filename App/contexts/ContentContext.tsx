@@ -1,8 +1,10 @@
-import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 import {
   fetchContentLibrary,
+  fetchPublishedQuestCatalog,
   toggleSavedQuest,
 } from "@/services/content/contentService";
 import { Quest } from "@/types/content";
@@ -27,32 +29,88 @@ const ContentContext = createContext<ContentContextValue>({
 
 export function ContentProvider({ children }: PropsWithChildren) {
   const { isConfigured, session } = useAuth();
+  const userId = session?.user.id;
   const [quests, setQuests] = useState<Quest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const queuedRefreshRef = useRef(false);
 
-  const refresh = useCallback(async () => {
-    if (!isConfigured || !session) {
+  const refreshContent = useCallback(async (background = false) => {
+    if (!isConfigured || !userId) {
       setQuests([]);
       return;
     }
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      const content = await fetchContentLibrary();
-      setQuests(content.quests);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to load QuestLife content.");
-    } finally {
-      setLoading(false);
+    if (refreshInFlightRef.current) {
+      queuedRefreshRef.current = true;
+      return refreshInFlightRef.current;
     }
-  }, [isConfigured, session]);
+
+    const request = (async () => {
+      if (!background) {
+        setLoading(true);
+        setError(null);
+      }
+
+      try {
+        if (background) {
+          const catalog = await fetchPublishedQuestCatalog();
+          setQuests((current) => {
+            const userStateByQuestId = new Map(current.map((quest) => [quest.id, { completed: quest.completed, saved: quest.saved, savedAt: quest.savedAt }]));
+            return catalog.map((quest) => ({ ...quest, ...userStateByQuestId.get(quest.id) }));
+          });
+        } else {
+          const content = await fetchContentLibrary();
+          setQuests(content.quests);
+        }
+      } catch (nextError) {
+        if (!background) setError(nextError instanceof Error ? nextError.message : "Unable to load QuestLife content.");
+      } finally {
+        if (!background) setLoading(false);
+      }
+    })();
+
+    refreshInFlightRef.current = request;
+    try {
+      await request;
+    } finally {
+      if (refreshInFlightRef.current !== request) return;
+      refreshInFlightRef.current = null;
+      if (queuedRefreshRef.current) {
+        queuedRefreshRef.current = false;
+        setTimeout(() => { void refreshContent(true); }, 0);
+      }
+    }
+  }, [isConfigured, userId]);
+
+  const refresh = useCallback(() => refreshContent(false), [refreshContent]);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!isConfigured || !userId) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const queueBackgroundRefresh = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        void refreshContent(true);
+      }, 150);
+    };
+    const channel = supabase
+      .channel("content-library-quests")
+      .on("postgres_changes", { event: "*", schema: "public", table: "quests" }, queueBackgroundRefresh)
+      .subscribe();
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [isConfigured, refreshContent, userId]);
 
   const getQuest = useCallback(
     (id?: string) => quests.find((quest) => quest.id === id) ?? null,

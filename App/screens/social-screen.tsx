@@ -1,16 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Share } from "react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Alert, Animated, Easing, FlatList, Image, Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import Reanimated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
+import { AddFriendIcon } from "@/components/add-friend-icon";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { QuestFeedCard } from "@/components/quest-feed-card";
-import { QuestlifeFlame } from "@/components/questlife-flame";
 import { categoryColor, radius, T } from "@/components/theme";
-import { Card, EmptyState, haptic, Header, IconButton, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
+import { Card, EmptyState, haptic, Header, IconButton, Screen, Sheet, SoftButton, Tag, usePressGuard, useResponsiveScreenLayout } from "@/components/ui";
 import { useContent } from "@/contexts/ContentContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSocial } from "@/contexts/SocialContext";
@@ -31,6 +31,13 @@ function FeedScopeTab({ scope, active, onPress }: { scope: FeedScope; active: bo
   const icon = scope === "public" ? "globe-outline" : "people-outline";
   const label = scope === "public" ? "Public" : "Friends";
   return <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={`${label} feed`} onPress={onPress} style={({ pressed }) => ({ flex: 1, minHeight: 66, alignItems: "center", justifyContent: "center", gap: 4, borderBottomWidth: 4, borderBottomColor: active ? T.blue : "transparent", opacity: pressed ? 0.68 : 1 })}><View style={{ width: 36, height: 30, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: active ? `${T.blue}14` : "transparent" }}><Ionicons name={icon} size={22} color={active ? T.blue : T.muted} /></View><Text style={{ color: active ? T.dark : T.muted, fontSize: 12, fontWeight: "900" }}>{label}</Text></Pressable>;
+}
+
+function AddFriendsButton({ onPress }: { onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel="Add friends" onPress={onPress} style={({ pressed }) => ({ minHeight: 42, paddingHorizontal: 11, borderRadius: 15, borderWidth: 2, borderColor: "#4DA8FF", borderBottomWidth: pressed ? 2 : 4, borderBottomColor: "#2B8EDD", backgroundColor: pressed ? "#DDF0FF" : "#F3FAFF", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, transform: [{ translateY: pressed ? 2 : 0 }] })}>
+    <AddFriendIcon size={21} />
+    <Text style={{ color: T.blue, fontSize: 12, lineHeight: 16, fontWeight: "900" }}>Add</Text>
+  </Pressable>;
 }
 
 function FeedSkeletonBlock({ width, height, radius = 8 }: { width: `${number}%` | number; height: number; radius?: number }) {
@@ -64,32 +71,6 @@ function SectionTitle({ title, detail }: { title: string; detail?: string }) {
 }
 
 const FRIEND_REQUEST_EXPIRY_DAYS = 7;
-
-function FriendStreaksStrip({ friends, onOpenProfile, onAdd }: { friends: SocialFriend[]; onOpenProfile: (userId: string) => void; onAdd: () => void }) {
-  const { contentWidth, horizontalPadding } = useResponsiveScreenLayout();
-  const slotWidth = Math.floor((contentWidth - horizontalPadding * 2) / 4);
-  const avatarSize = Math.min(68, Math.max(48, slotWidth - 10));
-  const renderFriend = (friend: SocialFriend) => {
-    const streak = friend.currentStreak ?? 0;
-    const active = streak > 0;
-    return <Pressable key={friend.userId} accessibilityRole="button" accessibilityLabel={`View ${friend.displayName}'s streak`} onPress={() => onOpenProfile(friend.userId)} style={({ pressed }) => ({ width: slotWidth, alignItems: "center", gap: 5, opacity: pressed ? 0.7 : 1 })}>
-      <View style={{ width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2, overflow: "hidden", backgroundColor: `${friend.avatarColor}22` }}><ProfileAvatar uri={friend.avatarUrl} color={friend.avatarColor} size={avatarSize} label={`${friend.displayName}'s profile photo`} /></View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}><QuestlifeFlame size={15} style={{ opacity: active ? 1 : 0.32 }} /><Text style={{ color: active ? T.orange : T.muted, fontSize: 13, lineHeight: 16, fontWeight: "900" }}>{streak}</Text></View>
-    </Pressable>;
-  };
-
-  return <View style={{ gap: 10 }}>
-    <Text style={{ color: T.muted, fontSize: 13, fontWeight: "900", letterSpacing: 0.7, textTransform: "uppercase" }}>Friend streaks</Text>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: "flex-start" }}>
-      {friends.slice(0, 3).map(renderFriend)}
-      <Pressable accessibilityRole="button" accessibilityLabel="Add a friend to a streak" onPress={onAdd} style={({ pressed }) => ({ width: slotWidth, alignItems: "center", gap: 5, opacity: pressed ? 0.68 : 1 })}>
-        <View style={{ width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2, borderWidth: 2, borderStyle: "dashed", borderColor: "#a9a9a9", alignItems: "center", justifyContent: "center" }}><Ionicons name="add" size={Math.round(avatarSize * 0.5)} color="#a9a9a9" /></View>
-        <Text style={{ height: 16, color: "transparent", fontSize: 13 }}>0</Text>
-      </Pressable>
-      {friends.slice(3).map(renderFriend)}
-    </ScrollView>
-  </View>;
-}
 
 function FriendRequestCard({ request, onOpenProfile, onAccept, onDecline }: { request: FriendRequest; onOpenProfile: () => void; onAccept: () => void; onDecline: () => void }) {
   const requestedAt = new Date(request.createdAt).getTime();
@@ -644,7 +625,9 @@ function CreatePartySheet({ visible, onClose }: { visible: boolean; onClose: () 
 
 export function SocialScreen() {
   const router = useRouter();
-  const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
+  const { tab: requestedTab } = useLocalSearchParams<{ tab?: string }>();
+  const guardPress = usePressGuard();
+  const { contentWidth, horizontalPadding, safeAreaOffset, insets } = useResponsiveScreenLayout();
   const { quests } = useContent();
   const { profileNameVersion } = useAuth();
   const { overview, partyHub, loading, error, refresh, respondRequest, respondToPartyInvite, joinPartyWithCode } = useSocial();
@@ -661,8 +644,8 @@ export function SocialScreen() {
   const [code, setCode] = useState("");
 
   useFocusEffect(useCallback(() => {
-    setTab("feed");
-  }, []));
+    setTab(requestedTab === "friends" ? "friends" : "feed");
+  }, [requestedTab]));
 
   const join = async () => { try { const partyId = await joinPartyWithCode(code); setCodeOpen(false); setCode(""); router.push(`/party/${partyId}`); } catch (nextError) { Alert.alert("Couldn’t join Party", nextError instanceof Error ? nextError.message : "Check the code and try again."); } };
   const loadFeed = async () => {
@@ -675,21 +658,55 @@ export function SocialScreen() {
 
   useEffect(() => { void loadFeed(); }, [feedScope, profileNameVersion]);
 
+  const handlePostUpdated = useCallback((nextPost: QuestFeedPost) => {
+    setFeed((current) => {
+      const remainsVisible = feedScope === "public" ? nextPost.visibility === "public" : nextPost.visibility !== "private";
+      return remainsVisible ? current.map((post) => post.id === nextPost.id ? nextPost : post) : current.filter((post) => post.id !== nextPost.id);
+    });
+  }, [feedScope]);
+  const handlePostDeleted = useCallback((postId: string) => {
+    setFeed((current) => current.filter((post) => post.id !== postId));
+  }, []);
+  const onFeedViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index: number | null; isViewable: boolean }> }) => {
+    const first = viewableItems.find((item) => item.isViewable && item.index !== null)?.index;
+    if (typeof first === "number") setActiveFeedIndex((current) => current === first ? current : first);
+  }).current;
+  const renderFeedItem = useCallback(({ item, index }: { item: QuestFeedPost; index: number }) => (
+    <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>
+      <QuestFeedCard post={item} loadMedia={Math.abs(index - activeFeedIndex) <= 3} onPostUpdated={handlePostUpdated} onPostDeleted={handlePostDeleted} />
+    </View>
+  ), [activeFeedIndex, contentWidth, handlePostDeleted, handlePostUpdated, horizontalPadding, safeAreaOffset]);
+
   return (
-    <Screen scroll={false} padded={false} contentStyle={{ alignItems: "center" }}>
+    <Screen scroll={false} padded={false} contentStyle={{ alignItems: "center", paddingTop: Math.max(insets.top - 12, 12) }}>
       <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 14, transform: [{ translateX: safeAreaOffset }] }}>
-        <Header title="Social" subtitle="Quest crew updates" animated={false} right={tab === "friends" ? <IconButton icon="person-add" label="Add friends" color={T.blue} onPress={() => router.push("/add-friends")} /> : undefined} />
+        <Header title="Social" subtitle="Quest crew updates" animated={false} right={tab === "friends" ? <AddFriendsButton onPress={() => guardPress(() => router.push("/add-friends"))} /> : undefined} />
         <View style={{ flexDirection: "row", padding: 4, borderRadius: 24, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }}>
           {(["parties", "feed", "friends"] as Tab[]).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} accessibilityLabel={`${item} tab`} onPress={() => { haptic(); setTab(item); }} style={({ pressed }) => ({ flex: 1, minHeight: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: tab === item ? T.dark : "transparent", opacity: pressed ? 0.8 : 1 })}><Text style={{ color: tab === item ? T.white : T.muted, fontSize: 13, fontWeight: "900", textTransform: "capitalize" }}>{item}</Text></Pressable>)}
         </View>
         {tab === "feed" ? <View style={{ marginTop: 3, paddingTop: 13, borderTopWidth: 1, borderTopColor: "rgba(232,223,213,0.82)" }}><View accessibilityRole="tablist" style={{ flexDirection: "row", borderBottomWidth: 2, borderBottomColor: T.border, backgroundColor: "rgba(255,255,255,0.38)" }}>{(["public", "friends"] as FeedScope[]).map((scope) => <FeedScopeTab key={scope} scope={scope} active={feedScope === scope} onPress={() => setFeedScope(scope)} />)}</View></View> : null}
       </View>
 
-      {tab === "feed" ? <FlatList data={feed} keyExtractor={(post) => post.id} style={{ flex: 1, width: "100%" }} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} removeClippedSubviews windowSize={7} initialNumToRender={4} maxToRenderPerBatch={4} updateCellsBatchingPeriod={80} contentContainerStyle={{ alignItems: "center", paddingTop: 20, paddingBottom: 112, gap: 16 }} onViewableItemsChanged={({ viewableItems }) => { const first = viewableItems.find((item) => item.isViewable && item.index !== null)?.index; if (typeof first === "number") setActiveFeedIndex(first); }} ListHeaderComponent={feedError ? <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><Card style={{ borderRadius: 20, gap: 8 }}><Text style={{ color: T.red, fontWeight: "800" }}>{feedError}</Text><SoftButton label="Try again" icon="refresh" inverse color={T.blue} onPress={() => void loadFeed()} /></Card></View> : null} ListEmptyComponent={feedLoading ? <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><SocialFeedLoading /></View> : <EmptyState emoji={feedScope === "public" ? "🌍" : "🤝"} title={feedScope === "public" ? "No public posts yet" : "Your Friends feed is quiet"} body={feedScope === "public" ? "Complete a quest and share the first story with everyone." : "Follow friends, then their Friends-only quest posts will appear here."} action={<SoftButton label={feedScope === "public" ? "Explore quests" : "Find friends"} icon={feedScope === "public" ? "compass" : "person-add"} color={T.blue} onPress={() => router.push(feedScope === "public" ? "/(tabs)/explore" : "/add-friends")} />} />} renderItem={({ item, index }) => <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><QuestFeedCard post={item} loadMedia={Math.abs(index - activeFeedIndex) <= 3} onPostUpdated={(nextPost) => setFeed((current) => { const remainsVisible = feedScope === "public" ? nextPost.visibility === "public" : nextPost.visibility !== "private"; return remainsVisible ? current.map((post) => post.id === nextPost.id ? nextPost : post) : current.filter((post) => post.id !== nextPost.id); })} onPostDeleted={(postId) => setFeed((current) => current.filter((post) => post.id !== postId))} /></View>} /> : <ScrollView style={{ flex: 1, width: "100%" }} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingTop: 20, paddingBottom: 112 }}>
+      {tab === "feed" ? <FlatList
+        data={feed}
+        keyExtractor={(post) => post.id}
+        renderItem={renderFeedItem}
+        style={{ flex: 1, width: "100%" }}
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews
+        windowSize={5}
+        initialNumToRender={3}
+        maxToRenderPerBatch={3}
+        updateCellsBatchingPeriod={100}
+        contentContainerStyle={{ alignItems: "center", paddingTop: 20, paddingBottom: 112, gap: 16 }}
+        onViewableItemsChanged={onFeedViewableItemsChanged}
+        ListHeaderComponent={feedError ? <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><Card style={{ borderRadius: 20, gap: 8 }}><Text style={{ color: T.red, fontWeight: "800" }}>{feedError}</Text><SoftButton label="Try again" icon="refresh" inverse color={T.blue} onPress={() => void loadFeed()} /></Card></View> : null}
+        ListEmptyComponent={feedLoading ? <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><SocialFeedLoading /></View> : <EmptyState emoji={feedScope === "public" ? "🌍" : "🤝"} title={feedScope === "public" ? "No public posts yet" : "Your Friends feed is quiet"} body={feedScope === "public" ? "Complete a quest and share the first story with everyone." : "Follow friends, then their Friends-only quest posts will appear here."} action={<SoftButton label={feedScope === "public" ? "Explore quests" : "Find friends"} icon={feedScope === "public" ? "compass" : "person-add"} color={T.blue} onPress={() => router.push(feedScope === "public" ? "/(tabs)/explore" : "/add-friends")} />} />}
+      /> : <ScrollView style={{ flex: 1, width: "100%" }} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingTop: 20, paddingBottom: 112 }}>
         <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
         {error ? <Card style={{ borderRadius: 20, gap: 8 }}><Text style={{ color: T.red, fontWeight: "800" }}>{error}</Text><SoftButton label="Retry" icon="refresh" inverse color={T.blue} onPress={refresh} /></Card> : null}
         {tab === "friends" ? <View style={{ gap: 16 }}>
-          <FriendStreaksStrip friends={overview?.friends ?? []} onOpenProfile={(userId) => router.push(`/add-friend/${userId}`)} onAdd={() => router.push({ pathname: "/streak", params: { tab: "friends" } })} />
           {overview?.incomingRequests.length ? <View style={{ gap: 9 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: T.muted, fontSize: 13, fontWeight: "900", letterSpacing: 0.7, textTransform: "uppercase" }}>Friend requests</Text><Text style={{ color: T.muted, fontSize: 13, fontWeight: "900" }}>{overview.incomingRequests.length}</Text></View>
             {overview.incomingRequests.map((request) => <FriendRequestCard key={request.id} request={request} onOpenProfile={() => router.push(`/add-friend/${request.userId}`)} onAccept={() => void respondRequest(request.id, true)} onDecline={() => void respondRequest(request.id, false)} />)}

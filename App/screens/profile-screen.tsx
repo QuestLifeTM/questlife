@@ -2,8 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { ReactNode, useEffect, useRef, useState } from "react";
-import { Animated, Easing, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Easing, PanResponder, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import { EmptyState, Header, Screen, Sheet, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
@@ -102,19 +102,119 @@ function profileCarouselMetrics(overview: ProfileOverview): ProfileCarouselMetri
 
 export function ProfileStatMarquee({ overview, visibility }: { overview: ProfileOverview; visibility: ProfileStatVisibility }) {
   const reduceMotion = useReducedMotionPreference();
-  const translateX = useRef(new Animated.Value(0)).current;
   const metrics = profileCarouselMetrics(overview).filter((metric) => visibility[metric.id]);
   const marqueeDistance = (PROFILE_STAT_PILL_WIDTH + PROFILE_STAT_PILL_GAP) * metrics.length;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const dragStartRef = useRef(0);
+  const dragOriginRef = useRef(0);
+  const pausedRef = useRef(false);
+  const interactionTokenRef = useRef(0);
+  const animationRunningRef = useRef(false);
+  const startAnimationRef = useRef<() => void>(() => {});
+
+  const normaliseOffset = useCallback((value: number) => {
+    if (!marqueeDistance) return 0;
+    // Keep the content in the middle copy. This lets either direction of a
+    // manual drag wrap cleanly without ever revealing an empty edge.
+    const travelled = ((-value % marqueeDistance) + marqueeDistance) % marqueeDistance;
+    return -marqueeDistance - travelled;
+  }, [marqueeDistance]);
+
+  const pauseAutoScroll = useCallback(() => {
+    if (reduceMotion || metrics.length < 2 || !marqueeDistance) return;
+    const interactionToken = interactionTokenRef.current + 1;
+    interactionTokenRef.current = interactionToken;
+    pausedRef.current = true;
+    animationRef.current?.stop();
+    animationRunningRef.current = false;
+    translateX.stopAnimation((value) => {
+      // A native stop callback can arrive after the user releases. Do not let
+      // that stale callback interrupt the animation that has already resumed.
+      if (interactionToken !== interactionTokenRef.current || !pausedRef.current) return;
+      const next = normaliseOffset(value);
+      dragStartRef.current = next;
+      dragOriginRef.current = next;
+      translateX.setValue(next);
+    });
+  }, [marqueeDistance, metrics.length, normaliseOffset, reduceMotion, translateX]);
+
+  const resumeAutoScroll = useCallback(() => {
+    if (reduceMotion || metrics.length < 2 || !marqueeDistance) return;
+    interactionTokenRef.current += 1;
+    pausedRef.current = false;
+    startAnimationRef.current();
+  }, [marqueeDistance, metrics.length, reduceMotion]);
 
   useEffect(() => {
-    translateX.stopAnimation();
-    translateX.setValue(0);
-    if (reduceMotion) return;
-    if (!metrics.length) return;
-    const animation = Animated.loop(Animated.timing(translateX, { toValue: -marqueeDistance, duration: Math.max(7_000, metrics.length * 4_800), easing: Easing.linear, useNativeDriver: true }));
-    animation.start();
-    return () => animation.stop();
-  }, [marqueeDistance, metrics.length, reduceMotion, translateX]);
+    animationRef.current?.stop();
+    animationRunningRef.current = false;
+    pausedRef.current = false;
+    if (reduceMotion || metrics.length < 2 || !marqueeDistance) {
+      translateX.setValue(0);
+      startAnimationRef.current = () => {};
+      return;
+    }
+
+    let active = true;
+    const fullDuration = Math.max(9_000, metrics.length * 5_000);
+    translateX.setValue(-marqueeDistance);
+    dragStartRef.current = -marqueeDistance;
+    dragOriginRef.current = -marqueeDistance;
+
+    const startAnimation = () => {
+      if (!active || pausedRef.current || animationRunningRef.current) return;
+      // dragStartRef is updated while the user is moving, so starting from it
+      // avoids waiting on a native stop callback after the finger is released.
+      const start = normaliseOffset(dragStartRef.current);
+      const travelled = Math.abs(start + marqueeDistance);
+      const remaining = Math.max(0.04, 1 - travelled / marqueeDistance);
+      dragStartRef.current = start;
+      dragOriginRef.current = start;
+      translateX.setValue(start);
+      const animation = Animated.timing(translateX, {
+        toValue: -marqueeDistance * 2,
+        duration: Math.max(180, Math.round(fullDuration * remaining)),
+        easing: Easing.linear,
+        useNativeDriver: true,
+      });
+      animationRef.current = animation;
+      animationRunningRef.current = true;
+      animation.start(({ finished }) => {
+        if (animationRef.current === animation) animationRunningRef.current = false;
+        if (!active || !finished || pausedRef.current) return;
+        translateX.setValue(-marqueeDistance);
+        dragStartRef.current = -marqueeDistance;
+        dragOriginRef.current = -marqueeDistance;
+        startAnimation();
+      });
+    };
+
+    startAnimationRef.current = startAnimation;
+    startAnimation();
+    return () => {
+      active = false;
+      animationRef.current?.stop();
+      animationRunningRef.current = false;
+      startAnimationRef.current = () => {};
+    };
+  }, [marqueeDistance, metrics.length, normaliseOffset, reduceMotion, translateX]);
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 4 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+    onPanResponderGrant: () => {
+      pauseAutoScroll();
+      dragOriginRef.current = dragStartRef.current;
+    },
+    onPanResponderMove: (_, gesture) => {
+      const next = normaliseOffset(dragOriginRef.current + gesture.dx);
+      dragStartRef.current = next;
+      translateX.setValue(next);
+    },
+    onPanResponderRelease: resumeAutoScroll,
+    onPanResponderTerminate: resumeAutoScroll,
+    onPanResponderTerminationRequest: () => true,
+  }), [normaliseOffset, pauseAutoScroll, resumeAutoScroll, translateX]);
 
   const pill = (metric: typeof metrics[number], index: number) => <View key={`${metric.label}-${index}`} style={{ width: PROFILE_STAT_PILL_WIDTH, minHeight: 48, paddingHorizontal: 12, borderRadius: 24, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: metric.background, borderWidth: 1.5, borderColor: `${metric.color}38` }}>
     <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${metric.color}1c` }}><Ionicons name={metric.icon} size={16} color={metric.color} /></View>
@@ -122,10 +222,21 @@ export function ProfileStatMarquee({ overview, visibility }: { overview: Profile
   </View>;
 
   if (!metrics.length) return <View style={{ minHeight: 48, paddingHorizontal: 18, alignItems: "center", justifyContent: "center", backgroundColor: T.white }}><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12 }}>These profile stats are private.</Text></View>;
-  if (reduceMotion) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: PROFILE_STAT_PILL_GAP, paddingHorizontal: 2 }}>{metrics.map(pill)}</ScrollView>;
+  if (reduceMotion || metrics.length < 2) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: PROFILE_STAT_PILL_GAP, paddingHorizontal: 2 }}>{metrics.map(pill)}</ScrollView>;
 
-  return <View accessibilityLabel={`Profile stats: ${metrics.map((metric) => `${metric.label} ${metric.value}`).join(", ")}`} style={{ overflow: "hidden" }}>
-    <Animated.View style={{ flexDirection: "row", gap: PROFILE_STAT_PILL_GAP, transform: [{ translateX }] }}>{[...metrics, ...metrics].map(pill)}</Animated.View>
+  return <View
+    {...panResponder.panHandlers}
+    accessible
+    accessibilityRole="adjustable"
+    accessibilityLabel={`Profile stats: ${metrics.map((metric) => `${metric.label} ${metric.value}`).join(", ")}. Touch and hold to pause, or swipe to browse.`}
+    onTouchStart={pauseAutoScroll}
+    onTouchCancel={resumeAutoScroll}
+    onTouchEnd={resumeAutoScroll}
+    style={{ overflow: "hidden" }}
+  >
+    <Animated.View style={{ flexDirection: "row", gap: PROFILE_STAT_PILL_GAP, transform: [{ translateX }] }}>
+      {[...metrics, ...metrics, ...metrics].map(pill)}
+    </Animated.View>
   </View>;
 }
 
@@ -294,6 +405,13 @@ export function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [profileScrollY, setProfileScrollY] = useState(0);
 
+  const updateStatsScrollPosition = useCallback((offsetY: number) => {
+    // The charts only need coarse scroll changes to know when they are visible.
+    // Avoiding a full Profile render on every native scroll event keeps taps and
+    // the rest of the screen responsive.
+    setProfileScrollY((current) => Math.abs(current - offsetY) >= 24 ? offsetY : current);
+  }, []);
+
   async function load() {
     setLoading(true);
     try {
@@ -415,7 +533,7 @@ export function ProfileScreen() {
   }));
 
   return <View style={{ flex: 1, backgroundColor: T.bg }}>
-    <ScrollView contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={(event) => setProfileScrollY(event.nativeEvent.contentOffset.y)} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + (editing ? 178 : 112) }}>
+    <ScrollView contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} scrollEventThrottle={32} onScroll={activeTab === "stats" ? (event) => updateStatsScrollPosition(event.nativeEvent.contentOffset.y) : undefined} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + (editing ? 178 : 112) }}>
       <View style={{ width: contentWidth, transform: [{ translateX: safeAreaOffset }] }}>
       <View style={{ backgroundColor: T.bg }}>
         <View style={{ paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top - 12, 12) }}>

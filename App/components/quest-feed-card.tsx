@@ -16,7 +16,7 @@ import { QuestPostManagementSheet } from "@/components/quest-post-management-she
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
-import { togglePostLike } from "@/services/profile/profileService";
+import { setPostLike } from "@/services/profile/profileService";
 
 function relativePostTime(value: string) { const timestamp = new Date(value); const elapsed = Date.now() - timestamp.getTime(); const hours = Math.floor(elapsed / 3_600_000); const time = timestamp.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); if (hours < 24) return `${hours < 1 ? "Just now" : `${hours}h ago`} · ${time}`; if (hours < 48) return `Yesterday · ${time}`; if (hours < 24 * 7) return `${Math.floor(hours / 24)}d ago · ${time}`; return `${timestamp.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })} · ${time}`; }
 function formatPostDurationLabel(seconds: number) { const totalMinutes = Math.max(1, Math.round(seconds / 60)); const hours = Math.floor(totalMinutes / 60); const minutes = totalMinutes % 60; return hours ? `${hours}h${minutes ? ` ${minutes}min` : ""}` : `${minutes}min`; }
@@ -32,7 +32,7 @@ function CompletionStatus({ rating, durationSeconds, durationVisible }: { rating
 function FeedEngagement({ post, onToggle }: { post: QuestFeedPost; onToggle: () => Promise<void> }) {
   const [pending, setPending] = useState(false);
   const inspired = post.likedByMe;
-  return <Pressable accessibilityRole="button" accessibilityLabel={inspired ? "Remove heart" : "Heart this quest"} accessibilityState={{ selected: inspired, busy: pending }} disabled={pending} onPress={() => { setPending(true); onToggle().finally(() => setPending(false)); }} style={({ pressed }) => ({ minHeight: 38, minWidth: 76, borderRadius: 19, paddingHorizontal: 10, backgroundColor: inspired ? "#ffe4ea" : "#fff7f9", borderWidth: 2, borderColor: "#FF6B81", borderBottomWidth: pressed ? 2 : 4, borderBottomColor: "#d94d65", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, opacity: pending ? 0.62 : 1, transform: [{ translateY: pressed ? 2 : 0 }] })}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={inspired ? "Remove heart" : "Heart this quest"} accessibilityState={{ selected: inspired, busy: pending }} disabled={pending} onPress={() => { setPending(true); onToggle().finally(() => setPending(false)); }} style={({ pressed }) => ({ minHeight: 38, borderRadius: 19, paddingHorizontal: 9, backgroundColor: inspired ? "#ffe4ea" : "#fff7f9", borderWidth: 2, borderColor: "#FF6B81", borderBottomWidth: pressed ? 2 : 4, borderBottomColor: "#d94d65", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, opacity: pending ? 0.62 : 1, transform: [{ translateY: pressed ? 2 : 0 }] })}>
     <HeartIcon filled={inspired} size={18} />
     <Text style={{ color: "#FF6B81", fontSize: 13, lineHeight: 16, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{post.likeCount}</Text>
   </Pressable>;
@@ -77,12 +77,23 @@ export function QuestFeedCard({ post, loadMedia = true, onPostUpdated, onPostDel
   const hasDuration = Number.isFinite(durationSeconds);
   const hasRating = Number.isFinite(rating) && rating >= 1 && rating <= 5;
   const toggleReaction = async () => {
+    if (!user) {
+      showFeedback({ message: "Sign in to heart a quest.", icon: "alert-circle", color: T.red });
+      return;
+    }
+    const previousPost = managedPost;
+    const likedByMe = !previousPost.likedByMe;
+    const nextPost = { ...previousPost, likedByMe, likeCount: Math.max(0, previousPost.likeCount + (likedByMe ? 1 : -1)) };
+
+    // Show the result immediately, then restore the exact prior state if the
+    // network write fails. This keeps the interaction fast without losing data.
+    setManagedPost(nextPost);
+    onPostUpdated?.(nextPost);
     try {
-      const likedByMe = await togglePostLike(managedPost.id, managedPost.likedByMe);
-      const nextPost = { ...managedPost, likedByMe, likeCount: Math.max(0, managedPost.likeCount + (likedByMe ? 1 : -1)) };
-      setManagedPost(nextPost);
-      onPostUpdated?.(nextPost);
+      await setPostLike(previousPost.id, user.id, likedByMe);
     } catch {
+      setManagedPost(previousPost);
+      onPostUpdated?.(previousPost);
       showFeedback({ message: "Couldn’t update your reaction. Please try again.", icon: "alert-circle", color: T.red });
     }
   };

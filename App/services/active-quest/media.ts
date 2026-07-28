@@ -1,6 +1,5 @@
 import * as FileSystem from "expo-file-system/legacy";
 import Constants, { ExecutionEnvironment } from "expo-constants";
-import * as MediaLibrary from "expo-media-library";
 
 import { uploadQuestPhoto } from "@/services/engine/questEngineService";
 import { addActiveQuestPhoto, getActiveQuestPhotos, updateActiveQuestPhoto } from "@/services/active-quest/local-store";
@@ -12,6 +11,10 @@ export async function persistQuestPhoto(sessionId: string, temporaryUri: string)
   // quest album and eventual upload.
   if (Constants.executionEnvironment !== ExecutionEnvironment.StoreClient) {
     try {
+      // Expo Go cannot grant the full Android media-library permission. Delay
+      // loading this native module until an installed development/production
+      // build actually needs to save to the device library.
+      const MediaLibrary = await import("expo-media-library");
       const mediaPermission = await MediaLibrary.requestPermissionsAsync(true);
       if (mediaPermission.granted) await MediaLibrary.saveToLibraryAsync(temporaryUri);
     } catch {
