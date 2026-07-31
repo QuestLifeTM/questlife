@@ -186,17 +186,21 @@ function CalendarNavButton({ icon, label, disabled, onPress }: { icon: keyof typ
       style={({ pressed }) => ({
         width: 44,
         height: 44,
-        borderRadius: 16,
+        borderRadius: 22,
         backgroundColor: T.white,
         borderWidth: 2,
         borderColor: T.border,
+        borderBottomWidth: pressed ? 2 : 4,
+        borderBottomColor: T.border,
         alignItems: "center",
         justifyContent: "center",
         opacity: disabled ? 0.35 : 1,
-        transform: [{ scale: pressed ? 0.9 : 1 }]
+        transform: [{ scale: pressed ? 0.96 : 1 }, { translateY: pressed ? 2 : 0 }]
       })}
     >
-      <Ionicons name={icon} size={19} color={T.muted} />
+      <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${T.muted}16` }}>
+        <Ionicons name={icon} size={18} color={T.muted} />
+      </View>
     </Pressable>
   );
 }

@@ -24,13 +24,15 @@ export function StreakPill({ compact = false }: { compact?: boolean }) {
         borderRadius: 22,
         borderWidth: 2,
         borderColor: "#ffb785",
+        borderBottomWidth: pressed ? 2 : 4,
+        borderBottomColor: "#e79766",
         backgroundColor: "#fff0e7",
         paddingHorizontal: 12,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
-        transform: [{ scale: pressed ? 0.96 : 1 }]
+        transform: [{ scale: pressed ? 0.96 : 1 }, { translateY: pressed ? 2 : 0 }]
       })}
     >
       <QuestlifeFlame size={lit ? 21 : 19} style={{ opacity: lit ? 1 : 0.45 }} />

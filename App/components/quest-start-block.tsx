@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 import { T } from "@/components/theme";
-import { Card, SoftButton } from "@/components/ui";
+import { Card, Sheet, SoftButton } from "@/components/ui";
 import { QuestStartBlock } from "@/hooks/useQuestStart";
 import { Quest, QuestCategory } from "@/types/content";
 
@@ -64,7 +64,7 @@ export function QuestStartBlockSheet({
   if (block.type === "repeat_quest") {
     const presentation = repeatQuestPresentation[block.quest.category];
     return (
-      <Card style={{ borderRadius: 28, gap: 16, borderColor: `${presentation.accent}48`, borderBottomColor: `${presentation.accent}78`, borderBottomWidth: 5, backgroundColor: T.white, padding: 22 }}>
+      <View style={{ gap: 16, paddingBottom: 6 }}>
         <View style={{ width: 56, height: 56, borderRadius: 20, alignSelf: "center", alignItems: "center", justifyContent: "center", backgroundColor: `${presentation.accent}16`, borderWidth: 1, borderColor: `${presentation.accent}2d` }}><Ionicons name="refresh" size={27} color={presentation.accent} /></View>
         <View style={{ alignItems: "center", gap: 6 }}>
           <Text style={{ color: presentation.accent, fontFamily: "RubikBold", fontSize: 11, lineHeight: 15, letterSpacing: 0.65, textTransform: "uppercase" }}>{block.quest.category}</Text>
@@ -77,7 +77,7 @@ export function QuestStartBlockSheet({
           {onRepeatQuest ? <SoftButton label="Repeat quest" icon="refresh" color={presentation.accent} onPress={() => void onRepeatQuest()} /> : null}
           <SoftButton label="Maybe later" inverse color={presentation.accent} onPress={onClose} />
         </View>
-      </Card>
+      </View>
     );
   }
 
@@ -105,9 +105,9 @@ export function QuestStartBlockModal({
   onRepeatQuest?: () => void | Promise<void>;
 }) {
   if (!visible || !block) return null;
-  return (
-    <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, top: 0, backgroundColor: "rgba(61,52,56,0.42)", justifyContent: "flex-end", padding: 20, zIndex: 100 }}>
+  return <Sheet visible={visible} onClose={onClose} maxHeight="78%">
+    <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}>
       <QuestStartBlockSheet block={block} onClose={onClose} onGoActive={onGoActive} onSaveActive={onSaveActive} onRepeatQuest={onRepeatQuest} />
     </View>
-  );
+  </Sheet>;
 }

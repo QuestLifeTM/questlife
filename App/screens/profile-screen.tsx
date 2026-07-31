@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, PanResponder, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 
-import { EmptyState, Header, Screen, Sheet, haptic, useResponsiveScreenLayout } from "@/components/ui";
+import { EmptyState, Header, Screen, Sheet, SoftButton, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
 import { QuestlifeFlame } from "@/components/questlife-flame";
@@ -42,12 +42,7 @@ function HeaderControl({ label, positive = false, disabled = false, onPress }: {
   </Pressable>;
 }
 
-/**
- * The profile header is an identity surface, so its utilities get a more
- * considered treatment than the app-wide icon button: a coloured inner disk,
- * an ivory outer ring, and a small offset shadow make the pair feel tangible
- * without competing with the profile itself.
- */
+/** Compact category-pill treatment for profile utilities. */
 function ProfileHeaderIconButton({ icon, label, color, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; color: string; onPress: () => void }) {
   return <Pressable
     accessibilityRole="button"
@@ -58,20 +53,21 @@ function ProfileHeaderIconButton({ icon, label, color, onPress }: { icon: keyof 
       onPress();
     }}
     style={({ pressed }) => ({
-      width: 48,
-      height: 48,
-      borderRadius: 24,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: T.white,
-      borderWidth: 1,
-      borderColor: `${color}2b`,
-      boxShadow: pressed ? "0px 1px 3px rgba(61,52,56,0.12)" : "0px 5px 12px rgba(61,52,56,0.13)",
-      transform: [{ scale: pressed ? 0.94 : 1 }, { translateY: pressed ? 2 : 0 }],
+      borderWidth: 2,
+      borderColor: color,
+      borderBottomWidth: pressed ? 2 : 4,
+      borderBottomColor: `${color}88`,
+      transform: [{ scale: pressed ? 0.96 : 1 }, { translateY: pressed ? 2 : 0 }],
     })}
   >
-    <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: `${color}16`, borderWidth: 1, borderColor: `${color}26` }}>
-      <Ionicons name={icon} size={20} color={color} />
+    <View style={{ width: 25, height: 25, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: `${color}16` }}>
+      <Ionicons name={icon} size={17} color={color} />
     </View>
   </Pressable>;
 }
@@ -81,6 +77,27 @@ function ImageControl({ label, onPress, style }: { label: string; onPress: () =>
 }
 
 type ProfileTab = "posts" | "stats";
+
+function ProfileSkeletonBlock({ width, height, radius = 10 }: { width: number | `${number}%`; height: number; radius?: number }) {
+  return <View style={{ width, height, borderRadius: radius, backgroundColor: T.border }} />;
+}
+
+/** Keeps the profile layout calm and stable while identity data is loading. */
+export function ProfileLoadingSkeleton({ includeHeader = true }: { includeHeader?: boolean }) {
+  return <View accessibilityRole="progressbar" accessibilityLabel="Loading profile" style={{ width: "100%", alignItems: "center", gap: 18 }}>
+    {includeHeader ? <View style={{ width: "100%", minHeight: 70, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><ProfileSkeletonBlock width={96} height={30} radius={9} /><View style={{ flexDirection: "row", gap: 9 }}><ProfileSkeletonBlock width={44} height={44} radius={22} /><ProfileSkeletonBlock width={44} height={44} radius={22} /></View></View> : null}
+    <View style={{ alignItems: "center", gap: 9 }}><ProfileSkeletonBlock width={98} height={98} radius={49} /><ProfileSkeletonBlock width={148} height={22} radius={7} /><ProfileSkeletonBlock width={92} height={14} radius={6} /><ProfileSkeletonBlock width={216} height={14} radius={6} /></View>
+    <View style={{ width: "100%", gap: 10 }}><View style={{ flexDirection: "row", gap: 10 }}><ProfileSkeletonBlock width={152} height={48} radius={24} /><ProfileSkeletonBlock width={152} height={48} radius={24} /></View><ProfileSkeletonBlock width={138} height={42} radius={21} /></View>
+    <View style={{ width: "100%", flexDirection: "row", justifyContent: "space-around", paddingVertical: 8, borderBottomWidth: 2, borderBottomColor: T.border }}><ProfileSkeletonBlock width={34} height={26} radius={7} /><ProfileSkeletonBlock width={34} height={26} radius={7} /></View>
+    <View style={{ width: "100%", flexDirection: "row", flexWrap: "wrap", gap: 10 }}><ProfileSkeletonBlock width="48.5%" height={106} radius={20} /><ProfileSkeletonBlock width="48.5%" height={106} radius={20} /></View>
+  </View>;
+}
+
+export function ProfileTitleBadge({ title }: { title: string | null | undefined }) {
+  const value = title?.trim();
+  if (!value) return null;
+  return <View style={{ maxWidth: 236, minHeight: 28, marginTop: 7, paddingHorizontal: 10, borderRadius: 14, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: `${T.yellow}36`, borderWidth: 1.5, borderColor: `${T.yellow}a8` }}><Ionicons name="flash" size={13} color="#b57d00" /><Text numberOfLines={1} style={{ flexShrink: 1, color: T.dark, fontFamily: "RubikBold", fontSize: 11, lineHeight: 14 }}>{value}</Text></View>;
+}
 
 const PROFILE_STAT_PILL_WIDTH = 152;
 const PROFILE_STAT_PILL_GAP = 10;
@@ -216,8 +233,8 @@ export function ProfileStatMarquee({ overview, visibility }: { overview: Profile
     onPanResponderTerminationRequest: () => true,
   }), [normaliseOffset, pauseAutoScroll, resumeAutoScroll, translateX]);
 
-  const pill = (metric: typeof metrics[number], index: number) => <View key={`${metric.label}-${index}`} style={{ width: PROFILE_STAT_PILL_WIDTH, minHeight: 48, paddingHorizontal: 12, borderRadius: 24, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: metric.background, borderWidth: 1.5, borderColor: `${metric.color}38` }}>
-    <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${metric.color}1c` }}><Ionicons name={metric.icon} size={16} color={metric.color} /></View>
+  const pill = (metric: typeof metrics[number], index: number) => <View key={`${metric.label}-${index}`} style={{ width: PROFILE_STAT_PILL_WIDTH, minHeight: 48, paddingHorizontal: 12, borderRadius: 24, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: T.white, borderWidth: 2, borderColor: metric.color, borderBottomWidth: 4, borderBottomColor: `${metric.color}88` }}>
+    <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: metric.background, borderWidth: 1, borderColor: `${metric.color}24` }}><Ionicons name={metric.icon} size={16} color={metric.color} /></View>
     <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={{ color: metric.color, fontFamily: "RubikBold", fontSize: 13, lineHeight: 16 }}>{metric.value}</Text><Text numberOfLines={1} style={{ color: T.muted, marginTop: 1, fontFamily: "RubikBold", fontSize: 9, lineHeight: 12, letterSpacing: 0.45, textTransform: "uppercase" }}>{metric.label}</Text></View>
   </View>;
 
@@ -306,7 +323,15 @@ function ProfileTabButton({ tab, activeTab, onPress }: { tab: ProfileTab; active
   const active = tab === activeTab;
   const label = tab === "posts" ? "Posts" : "Stats";
   const icon = tab === "posts" ? "grid-outline" : "stats-chart-outline";
-  return <Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }} onPress={onPress} style={({ pressed }) => ({ flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", borderBottomWidth: active ? 3 : 0, borderBottomColor: active ? T.dark : "transparent", opacity: pressed ? 0.62 : 1 })}><Ionicons name={icon} size={25} color={active ? T.dark : T.muted} /></Pressable>;
+  return <Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }} onPress={onPress} style={({ pressed }) => ({ flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", borderBottomWidth: active ? 3 : 0, borderBottomColor: active ? T.blue : "transparent", opacity: pressed ? 0.62 : 1 })}><Ionicons name={icon} size={25} color={T.blue} /></Pressable>;
+}
+
+function ProfileFollowersButton({ count, onPress }: { count: number; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel="Manage followers" onPress={onPress} style={({ pressed }) => ({ minHeight: 42, marginTop: 14, paddingHorizontal: 14, borderRadius: 21, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: T.white, borderWidth: 2, borderColor: `${T.pink}55`, borderBottomWidth: pressed ? 2 : 4, borderBottomColor: `${T.pink}92`, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 2 : 0 }] })}><Ionicons name="people" size={16} color={T.pink} /><Text style={{ color: T.pink, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{count.toLocaleString()} follower{count === 1 ? "" : "s"}</Text><Ionicons name="chevron-forward" size={15} color={T.pink} /></Pressable>;
+}
+
+function ProfilePrivacySheet({ visible, privacy, hasBio, onChange, onClose }: { visible: boolean; privacy: ProfilePrivacy; hasBio: boolean; onChange: (next: ProfilePrivacy) => void; onClose: () => void }) {
+  return <Sheet visible={visible} onClose={onClose} maxHeight="82%"><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: 22, gap: 14 }}><View style={{ gap: 4 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22, lineHeight: 28 }}>Privacy settings</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 13, lineHeight: 19 }}>Choose who can see the personal parts of your profile.</Text></View><ProfilePrivacyControls privacy={privacy} hasBio={hasBio} onChange={onChange} /><SoftButton label="Done" icon="checkmark" color={T.blue} onPress={onClose} style={{ marginTop: 4 }} /></ScrollView></Sheet>;
 }
 
 function QuestTrail({ categories }: { categories: ProfileOverview["stats"]["topCategories"] }) {
@@ -400,6 +425,7 @@ export function ProfileScreen() {
   const [draftStatVisibility, setDraftStatVisibility] = useState<ProfileStatVisibility>(DEFAULT_PROFILE_STAT_VISIBILITY);
   const [draftPrivacy, setDraftPrivacy] = useState<ProfilePrivacy>(DEFAULT_PROFILE_PRIVACY);
   const [followersOpen, setFollowersOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const [readOnlyContentTop, setReadOnlyContentTop] = useState<number | null>(null);
   const [managedPost, setManagedPost] = useState<QuestFeedPost | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
@@ -457,6 +483,7 @@ export function ProfileScreen() {
     setDraftAvatarUri(overview.profile.avatarUrl);
     setDraftStatVisibility({ ...DEFAULT_PROFILE_STAT_VISIBILITY, ...overview.profile.statVisibility });
     setDraftPrivacy({ ...DEFAULT_PROFILE_PRIVACY, ...overview.profile.privacy });
+    setPrivacyOpen(false);
     setEditing(true);
   }
 
@@ -467,6 +494,7 @@ export function ProfileScreen() {
     setDraftAvatarUri(overview.profile.avatarUrl);
     setDraftStatVisibility({ ...DEFAULT_PROFILE_STAT_VISIBILITY, ...overview.profile.statVisibility });
     setDraftPrivacy({ ...DEFAULT_PROFILE_PRIVACY, ...overview.profile.privacy });
+    setPrivacyOpen(false);
     setError(null);
     setEditing(false);
   }
@@ -511,7 +539,7 @@ export function ProfileScreen() {
     }
   }
 
-  if (loading && !overview) return <Screen><EmptyState emoji="⏳" title="Loading profile" body="Gathering your QuestLife identity…" /></Screen>;
+  if (loading && !overview) return <Screen scroll={false} ambientGlow={false} contentStyle={{ alignItems: "center" }}><ProfileLoadingSkeleton /></Screen>;
   if (!overview?.profile) return <Screen><EmptyState emoji="!" title="Profile unavailable" body="Sign in to view your profile." /></Screen>;
 
   const { profile } = overview;
@@ -549,12 +577,13 @@ export function ProfileScreen() {
               {editing ? <ImageControl label="Change profile picture" onPress={() => void chooseImage()} style={{ width: 34, height: 34, borderRadius: 11, position: "absolute", right: -10, bottom: -7, zIndex: 3, elevation: 3 }} /> : null}
             </View>
 
-            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 40, marginTop: 9, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12 }}><TextInput value={draftName} onChangeText={setDraftName} accessibilityLabel="Name" autoCapitalize="words" placeholder="Your name" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center", paddingVertical: 6 }} /></View> : <Text style={{ marginTop: 9, color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center" }}>{displayName}</Text>}
-            <Text style={{ marginTop: editing ? 9 : 4, color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center" }}>@{username}</Text>
+            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 40, marginTop: 9, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12 }}><TextInput value={draftName} onChangeText={setDraftName} accessibilityLabel="Name" autoCapitalize="words" placeholder="Your name" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center", paddingVertical: 6 }} /></View> : <Text style={{ marginTop: 10, color: T.dark, fontFamily: "RubikBlack", fontSize: 22, lineHeight: 28, textAlign: "center" }}>{displayName}</Text>}
+            <Text style={{ marginTop: editing ? 9 : 3, color: T.muted, fontFamily: "RubikBold", fontSize: 13, lineHeight: 18, textAlign: "center" }}>@{username}</Text>
+            {!editing ? <ProfileTitleBadge title={profile.title} /> : null}
 
             {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 52, marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12, paddingVertical: 6 }}><TextInput value={draftBio} onChangeText={setDraftBio} accessibilityLabel="Bio" placeholder="Write a bio…" placeholderTextColor={T.muted} multiline maxLength={180} textAlignVertical="top" style={{ minHeight: 32, color: T.dark, fontFamily: "Rubik", fontSize: 15, lineHeight: 20 }} /></View> : <Text style={{ maxWidth: 286, marginTop: 8, color: profile.bio ? T.dark : T.muted, fontFamily: "Rubik", fontSize: 15, lineHeight: 20, textAlign: "center" }}>{profile.bio || "Tap the pencil icon to add a bio."}</Text>}
             <View style={{ width: contentWidth, alignSelf: "stretch", marginHorizontal: -horizontalPadding, marginTop: 15 }}><ProfileStatMarquee overview={overview} visibility={carouselVisibility} /></View>
-            {editing ? <><ProfileStatVisibilityBento overview={overview} visibility={draftStatVisibility} onToggle={(id) => setDraftStatVisibility((current) => ({ ...current, [id]: !current[id] }))} /><ProfilePrivacyControls privacy={draftPrivacy} hasBio={Boolean(draftBio.trim())} onChange={setDraftPrivacy} /></> : <Pressable accessibilityRole="button" accessibilityLabel="Manage followers" onPress={() => setFollowersOpen(true)} style={({ pressed }) => ({ minHeight: 34, marginTop: 12, paddingHorizontal: 11, borderRadius: 13, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: `${T.pink}12`, borderWidth: 1, borderColor: `${T.pink}42`, opacity: pressed ? 0.7 : 1 })}><Ionicons name="people" size={14} color={T.pink} /><Text style={{ color: T.pink, fontFamily: "RubikBold", fontSize: 11 }}>{overview.stats.followers.toLocaleString()} follower{overview.stats.followers === 1 ? "" : "s"}</Text></Pressable>}
+            {editing ? <><ProfileStatVisibilityBento overview={overview} visibility={draftStatVisibility} onToggle={(id) => setDraftStatVisibility((current) => ({ ...current, [id]: !current[id] }))} /><SoftButton label="Privacy settings" icon="lock-closed-outline" inverse color={T.purple} onPress={() => setPrivacyOpen(true)} style={{ width: "100%", marginTop: 14, minHeight: 48 }} /></> : null}
             {error ? <Text accessibilityRole="alert" style={{ marginTop: 7, color: T.red, fontFamily: "RubikBold", fontSize: 12, textAlign: "center" }}>{error}</Text> : null}
           </View>
 
@@ -572,7 +601,7 @@ export function ProfileScreen() {
           <ProfileTabButton tab="stats" activeTab={activeTab} onPress={() => setActiveTab("stats")} />
         </View>
         <View style={{ marginTop: 16 }}>
-          {activeTab === "posts" ? (profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." />) : <ProfileStats overview={overview} weeklyActivity={weeklyActivity} insights={insights} scrollY={profileScrollY} />}
+          {activeTab === "posts" ? (profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." action={<SoftButton label="Explore quests" icon="compass-outline" inverse color={T.blue} onPress={() => router.push("/(tabs)/explore")} style={{ marginTop: 6 }} />} />) : <ProfileStats overview={overview} weeklyActivity={weeklyActivity} insights={insights} scrollY={profileScrollY} />}
         </View>
       </View>
       </View>
@@ -591,6 +620,7 @@ export function ProfileScreen() {
 
     <QuestPostManagementSheet post={managedPost} visible={Boolean(managedPost)} onClose={() => setManagedPost(null)} onUpdated={() => { setManagedPost(null); void load(); }} onDeleted={() => { setManagedPost(null); void load(); }} />
     <FollowerManagerSheet visible={followersOpen} onClose={() => setFollowersOpen(false)} onChanged={() => void load()} />
+    <ProfilePrivacySheet visible={privacyOpen} privacy={draftPrivacy} hasBio={Boolean(draftBio.trim())} onChange={setDraftPrivacy} onClose={() => setPrivacyOpen(false)} />
 
   </View>;
 }

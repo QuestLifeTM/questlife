@@ -3,10 +3,11 @@ import type { ReactNode } from "react";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { PropsWithChildren, useEffect, useRef } from "react";
+import React, { PropsWithChildren, useEffect, useRef, useState } from "react";
 import Reanimated from "react-native-reanimated";
 import {
   Animated,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   PanResponder,
@@ -269,10 +270,12 @@ export function SoftButton({
           justifyContent: "center",
           gap: 8,
           backgroundColor: inverse ? T.white : color,
-          borderWidth: inverse ? 2 : 0,
-          borderColor: inverse ? T.border : "transparent",
+          borderWidth: 2,
+          borderColor: inverse ? color : color,
+          borderBottomWidth: pressed && !disabled ? 2 : 5,
+          borderBottomColor: `${color}88`,
           opacity: disabled ? 0.5 : 1,
-          transform: [{ scale: pressed && !disabled ? 0.96 : 1 }]
+          transform: [{ scale: pressed && !disabled ? 0.96 : 1 }, { translateY: pressed && !disabled ? 3 : 0 }]
         },
         style
       ]}
@@ -289,7 +292,8 @@ export function IconButton({
   color = T.muted,
   bg = T.white,
   badge,
-  label
+  label,
+  size = 44
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   onPress?: () => void;
@@ -297,8 +301,14 @@ export function IconButton({
   bg?: string;
   badge?: string | number;
   label?: string;
+  /** Use a larger category-pill control where a header needs it. */
+  size?: number;
 }) {
   const isBackButton = icon === "chevron-back" || icon === "arrow-back";
+  const isFilled = bg !== T.white;
+  const accent = isFilled ? bg : (isBackButton ? T.blue : color);
+  const innerSize = Math.round(size * 0.625);
+  const iconColor = isFilled ? T.white : accent;
   const guardPress = usePressGuard();
   return (
     <Pressable
@@ -311,21 +321,26 @@ export function IconButton({
         });
       }}
       style={({ pressed }) => ({
-        width: 44,
-        height: 44,
-        borderRadius: 24,
+        width: size,
+        height: size,
+        borderRadius: size / 2,
         backgroundColor: bg,
         borderWidth: 2,
-        borderColor: T.border,
+        borderColor: accent,
+        // Mirrors the compact Profile controls: a colored outer ring, a soft
+        // icon well, and a short lower edge that compresses on press.
+        borderBottomWidth: pressed ? 2 : 4,
+        borderBottomColor: `${accent}88`,
         alignItems: "center",
         justifyContent: "center",
-        ...shadow,
-        transform: [{ scale: pressed ? 0.9 : 1 }, { translateY: pressed ? 2 : 0 }]
+        transform: [{ scale: pressed ? 0.96 : 1 }, { translateY: pressed ? 2 : 0 }]
       })}
     >
       {({ pressed }) => <>
-        <View style={{ transform: [{ translateX: isBackButton ? (pressed ? -3 : 0) : 2 }, { translateY: isBackButton ? 0 : 2 }] }}>
-          {isBackButton ? <BackIcon size={22} /> : <Ionicons name={icon} size={19} color={color} />}
+        <View style={{ transform: [{ translateX: isBackButton && pressed ? -3 : 0 }] }}>
+          <View style={{ width: innerSize, height: innerSize, borderRadius: innerSize / 2, alignItems: "center", justifyContent: "center", backgroundColor: isFilled ? "rgba(255,255,255,0.18)" : `${accent}16` }}>
+            {isBackButton ? <BackIcon size={Math.min(22, Math.round(size * 0.5))} color={iconColor} /> : <Ionicons name={icon} size={Math.min(20, Math.round(size * 0.43))} color={iconColor} />}
+          </View>
         </View>
         {badge !== undefined ? (
           <View style={{ position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: T.cyan, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
@@ -369,10 +384,13 @@ export function Sheet({
   maxHeight = "82%",
   fillHeight = false,
   keyboardAvoiding = true,
+  expandOnKeyboard = false,
   glass = false
-}: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"]; fillHeight?: boolean; keyboardAvoiding?: boolean; glass?: boolean }>) {
+}: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"]; fillHeight?: boolean; keyboardAvoiding?: boolean; expandOnKeyboard?: boolean; glass?: boolean }>) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const dragY = useRef(new Animated.Value(0)).current;
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const dragResponder = useRef(PanResponder.create({
@@ -394,6 +412,33 @@ export function Sheet({
     if (visible) dragY.setValue(0);
   }, [dragY, visible]);
 
+  useEffect(() => {
+    if (!visible || !keyboardAvoiding || !expandOnKeyboard) {
+      setKeyboardHeight(0);
+      return;
+    }
+
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSubscription = Keyboard.addListener(showEvent, ({ endCoordinates }) => setKeyboardHeight(endCoordinates.height));
+    const hideSubscription = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [expandOnKeyboard, keyboardAvoiding, visible]);
+
+  const maxHeightPixels = typeof maxHeight === "number"
+    ? maxHeight
+    : typeof maxHeight === "string" && maxHeight.endsWith("%")
+      ? (windowHeight * Number.parseFloat(maxHeight)) / 100
+      : 0;
+  const keyboardAvailableHeight = Math.max(0, windowHeight - keyboardHeight - insets.top - 12);
+  const expandedHeight = expandOnKeyboard && keyboardHeight > 0
+    ? Math.min(keyboardAvailableHeight, Math.max(maxHeightPixels, 360))
+    : undefined;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView enabled={keyboardAvoiding} behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
@@ -402,8 +447,8 @@ export function Sheet({
         <Animated.View
           accessibilityViewIsModal
           style={{
-            maxHeight,
-            ...(fillHeight ? { height: maxHeight } : null),
+            maxHeight: expandedHeight ?? maxHeight,
+            ...(fillHeight || expandedHeight !== undefined ? { height: expandedHeight ?? maxHeight } : null),
             backgroundColor: glass ? "rgba(255,255,255,0.72)" : T.white,
             borderTopLeftRadius: radius.sheet,
             borderTopRightRadius: radius.sheet,

@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Pressable, StyleProp, StyleSheet, Text, TextStyle, View, useWindowDimensions } from "react-native";
-import Svg, { Path, Rect } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 
 import { getLobbyLayout, lobbyDesign, resolveLobbyStates } from "@/components/lobby-design";
 import { ProfileAvatar } from "@/components/profile-avatar";
@@ -220,11 +220,13 @@ function LobbyBellButton({ onPress, reducedMotion, hasUnreadNotifications }: { o
         haptic();
         onPress();
       }}
-      style={({ pressed }) => [styles.bellButton, pressed ? styles.pressedSmall : null]}
+      style={({ pressed }) => [styles.bellButton, pressed ? styles.bellButtonPressed : null]}
     >
-      <Animated.View style={{ position: "relative", transform: [{ rotate: rotation.interpolate({ inputRange: [-1, 0, 1], outputRange: ["-11deg", "0deg", "11deg"] }) }] }}>
-        <LobbyBellGlyph hasUnreadNotifications={hasUnreadNotifications} />
-      </Animated.View>
+      <View style={styles.bellIconWell}>
+        <Animated.View style={{ position: "relative", transform: [{ rotate: rotation.interpolate({ inputRange: [-1, 0, 1], outputRange: ["-11deg", "0deg", "11deg"] }) }] }}>
+          <LobbyBellGlyph hasUnreadNotifications={hasUnreadNotifications} />
+        </Animated.View>
+      </View>
     </Pressable>
   );
 }
@@ -320,10 +322,10 @@ function RewardIcon() {
 }
 
 function LobbyBellGlyph({ hasUnreadNotifications }: { hasUnreadNotifications: boolean }) {
-  return <Svg width={16} height={20} viewBox="0 0 16 20" fill="none" style={{ transform: [{ translateX: 2 }] }}>
-    <Path d="M0 17V15H2V8C2 6.61667 2.41667 5.3875 3.25 4.3125C4.08333 3.2375 5.16667 2.53333 6.5 2.2V1.5C6.5 1.08333 6.64583 0.729167 6.9375 0.4375C7.22917 0.145833 7.58333 0 8 0C8.41667 0 8.77083 0.145833 9.0625 0.4375C9.35417 0.729167 9.5 1.08333 9.5 1.5V2.2C10.8333 2.53333 11.9167 3.2375 12.75 4.3125C13.5833 5.3875 14 6.61667 14 8V15H16V17H0V17M8 9.5V9.5V9.5V9.5V9.5V9.5V9.5V9.5V9.5M8 20C7.45 20 6.97917 19.8042 6.5875 19.4125C6.19583 19.0208 6 18.55 6 18H10C10 18.55 9.80417 19.0208 9.4125 19.4125C9.02083 19.8042 8.55 20 8 20V20M4 15H12V8C12 6.9 11.6083 5.95833 10.825 5.175C10.0417 4.39167 9.1 4 8 4C6.9 4 5.95833 4.39167 5.175 5.175C4.39167 5.95833 4 6.9 4 8V15V15" fill="black" />
-    {hasUnreadNotifications ? <Rect x={9.5} y={1.5} width={7} height={7} rx={3.5} fill="#E85D3F" stroke="#222222" /> : null}
-  </Svg>;
+  return <View style={{ width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>
+    <Ionicons name="notifications-outline" size={20} color={T.dark} />
+    {hasUnreadNotifications ? <View style={{ position: "absolute", top: 0, right: 0, width: 8, height: 8, borderRadius: 4, backgroundColor: "#E85D3F", borderWidth: 1.5, borderColor: T.white }} /> : null}
+  </View>;
 }
 
 function LobbySkeletonBlock({ width, height, radius = 8 }: { width: number | `${number}%`; height: number; radius?: number }) {
@@ -892,10 +894,23 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     backgroundColor: T.white,
     borderWidth: 2,
-    borderColor: T.border,
+    borderColor: T.dark,
+    borderBottomWidth: 4,
+    borderBottomColor: `${T.dark}88`,
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: `3px 3px 0px ${T.border}`,
+  },
+  bellButtonPressed: {
+    borderBottomWidth: 2,
+    transform: [{ scale: 0.96 }, { translateY: 2 }],
+  },
+  bellIconWell: {
+    width: 27,
+    height: 27,
+    borderRadius: 14,
+    backgroundColor: `${T.dark}16`,
+    alignItems: "center",
+    justifyContent: "center",
   },
   energySection: {
     gap: 8,

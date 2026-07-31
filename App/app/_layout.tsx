@@ -8,6 +8,7 @@ import { T } from "@/components/theme";
 import { GlobalAnnouncement } from "@/components/global-announcement";
 import { RequiredProfileName } from "@/components/required-profile-name";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { GuestQuestProvider } from "@/contexts/GuestQuestContext";
 import { AppFeedbackProvider } from "@/contexts/AppFeedbackContext";
 import { ActiveQuestProvider } from "@/contexts/ActiveQuestContext";
 import { ContentProvider } from "@/contexts/ContentContext";
@@ -52,15 +53,17 @@ function SessionDataProviders({ children }: PropsWithChildren) {
   return <SettingsProvider key={session?.user.id ?? "signed-out"}>
     <ContentProvider key={session?.user.id ?? "signed-out"}>
       <QuestEngineProvider>
-        <ActiveQuestProvider>
-          <StreaksProvider>
-            <SocialProvider>
-              <NotificationsProvider>
-                <QuestSaveProvider>{children}</QuestSaveProvider>
-              </NotificationsProvider>
-            </SocialProvider>
-          </StreaksProvider>
-        </ActiveQuestProvider>
+        <GuestQuestProvider>
+          <ActiveQuestProvider>
+            <StreaksProvider>
+              <SocialProvider>
+                <NotificationsProvider>
+                  <QuestSaveProvider>{children}</QuestSaveProvider>
+                </NotificationsProvider>
+              </SocialProvider>
+            </StreaksProvider>
+          </ActiveQuestProvider>
+        </GuestQuestProvider>
       </QuestEngineProvider>
       <GlobalAnnouncement />
       <RequiredProfileName />
@@ -72,7 +75,7 @@ function AppLayout() {
   const segments = useSegments();
   const { initializing, isEmailVerified, session, user } = useAuth();
   const firstSegment = segments[0];
-  const isOnboardingRoute = !firstSegment || firstSegment === "index";
+  const isOnboardingRoute = !firstSegment || firstSegment === "index" || firstSegment === "onboarding";
   const isAuthRoute = firstSegment === "(auth)";
   const isCallbackRoute = firstSegment === "auth";
   const isResetRoute = firstSegment === "reset-password";
@@ -105,6 +108,7 @@ function AppLayout() {
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: T.bg } }}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="onboarding" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="auth/callback" />

@@ -6,7 +6,7 @@ import Reanimated from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
 import { categoryColor, difficultyColor, T } from "@/components/theme";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
-import { Card, EmptyState, Header, Screen, Sheet, SoftButton, haptic, useResponsiveScreenLayout } from "@/components/ui";
+import { Card, EmptyState, Header, IconButton, Screen, Sheet, SoftButton, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
@@ -53,31 +53,7 @@ function ExploreIconButton({
   bg?: string;
   badge?: string | number;
 }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => ({
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: bg,
-        borderWidth: 2,
-        borderColor: T.border,
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: `3px 3px 0px ${T.border}`,
-        transform: [{ scale: pressed ? 0.92 : 1 }, { rotate: pressed && icon === "folder-open-outline" ? "-6deg" : "0deg" }]
-      })}
-    >
-      <Ionicons name={icon} size={icon === "folder-open-outline" ? 19 : 16} color={color} />
-      {badge !== undefined ? (
-        <View style={{ position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: T.cyan, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
-          <Text style={{ color: T.white, fontWeight: "900", fontSize: 10 }}>{badge}</Text>
-        </View>
-      ) : null}
-    </Pressable>
-  );
+  return <IconButton icon={icon} onPress={onPress} color={color} bg={bg} badge={badge} size={48} />;
 }
 
 function ExploreSearch({

@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Alert, StyleSheet, Text, View } from "react-native";
 
 import {
@@ -12,6 +12,9 @@ import { AuthTitle } from "@/components/auth/AuthText";
 import { T } from "@/components/theme";
 
 export default function AuthOptionsScreen() {
+  const { firstName, guestQuest } = useLocalSearchParams<{ firstName?: string; guestQuest?: string }>();
+  const hasGuestQuest = guestQuest === "completed";
+
   function showOAuthSetup() {
     Alert.alert(
       "Provider setup required",
@@ -22,14 +25,14 @@ export default function AuthOptionsScreen() {
   return (
     <AuthScaffold>
       <AuthTitle
-        subtitle="Choose the sign-up method you want to use for your quests, memories, and streaks."
+        subtitle={hasGuestQuest ? "Create your account to keep your completed first quest and unlock the rest of QuestLife." : "Choose the sign-up method you want to use for your quests, memories, and streaks."}
       >
         {"Start your\nQuestLife"}
       </AuthTitle>
 
       <View style={styles.actions}>
         <PrimaryButton
-          onPress={() => router.push("/(auth)/register")}
+          onPress={() => router.push({ pathname: "/(auth)/register", params: { ...(firstName ? { firstName } : {}), ...(hasGuestQuest ? { guestQuest } : {}) } })}
           title="Continue with Email"
         />
         <OutlineButton title="Continue with Apple" onPress={showOAuthSetup}>

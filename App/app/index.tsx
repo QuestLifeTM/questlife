@@ -1,41 +1,22 @@
 import { router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  Animated,
-  Easing,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
-} from "react-native";
+import { Animated, Easing, ImageBackground, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { OnboardingIntro } from "@/components/onboarding-intro";
 import { T } from "@/components/theme";
-import { haptic } from "@/components/ui";
-import { useAuth } from "@/contexts/AuthContext";
+import { haptic, Sheet } from "@/components/ui";
 import { getIntroEnabled } from "@/services/announcements/announcementService";
-import { sendEmailSignInLink } from "@/services/auth/authService";
-import { getAuthErrorMessage } from "@/utils/authErrors";
 
 const welcomeArtwork = require("../assets/onboarding/screen-one.png");
 
 export default function OnboardingWelcomeScreen() {
-  const { isEmailVerified, session, user } = useAuth();
   const insets = useSafeAreaInsets();
   const [introComplete, setIntroComplete] = useState(false);
   const [introEnabled, setIntroEnabled] = useState<boolean | null>(null);
-  const [email, setEmail] = useState("");
-  const [emailSheetVisible, setEmailSheetVisible] = useState(false);
-  const [sendingEmail, setSendingEmail] = useState(false);
+  const [name, setName] = useState("");
+  const [nameSheetVisible, setNameSheetVisible] = useState(false);
   const welcomeOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -69,47 +50,25 @@ export default function OnboardingWelcomeScreen() {
     };
   }, []);
 
-  function restoreProgress() {
+  function signIn() {
     haptic();
-
-    if (!session) {
-      router.replace("/(auth)/login");
-      return;
-    }
-
-    if (!isEmailVerified) {
-      router.replace({
-        pathname: "/(auth)/verify-email",
-        params: { email: user?.email ?? "" },
-      });
-      return;
-    }
-
-    router.replace("/(tabs)");
+    router.push("/(auth)/login");
   }
 
-  function showOAuthSetup(provider: "Apple" | "Google") {
+  function getStarted() {
     haptic();
-    Alert.alert("Provider setup required", `${provider} sign in requires provider credentials in Supabase before it can be enabled safely.`);
+    setNameSheetVisible(true);
   }
 
-  async function continueWithEmail() {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
-      Alert.alert("Enter a valid email", "Use an email address you can access.");
-      return;
-    }
+  function continueWithName() {
+    const firstName = name.trim();
+    if (!firstName) return;
 
-    try {
-      setSendingEmail(true);
-      await sendEmailSignInLink(normalizedEmail);
-      setEmailSheetVisible(false);
-      Alert.alert("Check your email", "We sent you a verification link to continue with QuestLife.");
-    } catch (error) {
-      Alert.alert("Couldn’t send link", getAuthErrorMessage(error));
-    } finally {
-      setSendingEmail(false);
-    }
+    haptic();
+    setNameSheetVisible(false);
+    // Replace the welcome route with the next onboarding step so a previous
+    // instance of the intro screen can never be resumed from the stack.
+    router.replace({ pathname: "/onboarding/understanding", params: { firstName } });
   }
 
   if (!introComplete && introEnabled === null) {
@@ -130,59 +89,36 @@ export default function OnboardingWelcomeScreen() {
           style={styles.artwork}
         />
       </Animated.View>
-      <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom + 6, 18) }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" onPress={() => showOAuthSetup("Apple")} style={({ pressed }) => [styles.appleAction, pressed && styles.actionPressed]}><Ionicons name="logo-apple" size={21} color={T.white} /><Text style={styles.appleActionText}>Continue with Apple</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" onPress={() => showOAuthSetup("Google")} style={({ pressed }) => [styles.lightAction, pressed && styles.actionPressed]}><View style={styles.googleBadge}><Text style={styles.googleLetter}>G</Text></View><Text style={styles.lightActionText}>Continue with Google</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Continue with Email" onPress={() => { haptic(); setEmailSheetVisible(true); }} style={({ pressed }) => [styles.lightAction, pressed && styles.actionPressed]}><Ionicons name="mail-outline" size={22} color={T.dark} /><Text style={styles.lightActionText}>Continue with Email</Text></Pressable>
+      <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom + 2, 10) }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Get started" onPress={getStarted} style={({ pressed }) => [styles.getStartedAction, pressed && styles.actionPressed]}><Text style={styles.getStartedActionText}>Get started</Text></Pressable>
         <View style={styles.divider} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Restore progress" onPress={restoreProgress} style={({ pressed }) => ({ alignSelf: "center", minHeight: 34, justifyContent: "center", opacity: pressed ? 0.65 : 1 })}><Text style={styles.restoreText}>Restore progress</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Sign in" onPress={signIn} style={({ pressed }) => ({ alignSelf: "center", minHeight: 34, justifyContent: "center", opacity: pressed ? 0.65 : 1 })}><Text style={styles.authPrompt}>Already have an account? <Text style={styles.signInText}>Sign In</Text></Text></Pressable>
       </View>
-      <Modal
-        animationType="slide"
-        onRequestClose={() => !sendingEmail && setEmailSheetVisible(false)}
-        transparent
-        visible={emailSheetVisible}
+      <Sheet
+        visible={nameSheetVisible}
+        onClose={() => setNameSheetVisible(false)}
+        maxHeight="64%"
       >
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.sheetBackdrop}>
-          <Pressable
-            accessibilityLabel="Close email sign-in"
-            disabled={sendingEmail}
-            onPress={() => setEmailSheetVisible(false)}
-            style={StyleSheet.absoluteFill}
-          />
-          <View accessibilityViewIsModal style={[styles.emailSheet, { paddingBottom: Math.max(insets.bottom + 20, 32) }]}>
-            <View style={styles.sheetHandle} />
-            <Pressable accessibilityRole="button" accessibilityLabel="Close" disabled={sendingEmail} onPress={() => setEmailSheetVisible(false)} style={styles.backButton}>
-              <Ionicons color={T.white} name="chevron-back" size={28} />
-            </Pressable>
-            <Text style={styles.sheetTitle}>Enter your email address.</Text>
-            <Text style={styles.sheetSubtitle}>We’ll send you a verification link.</Text>
-            <TextInput
-              autoCapitalize="none"
-              autoComplete="email"
-              autoFocus
-              editable={!sendingEmail}
-              keyboardType="email-address"
-              onChangeText={setEmail}
-              placeholder="Email ID"
-              placeholderTextColor="#aaa5aa"
-              returnKeyType="send"
-              onSubmitEditing={() => void continueWithEmail()}
-              style={styles.emailInput}
-              textContentType="emailAddress"
-              value={email}
-            />
-            <Pressable
-              accessibilityRole="button"
-              disabled={sendingEmail || !email.trim()}
-              onPress={() => void continueWithEmail()}
-              style={({ pressed }) => [styles.sendButton, (!email.trim() || sendingEmail) && styles.sendButtonDisabled, pressed && styles.actionPressed]}
-            >
-              <Text style={styles.sendButtonText}>{sendingEmail ? "Sending…" : "Send verification link"}</Text>
-            </Pressable>
+        <View style={styles.nameSheetContent}>
+          <View>
+            <Text style={styles.nameSheetTitle}>Hi there!{`\n`}What should we call you?</Text>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+          <TextInput
+            autoCapitalize="words"
+            autoComplete="given-name"
+            autoFocus
+            onChangeText={setName}
+            onSubmitEditing={continueWithName}
+            placeholder="Your name"
+            placeholderTextColor={T.muted}
+            returnKeyType="done"
+            style={styles.nameInput}
+            textContentType="givenName"
+            value={name}
+          />
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled: !name.trim() }} disabled={!name.trim()} onPress={continueWithName} style={({ pressed }) => [styles.nameContinueButton, !name.trim() && styles.nameContinueButtonDisabled, pressed && name.trim() ? styles.nameContinueButtonPressed : null]}><Text style={styles.nameContinueButtonText}>Continue</Text></Pressable>
+        </View>
+      </Sheet>
     </View>
   );
 }
@@ -205,7 +141,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     gap: 12,
   },
-  appleAction: {
+  getStartedAction: {
     minHeight: 57,
     borderRadius: 19,
     backgroundColor: T.blue,
@@ -218,133 +154,80 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
   },
-  appleActionText: {
+  getStartedActionText: {
     color: T.white,
     fontFamily: "Rubik",
     fontSize: 16,
     lineHeight: 21,
     fontWeight: "700",
-  },
-  lightAction: {
-    minHeight: 57,
-    borderRadius: 19,
-    backgroundColor: T.white,
-    borderWidth: 1.25,
-    borderColor: "#e6e0e1",
-    borderBottomWidth: 4,
-    borderBottomColor: "#cbc3c6",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 12,
-  },
-  lightActionText: {
-    color: T.dark,
-    fontFamily: "Rubik",
-    fontSize: 16,
-    lineHeight: 21,
-    fontWeight: "700",
-  },
-  googleBadge: {
-    width: 23,
-    height: 23,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: T.white,
-  },
-  googleLetter: {
-    color: "#4285F4",
-    fontSize: 18,
-    fontWeight: "900",
   },
   divider: {
     height: 1,
     marginTop: 7,
     backgroundColor: "rgba(255,255,255,0.42)",
   },
-  restoreText: {
+  authPrompt: {
     color: T.white,
     fontFamily: "Rubik",
     fontSize: 15,
     lineHeight: 20,
     fontWeight: "700",
-    textDecorationLine: "underline",
+  },
+  signInText: {
+    fontFamily: "RubikBold",
+    fontWeight: "900",
+  },
+  nameSheetContent: {
+    gap: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+  },
+  nameSheetTitle: {
+    color: T.dark,
+    fontFamily: "RubikBlack",
+    fontSize: 25,
+    lineHeight: 31,
+    textAlign: "center",
+  },
+  nameInput: {
+    minHeight: 58,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#4D9CFF",
+    backgroundColor: "#EAF4FF",
+    color: T.dark,
+    fontFamily: "Rubik",
+    fontSize: 16,
+    fontWeight: "700",
+    paddingHorizontal: 16,
+  },
+  nameContinueButton: {
+    marginTop: 2,
+    minHeight: 58,
+    borderRadius: 20,
+    backgroundColor: T.blue,
+    borderBottomWidth: 6,
+    borderBottomColor: "#258fd8",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nameContinueButtonDisabled: {
+    backgroundColor: T.border,
+    borderBottomColor: "#d7cec2",
+  },
+  nameContinueButtonPressed: {
+    transform: [{ translateY: 3 }],
+  },
+  nameContinueButtonText: {
+    color: T.white,
+    fontFamily: "RubikBold",
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: 0.55,
+    textTransform: "uppercase",
   },
   actionPressed: {
     opacity: 0.78,
     transform: [{ scale: 0.98 }],
-  },
-  sheetBackdrop: {
-    backgroundColor: "rgba(0,0,0,0.54)",
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  emailSheet: {
-    backgroundColor: "#121013",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    minHeight: 390,
-    paddingHorizontal: 28,
-    paddingTop: 12,
-  },
-  sheetHandle: {
-    alignSelf: "center",
-    backgroundColor: "#767178",
-    borderRadius: 4,
-    height: 6,
-    marginBottom: 12,
-    width: 48,
-  },
-  backButton: {
-    alignItems: "center",
-    height: 42,
-    justifyContent: "center",
-    marginLeft: -10,
-    width: 42,
-  },
-  sheetTitle: {
-    color: T.white,
-    fontFamily: "RubikBold",
-    fontSize: 25,
-    lineHeight: 32,
-    marginTop: 14,
-  },
-  sheetSubtitle: {
-    color: "#aaa5aa",
-    fontFamily: "Rubik",
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 7,
-  },
-  emailInput: {
-    backgroundColor: "#3f3b40",
-    borderRadius: 13,
-    color: T.white,
-    fontFamily: "Rubik",
-    fontSize: 16,
-    height: 62,
-    marginTop: 22,
-    paddingHorizontal: 17,
-  },
-  sendButton: {
-    alignItems: "center",
-    backgroundColor: T.blue,
-    borderBottomColor: "#277dcc",
-    borderBottomWidth: 4,
-    borderRadius: 13,
-    height: 62,
-    justifyContent: "center",
-    marginTop: 14,
-  },
-  sendButtonDisabled: {
-    backgroundColor: "#4b474c",
-    borderBottomColor: "#39353a",
-  },
-  sendButtonText: {
-    color: T.white,
-    fontFamily: "Rubik",
-    fontSize: 16,
-    fontWeight: "700",
   },
 });

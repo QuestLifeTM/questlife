@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { Alert, StyleSheet, Text, View } from "react-native";
@@ -25,6 +25,7 @@ import { getAuthErrorMessage } from "@/utils/authErrors";
 import { RegisterForm, registerSchema } from "@/validation/authSchemas";
 
 export default function RegisterScreen() {
+  const { firstName: onboardingFirstName } = useLocalSearchParams<{ firstName?: string }>();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,7 +39,7 @@ export default function RegisterScreen() {
     defaultValues: {
       confirmPassword: "",
       email: "",
-      firstName: "",
+      firstName: onboardingFirstName ?? "",
       lastName: "",
       password: "",
       username: "",

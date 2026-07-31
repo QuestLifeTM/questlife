@@ -10,7 +10,7 @@ import {
   View
 } from "react-native";
 import { radius, shadow, T } from "@/components/theme";
-import { haptic } from "@/components/ui";
+import { haptic, IconButton } from "@/components/ui";
 
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
 
@@ -99,20 +99,7 @@ export function OutlineButton({ title, onPress, disabled, children }: OutlineBut
 }
 
 export function BackButton({ onPress }: { onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => {
-        haptic();
-        onPress();
-      }}
-      hitSlop={10}
-      style={styles.backButton}
-    >
-      <Ionicons name="arrow-back" color={T.dark} size={17} />
-      <Text style={styles.backLabel}>Back</Text>
-    </Pressable>
-  );
+  return <View style={styles.backButton}><IconButton icon="arrow-back" label="Back" onPress={onPress} /></View>;
 }
 
 export function Divider() {
@@ -235,15 +222,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
     marginBottom: 26
-  },
-  backLabel: {
-    color: T.dark,
-    fontSize: 14,
-    fontWeight: "800"
   },
   divider: {
     alignItems: "center",

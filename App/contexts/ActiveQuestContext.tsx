@@ -4,6 +4,7 @@ import * as Location from "expo-location";
 import * as FileSystem from "expo-file-system/legacy";
 
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
+import { useGuestQuest } from "@/contexts/GuestQuestContext";
 import { addActiveQuestActivity, deleteActiveQuestActivity, deleteActiveQuestPhoto, ensureActiveQuestSession, getActiveQuestSnapshot, getPendingCompletionSyncSessionIds, setActiveQuestRecordingState, subscribeToActiveQuestStore, updateActiveQuestActivity, updateActiveQuestSession } from "@/services/active-quest/local-store";
 import { persistQuestPhoto, retryQuestPhotoSync } from "@/services/active-quest/media";
 import { syncActiveQuestRecord } from "@/services/active-quest/sync";
@@ -53,11 +54,13 @@ function elapsedSince(timestamp: string | null) {
 
 export function ActiveQuestProvider({ children }: PropsWithChildren) {
   const { engine } = useQuestEngine();
+  const { guestSession, finishGuestQuest } = useGuestQuest();
   const [snapshot, setSnapshot] = useState<ActiveQuestSnapshot | null>(null);
   const [liveLocation, setLiveLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [trackingMessage, setTrackingMessage] = useState<string | null>(null);
-  const activeSession = engine?.activeSession;
+  const activeSession = engine?.activeSession ?? guestSession;
+  const isGuestSession = Boolean(guestSession && activeSession?.id === guestSession.id);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
 
   const stopForegroundLocationWatch = useCallback(() => {
@@ -254,12 +257,17 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     if (!snapshot) return;
     await stopQuestLocationTracking();
     stopForegroundLocationWatch();
+    if (isGuestSession) {
+      await finishGuestQuest({ title: "Your First Quest", durationSeconds: Math.round(snapshot.session.activeDurationMs / 1_000) });
+      setSnapshot(null);
+      return;
+    }
     // Keep the completed local record as an outbox. If the phone is offline,
     // this state is retried automatically on the next app launch.
     await updateActiveQuestSession(snapshot.session.sessionId, { completionSyncState: "pending" });
     await retryCompletedRouteSync();
     setSnapshot(null);
-  }, [retryCompletedRouteSync, snapshot, stopForegroundLocationWatch]);
+  }, [finishGuestQuest, isGuestSession, retryCompletedRouteSync, snapshot, stopForegroundLocationWatch]);
 
   const value = useMemo(() => ({ snapshot, liveLocation, loading, trackingMessage, reload, pause, resume, saveEntry, enableTracking, addActivityNote, addPhoto, updateActivity, deleteActivity, deletePhoto, finishLocalQuest }), [snapshot, liveLocation, loading, trackingMessage, reload, pause, resume, saveEntry, enableTracking, addActivityNote, addPhoto, updateActivity, deleteActivity, deletePhoto, finishLocalQuest]);
   return <ActiveQuestContext.Provider value={value}>{children}</ActiveQuestContext.Provider>;
