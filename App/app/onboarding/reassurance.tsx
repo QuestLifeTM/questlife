@@ -95,24 +95,31 @@ function parseGoalIds(value: string | string[] | undefined) {
 
 export default function ReassuranceOnboardingScreen() {
   const { firstName, goalIds, idealLifeId } = useLocalSearchParams<{ firstName?: string; goalIds?: string | string[]; idealLifeId?: string }>();
-  const { insets, horizontalPadding } = useResponsiveScreenLayout();
+  const { insets } = useResponsiveScreenLayout();
   const selectedGoals = parseGoalIds(goalIds).map((id) => GOALS[id]);
   const destination = typeof idealLifeId === "string" ? IDEAL_LIFE_OPTIONS[idealLifeId] : undefined;
 
   function continueOnboarding() {
     haptic();
-    router.replace({ pathname: "/(auth)/register", params: firstName ? { firstName } : {} });
+    router.replace({
+      pathname: "/onboarding/frequency",
+      params: {
+        ...(firstName ? { firstName } : {}),
+        ...(typeof goalIds === "string" ? { goalIds } : {}),
+        ...(typeof idealLifeId === "string" ? { idealLifeId } : {}),
+      },
+    });
   }
 
   return (
     <View style={styles.root}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top + 20, 32), paddingBottom: Math.max(insets.bottom + 24, 34), paddingHorizontal: insets.left + horizontalPadding }]}
+        contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top + 10, 20), paddingBottom: Math.max(insets.bottom + 20, 30), paddingLeft: insets.left + 12, paddingRight: insets.right + 12 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.cards}>
           {selectedGoals.map((goal, index) => (
-            <View key={goal.id} style={[styles.goalCard, index === 0 && styles.firstGoalCard]}>
+            <View key={goal.id} style={[styles.goalCard, index === 0 && styles.firstGoalCard, index === 1 && styles.secondGoalCard, index === 2 && styles.thirdGoalCard]}>
               <View style={styles.cardTitleRow}>
                 <OptionIcon icon={goal.icon} emoji={goal.emoji} />
                 <Text selectable style={styles.cardTitle}>{goal.label}</Text>
@@ -125,7 +132,7 @@ export default function ReassuranceOnboardingScreen() {
             <View style={styles.destinationCard}>
               <Text selectable style={styles.destinationEyebrow}>This is where you'll be headed</Text>
               <View style={styles.destinationTitleRow}>
-                <OptionIcon icon={destination.icon} />
+                <View style={styles.destinationIcon}><OptionIcon icon={destination.icon} /></View>
                 <Text selectable style={styles.destinationTitle}>{destination.label}</Text>
               </View>
               <Text selectable style={styles.destinationStat}>92.02% of people formed this daily habit</Text>
@@ -137,7 +144,6 @@ export default function ReassuranceOnboardingScreen() {
           <Text selectable style={styles.reassuranceTitle}>You're in the right place</Text>
           <Text selectable style={styles.reassuranceBody}>Tens of thousands have started with the same goals, and QuestLife helped them get there.</Text>
         </View>
-
         <Pressable accessibilityRole="button" accessibilityLabel="Continue" onPress={continueOnboarding} style={({ pressed }) => [styles.continueButton, pressed && styles.continueButtonPressed]}>
           <Text style={styles.continueText}>Continue</Text>
         </Pressable>
@@ -148,24 +154,27 @@ export default function ReassuranceOnboardingScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.blue },
-  content: { gap: 48, paddingHorizontal: 20 },
-  cards: { gap: 16 },
-  goalCard: { gap: 7, borderRadius: 18, borderWidth: 2.5, borderColor: T.dark, backgroundColor: T.white, padding: 16, boxShadow: `4px 4px 0px ${T.dark}` },
+  content: { paddingHorizontal: 12 },
+  cards: { gap: 18, marginBottom: 26 },
+  goalCard: { gap: 6, borderRadius: 16, borderWidth: 2, borderColor: T.dark, backgroundColor: T.white, padding: 14, boxShadow: `3px 3px 0px ${T.dark}` },
   firstGoalCard: { marginVertical: 2, transform: [{ rotate: "-2deg" }] },
+  secondGoalCard: { marginVertical: 2, transform: [{ rotate: "0.9deg" }] },
+  thirdGoalCard: { marginVertical: 2, transform: [{ rotate: "-2deg" }] },
   cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   optionIcon: { width: 24, height: 24 },
   optionEmoji: { fontSize: 22, lineHeight: 24 },
   cardTitle: { flex: 1, color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22, letterSpacing: -0.15 },
-  cardDescription: { color: T.muted, fontFamily: "Rubik", fontSize: 13.5, lineHeight: 19 },
-  destinationCard: { gap: 10, borderRadius: 18, borderWidth: 2.5, borderColor: T.dark, backgroundColor: T.white, padding: 16, boxShadow: `4px 4px 0px ${T.dark}` },
+  cardDescription: { color: T.muted, fontFamily: "Rubik", fontSize: 13.5, lineHeight: 18 },
+  destinationCard: { gap: 8, marginTop: 30, borderRadius: 16, borderWidth: 2, borderColor: T.dark, backgroundColor: T.white, padding: 14, boxShadow: `3px 3px 0px ${T.dark}` },
   destinationEyebrow: { color: T.muted, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16, textAlign: "center" },
-  destinationTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  destinationTitleRow: { position: "relative", minHeight: 44, justifyContent: "center", paddingHorizontal: 30 },
+  destinationIcon: { position: "absolute", left: 0, top: "50%", transform: [{ translateY: -12 }] },
   destinationTitle: { color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22, textAlign: "center" },
   destinationStat: { color: T.blue, fontFamily: "RubikBold", fontSize: 12.5, lineHeight: 17, textAlign: "center" },
-  reassuranceCopy: { gap: 7 },
-  reassuranceTitle: { color: T.white, fontFamily: "RubikBlack", fontSize: 25, lineHeight: 31, letterSpacing: -0.45 },
-  reassuranceBody: { color: T.white, fontFamily: "Rubik", fontSize: 15, lineHeight: 21 },
-  continueButton: { minHeight: 58, borderRadius: 20, borderWidth: 1.25, borderColor: "rgba(255,255,255,0.48)", borderBottomWidth: 6, borderBottomColor: "#258fd8", backgroundColor: T.blue, alignItems: "center", justifyContent: "center" },
-  continueButtonPressed: { transform: [{ translateY: 3 }], borderBottomWidth: 3 },
-  continueText: { color: T.white, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.55, textTransform: "uppercase" },
+  reassuranceCopy: { gap: 5, marginBottom: 22 },
+  reassuranceTitle: { color: T.white, fontFamily: "RubikBlack", fontSize: 26, lineHeight: 31, letterSpacing: -0.45 },
+  reassuranceBody: { color: T.white, fontFamily: "Rubik", fontSize: 16.5, lineHeight: 22 },
+  continueButton: { minHeight: 58, borderRadius: 20, borderWidth: 2, borderColor: T.blue, borderBottomWidth: 4, borderBottomColor: `${T.blue}88`, backgroundColor: T.white, alignItems: "center", justifyContent: "center" },
+  continueButtonPressed: { transform: [{ translateY: 2 }], borderBottomWidth: 2 },
+  continueText: { color: T.blue, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.55, textTransform: "uppercase" },
 });

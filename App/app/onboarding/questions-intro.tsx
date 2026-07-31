@@ -6,6 +6,7 @@ import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, Vi
 import { T } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { OnboardingActiveQuestDrawer } from "@/components/onboarding-active-quest-drawer";
+import { OnboardingQuestionProgress } from "@/components/onboarding-progress";
 
 type OnboardingOption = {
   id: string;
@@ -67,18 +68,6 @@ const QUESTIONS: OnboardingQuestion[] = [
   },
 ];
 
-const ADVENTURE_CATEGORY_BLUE = "#4D9CFF";
-
-function ProgressBar({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
-  const progress = `${Math.round((currentStep / totalSteps) * 100)}%` as `${number}%`;
-
-  return (
-    <View accessibilityRole="progressbar" accessibilityLabel={`Onboarding progress: question ${currentStep} of ${totalSteps}`} accessibilityValue={{ min: 0, max: totalSteps, now: currentStep }} style={styles.progressTrack}>
-      <View style={[styles.progressFill, { width: progress }]} />
-    </View>
-  );
-}
-
 export default function QuestionsIntroScreen() {
   const { firstName } = useLocalSearchParams<{ firstName?: string }>();
   const { insets, horizontalPadding } = useResponsiveScreenLayout();
@@ -94,6 +83,9 @@ export default function QuestionsIntroScreen() {
     setAnswers((current) => {
       const currentSelections = current[question.id] ?? [];
       const isSelected = currentSelections.includes(id);
+      if (!isSelected && question.maximumSelections === 1) {
+        return { ...current, [question.id]: [id] };
+      }
       if (!isSelected && currentSelections.length >= question.maximumSelections) return current;
 
       return {
@@ -125,7 +117,7 @@ export default function QuestionsIntroScreen() {
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><ProgressBar currentStep={progressStep} totalSteps={QUESTIONS.length} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionProgress currentStep={progressStep} /></View>
 
         <View style={styles.questionHeader}>
           <Text numberOfLines={question.id === "ideal-life" ? 2 : undefined} adjustsFontSizeToFit={question.id === "ideal-life"} minimumFontScale={0.82} style={[styles.title, question.id === "ideal-life" && styles.secondQuestionTitle]}>{question.id === "questlife-goals" ? <>What do you want to <Text style={styles.titleAccent}>achieve</Text> with QuestLife?</> : question.id === "ideal-life" ? <>Think bigger, what does an <Text style={styles.titleAccent}>ideal{"\u00A0"}life</Text> look like to you?</> : question.title}</Text>
@@ -140,7 +132,7 @@ export default function QuestionsIntroScreen() {
                 key={option.id}
                 accessibilityRole="checkbox"
                 accessibilityLabel={option.label}
-                accessibilityState={{ checked: selected, disabled: !selected && selectedIds.length >= question.maximumSelections }}
+                accessibilityState={{ checked: selected, disabled: question.maximumSelections > 1 && !selected && selectedIds.length >= question.maximumSelections }}
                 onPress={() => toggleOption(option.id)}
                 style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && styles.optionPressed]}
               >
@@ -168,10 +160,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
   content: { flex: 1 },
   progressSection: { paddingTop: 2 },
-  // Matches the profile stat pills: a firm outline plus a short tactile lower edge.
-  // Matches the Explore Adventure category pill's outline and lower edge.
-  progressTrack: { height: 14, overflow: "hidden", borderRadius: 99, borderWidth: 2, borderColor: ADVENTURE_CATEGORY_BLUE, borderBottomWidth: 4, borderBottomColor: `${ADVENTURE_CATEGORY_BLUE}88`, backgroundColor: T.white },
-  progressFill: { height: "100%", minWidth: 8, borderRadius: 99, backgroundColor: T.blue },
   questionHeader: { paddingTop: 28, paddingBottom: 14, gap: 4 },
   // These match the Lobby's sheet title, supporting copy, and stat-label scale.
   title: { maxWidth: 348, color: T.dark, fontFamily: "RubikBlack", fontSize: 23, lineHeight: 28, letterSpacing: -0.35 },
