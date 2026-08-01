@@ -7,6 +7,9 @@ node_modules/
 **/.expo/
 .expo-shared/
 
+# Supabase CLI local project-link and container state
+supabase/.temp/
+
 # Local editor and agent tooling
 .cursor/
 .codex/
