@@ -40,6 +40,28 @@ export type ActiveQuestOnboardingOptions = {
   routePromptNudge?: number;
   onRouteRecordingRequested?: () => void;
   onCountdownFinished?: () => void;
+  /** Enables only the blue quick-actions button while the rest of the tutorial shell stays locked. */
+  allowQuickActions?: boolean;
+  /** Enables only the Take photo action in the expanded quick-actions menu. */
+  allowPhotoCapture?: boolean;
+  /** Enables only the Quick note action in the expanded quick-actions menu. */
+  allowQuickNote?: boolean;
+  /** Keeps the quick-actions affordance available while the tutorial pauses the quest timer. */
+  showQuickActionsWhenPaused?: boolean;
+  onQuickActionsOpened?: () => void;
+  onQuickNoteOpened?: () => void;
+  onQuickNoteSaved?: () => void;
+  onQuickNoteDiscarded?: () => void;
+  onPhotoCaptureStarted?: () => void;
+  onPhotoCaptureFinished?: (captured: boolean) => void;
+  onPhotoSaved?: (result: { tutorialOnly: boolean }) => void;
+  onPhotoDiscarded?: () => void;
+  /** Lets an onboarding guide reveal the real Memories or Activity surface. */
+  forcedTab?: ActiveQuestTab;
+  /** A bundled sample image used only by the onboarding tutorial. */
+  tutorialMockPhotoUri?: string | null;
+  focusLatestActivity?: boolean;
+  forceQuickActionsOpen?: boolean;
 };
 
 const BOTTOM_SHEET_CONTENT_HEIGHT = 118;
@@ -168,7 +190,8 @@ function activityTime(createdAt: string) {
   return new Date(createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-function ActivityTimeline({ activity, photos, accent, onManage }: { activity: ActiveQuestActivity[]; photos: ActiveQuestPhoto[]; accent: string; onManage: (activity: ActiveQuestActivity) => void }) {
+function ActivityTimeline({ activity, photos, accent, onManage, focusLatest = false }: { activity: ActiveQuestActivity[]; photos: ActiveQuestPhoto[]; accent: string; onManage: (activity: ActiveQuestActivity) => void; focusLatest?: boolean }) {
+  const list = useRef<FlatList<ActiveQuestActivity>>(null);
   const [loadRange, setLoadRange] = useState({ start: 0, end: 3 });
   const photoById = useMemo(() => new Map(photos.map((photo) => [photo.id, photo])), [photos]);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 1 }).current;
@@ -180,6 +203,12 @@ function ActivityTimeline({ activity, photos, accent, onManage }: { activity: Ac
     setLoadRange((current) => current.start === Math.max(0, first - 3) && current.end === last + 3 ? current : { start: Math.max(0, first - 3), end: last + 3 });
   }).current;
 
+  useEffect(() => {
+    if (!focusLatest || !activity.length) return;
+    const timer = setTimeout(() => list.current?.scrollToEnd({ animated: false }), 0);
+    return () => clearTimeout(timer);
+  }, [activity.length, focusLatest]);
+
   if (!activity.length) return <View style={{ flex: 1, paddingHorizontal: 28, paddingBottom: 150, backgroundColor: "#f8f7f3", alignItems: "center", justifyContent: "center", gap: 12 }}>
     <View style={{ width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", backgroundColor: `${accent}16` }}><Ionicons name="pulse-outline" size={27} color={accent} /></View>
     <Text style={{ color: T.dark, fontSize: 19, lineHeight: 25, fontWeight: "900", textAlign: "center" }}>Your quest story starts here</Text>
@@ -187,6 +216,7 @@ function ActivityTimeline({ activity, photos, accent, onManage }: { activity: Ac
   </View>;
 
   return <FlatList
+    ref={list}
     data={activity}
     keyExtractor={(item) => String(item.id)}
     initialNumToRender={4}
@@ -220,7 +250,7 @@ function ActivityTimeline({ activity, photos, accent, onManage }: { activity: Ac
   />;
 }
 
-function FloatingQuestControls({ accent, duration, paused, takingPhoto, bottomInset, onTakePhoto, onQuickNote, onFinish, onTogglePaused, locked = false, forcedOpen = false }: { accent: string; duration: string; paused: boolean; takingPhoto: boolean; bottomInset: number; onTakePhoto: () => void; onQuickNote: () => void; onFinish: () => void; onTogglePaused: () => void; locked?: boolean; forcedOpen?: boolean }) {
+function FloatingQuestControls({ accent, duration, paused, takingPhoto, bottomInset, onTakePhoto, onQuickNote, onFinish, onTogglePaused, locked = false, forcedOpen = false, allowQuickActions = false, allowPhotoCapture = false, allowQuickNote = false, showQuickActionsWhenPaused = false, onQuickActionsOpened, onQuickNoteOpened }: { accent: string; duration: string; paused: boolean; takingPhoto: boolean; bottomInset: number; onTakePhoto: () => void; onQuickNote: () => void; onFinish: () => void; onTogglePaused: () => void; locked?: boolean; forcedOpen?: boolean; allowQuickActions?: boolean; allowPhotoCapture?: boolean; allowQuickNote?: boolean; showQuickActionsWhenPaused?: boolean; onQuickActionsOpened?: () => void; onQuickNoteOpened?: () => void }) {
   const [open, setOpen] = useState(false);
   const menuProgress = useRef(new Animated.Value(0)).current;
 
@@ -259,13 +289,13 @@ function FloatingQuestControls({ accent, duration, paused, takingPhoto, bottomIn
       <Pressable accessibilityRole="button" accessibilityLabel={paused ? "Resume quest" : "Pause quest"} accessibilityState={{ disabled: locked }} disabled={locked} onPress={() => { haptic(); onTogglePaused(); }} style={({ pressed }) => ({ width: 52, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: `${accent}16`, borderWidth: 2, borderColor: accent, borderBottomWidth: pressed ? 2 : 4, borderBottomColor: `${accent}88`, opacity: pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.96 : 1 }, { translateY: pressed ? 2 : 0 }] })}><Ionicons name={paused ? "play" : "pause"} size={21} color={accent} /></Pressable>
     </View>
     <View style={{ width: 70, height: 70, overflow: "visible" }}>
-      {!paused ? <Animated.View pointerEvents={open ? "auto" : "none"} style={{ position: "absolute", right: 0, bottom: 82, width: 224, gap: 10, opacity: menuProgress, transform: [{ translateY: menuProgress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }, { scale: menuProgress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }}>
+      {(!paused || showQuickActionsWhenPaused) ? <Animated.View pointerEvents={open ? "auto" : "none"} style={{ position: "absolute", right: 0, bottom: 82, width: 224, gap: 10, opacity: menuProgress, transform: [{ translateY: menuProgress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }, { scale: menuProgress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }}>
         {actions.map((action, index) => <View key={action.label} style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
           <View style={{ maxWidth: 150, minHeight: 38, borderRadius: 19, paddingHorizontal: 13, justifyContent: "center", backgroundColor: "rgba(255,255,255,0.96)", borderWidth: 1, borderColor: "rgba(232,223,213,0.94)", boxShadow: "0px 4px 13px rgba(35,40,37,0.16)" }}><Text numberOfLines={1} style={{ color: T.dark, fontSize: 13, lineHeight: 17, fontWeight: "900" }}>{action.label}</Text></View>
-          <Pressable accessibilityRole="button" accessibilityLabel={action.label} disabled={locked || (takingPhoto && index === 3)} onPress={() => { haptic(); setOpen(false); action.onPress(); }} style={({ pressed }) => ({ width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: action.color, borderWidth: 3, borderColor: T.white, boxShadow: "0px 5px 13px rgba(35,40,37,0.20)", opacity: pressed ? 0.78 : 1, transform: [{ scale: pressed ? 0.93 : 1 }] })}><Ionicons name={action.icon} size={25} color={T.white} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={action.label} disabled={(locked && !((action.label === "Take photo" && allowPhotoCapture) || (action.label === "Quick note" && allowQuickNote))) || (takingPhoto && action.label === "Take photo")} onPress={() => { haptic(); if (!forcedOpen) setOpen(false); if (action.label === "Quick note") onQuickNoteOpened?.(); action.onPress(); }} style={({ pressed }) => ({ width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: action.color, borderWidth: 3, borderColor: T.white, boxShadow: "0px 5px 13px rgba(35,40,37,0.20)", opacity: pressed ? 0.78 : 1, transform: [{ scale: pressed ? 0.93 : 1 }] })}><Ionicons name={action.icon} size={25} color={T.white} /></Pressable>
         </View>)}
       </Animated.View> : null}
-      {paused ? <Pressable accessibilityRole="button" accessibilityLabel="End quest" disabled={locked} onPress={() => { haptic(); onFinish(); }} style={({ pressed }) => ({ position: "absolute", right: 0, bottom: 0, width: 70, height: 70, borderRadius: 35, alignItems: "center", justifyContent: "center", backgroundColor: T.red, borderWidth: 3, borderColor: T.white, boxShadow: "0px 8px 20px rgba(35,40,37,0.24)", transform: [{ scale: pressed ? 0.92 : 1 }] })}><Ionicons name="flag" size={29} color={T.white} /></Pressable> : <Pressable accessibilityRole="button" accessibilityLabel={open ? "Close quest actions" : "Open quest actions"} accessibilityState={{ expanded: open, disabled: locked }} disabled={locked} onPress={() => { haptic(); setOpen((current) => !current); }} style={({ pressed }) => ({ position: "absolute", right: 0, bottom: 0, width: 70, height: 70, borderRadius: 35, alignItems: "center", justifyContent: "center", backgroundColor: open ? T.dark : accent, borderWidth: 3, borderColor: T.white, boxShadow: "0px 8px 20px rgba(35,40,37,0.24)", transform: [{ scale: pressed ? 0.92 : 1 }] })}><Animated.View style={{ transform: [{ rotate: menuProgress.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] }) }] }}><Ionicons name="add" size={38} color={T.white} /></Animated.View></Pressable>}
+      {paused && !showQuickActionsWhenPaused ? <Pressable accessibilityRole="button" accessibilityLabel="End quest" disabled={locked} onPress={() => { haptic(); onFinish(); }} style={({ pressed }) => ({ position: "absolute", right: 0, bottom: 0, width: 70, height: 70, borderRadius: 35, alignItems: "center", justifyContent: "center", backgroundColor: T.red, borderWidth: 3, borderColor: T.white, boxShadow: "0px 8px 20px rgba(35,40,37,0.24)", transform: [{ scale: pressed ? 0.92 : 1 }] })}><Ionicons name="flag" size={29} color={T.white} /></Pressable> : <Pressable accessibilityRole="button" accessibilityLabel={open ? "Close quest actions" : "Open quest actions"} accessibilityState={{ expanded: open, disabled: locked && !allowQuickActions }} disabled={locked && !allowQuickActions} onPress={() => { haptic(); setOpen((current) => { const next = !current; if (next) onQuickActionsOpened?.(); return next; }); }} style={({ pressed }) => ({ position: "absolute", right: 0, bottom: 0, width: 70, height: 70, borderRadius: 35, alignItems: "center", justifyContent: "center", backgroundColor: open ? T.dark : accent, borderWidth: 3, borderColor: T.white, boxShadow: "0px 8px 20px rgba(35,40,37,0.24)", transform: [{ scale: pressed ? 0.92 : 1 }] })}><Animated.View style={{ transform: [{ rotate: menuProgress.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] }) }] }}><Ionicons name="add" size={38} color={T.white} /></Animated.View></Pressable>}
     </View>
   </View>;
 }
@@ -365,6 +395,7 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
   const [takingPhoto, setTakingPhoto] = useState(false);
   const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
   const [pendingPhotoCaption, setPendingPhotoCaption] = useState("");
+  const [pendingPhotoIsTutorialMock, setPendingPhotoIsTutorialMock] = useState(false);
   const [quickNoteVisible, setQuickNoteVisible] = useState(false);
   const [quickNote, setQuickNote] = useState("");
   const [managedActivity, setManagedActivity] = useState<ActiveQuestActivity | null>(null);
@@ -381,6 +412,7 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
   const countdownSessionRef = useRef<string | null>(null);
   const routeRecordingStartedSessionRef = useRef<string | null>(null);
   const staleQuestReminderShownForSessionRef = useRef<string | null>(null);
+  const shownTutorialMockRef = useRef<string | null>(null);
   const session = engine?.activeSession ?? guestSession;
   const isGuestQuest = Boolean(guestSession && session?.id === guestSession.id);
   const loadedQuest = getQuest(session?.questId);
@@ -416,6 +448,22 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
   const shouldPlayCountdown = !onboarding?.holdCountdown && isFreshSession && snapshot?.session.recordingState === "paused";
   const isCountdownPending = shouldPlayCountdown && countdownSessionRef.current !== session?.id && !countdownLaunchAt;
   const isStartingQuest = preview ? false : isCountdownPending || Boolean(countdownLaunchAt && startupCompleteForSession !== session?.id);
+  useEffect(() => {
+    if (onboarding?.forcedTab) setTab(onboarding.forcedTab);
+  }, [onboarding?.forcedTab]);
+
+  useEffect(() => {
+    const mockUri = onboarding?.tutorialMockPhotoUri;
+    if (!mockUri) {
+      shownTutorialMockRef.current = null;
+      return;
+    }
+    if (shownTutorialMockRef.current === mockUri) return;
+    shownTutorialMockRef.current = mockUri;
+    setPendingPhotoUri(mockUri);
+    setPendingPhotoCaption("");
+    setPendingPhotoIsTutorialMock(true);
+  }, [onboarding?.tutorialMockPhotoUri]);
   useEffect(() => {
     if (preview || !session?.id || wallElapsedDuration < STALE_ACTIVE_QUEST_AFTER_MS || staleQuestReminderShownForSessionRef.current === session.id) return;
     staleQuestReminderShownForSessionRef.current = session.id;
@@ -535,6 +583,8 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
   const takePhoto = async () => {
     if (takingPhoto) return;
     setTakingPhoto(true);
+    onboarding?.onPhotoCaptureStarted?.();
+    let captured = false;
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
@@ -559,8 +609,10 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
         quality: 0.78,
       });
       if (!result.canceled && result.assets[0]) {
+        captured = true;
         setPendingPhotoUri(result.assets[0].uri);
         setPendingPhotoCaption("");
+        setPendingPhotoIsTutorialMock(false);
       }
     } catch (nextError) {
       Alert.alert(
@@ -571,22 +623,34 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
       );
     } finally {
       setTakingPhoto(false);
+      onboarding?.onPhotoCaptureFinished?.(captured);
     }
   };
   const saveQuickNote = async () => {
     const note = quickNote.trim();
-    if (!note) { setQuickNoteVisible(false); return; }
+    if (!note) {
+      if (onboarding?.allowQuickNote) {
+        showFeedback({ message: "Write a note before saving it.", icon: "create", color: T.orange });
+        return;
+      }
+      setQuickNoteVisible(false);
+      return;
+    }
     await addActivityNote(note);
     setQuickNote("");
     setQuickNoteVisible(false);
     showFeedback({ message: "Quick note saved to your quest.", icon: "create", color: T.orange });
+    onboarding?.onQuickNoteSaved?.();
   };
   const savePendingPhoto = async () => {
     if (!pendingPhotoUri) return;
-    await addPhoto(pendingPhotoUri, pendingPhotoCaption);
+    const tutorialOnly = pendingPhotoIsTutorialMock;
+    await addPhoto(pendingPhotoUri, pendingPhotoCaption, { tutorialOnly });
     setPendingPhotoUri(null);
     setPendingPhotoCaption("");
+    setPendingPhotoIsTutorialMock(false);
     setPhotoSavedVisible(true);
+    onboarding?.onPhotoSaved?.({ tutorialOnly });
   };
   const openActivityManager = (activity: ActiveQuestActivity) => {
     setManagedActivity(activity);
@@ -672,23 +736,23 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
       <View style={{ marginTop: 16 }}><ActiveQuestTabs active={tab} onChange={setTab} accent={accent} disabled={Boolean(onboarding?.locked)} /></View>
     </View>
     <View style={{ flex: 1 }}>
-      {tab === "map" ? isStartingQuest ? <QuestStartupSurface accent={accent} step={countdownStep} /> : <LiveMap accent={accent} route={snapshot?.route ?? []} renderSegments={snapshot?.renderSegments ?? []} deviceLocation={deviceLocation} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={null} onEnableTracking={handleEnableRouteRecording} forceEnablePrompt={onboarding?.guideStep === "route"} routePromptNudge={onboarding?.routePromptNudge} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} onManage={openPhotoManager} /> : <ActivityTimeline activity={snapshot?.activity ?? []} photos={snapshot?.photos ?? []} accent={accent} onManage={openActivityManager} />}
+      {tab === "map" ? isStartingQuest ? <QuestStartupSurface accent={accent} step={countdownStep} /> : <LiveMap accent={accent} route={snapshot?.route ?? []} renderSegments={snapshot?.renderSegments ?? []} deviceLocation={deviceLocation} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={null} onEnableTracking={handleEnableRouteRecording} forceEnablePrompt={onboarding?.guideStep === "route"} routePromptNudge={onboarding?.routePromptNudge} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} onManage={openPhotoManager} /> : <ActivityTimeline activity={snapshot?.activity ?? []} photos={snapshot?.photos ?? []} accent={accent} onManage={openActivityManager} focusLatest={Boolean(onboarding?.focusLatestActivity)} />}
     </View>
     {!countdownStep && photoSavedVisible ? <QuestNoticePill notice="photo-saved" accent={accent} message={trackingMessage} bottomOffset={Math.max(screenInsets.bottom + 98, 126)} /> : null}
-    <FloatingQuestControls accent={accent} duration={duration} paused={paused} takingPhoto={takingPhoto} bottomInset={screenInsets.bottom} onTakePhoto={() => void takePhoto()} onQuickNote={() => setQuickNoteVisible(true)} onFinish={() => setCompleteVisible(true)} onTogglePaused={togglePaused} locked={Boolean(onboarding?.locked)} forcedOpen={onboarding?.guideStep === "controls"} />
-    <Sheet visible={quickNoteVisible} onClose={() => { setQuickNote(""); setQuickNoteVisible(false); }} maxHeight="58%">
+    <FloatingQuestControls accent={accent} duration={duration} paused={paused} takingPhoto={takingPhoto} bottomInset={screenInsets.bottom} onTakePhoto={() => void takePhoto()} onQuickNote={() => setQuickNoteVisible(true)} onFinish={() => setCompleteVisible(true)} onTogglePaused={togglePaused} locked={Boolean(onboarding?.locked)} forcedOpen={onboarding?.guideStep === "controls" || Boolean(onboarding?.forceQuickActionsOpen) || onboarding?.allowPhotoCapture || onboarding?.allowQuickNote} allowQuickActions={Boolean(onboarding?.allowQuickActions)} allowPhotoCapture={Boolean(onboarding?.allowPhotoCapture)} allowQuickNote={Boolean(onboarding?.allowQuickNote)} showQuickActionsWhenPaused={Boolean(onboarding?.showQuickActionsWhenPaused)} onQuickActionsOpened={onboarding?.onQuickActionsOpened} onQuickNoteOpened={onboarding?.onQuickNoteOpened} />
+    <Sheet visible={quickNoteVisible} onClose={() => { setQuickNote(""); setQuickNoteVisible(false); onboarding?.onQuickNoteDiscarded?.(); }} maxHeight="58%">
       <View style={{ paddingHorizontal: 24, paddingBottom: 26, gap: 14 }}>
         <View style={{ gap: 3 }}><Text style={{ color: T.dark, fontSize: 24, lineHeight: 30, fontWeight: "900" }}>Quick note</Text><Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>Capture something before it slips away.</Text></View>
         <TextInput value={quickNote} onChangeText={setQuickNote} autoFocus multiline textAlignVertical="top" placeholder="Found a hidden café." placeholderTextColor={T.muted} style={{ minHeight: 148, borderWidth: 2, borderColor: T.border, borderRadius: 18, padding: 14, color: T.dark, fontSize: 16, lineHeight: 23, fontWeight: "700", backgroundColor: T.bg }} />
-        <View style={{ flexDirection: "row", gap: 11 }}><Pressable accessibilityRole="button" accessibilityLabel="Delete note" onPress={() => { setQuickNote(""); setQuickNoteVisible(false); }} style={({ pressed }) => ({ flex: 1, minHeight: 54, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: `${T.red}12`, borderWidth: 1.5, borderColor: `${T.red}42`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.red, fontSize: 16, fontWeight: "900" }}>Delete</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Save note" onPress={() => void saveQuickNote()} style={({ pressed }) => ({ flex: 1, minHeight: 54, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: T.blue, borderBottomWidth: 5, borderBottomColor: "#258fd8", opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 16, fontWeight: "900" }}>Save</Text></Pressable></View>
+        <View style={{ flexDirection: "row", gap: 11 }}><Pressable accessibilityRole="button" accessibilityLabel="Delete note" onPress={() => { setQuickNote(""); setQuickNoteVisible(false); onboarding?.onQuickNoteDiscarded?.(); }} style={({ pressed }) => ({ flex: 1, minHeight: 54, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: `${T.red}12`, borderWidth: 1.5, borderColor: `${T.red}42`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.red, fontSize: 16, fontWeight: "900" }}>Delete</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Save note" onPress={() => void saveQuickNote()} style={({ pressed }) => ({ flex: 1, minHeight: 54, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: T.blue, borderBottomWidth: 5, borderBottomColor: "#258fd8", opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 16, fontWeight: "900" }}>Save</Text></Pressable></View>
       </View>
     </Sheet>
-    <Sheet visible={Boolean(pendingPhotoUri)} onClose={() => { setPendingPhotoUri(null); setPendingPhotoCaption(""); }} maxHeight="88%" fillHeight>
+    <Sheet visible={Boolean(pendingPhotoUri)} onClose={() => { setPendingPhotoUri(null); setPendingPhotoCaption(""); setPendingPhotoIsTutorialMock(false); onboarding?.onPhotoDiscarded?.(); }} maxHeight="88%" fillHeight>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 26, gap: 14 }} keyboardShouldPersistTaps="handled">
-        <View style={{ gap: 3 }}><Text style={{ color: T.dark, fontSize: 24, lineHeight: 30, fontWeight: "900" }}>Your quest moment</Text><Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>Add a caption if you want to remember the detail later.</Text></View>
+        <View style={{ gap: 3 }}><Text style={{ color: T.dark, fontSize: 24, lineHeight: 30, fontWeight: "900" }}>{pendingPhotoIsTutorialMock ? "A sample quest moment" : "Your quest moment"}</Text><Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>{pendingPhotoIsTutorialMock ? "This tutorial sample helps introduce the app’s features. It won’t be saved to your official journal." : "This is the photo you took. Add a note to remember it later."}</Text></View>
         {pendingPhotoUri ? <Image source={{ uri: pendingPhotoUri }} resizeMode="cover" style={{ width: "100%", aspectRatio: 1, borderRadius: 22, backgroundColor: T.border }} /> : null}
         <View style={{ gap: 6 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>Caption</Text><TextInput value={pendingPhotoCaption} onChangeText={setPendingPhotoCaption} multiline textAlignVertical="top" placeholder="What made this moment memorable?" placeholderTextColor={T.muted} style={{ minHeight: 96, borderWidth: 2, borderColor: T.border, borderRadius: 18, padding: 13, color: T.dark, fontSize: 15, lineHeight: 21, fontWeight: "700", backgroundColor: T.bg }} /></View>
-        <View style={{ flexDirection: "row", gap: 11 }}><Pressable accessibilityRole="button" accessibilityLabel="Retake photo" onPress={() => { setPendingPhotoUri(null); setPendingPhotoCaption(""); void takePhoto(); }} style={({ pressed }) => ({ flex: 1, minHeight: 51, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: `${accent}12`, borderWidth: 1.5, borderColor: `${accent}45`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: accent, fontSize: 15, fontWeight: "900" }}>Retake photo</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Never mind" onPress={() => { setPendingPhotoUri(null); setPendingPhotoCaption(""); }} style={({ pressed }) => ({ flex: 1, minHeight: 51, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "#f7f3ee", borderWidth: 1.5, borderColor: T.border, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.muted, fontSize: 15, fontWeight: "900" }}>Never mind</Text></Pressable></View>
+        <View style={{ flexDirection: "row", gap: 11 }}><Pressable accessibilityRole="button" accessibilityLabel="Retake photo" onPress={() => { setPendingPhotoUri(null); setPendingPhotoCaption(""); setPendingPhotoIsTutorialMock(false); void takePhoto(); }} style={({ pressed }) => ({ flex: 1, minHeight: 51, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: `${accent}12`, borderWidth: 1.5, borderColor: `${accent}45`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: accent, fontSize: 15, fontWeight: "900" }}>Retake photo</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Never mind" onPress={() => { setPendingPhotoUri(null); setPendingPhotoCaption(""); setPendingPhotoIsTutorialMock(false); onboarding?.onPhotoDiscarded?.(); }} style={({ pressed }) => ({ flex: 1, minHeight: 51, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "#f7f3ee", borderWidth: 1.5, borderColor: T.border, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.muted, fontSize: 15, fontWeight: "900" }}>Never mind</Text></Pressable></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Save photo" onPress={() => void savePendingPhoto()} style={({ pressed }) => ({ minHeight: 58, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: T.blue, borderBottomWidth: 6, borderBottomColor: "#258fd8", opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 17, fontWeight: "900" }}>Save photo</Text></Pressable>
       </ScrollView>
     </Sheet>

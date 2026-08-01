@@ -61,7 +61,7 @@ export async function syncActiveQuestRecord(sessionId: string) {
     if (routeResult.error) throw routeResult.error;
   }
 
-  const uploadedMedia = snapshot.photos.filter((photo) => photo.remotePath);
+  const uploadedMedia = snapshot.photos.filter((photo) => !photo.isTutorialMock && photo.remotePath);
   if (uploadedMedia.length) {
     const mediaResult = await supabase.from("quest_session_media").upsert(uploadedMedia.map((photo) => ({
       session_id: session.sessionId,

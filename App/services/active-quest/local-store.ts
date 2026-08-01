@@ -55,8 +55,8 @@ async function loadStore() {
       }])),
       route: (parsed.route ?? []).map((point) => ({ ...point, altitude: point.altitude ?? null, heading: point.heading ?? null })),
       renderRoutes: parsed.renderRoutes ?? {},
-      photos: parsed.photos ?? [],
-      activity: parsed.activity ?? [],
+      photos: (parsed.photos ?? []).map((photo) => ({ ...photo, isTutorialMock: photo.isTutorialMock ?? false })),
+      activity: (parsed.activity ?? []).map((item) => ({ ...item, isTutorialMock: item.isTutorialMock ?? false })),
     };
   } catch {
     try {
@@ -72,8 +72,8 @@ async function loadStore() {
         }])),
         route: (parsed.route ?? []).map((point) => ({ ...point, altitude: point.altitude ?? null, heading: point.heading ?? null })),
         renderRoutes: parsed.renderRoutes ?? {},
-        photos: parsed.photos ?? [],
-        activity: parsed.activity ?? [],
+        photos: (parsed.photos ?? []).map((photo) => ({ ...photo, isTutorialMock: photo.isTutorialMock ?? false })),
+        activity: (parsed.activity ?? []).map((item) => ({ ...item, isTutorialMock: item.isTutorialMock ?? false })),
       };
     } catch {
       cache = freshStore();
@@ -257,15 +257,15 @@ export async function getPendingCompletionSyncSessionIds() {
   return Object.values(store.sessions).filter((session) => session.completionSyncState === "pending").map((session) => session.sessionId);
 }
 
-export async function addActiveQuestPhoto(sessionId: string, uri: string, capturedAt = new Date().toISOString()) {
+export async function addActiveQuestPhoto(sessionId: string, uri: string, capturedAt = new Date().toISOString(), isTutorialMock = false) {
   return mutate((store) => {
     const id = store.nextPhotoId++;
-    store.photos.push({ id, sessionId, uri, capturedAt, syncStatus: "pending", remotePath: null });
+    store.photos.push({ id, sessionId, uri, capturedAt, syncStatus: isTutorialMock ? "synced" : "pending", remotePath: null, isTutorialMock });
     return id;
   });
 }
 
-export async function addActiveQuestActivity(sessionId: string, input: { kind: ActiveQuestActivityKind; body?: string; caption?: string; photoId?: number; badgeLabel?: string; createdAt?: string }) {
+export async function addActiveQuestActivity(sessionId: string, input: { kind: ActiveQuestActivityKind; body?: string; caption?: string; photoId?: number; badgeLabel?: string; createdAt?: string; isTutorialMock?: boolean }) {
   return mutate((store) => {
     const session = store.sessions[sessionId];
     if (!session) return null;
@@ -278,6 +278,7 @@ export async function addActiveQuestActivity(sessionId: string, input: { kind: A
       caption: input.caption?.trim() || null,
       photoId: input.photoId ?? null,
       badgeLabel: input.badgeLabel?.trim() || null,
+      isTutorialMock: Boolean(input.isTutorialMock),
     };
     store.activity.push(activity);
     store.sessions[sessionId] = { ...session, updatedAt: activity.createdAt };

@@ -70,6 +70,8 @@ export type ActiveQuestPhoto = {
   capturedAt: string;
   syncStatus: "pending" | "uploading" | "synced" | "failed";
   remotePath: string | null;
+  /** A bundled onboarding sample that is visible only while teaching the quest flow. */
+  isTutorialMock: boolean;
 };
 
 export type ActiveQuestActivityKind = "note" | "photo" | "badge";
@@ -84,4 +86,6 @@ export type ActiveQuestActivity = {
   caption: string | null;
   photoId: number | null;
   badgeLabel: string | null;
+  /** A local onboarding sample that must not be treated as a user journal entry. */
+  isTutorialMock: boolean;
 };

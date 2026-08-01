@@ -22,8 +22,8 @@ type ActiveQuestContextValue = {
   resume: () => Promise<void>;
   saveEntry: (input: { title: string; body: string }) => Promise<void>;
   enableTracking: () => Promise<void>;
-  addActivityNote: (body: string) => Promise<void>;
-  addPhoto: (uri: string, caption?: string) => Promise<void>;
+  addActivityNote: (body: string, options?: { tutorialOnly?: boolean }) => Promise<void>;
+  addPhoto: (uri: string, caption?: string, options?: { tutorialOnly?: boolean }) => Promise<void>;
   updateActivity: (id: number, value: string) => Promise<void>;
   deleteActivity: (id: number) => Promise<void>;
   deletePhoto: (id: number) => Promise<void>;
@@ -208,19 +208,19 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     await reload();
   }, [reload, snapshot, startForegroundLocationWatch]);
 
-  const addActivityNote = useCallback(async (body: string) => {
+  const addActivityNote = useCallback(async (body: string, options: { tutorialOnly?: boolean } = {}) => {
     if (!snapshot || !body.trim()) return;
-    await addActiveQuestActivity(snapshot.session.sessionId, { kind: "note", body });
+    await addActiveQuestActivity(snapshot.session.sessionId, { kind: "note", body, isTutorialMock: options.tutorialOnly });
     await reload();
-    void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
+    if (!options.tutorialOnly) void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
   }, [reload, snapshot]);
 
-  const addPhoto = useCallback(async (uri: string, caption?: string) => {
+  const addPhoto = useCallback(async (uri: string, caption?: string, options: { tutorialOnly?: boolean } = {}) => {
     if (!snapshot) return;
-    const photo = await persistQuestPhoto(snapshot.session.sessionId, uri);
+    const photo = await persistQuestPhoto(snapshot.session.sessionId, uri, options);
     await addActiveQuestActivity(snapshot.session.sessionId, { kind: "photo", photoId: photo.id, caption });
     await reload();
-    void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
+    if (!options.tutorialOnly) void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
   }, [reload, snapshot]);
 
   const updateActivity = useCallback(async (id: number, value: string) => {

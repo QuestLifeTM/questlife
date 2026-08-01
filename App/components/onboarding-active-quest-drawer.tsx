@@ -13,20 +13,19 @@ const iphoneMockup = require("../assets/onboarding/iphone-mockup.png");
 const REFERENCE_WIDTH = 390;
 const REFERENCE_HEIGHT = 844;
 
-/**
- * A read-only pocket view of the first quest. It keeps the live timer and map
- * visible throughout onboarding without exposing the quest's controls early.
- */
 type OnboardingActiveQuestDrawerProps = {
   /** Whether the full phone is visible when the owning screen first appears. */
   initiallyOpen?: boolean;
   /** Park an initially visible phone after briefly showing the quest state. */
   autoPark?: boolean;
+  /** Enables the real guest Active Quest controls after its feature tutorial. */
+  interactive?: boolean;
 };
 
 export function OnboardingActiveQuestDrawer({
   initiallyOpen = false,
   autoPark = false,
+  interactive = false,
 }: OnboardingActiveQuestDrawerProps) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -43,7 +42,7 @@ export function OnboardingActiveQuestDrawer({
   // Continue bar: 58px button + 10px top padding + safe-area spacing.
   const handleBottomOffset = Math.max(insets.bottom + 80, 100);
   // Keep the device itself completely out of view. The separate Quest handle
-  // remains at the edge for reopening the read-only live preview.
+  // remains at the edge for reopening the quest phone.
   const closedX = -phoneWidth;
 
   useEffect(() => {
@@ -78,18 +77,18 @@ export function OnboardingActiveQuestDrawer({
       transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [closedX, 0] }) }],
     }]}
   >
-    <View pointerEvents="none" style={[styles.phoneFrame, { height: phoneHeight }]}>
+    <View pointerEvents={interactive ? "auto" : "none"} style={[styles.phoneFrame, { height: phoneHeight }]}>
       <View style={{ position: "absolute", left: "7.02%", top: "4.4%", width: "85.6%", height: "90.85%", overflow: "hidden", borderRadius: Math.round(phoneWidth * 0.085), backgroundColor: T.bg }}>
         <View style={{ position: "absolute", width: REFERENCE_WIDTH, height: REFERENCE_HEIGHT, left: (screenWidth - REFERENCE_WIDTH) / 2, top: (screenHeight - REFERENCE_HEIGHT) / 2, transform: [{ scale: previewScale }] }}>
-          <ActiveQuestScreen preview onboarding={{ locked: true, hideExit: true, holdCountdown: true }} />
+          <ActiveQuestScreen preview={!interactive} onboarding={interactive ? { locked: false, hideExit: true, holdCountdown: false } : { locked: true, hideExit: true, holdCountdown: true }} />
         </View>
       </View>
-      <Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} />
+      <Image pointerEvents="none" source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} />
     </View>
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={open ? "Store active quest preview" : "Open active quest preview"}
-      accessibilityHint="Shows your live quest timer and route. Quest controls unlock after onboarding."
+      accessibilityLabel={open ? "Store active quest" : "Open active quest"}
+      accessibilityHint={interactive ? "Open your quest to pause it, add notes or photos, and view your progress." : "Shows your live quest timer and route. Quest controls unlock after onboarding."}
       accessibilityState={{ expanded: open }}
       onPress={() => {
         playHaptic("selection");
