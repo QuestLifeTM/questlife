@@ -42,7 +42,8 @@
           "photosPermission": "QuestLife uses your photos when you choose a profile picture or cover, a Party photo, share a Party completion, or add a collection cover."
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "@sentry/react-native"
     ],
     "ios": {
       "supportsTablet": false,
@@ -52,7 +53,9 @@
         "NSContactsUsageDescription": "QuestLife uses your contacts to help you find friends already on QuestLife.",
         "NSLocationWhenInUseUsageDescription": "QuestLife uses your location to show your active quest route.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "QuestLife uses your location during an active quest so route recording can continue while your screen is locked.",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {

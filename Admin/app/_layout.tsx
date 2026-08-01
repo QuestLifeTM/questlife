@@ -8,8 +8,11 @@ import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { T } from "@/components/theme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ContentProvider } from "@/contexts/ContentContext";
+import { initializeSentry, Sentry } from "@/lib/sentry";
 
-export default function RootLayout() {
+initializeSentry("admin");
+
+function RootLayout() {
   return (
     <AuthProvider>
       <ContentProvider>
@@ -18,6 +21,8 @@ export default function RootLayout() {
     </AuthProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);
 
 function AdminAppLayout() {
   const { next } = useGlobalSearchParams<{ next?: string }>();

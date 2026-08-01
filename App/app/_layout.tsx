@@ -1,4 +1,5 @@
 import { useFonts } from "expo-font";
+import { initializeSentry, Sentry } from "@/lib/sentry";
 import "@/services/active-quest/location-task";
 import { Redirect, Stack, useSegments } from "expo-router";
 import { PropsWithChildren } from "react";
@@ -19,7 +20,9 @@ import { SocialProvider } from "@/contexts/SocialContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { StreaksProvider } from "@/contexts/StreaksContext";
 
-export default function RootLayout() {
+initializeSentry("mobile");
+
+function RootLayout() {
   const [fontsLoaded] = useFonts({
     GeistPixel: require("../assets/fonts/GeistPixel-Regular-Variable.ttf"),
     Rubik: require("../assets/fonts/Rubik-Regular.ttf"),
@@ -43,6 +46,8 @@ export default function RootLayout() {
     </AuthProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);
 
 function SessionDataProviders({ children }: PropsWithChildren) {
   const { session } = useAuth();
