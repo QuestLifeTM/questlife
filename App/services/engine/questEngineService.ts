@@ -153,20 +153,21 @@ export async function uploadCollectionCover(localUri: string): Promise<string> {
   if (userError) throw userError;
   if (!userData.user) throw new Error("No authenticated user.");
 
-  const response = await fetch(localUri);
+  const compressedUri = await compressFeedImage(localUri);
+  const response = await fetch(compressedUri);
   const blob = await response.arrayBuffer();
-  const extension = localUri.split(".").pop()?.toLowerCase() || "jpg";
-  const contentType = extension === "png" ? "image/png" : extension === "webp" ? "image/webp" : "image/jpeg";
+  const extension = "jpg";
+  const contentType = "image/jpeg";
   const path = `${userData.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
 
   let bucket = "collection-covers";
-  let { error } = await supabase.storage.from(bucket).upload(path, blob, { contentType });
+  let { error } = await supabase.storage.from(bucket).upload(path, blob, { contentType, cacheControl: "31536000" });
 
   // Older QuestLife projects predate the dedicated collection-covers bucket.
   // Keep optional cover photos from blocking collection creation during rollout.
   if (error && /bucket not found/i.test(error.message)) {
     bucket = "quest-photos";
-    ({ error } = await supabase.storage.from(bucket).upload(path, blob, { contentType }));
+    ({ error } = await supabase.storage.from(bucket).upload(path, blob, { contentType, cacheControl: "31536000" }));
   }
   if (error) throw error;
 
