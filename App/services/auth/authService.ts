@@ -11,15 +11,21 @@ import { rememberEmail } from "@/services/auth/rememberedEmail";
 
 WebBrowser.maybeCompleteAuthSession();
 
-export const authRedirectTo = AuthSession.makeRedirectUri({
+const appAuthRedirectTo = AuthSession.makeRedirectUri({
   scheme: "questlife",
   path: "auth/callback",
 });
 
-export const resetPasswordRedirectTo = AuthSession.makeRedirectUri({
+const appResetPasswordRedirectTo = AuthSession.makeRedirectUri({
   scheme: "questlife",
   path: "reset-password",
 });
+
+// Email links first show a branded handoff page, then forward the one-time
+// code to the installed app. Keep OAuth app-first because it must complete in
+// the same native browser session.
+const emailAuthRedirectTo = "https://myquestlife.app/auth/callback";
+const emailResetPasswordRedirectTo = "https://myquestlife.app/auth/reset-password";
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -128,7 +134,7 @@ export async function sendEmailSignInLink(email: string) {
   const { error } = await supabase.auth.signInWithOtp({
     email: normalizeEmail(email),
     options: {
-      emailRedirectTo: authRedirectTo,
+      emailRedirectTo: emailAuthRedirectTo,
       shouldCreateUser: true,
     },
   });
@@ -184,7 +190,7 @@ export async function registerWithEmail(email: string, username: string, firstNa
         last_name: lastName.trim(),
         username: normalizedUsername,
       },
-      emailRedirectTo: authRedirectTo,
+      emailRedirectTo: emailAuthRedirectTo,
     },
   });
 
@@ -237,7 +243,7 @@ export async function resendSignupConfirmationLink(email: string) {
     email: normalizeEmail(email),
     type: "signup",
     options: {
-      emailRedirectTo: authRedirectTo,
+      emailRedirectTo: emailAuthRedirectTo,
     },
   });
 
@@ -255,7 +261,7 @@ export async function sendPasswordReset(email: string) {
   const { error } = await supabase.auth.resetPasswordForEmail(
     normalizeEmail(email),
     {
-      redirectTo: resetPasswordRedirectTo,
+      redirectTo: emailResetPasswordRedirectTo,
     },
   );
 
@@ -290,7 +296,7 @@ export async function openOAuth(provider: AuthProviderName) {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
-      redirectTo: authRedirectTo,
+      redirectTo: appAuthRedirectTo,
       skipBrowserRedirect: true,
     },
   });
@@ -299,7 +305,7 @@ export async function openOAuth(provider: AuthProviderName) {
     throw error;
   }
 
-  const result = await WebBrowser.openAuthSessionAsync(data.url, authRedirectTo);
+  const result = await WebBrowser.openAuthSessionAsync(data.url, appAuthRedirectTo);
   if (result.type !== "success") {
     return;
   }

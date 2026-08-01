@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <meta name="theme-color" content="#fffcf5">
+    <title>Reset your password · QuestLife</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-hidden="true">↗</div>
+      <p class="eyebrow">QuestLife account</p>
+      <h1>Choose a new password.</h1>
+      <p>Open QuestLife to securely set a new password for your account.</p>
+      <a id="open-app" class="open-app" href="questlife://reset-password" aria-disabled="true">Open QuestLife</a>
+      <p id="help" class="help">Preparing your secure reset…</p>
+      <footer>QuestLife</footer>
+    </main>
+    <script>
+      (() => {
+        const code = new URLSearchParams(window.location.search).get("code");
+        const button = document.getElementById("open-app");
+        const help = document.getElementById("help");
+
+        if (!code) {
+          help.textContent = "This reset link is incomplete or has already been used. Return to QuestLife and request a new password reset email.";
+          help.classList.add("error");
+          return;
+        }
+
+        button.href = `questlife://reset-password?code=${encodeURIComponent(code)}`;
+        button.setAttribute("aria-disabled", "false");
+        help.textContent = "If the app does not open, launch QuestLife on your phone and request a new reset link.";
+        window.history.replaceState({}, document.title, window.location.pathname);
+      })();
+    </script>
+  </body>
+</html>
