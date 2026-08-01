@@ -7,22 +7,23 @@ contains no credentials or secret values.
 
 ## Repository
 
-- Repository: `QuestLifeTM/questlife`
+- Repository: `QuestLifeTM/questlife` (public by deliberate free-plan choice)
 - Default branch: `main`
 - Current local branch for the company-release foundation work:
   `codex/company-release-foundation`
 - Automated check: the repository runs mobile and admin TypeScript checks on pull
   requests and pushes to `main`.
 
-### Required owner action
+`main` is protected: changes must come through a pull request and pass the
+**typecheck** workflow; force pushes and branch deletion are disabled.
 
-The repository is public and `main` has no GitHub branch-protection rule. Before
-inviting collaborators or beginning external testing, an organization owner must:
+### Free-plan tradeoff
 
-1. Decide whether the repository should be private. A private repository is the
-   recommended setting for QuestLife application and backend source code.
-2. Protect `main`: require a pull request and the **Typecheck** GitHub check; block
-   force pushes and direct pushes.
+The repository remains public so Vercel Hobby can deploy the GitHub organization
+repository. Never commit secrets, user exports, production database dumps, private
+documents, signing certificates, or unpublished business information. When the
+company is ready to pay for hosting and source-control plans, move the repository
+back to private and use GitHub Team plus Vercel Pro.
 
 ## Vercel
 
