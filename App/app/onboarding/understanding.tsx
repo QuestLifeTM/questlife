@@ -103,16 +103,17 @@ export default function UnderstandingOnboardingScreen() {
   const stage = startsAtQuest ? "quest" : "intro";
   const [transitioning, setTransitioning] = useState(false);
   const [previewMode, setPreviewMode] = useState<"quest" | "active">("quest");
-  const [previewAreaTop, setPreviewAreaTop] = useState(0);
-  const [phoneTop, setPhoneTop] = useState(0);
   const introOpacity = useRef(new Animated.Value(startsAtQuest ? 0 : 1)).current;
   const questOpacity = useRef(new Animated.Value(startsAtQuest ? 1 : 0)).current;
   const questCopyOpacity = useRef(new Animated.Value(1)).current;
   const questPreviewOpacity = useRef(new Animated.Value(1)).current;
   const activePreviewOpacity = useRef(new Animated.Value(0)).current;
-  const phoneZoom = useRef(new Animated.Value(1)).current;
-  const phoneLift = useRef(new Animated.Value(0)).current;
   const loaderOpacity = useRef(new Animated.Value(0)).current;
+  const loaderTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (loaderTimer.current) clearTimeout(loaderTimer.current);
+  }, []);
 
   async function startDemoQuest() {
     if (transitioning) return;
@@ -126,10 +127,21 @@ export default function UnderstandingOnboardingScreen() {
       return;
     }
 
-    const openDemo = () => router.replace({ pathname: "/onboarding/demo-active-quest", params: firstName ? { firstName } : {} });
+    // This is an intentional new tutorial run, even if an old guest session
+    // still has a completion marker from a previous attempt.
+    const openDemo = () => router.replace({ pathname: "/onboarding/demo-active-quest", params: { ...(firstName ? { firstName } : {}), runTutorial: "true" } });
+    const showLoaderThenTutorial = (delay = 0) => {
+      Animated.timing(loaderOpacity, { toValue: 1, duration: reduceMotion ? 0 : 360, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(({ finished }) => {
+        if (!finished) return;
+        // The loader is deliberately a fixed four-second bridge after it is
+        // fully visible, independent of the guest quest's readiness.
+        loaderTimer.current = setTimeout(openDemo, 4_000);
+      });
+    };
     if (reduceMotion) {
       setPreviewMode("active");
-      openDemo();
+      activePreviewOpacity.setValue(1);
+      showLoaderThenTutorial();
       return;
     }
 
@@ -141,20 +153,9 @@ export default function UnderstandingOnboardingScreen() {
       setPreviewMode("active");
       Animated.timing(activePreviewOpacity, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(({ finished: activePreviewFinished }) => {
         if (!activePreviewFinished) return;
-        const targetScale = Math.max(width / mockupWidth, height / phoneHeight) * 1.025;
-        const currentCenter = previewAreaTop + phoneTop + phoneHeight / 2;
-        const lift = height / 2 - currentCenter;
-        Animated.parallel([
-          Animated.timing(phoneZoom, { toValue: targetScale, duration: 1_100, easing: Easing.out(Easing.exp), useNativeDriver: true }),
-          Animated.timing(phoneLift, { toValue: lift, duration: 1_100, easing: Easing.out(Easing.exp), useNativeDriver: true }),
-          Animated.timing(loaderOpacity, { toValue: 1, duration: 360, delay: 720, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        ]).start(({ finished: expanded }) => {
-          if (!expanded) return;
-          // Keep the blue bridge visible for a consistent four seconds. This
-          // gives the local quest store and map lifecycle time to settle
-          // without revealing a half-ready active-quest screen.
-          setTimeout(openDemo, 4_000);
-        });
+        // Keep the active quest inside the physical phone preview. The blue
+        // loading bridge begins only after the user has seen that state.
+        showLoaderThenTutorial(600);
       });
     });
   }
@@ -185,8 +186,8 @@ export default function UnderstandingOnboardingScreen() {
           <Text selectable adjustsFontSizeToFit minimumFontScale={0.75} numberOfLines={2} maxFontSizeMultiplier={1.15} style={[styles.questStageTitle, { fontSize: clamp(contentWidth * 0.061, 20, 23), lineHeight: clamp(contentWidth * 0.07, 25, 28) }]}>You know what!{"\n"}Lets Treat this as your <Text style={styles.questStageTitleAccent}>FIRST</Text> Quest</Text>
           <Text selectable style={styles.questStageBody}>Tap <Text style={styles.questStageBodyAccent}>Start Quest</Text> below to begin.</Text>
         </Animated.View>
-        <View onLayout={(event) => setPreviewAreaTop(event.nativeEvent.layout.y)} style={styles.previewArea}>
-          <Animated.View accessibilityLabel="Preview of your first QuestLife quest" pointerEvents={transitioning ? "none" : "auto"} onLayout={(event) => setPhoneTop(event.nativeEvent.layout.y)} style={[styles.phoneMockup, { width: mockupWidth, height: phoneHeight, zIndex: transitioning ? 2 : 0, transform: [{ translateY: phoneLift }, { scale: phoneZoom }] }]}>
+        <View style={styles.previewArea}>
+          <Animated.View accessibilityLabel="Preview of your first QuestLife quest" pointerEvents={transitioning ? "none" : "auto"} style={[styles.phoneMockup, { width: mockupWidth, height: phoneHeight, zIndex: transitioning ? 2 : 0 }]}>
             <View style={[styles.phoneScreen, { left: "7.02%", top: "4.4%", width: "85.6%", height: "90.85%", borderRadius: Math.round(mockupWidth * 0.085) }]}>
               <Animated.View style={[StyleSheet.absoluteFill, { opacity: questPreviewOpacity }]}>
               <View style={[styles.previewHeader, { gap: 7 * previewExpansion, paddingHorizontal: Math.max(12, Math.round(mockupWidth * 0.05)), paddingTop: Math.max(18, Math.round(phoneHeight * 0.064)), paddingBottom: 9 * previewExpansion }]}>

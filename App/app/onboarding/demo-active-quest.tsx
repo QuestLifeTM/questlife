@@ -105,7 +105,7 @@ function QuestPhonePreview({ width, height, onPress }: { width: number; height: 
 }
 
 export default function GuestActiveQuestOnboarding() {
-  const { firstName } = useLocalSearchParams<{ firstName?: string }>();
+  const { firstName, runTutorial } = useLocalSearchParams<{ firstName?: string; runTutorial?: string }>();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotionPreference();
@@ -154,9 +154,11 @@ export default function GuestActiveQuestOnboarding() {
   const phoneHeight = phoneWidth * (3407 / 1624);
 
   useEffect(() => {
-    if (!guestTutorialComplete || stage !== "guide") return;
+    // A Start Quest handoff explicitly asks to replay the tutorial. It must
+    // not be short-circuited by a stale completion marker from an old session.
+    if (runTutorial === "true" || !guestTutorialComplete || stage !== "guide") return;
     router.replace({ pathname: "/onboarding/questions-intro", params: firstName ? { firstName } : {} });
-  }, [firstName, guestTutorialComplete, stage]);
+  }, [firstName, guestTutorialComplete, runTutorial, stage]);
 
   useEffect(() => {
     if (stage !== "guide" || guideHasEntered.current) return;
