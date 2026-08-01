@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Asset } from "expo-asset";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Image, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, Mask, Rect } from "react-native-svg";
 
@@ -55,7 +56,7 @@ const guideContent = [
 
 const tutorialSampleNote = "I went to the park, and the sunset was beautiful. I felt really happy.";
 
-const tutorialMockPhotoUri = Image.resolveAssetSource(require("../../assets/onboarding/tutorial-mock-photo.jpg")).uri;
+const tutorialMockPhoto = Asset.fromModule(require("../../assets/onboarding/tutorial-mock-photo.jpg"));
 
 function spotlightFor(step: PhotoGuideStep, width: number, height: number, topInset: number, bottomInset: number) {
   const controlsBottom = Math.max(bottomInset + 10, 18);
@@ -190,10 +191,16 @@ export default function PhotoQuestTutorialScreen() {
     handoffTimer.current = setTimeout(finish, 720);
   };
 
-  const openMockPhoto = () => {
+  const openMockPhoto = async () => {
     haptic();
     setPhotoFlowOpen(true);
-    setMockPhotoUri(tutorialMockPhotoUri);
+    try {
+      const asset = await tutorialMockPhoto.downloadAsync();
+      if (!asset.localUri) throw new Error("Tutorial photo could not be downloaded.");
+      setMockPhotoUri(asset.localUri);
+    } catch {
+      setPhotoFlowOpen(false);
+    }
   };
 
   const deferQuickNote = () => {

@@ -40,7 +40,12 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
 
 ## Supabase Migrations
 
-Run these files in Supabase SQL editor in order:
+`supabase/migrations/` is the authoritative migration history for QuestLife. Apply
+new migrations through the Supabase CLI/deployment process in timestamp order; do not
+run a selection of files manually against production.
+
+The files below are the original admin-dashboard setup sequence. They remain useful
+historical reference only for an empty, legacy local database:
 
 ```text
 Database/migrations/001_create_profiles.sql
@@ -49,6 +54,9 @@ Database/migrations/003_create_quest_content.sql
 Database/migrations/004_add_quest_review_workflow.sql
 Database/migrations/005_admin_permissions_invites_inbox.sql
 ```
+
+For the full policy—including how to make a new migration and how to handle the
+legacy `Database/migrations/` folder—see [MIGRATION_POLICY.md](MIGRATION_POLICY.md).
 
 The third migration creates:
 

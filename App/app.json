@@ -46,7 +46,7 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.agentatom.questlife-native",
+      "bundleIdentifier": "com.questlife.app",
       "infoPlist": {
         "NSCameraUsageDescription": "QuestLife uses your camera to capture memories during an active quest and scan a friend's QR code.",
         "NSContactsUsageDescription": "QuestLife uses your contacts to help you find friends already on QuestLife.",
