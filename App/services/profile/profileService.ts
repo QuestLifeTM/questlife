@@ -2,6 +2,7 @@ import { Profile, ProfileEditInput, ProfileOverview, ProfilePrivacy, ProfileStat
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { toLocalDateKey } from "@/services/journal/journalService";
+import { compressFeedImage } from "@/services/media/feed-image";
 import { normalizeQuestCategory, questCategoryColors, type QuestCategory } from "@/types/content";
 
 export type WeeklyCompletedQuestActivity = { day: string; value: number };
@@ -293,11 +294,11 @@ async function uploadProfileImage(localUri: string) {
   if (userError) throw userError;
   if (!userData.user) throw new Error("No authenticated user.");
 
-  const response = await fetch(localUri);
+  const compressedUri = await compressFeedImage(localUri);
+  const response = await fetch(compressedUri);
   const body = await response.arrayBuffer();
-  const rawExtension = localUri.split(".").pop()?.split("?")[0]?.toLowerCase();
-  const extension = rawExtension === "png" || rawExtension === "webp" ? rawExtension : "jpg";
-  const contentType = extension === "png" ? "image/png" : extension === "webp" ? "image/webp" : "image/jpeg";
+  const extension = "jpg";
+  const contentType = "image/jpeg";
   const path = `${userData.user.id}/avatar-${Date.now()}.${extension}`;
 
   const { error } = await supabase.storage

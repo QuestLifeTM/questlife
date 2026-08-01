@@ -13,6 +13,17 @@ Protect `main` in GitHub by requiring a pull request and the **Typecheck** check
 Maintain independent development, staging, and production environment values in the
 relevant provider. Never copy production database data or secrets into development.
 
+### Local development rule
+
+Local `App/.env` and `Admin/.env` must point to the **development** Supabase project,
+never production. Before local development starts, copy the relevant `.env.example`
+file to `.env` and set it with the development project's public URL and publishable
+key. Keep production values only in the release provider's protected environment
+settings and on the release machine when a production build is intentionally made.
+
+Before building a TestFlight candidate, verify which Supabase project the build will
+use. TestFlight builds should use staging until the app is ready for production.
+
 | Product | Development | Staging/preview | Production |
 | --- | --- | --- | --- |
 | Mobile (`App/`) | local `.env`, EAS development build | EAS preview build | EAS production build |
