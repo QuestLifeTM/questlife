@@ -422,7 +422,7 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
   // prevents the user being trapped on this screen.
   const quest: Quest | null = loadedQuest ?? (session ? {
     id: session.questId,
-    title: isGuestQuest ? "Your First Quest" : "Your active quest",
+    title: isGuestQuest ? "Personalize your Quest" : "Your active quest",
     category: "ADVENTURE",
     xp: 0,
     description: "",

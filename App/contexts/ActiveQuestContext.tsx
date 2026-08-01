@@ -258,7 +258,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     await stopQuestLocationTracking();
     stopForegroundLocationWatch();
     if (isGuestSession) {
-      await finishGuestQuest({ title: "Your First Quest", durationSeconds: Math.round(snapshot.session.activeDurationMs / 1_000) });
+      await finishGuestQuest({ title: "Personalize your Quest", durationSeconds: Math.round(snapshot.session.activeDurationMs / 1_000) });
       setSnapshot(null);
       return;
     }
