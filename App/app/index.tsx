@@ -68,10 +68,7 @@ export default function OnboardingWelcomeScreen() {
     setNameSheetVisible(false);
     // Replace the welcome route with the next onboarding step so a previous
     // instance of the intro screen can never be resumed from the stack.
-    // Let people choose how they want to answer before entering the quest
-    // walkthrough. The old named preview is still used later in the flow,
-    // after the age question, for the actual quest introduction.
-    router.replace({ pathname: "/onboarding/questions-path", params: { firstName: normalizedFirstName } });
+    router.replace({ pathname: "/onboarding/understanding", params: { firstName: normalizedFirstName } });
   }
 
   if (!introComplete && introEnabled === null) {
