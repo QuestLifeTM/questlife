@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Animated, Easing, ImageBackground, StyleSheet, Text, View, type LayoutChangeEvent, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -84,15 +84,15 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
-function PhoneScreen({ phase, scale, width, height, journal }: { phase: Exclude<DemoPhase, "title">; scale: number; width: number; height: number; journal: JournalScreenPreview }) {
-  const content = phase === "explore" ? <ExploreScreen previewQuests={DEMO_QUESTS} previewAutoScroll />
+const PhoneScreen = memo(function PhoneScreen({ phase, scale, width, height, journal, exploreAutoScrollEnabled = true }: { phase: Exclude<DemoPhase, "title">; scale: number; width: number; height: number; journal: JournalScreenPreview; exploreAutoScrollEnabled?: boolean }) {
+  const content = phase === "explore" ? <ExploreScreen previewQuests={DEMO_QUESTS} previewAutoScroll previewAutoScrollEnabled={exploreAutoScrollEnabled} />
     : phase === "active" ? <ActiveQuestScreen preview previewQuest={DEMO_ACTIVE_QUEST} previewRoute={DEMO_ACTIVE_ROUTE} previewElapsedMs={4_200_000} />
       : <JournalScreen preview={journal} />;
 
   return <View pointerEvents="none" style={styles.previewClip}>
     <View style={[styles.previewCanvas, { width, height, transform: [{ scale }] }]}>{content}</View>
   </View>;
-}
+});
 
 export function UnderstandingDemo({ firstName }: { firstName: string }) {
   const { height, width } = useWindowDimensions();
@@ -100,6 +100,7 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   const reduceMotion = useReducedMotionPreference();
   const [phase, setPhase] = useState<DemoPhase>("title");
   const [showContinue, setShowContinue] = useState(false);
+  const [exploreAutoScrollEnabled, setExploreAutoScrollEnabled] = useState(true);
   const [showExplorePhone, setShowExplorePhone] = useState(true);
   const [showActivePhone, setShowActivePhone] = useState(false);
   const [subtitleBottom, setSubtitleBottom] = useState<number | null>(null);
@@ -190,6 +191,13 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   }
 
   function transitionToActive() {
+    // Stop the JavaScript-driven list updates before the heavy map preview
+    // mounts, leaving the transition frame budget for the phone movement.
+    setExploreAutoScrollEnabled(false);
+    schedule(beginExploreExit, reduceMotion ? 0 : 320);
+  }
+
+  function beginExploreExit() {
     setShowActivePhone(true);
     activePhoneX.setValue(phoneTravel);
     // Let the native map complete its first layout off-screen before it moves.
@@ -240,7 +248,7 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
     </Animated.View>
     <Animated.View pointerEvents="none" style={[styles.phoneArea, { opacity: phoneOpacity, transform: [{ translateY: phonePositionY }, { scale: phoneScale }] }]}>
       <Animated.View style={{ position: "relative", width: phoneWidth, height: phoneHeight, transform: [{ scale: phoneFrameScale }] }}>
-      {showExplorePhone ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: explorePhoneX }] }]}><Animated.View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085), opacity: screenOpacity }]}><PhoneScreen phase="explore" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></Animated.View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
+      {showExplorePhone ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: explorePhoneX }] }]}><Animated.View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085), opacity: screenOpacity }]}><PhoneScreen phase="explore" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} exploreAutoScrollEnabled={exploreAutoScrollEnabled} /></Animated.View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
       {showActivePhone ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: activePhoneX }] }]}><Animated.View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085), opacity: screenOpacity }]}><PhoneScreen phase="active" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></Animated.View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
       {phase === "journal" ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: journalPhoneX }] }]}><Animated.View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085), opacity: screenOpacity }]}><PhoneScreen phase="journal" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></Animated.View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
       </Animated.View>

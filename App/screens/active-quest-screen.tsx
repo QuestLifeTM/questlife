@@ -122,7 +122,7 @@ function ActiveQuestTabs({ active, onChange, accent, disabled = false }: { activ
   </View>;
 }
 
-const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoints = [], deviceLocation, liveLocation, trackingStatus, trackingMessage, notice, onEnableTracking, forceEnablePrompt = false, routePromptNudge = 0, showUserLocation = true }: { accent: string; route: ActiveQuestRoutePoint[]; renderSegments: ActiveQuestRenderableSegment[]; checkpoints?: ActiveQuestCheckpoint[]; deviceLocation: MapCoordinate | null; liveLocation: MapCoordinate | null; trackingStatus: "idle" | "tracking" | "permission-needed" | "unavailable"; trackingMessage: string | null; notice: QuestNotice | null; onEnableTracking: () => void; forceEnablePrompt?: boolean; routePromptNudge?: number; showUserLocation?: boolean }) {
+const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoints = [], deviceLocation, liveLocation, trackingStatus, trackingMessage, notice, onEnableTracking, forceEnablePrompt = false, routePromptNudge = 0, showUserLocation = true, animateInitialCamera = true }: { accent: string; route: ActiveQuestRoutePoint[]; renderSegments: ActiveQuestRenderableSegment[]; checkpoints?: ActiveQuestCheckpoint[]; deviceLocation: MapCoordinate | null; liveLocation: MapCoordinate | null; trackingStatus: "idle" | "tracking" | "permission-needed" | "unavailable"; trackingMessage: string | null; notice: QuestNotice | null; onEnableTracking: () => void; forceEnablePrompt?: boolean; routePromptNudge?: number; showUserLocation?: boolean; animateInitialCamera?: boolean }) {
   const map = useRef<MapView>(null);
   const [followingUser, setFollowingUser] = useState(true);
   const routeButtonNudge = useRef(new Animated.Value(0)).current;
@@ -136,8 +136,8 @@ const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoin
   const cameraRegion = region ? { ...region, latitude: region.latitude - region.latitudeDelta * 0.18 } : null;
 
   useEffect(() => {
-    if (cameraRegion && followingUser) map.current?.animateToRegion(cameraRegion, 450);
-  }, [cameraRegion?.latitude, cameraRegion?.longitude, followingUser]);
+    if (animateInitialCamera && cameraRegion && followingUser) map.current?.animateToRegion(cameraRegion, 450);
+  }, [animateInitialCamera, cameraRegion?.latitude, cameraRegion?.longitude, followingUser]);
 
   useEffect(() => {
     if (!routePromptNudge) return;
@@ -739,7 +739,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
       <View style={{ marginTop: 16 }}><ActiveQuestTabs active={tab} onChange={setTab} accent={accent} disabled={Boolean(onboarding?.locked)} /></View>
     </View>
     <View style={{ flex: 1 }}>
-      {tab === "map" ? isStartingQuest ? <QuestStartupSurface accent={accent} step={countdownStep} /> : <LiveMap accent={accent} route={renderedRoute} renderSegments={renderedSegments} deviceLocation={deviceLocation ?? (previewLocation ? { latitude: previewLocation.latitude, longitude: previewLocation.longitude } : null)} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={null} onEnableTracking={handleEnableRouteRecording} forceEnablePrompt={onboarding?.guideStep === "route"} routePromptNudge={onboarding?.routePromptNudge} showUserLocation={!preview} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} onManage={openPhotoManager} /> : <ActivityTimeline activity={snapshot?.activity ?? []} photos={snapshot?.photos ?? []} accent={accent} onManage={openActivityManager} focusLatest={Boolean(onboarding?.focusLatestActivity)} />}
+      {tab === "map" ? isStartingQuest ? <QuestStartupSurface accent={accent} step={countdownStep} /> : <LiveMap accent={accent} route={renderedRoute} renderSegments={renderedSegments} deviceLocation={deviceLocation ?? (previewLocation ? { latitude: previewLocation.latitude, longitude: previewLocation.longitude } : null)} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={null} onEnableTracking={handleEnableRouteRecording} forceEnablePrompt={onboarding?.guideStep === "route"} routePromptNudge={onboarding?.routePromptNudge} showUserLocation={!preview} animateInitialCamera={!preview} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} onManage={openPhotoManager} /> : <ActivityTimeline activity={snapshot?.activity ?? []} photos={snapshot?.photos ?? []} accent={accent} onManage={openActivityManager} focusLatest={Boolean(onboarding?.focusLatestActivity)} />}
     </View>
     {!countdownStep && photoSavedVisible ? <QuestNoticePill notice="photo-saved" accent={accent} message={trackingMessage} bottomOffset={Math.max(screenInsets.bottom + 98, 126)} /> : null}
     <FloatingQuestControls accent={accent} duration={duration} paused={paused} takingPhoto={takingPhoto} bottomInset={screenInsets.bottom} onTakePhoto={() => void takePhoto()} onQuickNote={() => setQuickNoteVisible(true)} onFinish={() => setCompleteVisible(true)} onTogglePaused={togglePaused} locked={Boolean(onboarding?.locked)} forcedOpen={Boolean(onboarding?.forceQuickActionsOpen) || onboarding?.allowPhotoCapture || onboarding?.allowQuickNote} allowQuickActions={Boolean(onboarding?.allowQuickActions)} allowPhotoCapture={Boolean(onboarding?.allowPhotoCapture)} allowQuickNote={Boolean(onboarding?.allowQuickNote)} showQuickActionsWhenPaused={Boolean(onboarding?.showQuickActionsWhenPaused)} onQuickActionsOpened={onboarding?.onQuickActionsOpened} onQuickNoteOpened={onboarding?.onQuickNoteOpened} />

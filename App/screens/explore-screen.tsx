@@ -263,7 +263,7 @@ function QuestFeedCard({ quest, onSave }: { quest: Quest; onSave: () => void }) 
 /** `previewQuests` is used by the onboarding phone preview; production keeps
  * reading the live content store.  Keeping this screen as the renderer means
  * the preview cannot drift from Explore's cards, header, or controls. */
-export function ExploreScreen({ previewQuests, previewAutoScroll = false }: { previewQuests?: Quest[]; previewAutoScroll?: boolean } = {}) {
+export function ExploreScreen({ previewQuests, previewAutoScroll = false, previewAutoScrollEnabled = true }: { previewQuests?: Quest[]; previewAutoScroll?: boolean; previewAutoScrollEnabled?: boolean } = {}) {
   const router = useRouter();
   const { contentWidth, horizontalPadding: sideGap, safeAreaOffset, insets } = useResponsiveScreenLayout();
   const { error, loading, quests, refresh } = useContent();
@@ -306,7 +306,7 @@ export function ExploreScreen({ previewQuests, previewAutoScroll = false }: { pr
   const { onScroll, scrollY } = useTopScrollBlur();
 
   useEffect(() => {
-    if (!previewAutoScroll || !feed.length) return;
+    if (!previewAutoScroll || !previewAutoScrollEnabled || !feed.length) return;
     const timer = setInterval(() => {
       const end = loopEndOffset.current;
       if (!end) return;
@@ -315,7 +315,7 @@ export function ExploreScreen({ previewQuests, previewAutoScroll = false }: { pr
       listRef.current?.scrollToOffset({ offset: loopOffset.current, animated: false });
     }, 16);
     return () => clearInterval(timer);
-  }, [feed.length, previewAutoScroll]);
+  }, [feed.length, previewAutoScroll, previewAutoScrollEnabled]);
 
   return (
     <Screen scroll={false} padded={false} ambientGlow={false} contentStyle={{ alignItems: "center", paddingTop: Math.max(insets.top - 12, 12) }}>
@@ -325,8 +325,8 @@ export function ExploreScreen({ previewQuests, previewAutoScroll = false }: { pr
         keyExtractor={(quest, index) => `${quest.id}-${index}`}
         style={{ width: "100%" }}
         contentContainerStyle={{ alignItems: "center", paddingBottom: 112 }}
-        initialNumToRender={previewAutoScroll ? displayFeed.length : 3}
-        maxToRenderPerBatch={previewAutoScroll ? displayFeed.length : 3}
+        initialNumToRender={previewAutoScroll ? 4 : 3}
+        maxToRenderPerBatch={previewAutoScroll ? 4 : 3}
         updateCellsBatchingPeriod={40}
         windowSize={5}
         removeClippedSubviews
