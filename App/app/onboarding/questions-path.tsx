@@ -13,11 +13,10 @@ export default function QuestionsPathScreen() {
   const { firstName } = useLocalSearchParams<{ firstName?: string }>();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
-  const displayName = firstName?.trim() || "Friend";
 
-  function continueToAge() {
+  function continueOnboarding() {
     haptic();
-    router.replace({ pathname: "/onboarding/age", params: firstName ? { firstName } : {} });
+    router.replace({ pathname: "/onboarding/understanding", params: firstName ? { firstName, stage: "quest" } : { stage: "quest" } });
   }
 
   return (
@@ -28,10 +27,10 @@ export default function QuestionsPathScreen() {
       </ImageBackground>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 190, height * 0.35), paddingBottom: Math.max(insets.bottom + 24, 34) }]}>
         <View style={styles.copy}>
-          <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={2} maxFontSizeMultiplier={1.15} style={styles.title}><Text style={styles.nameAccent}>{displayName}</Text>, answer these questions honestly</Text>
+          <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={2} maxFontSizeMultiplier={1.15} style={styles.title}>We <Text style={styles.needAccent}>need</Text> you to answer these questions honestly</Text>
           <Text style={styles.body}>Your answers help us recommend adventures and quests that are perfect for your journey.</Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Continue" onPress={continueToAge} style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Continue" onPress={continueOnboarding} style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}>
           <Text style={styles.primaryButtonText}>Continue</Text>
         </Pressable>
       </View>
@@ -44,7 +43,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: 20, justifyContent: "space-between", gap: 32 },
   copy: { gap: 20 },
   title: { maxWidth: 400, color: T.white, fontFamily: "RubikBlack", fontSize: 32, lineHeight: 39, letterSpacing: -0.5 },
-  nameAccent: { color: T.blue },
+  needAccent: { color: T.blue },
   body: { maxWidth: 350, color: "rgba(255,255,255,0.92)", fontFamily: "Rubik", fontSize: 17, lineHeight: 26 },
   primaryButton: { minHeight: 66, paddingHorizontal: 18, borderRadius: 20, backgroundColor: T.blue, borderBottomWidth: 6, borderBottomColor: "#258fd8", alignItems: "center", justifyContent: "center" },
   primaryButtonText: { color: T.white, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.15, textAlign: "center" },
