@@ -28,7 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>questlife</string>
-          <string>com.agentatom.questlife-native</string>
+          <string>com.questlife.app</string>
         </array>
       </dict>
     </array>
