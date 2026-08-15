@@ -161,16 +161,15 @@ export default function UnderstandingOnboardingScreen() {
     });
   }
 
-  function continueToAge() {
+  function continueOnboarding() {
     if (transitioning) return;
     setTransitioning(true);
     haptic();
-    router.replace({ pathname: "/onboarding/age", params: firstName ? { firstName } : {} });
+    router.replace({ pathname: "/onboarding/understanding", params: firstName ? { firstName, stage: "quest" } : { stage: "quest" } });
   }
 
-  // The named welcome state is a presentation-only walkthrough. Keep the
-  // established post-age `quest` state below intact, because it is the real
-  // onboarding tutorial that follows the age question.
+  // The named welcome state is a presentation-only walkthrough. The `quest`
+  // state below is the onboarding tutorial that follows it.
   if (!startsAtQuest) return <UnderstandingDemo firstName={displayName} />;
 
   return (
@@ -186,7 +185,7 @@ export default function UnderstandingOnboardingScreen() {
           </Text>
           <Text selectable adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={3} maxFontSizeMultiplier={1.15} style={styles.introBody}>A few quick questions will help us recommend quests you’ll love.</Text>
         </View>
-        <SoftButton label="Continue" color={T.blue} disabled={transitioning} onPress={continueToAge} style={styles.continueButton} />
+        <SoftButton label="Continue" color={T.blue} disabled={transitioning} onPress={continueOnboarding} style={styles.continueButton} />
       </Animated.View> : <Animated.View style={[styles.questStage, { paddingTop: insets.top + 26, paddingBottom: Math.max(insets.bottom + 8, 16), paddingHorizontal: horizontalPadding, opacity: questOpacity, transform: [{ translateY: questOpacity.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }]}>
         <Animated.View style={[styles.questCopyBlock, { opacity: questCopyOpacity }]}>
           <Text selectable adjustsFontSizeToFit minimumFontScale={0.75} numberOfLines={2} maxFontSizeMultiplier={1.15} style={[styles.questStageTitle, { fontSize: clamp(contentWidth * 0.067, 22, 25), lineHeight: clamp(contentWidth * 0.076, 26, 30) }]}>Let’s treat this as your <Text style={styles.questStageTitleAccent}>FIRST</Text> quest</Text>
