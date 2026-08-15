@@ -1,9 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Image, ImageSourcePropType, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { OnboardingActiveQuestDrawer } from "@/components/onboarding-active-quest-drawer";
 import { OnboardingQuestionProgress } from "@/components/onboarding-progress";
 import { T } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
@@ -104,11 +103,10 @@ const QUESTIONS: Question[] = [
 ];
 
 export default function FollowUpQuestionsOnboardingScreen() {
-  const { firstName, startAt, interactiveQuest } = useLocalSearchParams<{ firstName?: string; startAt?: string; interactiveQuest?: string }>();
+  const { firstName } = useLocalSearchParams<{ firstName?: string }>();
   const { insets, horizontalPadding } = useResponsiveScreenLayout();
-  const [questionIndex, setQuestionIndex] = useState(() => startAt === "life-obstacles" ? 1 : 0);
+  const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
-  const [photoPromptVisible, setPhotoPromptVisible] = useState(false);
   const question = QUESTIONS[questionIndex];
   const selectedIds = answers[question.id] ?? [];
   const canContinue = selectedIds.length > 0;
@@ -129,15 +127,11 @@ export default function FollowUpQuestionsOnboardingScreen() {
   function continueOnboarding() {
     if (!canContinue) return;
     haptic();
-    if (question.id === "life-now") {
-      setPhotoPromptVisible(true);
-      return;
-    }
     if (questionIndex < QUESTIONS.length - 1) {
       setQuestionIndex((current) => current + 1);
       return;
     }
-    router.replace({ pathname: "/(auth)/register", params: firstName ? { firstName } : {} });
+    router.replace({ pathname: "/onboarding/personalizing", params: firstName ? { firstName } : {} });
   }
 
   return (
@@ -180,20 +174,6 @@ export default function FollowUpQuestionsOnboardingScreen() {
           <Text style={styles.continueText}>Continue</Text>
         </Pressable>
       </View>
-      <OnboardingActiveQuestDrawer initiallyOpen={false} interactive={interactiveQuest === "true"} />
-      <Modal visible={photoPromptVisible} transparent animationType="fade" statusBarTranslucent onRequestClose={() => undefined}>
-        <View style={styles.photoPromptBackdrop}>
-          <View accessibilityViewIsModal style={styles.photoPromptCard}>
-            <View style={styles.photoPromptIcon}><Ionicons name="camera" size={26} color={T.blue} /></View>
-            <Text style={styles.photoPromptTitle}>It’s time to take a photo</Text>
-            <Text style={styles.photoPromptBody}>Photos help you remember your quest the way it felt.</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Let's take a photo" onPress={() => { haptic(); router.replace({ pathname: "/onboarding/photo-quest-tutorial", params: firstName ? { firstName } : {} }); }} style={({ pressed }) => [styles.photoPromptButton, pressed && styles.photoPromptButtonPressed]}>
-              <Ionicons name="camera" size={19} color={T.white} />
-              <Text style={styles.photoPromptButtonText}>Let’s take a photo</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -221,12 +201,4 @@ const styles = StyleSheet.create({
   continueButtonDisabled: { backgroundColor: T.border, borderBottomColor: "#d7cec2" },
   continueButtonPressed: { transform: [{ translateY: 3 }], borderBottomWidth: 3 },
   continueText: { color: T.white, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.55, textTransform: "uppercase" },
-  photoPromptBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(35,40,37,0.66)", padding: 24 },
-  photoPromptCard: { width: "100%", maxWidth: 360, alignItems: "center", gap: 10, borderRadius: 24, borderWidth: 3, borderColor: T.border, borderBottomWidth: 6, borderBottomColor: "#d7cec2", backgroundColor: T.white, padding: 22 },
-  photoPromptIcon: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: `${T.blue}16` },
-  photoPromptTitle: { color: T.dark, fontFamily: "RubikBlack", fontSize: 23, lineHeight: 28, textAlign: "center" },
-  photoPromptBody: { maxWidth: 276, color: T.muted, fontFamily: "Rubik", fontSize: 15, lineHeight: 21, fontWeight: "700", textAlign: "center" },
-  photoPromptButton: { alignSelf: "stretch", minHeight: 54, marginTop: 4, borderRadius: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: T.blue, borderBottomWidth: 5, borderBottomColor: "#258fd8" },
-  photoPromptButtonPressed: { transform: [{ translateY: 3 }], borderBottomWidth: 2 },
-  photoPromptButtonText: { color: T.white, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, fontWeight: "900" },
 });

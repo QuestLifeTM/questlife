@@ -5,7 +5,6 @@ import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, Vi
 
 import { T } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
-import { OnboardingActiveQuestDrawer } from "@/components/onboarding-active-quest-drawer";
 import { OnboardingQuestionProgress } from "@/components/onboarding-progress";
 
 type OnboardingOption = {
@@ -151,7 +150,6 @@ export default function QuestionsIntroScreen() {
           <Text style={styles.continueText}>Continue</Text>
         </Pressable>
       </View>
-      <OnboardingActiveQuestDrawer initiallyOpen={false} />
     </View>
   );
 }
