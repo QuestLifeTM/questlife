@@ -381,7 +381,7 @@ function ActiveQuestLoadingSkeleton() {
   return <View accessibilityRole="progressbar" accessibilityLabel="Loading active quest" style={{ flex: 1, backgroundColor: T.bg, paddingHorizontal: 20, paddingTop: 24, gap: 16 }}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: T.border }} /><View style={{ width: 112, height: 18, borderRadius: 9, backgroundColor: T.border }} /><View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: T.border }} /></View><View style={{ height: 128, borderRadius: 26, backgroundColor: `${T.blue}10`, gap: 12, padding: 20 }}><View style={{ width: "42%", height: 14, borderRadius: 7, backgroundColor: T.border }} /><View style={{ width: "78%", height: 27, borderRadius: 9, backgroundColor: T.border }} /><View style={{ width: "58%", height: 13, borderRadius: 7, backgroundColor: T.border }} /></View><View style={{ flexDirection: "row", gap: 10 }}><View style={{ flex: 1, height: 94, borderRadius: 22, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }} /><View style={{ flex: 1, height: 94, borderRadius: 22, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }} /></View><View style={{ flex: 1, borderRadius: 24, backgroundColor: T.white, borderWidth: 2, borderColor: T.border, padding: 16, gap: 12 }}><View style={{ width: "36%", height: 16, borderRadius: 8, backgroundColor: T.border }} /><View style={{ width: "100%", height: 12, borderRadius: 6, backgroundColor: T.border }} /><View style={{ width: "82%", height: 12, borderRadius: 6, backgroundColor: T.border }} /><View style={{ width: "67%", height: 12, borderRadius: 6, backgroundColor: T.border }} /></View><View style={{ height: 58, borderRadius: 20, backgroundColor: `${T.blue}26` }} /></View>;
 }
 
-export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: boolean; onboarding?: ActiveQuestOnboardingOptions }) {
+export function ActiveQuestScreen({ preview = false, onboarding, previewQuest }: { preview?: boolean; onboarding?: ActiveQuestOnboardingOptions; previewQuest?: Quest }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const screenInsets = preview ? PREVIEW_PHONE_INSETS : insets;
@@ -420,7 +420,7 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
   // not loaded yet, or the quest was subsequently unpublished. The completion
   // RPC uses the stable session quest ID, so a lightweight local fallback
   // prevents the user being trapped on this screen.
-  const quest: Quest | null = loadedQuest ?? (session ? {
+  const quest: Quest | null = previewQuest ?? loadedQuest ?? (session ? {
     id: session.questId,
     title: isGuestQuest ? "Personalize your Quest" : "Your active quest",
     category: "ADVENTURE",
@@ -568,7 +568,7 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
   // controls while the device-local snapshot finishes hydrating.
   if (activeQuestLoading && session && !preview && !onboarding) return <ActiveQuestLoadingSkeleton />;
 
-  if (!session || !quest) return <View style={{ flex: 1, paddingTop: screenInsets.top + 24, backgroundColor: T.bg }}><EmptyState emoji="🧭" title="No active quest" body="Start a solo quest from Explore to create its live home." /></View>;
+  if ((!session && !previewQuest) || !quest) return <View style={{ flex: 1, paddingTop: screenInsets.top + 24, backgroundColor: T.bg }}><EmptyState emoji="🧭" title="No active quest" body="Start a solo quest from Explore to create its live home." /></View>;
 
   const togglePaused = () => { void (paused ? resume() : pause()); };
   const enableRouteRecording = beginQuestRoute;

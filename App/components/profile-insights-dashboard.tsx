@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useMemo, useRef } from "react";
-import { Animated, Text, View } from "react-native";
+import { useEffect, useMemo } from "react";
+import { Text, View } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withDelay, withTiming } from "react-native-reanimated";
 
 import { categoryColor, difficultyColor, T } from "@/components/theme";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
@@ -8,29 +9,27 @@ import { ProfileQuestInsights } from "@/services/profile/profileService";
 
 function AnimatedFill({ value, color, delay = 0, active = true }: { value: number; color: string; delay?: number; active?: boolean }) {
   const reduceMotion = useReducedMotionPreference();
-  const progress = useRef(new Animated.Value(0)).current;
+  const progress = useSharedValue(reduceMotion || !active ? value : 0);
   useEffect(() => {
-    progress.setValue(reduceMotion ? value : 0);
+    progress.value = reduceMotion || !active ? value : 0;
     if (!active || reduceMotion) return;
-    const animation = Animated.timing(progress, { toValue: value, duration: 560, delay, useNativeDriver: false });
-    animation.start();
-    return () => animation.stop();
+    progress.value = withDelay(delay, withTiming(value, { duration: 560 }));
   }, [active, delay, progress, reduceMotion, value]);
-  return <Animated.View style={{ height: "100%", width: progress.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }), borderRadius: 99, backgroundColor: color }} />;
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scaleX: progress.value }] }));
+  return <Animated.View style={[{ position: "absolute", inset: 0, borderRadius: 99, backgroundColor: color, transformOrigin: "left center" }, animatedStyle]} />;
 }
 
 function AnimatedWeekBar({ value, max, delay, active = true }: { value: number; max: number; delay: number; active?: boolean }) {
   const reduceMotion = useReducedMotionPreference();
-  const progress = useRef(new Animated.Value(0)).current;
   const target = Math.max(0.07, value / max);
+  const progress = useSharedValue(reduceMotion || !active ? target : 0);
   useEffect(() => {
-    progress.setValue(reduceMotion ? target : 0);
+    progress.value = reduceMotion || !active ? target : 0;
     if (!active || reduceMotion) return;
-    const animation = Animated.timing(progress, { toValue: target, duration: 520, delay, useNativeDriver: false });
-    animation.start();
-    return () => animation.stop();
+    progress.value = withDelay(delay, withTiming(target, { duration: 520 }));
   }, [active, delay, progress, reduceMotion, target]);
-  return <Animated.View style={{ height: progress.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }), borderRadius: 12, backgroundColor: T.blue }} />;
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scaleY: progress.value }] }));
+  return <Animated.View style={[{ position: "absolute", inset: 0, borderRadius: 12, backgroundColor: T.blue, transformOrigin: "bottom center" }, animatedStyle]} />;
 }
 
 function InsightTile({ label, value, detail, icon, color }: { label: string; value: string; detail: string; icon: keyof typeof Ionicons.glyphMap; color: string }) {

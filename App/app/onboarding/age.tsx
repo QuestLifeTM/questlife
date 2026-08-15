@@ -23,8 +23,8 @@ export default function AgeOnboardingScreen() {
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
         <View style={styles.questionHeader}>
-          <Text style={styles.title}>How old are you?</Text>
-          <Text style={styles.helper}>Choose 1 option</Text>
+          <Text style={styles.title}>What’s your age range?</Text>
+          <Text style={styles.helper}>We’ll use this to match activities to <Text style={styles.helperAccent}>your interests</Text>.</Text>
         </View>
 
         <View style={styles.optionList}>
@@ -53,9 +53,10 @@ const styles = StyleSheet.create({
   content: { flex: 1 },
   // The extra top inset replaces the visual breathing room usually occupied by
   // the question-progress bar, without making age part of that progress flow.
-  questionHeader: { paddingTop: 44, paddingBottom: 14, gap: 4 },
+  questionHeader: { paddingTop: 12, paddingBottom: 14, gap: 4 },
   title: { maxWidth: 348, color: T.dark, fontFamily: "RubikBlack", fontSize: 23, lineHeight: 28, letterSpacing: -0.35 },
   helper: { color: T.muted, fontFamily: "RubikBold", fontSize: 13, lineHeight: 18 },
+  helperAccent: { color: T.blue },
   optionList: { gap: 9 },
   option: { minHeight: 58, paddingHorizontal: 14, borderRadius: 20, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, boxShadow: `4px 4px 0px ${T.border}`, flexDirection: "row", alignItems: "center", gap: 9 },
   optionSelected: { borderColor: T.blue, boxShadow: "4px 4px 0px #258fd8" },

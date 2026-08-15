@@ -15,7 +15,7 @@ export default function OnboardingWelcomeScreen() {
   const insets = useSafeAreaInsets();
   const [introComplete, setIntroComplete] = useState(false);
   const [introEnabled, setIntroEnabled] = useState<boolean | null>(null);
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
   const [nameSheetVisible, setNameSheetVisible] = useState(false);
   const welcomeOpacity = useRef(new Animated.Value(0)).current;
 
@@ -60,15 +60,15 @@ export default function OnboardingWelcomeScreen() {
     setNameSheetVisible(true);
   }
 
-  function continueWithName() {
-    const firstName = name.trim();
-    if (!firstName) return;
+  function continueWithFirstName() {
+    const normalizedFirstName = firstName.trim();
+    if (!normalizedFirstName) return;
 
     haptic();
     setNameSheetVisible(false);
     // Replace the welcome route with the next onboarding step so a previous
     // instance of the intro screen can never be resumed from the stack.
-    router.replace({ pathname: "/onboarding/understanding", params: { firstName } });
+    router.replace({ pathname: "/onboarding/understanding", params: { firstName: normalizedFirstName } });
   }
 
   if (!introComplete && introEnabled === null) {
@@ -90,7 +90,7 @@ export default function OnboardingWelcomeScreen() {
         />
       </Animated.View>
       <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom + 2, 10) }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Get started" onPress={getStarted} style={({ pressed }) => [styles.getStartedAction, pressed && styles.actionPressed]}><Text style={styles.getStartedActionText}>Get started</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Start my adventure" onPress={getStarted} style={({ pressed }) => [styles.getStartedAction, pressed && styles.actionPressed]}><Text style={styles.getStartedActionText}>Start my Adventure</Text></Pressable>
         <View style={styles.divider} />
         <Pressable accessibilityRole="button" accessibilityLabel="Sign in" onPress={signIn} style={({ pressed }) => ({ alignSelf: "center", minHeight: 34, justifyContent: "center", opacity: pressed ? 0.65 : 1 })}><Text style={styles.authPrompt}>Already have an account? <Text style={styles.signInText}>Sign In</Text></Text></Pressable>
       </View>
@@ -98,25 +98,26 @@ export default function OnboardingWelcomeScreen() {
         visible={nameSheetVisible}
         onClose={() => setNameSheetVisible(false)}
         maxHeight="64%"
+        expandOnKeyboard
       >
         <View style={styles.nameSheetContent}>
           <View>
-            <Text style={styles.nameSheetTitle}>Hi there!{`\n`}What should we call you?</Text>
+            <Text style={styles.nameSheetTitle}>What should we call you?</Text>
           </View>
           <TextInput
             autoCapitalize="words"
             autoComplete="given-name"
             autoFocus
-            onChangeText={setName}
-            onSubmitEditing={continueWithName}
-            placeholder="Your name"
+            onChangeText={setFirstName}
+            onSubmitEditing={continueWithFirstName}
+            placeholder="Your First name"
             placeholderTextColor={T.muted}
             returnKeyType="done"
             style={styles.nameInput}
             textContentType="givenName"
-            value={name}
+            value={firstName}
           />
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: !name.trim() }} disabled={!name.trim()} onPress={continueWithName} style={({ pressed }) => [styles.nameContinueButton, !name.trim() && styles.nameContinueButtonDisabled, pressed && name.trim() ? styles.nameContinueButtonPressed : null]}><Text style={styles.nameContinueButtonText}>Continue</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled: !firstName.trim() }} disabled={!firstName.trim()} onPress={continueWithFirstName} style={({ pressed }) => [styles.nameContinueButton, !firstName.trim() && styles.nameContinueButtonDisabled, pressed && firstName.trim() ? styles.nameContinueButtonPressed : null]}><Text style={styles.nameContinueButtonText}>Continue</Text></Pressable>
         </View>
       </Sheet>
     </View>

@@ -1,6 +1,8 @@
 import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState } from "react";
-import { Animated, PanResponder, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 
 import { T } from "@/components/theme";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
@@ -17,18 +19,14 @@ function clamp(value: number, minimum: number, maximum: number) {
 export function WeeklyFrequencySlider({ value, onChange }: { value: number; onChange: (days: number) => void }) {
   const reducedMotion = useReducedMotionPreference();
   const trackWidth = useRef(0);
+  const trackSize = useSharedValue(0);
   const valueRef = useRef(value);
   const previousValueRef = useRef(value);
-  const reducedMotionRef = useRef(reducedMotion);
-  const thumbX = useRef(new Animated.Value(0)).current;
-  const valueOffsetY = useRef(new Animated.Value(0)).current;
-  const valueOpacity = useRef(new Animated.Value(1)).current;
+  const thumbX = useSharedValue(0);
+  const valueOffsetY = useSharedValue(0);
+  const valueOpacity = useSharedValue(1);
   const [measured, setMeasured] = useState(false);
   const [displayedValue, setDisplayedValue] = useState(value);
-
-  useEffect(() => {
-    reducedMotionRef.current = reducedMotion;
-  }, [reducedMotion]);
 
   useEffect(() => {
     if (value === previousValueRef.current) return;
@@ -36,50 +34,48 @@ export function WeeklyFrequencySlider({ value, onChange }: { value: number; onCh
     previousValueRef.current = value;
     setDisplayedValue(value);
 
-    valueOffsetY.setValue(direction * 10);
-    valueOpacity.setValue(0);
-    Animated.parallel([
-      Animated.timing(valueOffsetY, { toValue: 0, duration: reducedMotion ? 0 : 180, useNativeDriver: true }),
-      Animated.timing(valueOpacity, { toValue: 1, duration: reducedMotion ? 0 : 150, useNativeDriver: true }),
-    ]).start();
+    valueOffsetY.value = direction * 10;
+    valueOpacity.value = 0;
+    valueOffsetY.value = reducedMotion ? 0 : withTiming(0, { duration: 180 });
+    valueOpacity.value = reducedMotion ? 1 : withTiming(1, { duration: 150 });
   }, [reducedMotion, value, valueOffsetY, valueOpacity]);
 
   useEffect(() => {
     valueRef.current = value;
     if (!measured) return;
     const nextX = ((value - MIN_DAYS) / (MAX_DAYS - MIN_DAYS)) * trackWidth.current;
-    // `thumbX` drives the fill's width as well as the thumb transform. Width is
-    // a layout property, so this animation must stay on the JS driver.
-    Animated.timing(thumbX, { toValue: nextX, duration: reducedMotion ? 0 : 180, useNativeDriver: false }).start();
+    thumbX.value = reducedMotion ? nextX : withTiming(nextX, { duration: 180 });
   }, [measured, reducedMotion, thumbX, value]);
 
-  function moveTo(locationX: number, animate = false) {
-    if (!trackWidth.current) return;
-    const x = clamp(locationX, 0, trackWidth.current);
-    const nextValue = clamp(Math.round((x / trackWidth.current) * (MAX_DAYS - MIN_DAYS)) + MIN_DAYS, MIN_DAYS, MAX_DAYS);
-    const snappedX = ((nextValue - MIN_DAYS) / (MAX_DAYS - MIN_DAYS)) * trackWidth.current;
-
+  function commitValue(nextValue: number) {
     if (nextValue !== valueRef.current) {
       valueRef.current = nextValue;
       if (isHapticFeedbackEnabled()) Haptics.selectionAsync().catch(() => {});
       onChange(nextValue);
     }
-
-    if (animate) {
-      Animated.spring(thumbX, { toValue: snappedX, stiffness: 360, damping: 32, mass: 0.85, useNativeDriver: false }).start();
-    } else {
-      thumbX.setValue(snappedX);
-    }
   }
 
-  const panResponder = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: (event) => moveTo(event.nativeEvent.locationX),
-    onPanResponderMove: (event) => moveTo(event.nativeEvent.locationX),
-    onPanResponderRelease: (event) => moveTo(event.nativeEvent.locationX, !reducedMotionRef.current),
-    onPanResponderTerminate: (event) => moveTo(event.nativeEvent.locationX, !reducedMotionRef.current),
-  })).current;
+  const moveThumb = (locationX: number, animate: boolean) => {
+    "worklet";
+    const width = trackSize.value;
+    if (!width) return;
+    const x = Math.min(Math.max(locationX, 0), width);
+    const nextValue = Math.min(Math.max(Math.round((x / width) * (MAX_DAYS - MIN_DAYS)) + MIN_DAYS, MIN_DAYS), MAX_DAYS);
+    const snappedX = ((nextValue - MIN_DAYS) / (MAX_DAYS - MIN_DAYS)) * width;
+    thumbX.value = animate && !reducedMotion
+      ? withSpring(snappedX, { stiffness: 360, damping: 32, mass: 0.85 })
+      : snappedX;
+    runOnJS(commitValue)(nextValue);
+  };
+
+  const panGesture = Gesture.Pan()
+    .onBegin((event) => moveThumb(event.x, false))
+    .onUpdate((event) => moveThumb(event.x, false))
+    .onEnd((event) => moveThumb(event.x, true));
+
+  const valueStyle = useAnimatedStyle(() => ({ opacity: valueOpacity.value, transform: [{ translateY: valueOffsetY.value }] }));
+  const fillStyle = useAnimatedStyle(() => ({ transform: [{ scaleX: trackSize.value ? thumbX.value / trackSize.value : 0 }] }));
+  const thumbStyle = useAnimatedStyle(() => ({ transform: [{ translateX: thumbX.value - THUMB_SIZE / 2 }] }));
 
   return (
     <View
@@ -95,24 +91,26 @@ export function WeeklyFrequencySlider({ value, onChange }: { value: number; onCh
     >
       <View style={styles.valueRow}>
         <Text style={styles.valuePrefix}>Every</Text>
-        <Animated.Text style={[styles.value, { opacity: valueOpacity, transform: [{ translateY: valueOffsetY }] }]}>{displayedValue}</Animated.Text>
+        <Animated.Text style={[styles.value, valueStyle]}>{displayedValue}</Animated.Text>
         <Text style={styles.valueUnit}>{value === 1 ? "day a week" : "days a week"}</Text>
       </View>
-      <View
-        {...panResponder.panHandlers}
-        onLayout={(event) => {
-          trackWidth.current = event.nativeEvent.layout.width;
-          setMeasured(true);
-        }}
-        style={styles.touchTarget}
-      >
-        <View style={styles.track} />
-        <Animated.View pointerEvents="none" style={[styles.fill, { width: thumbX }]} />
-        <Animated.View pointerEvents="none" style={[styles.thumb, { transform: [{ translateX: Animated.subtract(thumbX, THUMB_SIZE / 2) }] }]} />
-        <View pointerEvents="none" style={styles.tickRow}>
-          {Array.from({ length: MAX_DAYS }, (_, index) => <View key={index} style={styles.tick} />)}
+      <GestureDetector gesture={panGesture}>
+        <View
+          onLayout={(event) => {
+            trackWidth.current = event.nativeEvent.layout.width;
+            trackSize.value = event.nativeEvent.layout.width;
+            setMeasured(true);
+          }}
+          style={styles.touchTarget}
+        >
+          <View style={styles.track} />
+          <Animated.View pointerEvents="none" style={[styles.fill, fillStyle]} />
+          <Animated.View pointerEvents="none" style={[styles.thumb, thumbStyle]} />
+          <View pointerEvents="none" style={styles.tickRow}>
+            {Array.from({ length: MAX_DAYS }, (_, index) => <View key={index} style={styles.tick} />)}
+          </View>
         </View>
-      </View>
+      </GestureDetector>
       <View style={styles.labels}>
         {Array.from({ length: MAX_DAYS }, (_, index) => {
           const day = index + 1;
@@ -130,7 +128,7 @@ const styles = StyleSheet.create({
   valueUnit: { color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22 },
   touchTarget: { height: 64, justifyContent: "center" },
   track: { height: 8, borderRadius: 99, backgroundColor: "#d6d8dc" },
-  fill: { position: "absolute", left: 0, height: 8, borderRadius: 99, backgroundColor: T.blue },
+  fill: { position: "absolute", left: 0, right: 0, height: 8, borderRadius: 99, backgroundColor: T.blue, transformOrigin: "left center" },
   thumb: { position: "absolute", width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: THUMB_SIZE / 2, backgroundColor: T.white, borderWidth: 2, borderColor: T.blue, boxShadow: "0px 3px 0px #258fd8" },
   tickRow: { position: "absolute", left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   tick: { width: 3, height: 3, borderRadius: 2, backgroundColor: "#8c939d" },

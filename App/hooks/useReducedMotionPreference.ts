@@ -22,3 +22,8 @@ export function useReducedMotionPreference() {
 
   return deviceReducedMotion || settings.reduceMotion;
 }
+
+/** Compatibility shape for shared motion primitives. */
+export function useMotionPreferences() {
+  return { reducedMotion: useReducedMotionPreference() };
+}

@@ -64,7 +64,7 @@ function Stat({ label, value, icon, color, bordered }: { label: string; value: s
   return <View style={{ flex: 1, minWidth: 0, alignItems: "center", gap: 4, paddingHorizontal: 6, borderLeftWidth: bordered ? 1 : 0, borderLeftColor: T.border }}><View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>{icon ? <Ionicons name={icon} size={15} color={color} /> : null}<Text numberOfLines={1} style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>{value}</Text></View><Text numberOfLines={1} style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase" }}>{label}</Text></View>;
 }
 
-export function QuestDetailScreen({ id, onBack }: { id?: string; onBack: () => void }) {
+export function QuestDetailScreen({ id, onBack, previewQuest }: { id?: string; onBack: () => void; previewQuest?: Quest }) {
   const router = useRouter();
   const { horizontalPadding, insets } = useResponsiveScreenLayout();
   const edgePadding = { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding };
@@ -72,7 +72,7 @@ export function QuestDetailScreen({ id, onBack }: { id?: string; onBack: () => v
   const { engine, refresh, saveActiveForLater, userPacks } = useQuestEngine();
   const { openQuestSave } = useQuestSave();
   const { overview, shareQuestWith, challengeFriend } = useSocial();
-  const quest = getQuest(id);
+  const quest = previewQuest ?? getQuest(id);
   const { tryStart, block, clearBlock, starting } = useQuestStart(getQuest);
   const [reviews, setReviews] = useState<QuestReviewData | null>(null);
   const [shareVisible, setShareVisible] = useState(false);
@@ -82,9 +82,9 @@ export function QuestDetailScreen({ id, onBack }: { id?: string; onBack: () => v
   const hasOtherActive = Boolean(engine?.activeSession && !isActive);
 
   useEffect(() => {
-    if (!quest?.id) return;
+    if (previewQuest || !quest?.id) return;
     fetchQuestReviews(quest.id).then(setReviews).catch(() => setReviews({ summary: { averageRating: null, ratingCount: 0 }, reviews: [] }));
-  }, [quest?.id]);
+  }, [previewQuest, quest?.id]);
 
   if (!quest) return <Screen><IconButton icon="chevron-back" onPress={onBack} /><EmptyState emoji={loading ? "⏳" : "🔍"} title={loading ? "Loading quest" : "Quest unavailable"} body={loading ? "Finding the latest quest details." : "This quest may be unpublished, archived, or unavailable."} /></Screen>;
 

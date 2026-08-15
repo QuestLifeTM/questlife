@@ -61,7 +61,7 @@ export function ContentProvider({ children }: PropsWithChildren) {
             return catalog.map((quest) => ({ ...quest, ...userStateByQuestId.get(quest.id) }));
           });
         } else {
-          const content = await fetchContentLibrary();
+          const content = await fetchContentLibrary({ userId });
           setQuests(content.quests);
         }
       } catch (nextError) {

@@ -1,4 +1,4 @@
-import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -45,11 +45,13 @@ function toMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-export function StreaksProvider({ children }: PropsWithChildren) {
+export function StreaksProvider({ children, enabled = true }: PropsWithChildren<{ enabled?: boolean }>) {
   const { isConfigured, session } = useAuth();
   const [overview, setOverview] = useState<StreakOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const requestIdRef = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!isConfigured || !session) {
@@ -57,21 +59,27 @@ export function StreaksProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      setOverview(await fetchStreakOverview());
-    } catch (nextError) {
-      setError(toMessage(nextError, "Unable to load your streaks."));
-    } finally {
-      setLoading(false);
-    }
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+    const requestId = ++requestIdRef.current;
+    const request = (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const nextOverview = await fetchStreakOverview();
+        if (requestId === requestIdRef.current) setOverview(nextOverview);
+      } catch (nextError) {
+        if (requestId === requestIdRef.current) setError(toMessage(nextError, "Unable to load your streaks."));
+      } finally {
+        if (requestId === requestIdRef.current) setLoading(false);
+      }
+    })();
+    refreshInFlightRef.current = request;
+    try { await request; } finally { if (refreshInFlightRef.current === request) refreshInFlightRef.current = null; }
   }, [isConfigured, session]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (enabled) void refresh();
+  }, [enabled, refresh]);
 
   const setVisibility = useCallback(
     async (visibility: StreakVisibility) => {

@@ -6,12 +6,13 @@ import * as Sharing from "expo-sharing";
 import { useRouter } from "expo-router";
 import QRCode from "react-native-qrcode-svg";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Platform, Pressable, ScrollView, Share, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, Share, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, EmptyState, haptic, Header, IconButton, Screen, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { T } from "@/components/theme";
 import { useSocial } from "@/contexts/SocialContext";
+import { MotionPulse } from "@/motion/primitives";
 import { fetchFriendSuggestions, findProfilesByContactEmails } from "@/services/social/socialService";
 import { ProfileSearchResult } from "@/types/social";
 
@@ -25,16 +26,7 @@ function DiscoveryTabButton({ tab, active, icon, label, onPress }: { tab: Discov
 }
 
 function LoadingBlock({ width, height, radius = 8 }: { width: number | `${number}%`; height: number; radius?: number }) {
-  const opacity = useRef(new Animated.Value(0.42)).current;
-  useEffect(() => {
-    const animation = Animated.loop(Animated.sequence([
-      Animated.timing(opacity, { toValue: 0.8, duration: 720, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 0.42, duration: 720, useNativeDriver: true }),
-    ]));
-    animation.start();
-    return () => animation.stop();
-  }, [opacity]);
-  return <Animated.View accessibilityRole="progressbar" style={{ width, height, borderRadius: radius, backgroundColor: "#dfe7ed", opacity }} />;
+  return <MotionPulse accessibilityRole="progressbar" maximumOpacity={0.8} style={{ width, height, borderRadius: radius, backgroundColor: "#dfe7ed" }} />;
 }
 
 function PeopleLoadingSkeleton({ rows = 3 }: { rows?: number }) {

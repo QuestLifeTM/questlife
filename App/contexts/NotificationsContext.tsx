@@ -1,4 +1,4 @@
-import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { ensureEngagementNotifications, fetchAppNotifications, markAppNotificationsRead, markJournalNotificationsRead } from "@/services/notifications/notificationService";
@@ -27,35 +27,44 @@ const NotificationsContext = createContext<NotificationsContextValue>({
   markJournalRead: async () => undefined,
 });
 
-export function NotificationsProvider({ children }: PropsWithChildren) {
+export function NotificationsProvider({ children, enabled = true }: PropsWithChildren<{ enabled?: boolean }>) {
   const { isConfigured, session } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const requestIdRef = useRef(0);
 
   const refreshNotifications = useCallback(async () => {
     if (!isConfigured || !session) {
       setNotifications([]);
       return;
     }
-    setLoading(true);
-    setError(null);
-    try {
-      await ensureEngagementNotifications();
-      setNotifications(await fetchAppNotifications());
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to load notifications.");
-    } finally {
-      setLoading(false);
-    }
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+    const requestId = ++requestIdRef.current;
+    const request = (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        await ensureEngagementNotifications();
+        const nextNotifications = await fetchAppNotifications();
+        if (requestId === requestIdRef.current) setNotifications(nextNotifications);
+      } catch (nextError) {
+        if (requestId === requestIdRef.current) setError(nextError instanceof Error ? nextError.message : "Unable to load notifications.");
+      } finally {
+        if (requestId === requestIdRef.current) setLoading(false);
+      }
+    })();
+    refreshInFlightRef.current = request;
+    try { await request; } finally { if (refreshInFlightRef.current === request) refreshInFlightRef.current = null; }
   }, [isConfigured, session]);
 
   useEffect(() => {
-    void refreshNotifications();
-  }, [refreshNotifications]);
+    if (enabled) void refreshNotifications();
+  }, [enabled, refreshNotifications]);
 
   useEffect(() => {
-    if (!isConfigured || !session) return;
+    if (!enabled || !isConfigured || !session) return;
     const channel = supabase
       .channel(`app-notifications:${session.user.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "app_notifications", filter: `user_id=eq.${session.user.id}` }, () => {
@@ -67,7 +76,7 @@ export function NotificationsProvider({ children }: PropsWithChildren) {
       clearInterval(interval);
       void supabase.removeChannel(channel);
     };
-  }, [isConfigured, refreshNotifications, session]);
+  }, [enabled, isConfigured, refreshNotifications, session]);
 
   const markRead = useCallback(async (ids: string[]) => {
     await markAppNotificationsRead(ids);

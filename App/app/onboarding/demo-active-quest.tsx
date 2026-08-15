@@ -20,9 +20,10 @@ const REFERENCE_WIDTH = 390;
 const REFERENCE_HEIGHT = 844;
 const GUIDE_EXIT_DURATION_MS = 220;
 const GUIDE_ENTER_DURATION_MS = 520;
-const GUIDE_TRANSITION_TIMEOUT_MS = GUIDE_EXIT_DURATION_MS + GUIDE_ENTER_DURATION_MS + 260;
+const GUIDE_EXIT_FALLBACK_MS = GUIDE_EXIT_DURATION_MS + 80;
+const GUIDE_ENTER_FALLBACK_MS = GUIDE_ENTER_DURATION_MS + 180;
 
-type GuideStep = 0 | 1 | 2 | 3 | 4;
+type GuideStep = 0 | 1 | 2 | 3;
 type Stage = "guide" | "countdown" | "started" | "handoff" | "parked";
 
 function traceGuide(event: string, details: Record<string, unknown>) {
@@ -33,7 +34,6 @@ const guideContent: Array<{ title: string; body: string; action?: string }> = [
   { title: "Your active quest", body: "Every quest you start lives here." },
   { title: "Map your moments", body: "Turn on route recording to map the places you explore.", action: "Enable route recording" },
   { title: "See the whole story", body: "Map leads the way. Memories and Activity fill as you go." },
-  { title: "Everything within reach", body: "Time stays here. Pause anytime. + holds notes, photos, and your finish line." },
   { title: "Ready when you are", body: "Let’s start your quest." },
 ];
 
@@ -45,7 +45,6 @@ function spotlightFor(step: GuideStep, width: number, height: number, topInset: 
   // Mirrors ActiveQuestTabs: 20px side gutters, 5px inner padding, and a
   // 60px control height. Keeping this tight prevents map content leaking in.
   if (step === 2) return { x: 12, y: topInset + 66, width: width - 24, height: 80 };
-  if (step === 3) return { x: 14, y: height - bottomInset - 92, width: width - 28, height: 96 };
   return { x: 14, y: topInset + 104, width: width - 28, height: 120 };
 }
 
@@ -53,13 +52,13 @@ function GuideOverlay({ step, onNext, onStart, onRouteHintPress, width, height, 
   const target = spotlightFor(step, width, height, topInset, bottomInset);
   const showActionHint = step === 1;
   const isIntroduction = step === 0;
-  const isFinalStep = step === 4;
+  const isFinalStep = step === 3;
   const isRouteStep = step === 1;
   const spotlightRadius = step === 1 ? 0 : 22;
   const maskId = `guest-guide-spotlight-${step}`;
   // Keep the permission CTA in the lower half of the map completely clear.
-  const cardTop = step === 1 ? Math.max(topInset + 12, 24) : step === 3 ? Math.max(topInset + 212, height - bottomInset - 340) : undefined;
-  const cardBottom = step === 1 || step === 3 ? undefined : isIntroduction ? Math.max(bottomInset, 8) : Math.max(bottomInset + 118, 132);
+  const cardTop = step === 1 ? Math.max(topInset + 12, 24) : undefined;
+  const cardBottom = step === 1 ? undefined : isIntroduction ? Math.max(bottomInset, 8) : Math.max(bottomInset + 118, 132);
   const finalCardTop = Math.round(height / 2 - 104);
   const content = guideContent[step];
 
@@ -84,7 +83,7 @@ function GuideOverlay({ step, onNext, onStart, onRouteHintPress, width, height, 
       <View style={styles.guideProgress}><Text style={styles.guideProgressText}>{step + 1} of {guideContent.length}</Text><View style={styles.guideProgressDots}>{guideContent.map((_, index) => <View key={index} style={[styles.guideDot, index <= step && styles.guideDotActive]} />)}</View></View>
       <Text style={styles.guideTitle}>{content.title}</Text>
       <Text style={styles.guideBody}>{content.body}</Text>
-      {showActionHint ? <Pressable accessibilityRole="button" accessibilityState={{ disabled: transitioning }} disabled={transitioning} accessibilityLabel="Show the route recording button" onPress={() => { haptic(); onRouteHintPress(); }} style={({ pressed }) => [styles.guideActionHint, transitioning && styles.guideActionDisabled, pressed && styles.guideActionHintPressed]}><Ionicons name="arrow-down" size={16} color={T.blue} /><Text style={styles.guideActionHintText}>Tap Enable route recording</Text></Pressable> : <Pressable accessibilityRole="button" accessibilityState={{ disabled: transitioning }} disabled={transitioning} accessibilityLabel={step === 4 ? "Start quest" : "Next tutorial step"} onPress={() => step === 4 ? onStart() : onNext()} style={({ pressed }) => [styles.guideNextButton, transitioning && styles.guideActionDisabled, pressed && !transitioning && styles.guideNextButtonPressed]}><Text style={styles.guideNextText}>{step === 4 ? "Start quest" : "Next"}</Text><Ionicons name={step === 4 ? "play" : "arrow-forward"} size={18} color={T.white} /></Pressable>}
+      {showActionHint ? <Pressable accessibilityRole="button" accessibilityState={{ disabled: transitioning }} disabled={transitioning} accessibilityLabel="Show the route recording button" onPress={() => { haptic(); onRouteHintPress(); }} style={({ pressed }) => [styles.guideActionHint, transitioning && styles.guideActionDisabled, pressed && styles.guideActionHintPressed]}><Ionicons name="arrow-down" size={16} color={T.blue} /><Text style={styles.guideActionHintText}>Tap Enable route recording</Text></Pressable> : <Pressable accessibilityRole="button" accessibilityState={{ disabled: transitioning }} disabled={transitioning} accessibilityLabel={isFinalStep ? "Start quest" : "Next tutorial step"} onPress={() => isFinalStep ? onStart() : onNext()} style={({ pressed }) => [styles.guideNextButton, transitioning && styles.guideActionDisabled, pressed && !transitioning && styles.guideNextButtonPressed]}><Text style={styles.guideNextText}>{isFinalStep ? "Start quest" : "Next"}</Text><Ionicons name={isFinalStep ? "play" : "arrow-forward"} size={18} color={T.white} /></Pressable>}
     </Animated.View>
   </View>;
 }
@@ -252,6 +251,8 @@ export default function GuestActiveQuestOnboarding() {
     playHaptic("selection");
     const transitionId = guideTransitionId.current + 1;
     guideTransitionId.current = transitionId;
+    let enteredNextStep = false;
+    let transitionSettled = false;
     traceGuide("guide-transition-start", { from: guideStep + 1, to: nextStep + 1, transitionId });
     if (reduceMotion) {
       setGuideStep(nextStep);
@@ -263,9 +264,16 @@ export default function GuestActiveQuestOnboarding() {
     const currentSpotlight = spotlightFor(guideStep, width, height, insets.top, insets.bottom);
     const nextSpotlight = spotlightFor(nextStep, width, height, insets.top, insets.bottom);
     const settle = (reason: "animation" | "fallback") => {
-      if (guideTransitionId.current !== transitionId) return;
-      if (guideAdvanceTimer.current) clearTimeout(guideAdvanceTimer.current);
-      if (guideSettleTimer.current) clearTimeout(guideSettleTimer.current);
+      if (guideTransitionId.current !== transitionId || transitionSettled) return;
+      transitionSettled = true;
+      if (guideAdvanceTimer.current) {
+        clearTimeout(guideAdvanceTimer.current);
+        guideAdvanceTimer.current = null;
+      }
+      if (guideSettleTimer.current) {
+        clearTimeout(guideSettleTimer.current);
+        guideSettleTimer.current = null;
+      }
       guideCardOpacity.stopAnimation();
       guideCardTranslateY.stopAnimation();
       guideOverlayOpacity.stopAnimation();
@@ -282,8 +290,12 @@ export default function GuestActiveQuestOnboarding() {
       traceGuide("guide-transition-complete", { step: nextStep + 1, transitionId, reason });
     };
     const enterNextStep = () => {
-      if (guideTransitionId.current !== transitionId) return;
-      if (guideAdvanceTimer.current) clearTimeout(guideAdvanceTimer.current);
+      if (guideTransitionId.current !== transitionId || enteredNextStep) return;
+      enteredNextStep = true;
+      if (guideAdvanceTimer.current) {
+        clearTimeout(guideAdvanceTimer.current);
+        guideAdvanceTimer.current = null;
+      }
       setGuideStep(nextStep);
       guideCardOpacity.setValue(0.16);
       guideCardTranslateY.setValue(30);
@@ -301,6 +313,9 @@ export default function GuestActiveQuestOnboarding() {
       ]).start(({ finished }) => {
         if (finished) settle("animation");
       });
+      // Recover only an interrupted entrance. This timer starts after the
+      // next card is active, so it cannot hold the guide in its exit state.
+      guideSettleTimer.current = setTimeout(() => settle("fallback"), GUIDE_ENTER_FALLBACK_MS);
     };
 
     Animated.parallel([
@@ -310,11 +325,9 @@ export default function GuestActiveQuestOnboarding() {
     ]).start(({ finished }) => {
       if (finished) enterNextStep();
     });
-    // Animation callbacks are not guaranteed when the app is interrupted.
-    // Advance and settle independently so the guide cannot remain translucent
-    // or leave its primary action disabled.
-    guideAdvanceTimer.current = setTimeout(enterNextStep, GUIDE_EXIT_DURATION_MS + 40);
-    guideSettleTimer.current = setTimeout(() => settle("fallback"), GUIDE_TRANSITION_TIMEOUT_MS);
+    // Native exit callbacks can be interrupted. The fallback only advances
+    // the card; entrance completion is handled separately above.
+    guideAdvanceTimer.current = setTimeout(enterNextStep, GUIDE_EXIT_FALLBACK_MS);
   }, [guideCardOpacity, guideCardTranslateY, guideOverlayOpacity, guideStep, guideTransitioning, height, insets.bottom, insets.top, reduceMotion, spotlightScale, spotlightTranslateX, spotlightTranslateY, width]);
 
   const finishHandoff = useCallback(() => {
@@ -369,7 +382,7 @@ export default function GuestActiveQuestOnboarding() {
     }, 2_400);
   }, [hintOpacity]);
 
-  const screenGuideStep = stage === "guide" ? (["overview", "route", "tabs", "controls", "final"] as const)[guideStep] : undefined;
+  const screenGuideStep = stage === "guide" ? (["overview", "route", "tabs", "final"] as const)[guideStep] : undefined;
   const isGuiding = stage === "guide";
 
   return <View style={styles.root}>
@@ -383,7 +396,7 @@ export default function GuestActiveQuestOnboarding() {
       {previewHintVisible ? <Animated.View pointerEvents="none" style={[styles.previewHint, { opacity: hintOpacity }]}><Ionicons name="sparkles" size={16} color={T.blue} /><Text style={styles.previewHintText}>Don’t worry—we’ll explore each feature as you go.</Text></Animated.View> : null}
     </View> : <Animated.View style={[StyleSheet.absoluteFill, { opacity: screenOpacity, transform: [{ translateX: screenX }, { translateY: screenY }, { scale: screenScale }] }]}>
       <ActiveQuestScreen onboarding={{ locked: true, hideExit: true, holdCountdown: true, guideStep: screenGuideStep, routePromptNudge: routeHintNudge, onRouteRecordingRequested: () => transitionGuide(2) }} />
-      {isGuiding ? <GuideOverlay step={guideStep} onNext={() => transitionGuide(Math.min(4, guideStep + 1) as GuideStep)} onStart={startQuest} onRouteHintPress={() => setRouteHintNudge((current) => current + 1)} width={width} height={height} topInset={insets.top} bottomInset={insets.bottom} cardOpacity={guideCardOpacity} cardTranslateY={guideCardTranslateY} overlayOpacity={guideOverlayOpacity} spotlightScale={spotlightScale} spotlightTranslateX={spotlightTranslateX} spotlightTranslateY={spotlightTranslateY} transitioning={guideTransitioning} /> : null}
+      {isGuiding ? <GuideOverlay step={guideStep} onNext={() => transitionGuide(Math.min(3, guideStep + 1) as GuideStep)} onStart={startQuest} onRouteHintPress={() => setRouteHintNudge((current) => current + 1)} width={width} height={height} topInset={insets.top} bottomInset={insets.bottom} cardOpacity={guideCardOpacity} cardTranslateY={guideCardTranslateY} overlayOpacity={guideOverlayOpacity} spotlightScale={spotlightScale} spotlightTranslateX={spotlightTranslateX} spotlightTranslateY={spotlightTranslateY} transitioning={guideTransitioning} /> : null}
       {stage === "countdown" ? <QuestCountdownOverlay step={countdownStep} accent={T.blue} /> : null}
       {stage === "started" ? <Animated.View pointerEvents="none" style={[styles.startedMessage, { opacity: startedOpacity, transform: [{ scale: startedScale }] }]}><View style={styles.startedIcon}><Ionicons name="checkmark" size={22} color={T.white} /></View><Text style={styles.startedTitle}>Quest started</Text><Text style={styles.startedBody}>Let’s keep your phone aside for now.</Text></Animated.View> : null}
     </Animated.View>}

@@ -84,28 +84,22 @@ function mapQuest(row: QuestRow, savedDates: Map<string, string>, completedIds: 
   };
 }
 
-async function fetchSavedQuestDates() {
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) return new Map<string, string>();
-
+async function fetchSavedQuestDates(userId: string) {
   const { data, error } = await supabase
     .from("saved_quests")
     .select("quest_id, created_at")
-    .eq("user_id", userData.user.id);
+    .eq("user_id", userId);
 
   if (error) throw error;
 
   return new Map((data ?? []).map((item) => [item.quest_id as string, item.created_at as string]));
 }
 
-async function fetchCompletedQuestIds() {
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) return new Set<string>();
-
+async function fetchCompletedQuestIds(userId: string) {
   const { data, error } = await supabase
     .from("quest_completions")
     .select("quest_id")
-    .eq("user_id", userData.user.id);
+    .eq("user_id", userId);
 
   if (error) throw error;
 
@@ -115,7 +109,7 @@ async function fetchCompletedQuestIds() {
 async function fetchQuestRows(admin: boolean) {
   let questQuery = supabase
     .from("quests")
-    .select("*")
+    .select("id, title, category, experience_points, description, steps, estimated_minutes, difficulty, status, featured, accent_color, review_note, reviewed_at, reviewed_by, created_by, updated_by, created_at, updated_at, published_at, archived_at")
     .order("updated_at", { ascending: false });
 
   if (!admin) questQuery = questQuery.eq("status", "published");
@@ -125,12 +119,14 @@ async function fetchQuestRows(admin: boolean) {
   return data ?? [];
 }
 
-export async function fetchContentLibrary({ admin = false }: { admin?: boolean } = {}) {
+export async function fetchContentLibrary({ admin = false, userId }: { admin?: boolean; userId?: string } = {}) {
   assertSupabaseConfigured();
+  const resolvedUserId = userId ?? (await supabase.auth.getUser()).data.user?.id;
+  if (!resolvedUserId) return { quests: (await fetchQuestRows(admin)).map((row) => mapQuest(row, new Map(), new Set())) };
 
   const [savedDates, completedIds] = await Promise.all([
-    fetchSavedQuestDates(),
-    fetchCompletedQuestIds(),
+    fetchSavedQuestDates(resolvedUserId),
+    fetchCompletedQuestIds(resolvedUserId),
   ]);
 
   const questRows = await fetchQuestRows(admin);
