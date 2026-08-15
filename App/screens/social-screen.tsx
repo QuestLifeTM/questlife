@@ -637,6 +637,7 @@ export function SocialScreen() {
   const [feedLoading, setFeedLoading] = useState(true);
   const [feedError, setFeedError] = useState<string | null>(null);
   const [activeFeedIndex, setActiveFeedIndex] = useState(0);
+  const feedRequestIdRef = useRef(0);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -648,15 +649,23 @@ export function SocialScreen() {
   }, [requestedTab]));
 
   const join = async () => { try { const partyId = await joinPartyWithCode(code); setCodeOpen(false); setCode(""); router.push(`/party/${partyId}`); } catch (nextError) { Alert.alert("Couldn’t join Party", nextError instanceof Error ? nextError.message : "Check the code and try again."); } };
-  const loadFeed = async () => {
+  const loadFeed = useCallback(async () => {
+    const requestId = ++feedRequestIdRef.current;
     setFeedLoading(true);
     setFeedError(null);
-    try { setFeed(await fetchQuestSocialFeed(feedScope)); setActiveFeedIndex(0); }
-    catch (nextError) { setFeedError(nextError instanceof Error ? nextError.message : "We couldn’t load the feed."); }
-    finally { setFeedLoading(false); }
-  };
+    try {
+      const nextFeed = await fetchQuestSocialFeed(feedScope);
+      if (requestId !== feedRequestIdRef.current) return;
+      setFeed(nextFeed);
+      setActiveFeedIndex(0);
+    } catch (nextError) {
+      if (requestId === feedRequestIdRef.current) setFeedError(nextError instanceof Error ? nextError.message : "We couldn’t load the feed.");
+    } finally {
+      if (requestId === feedRequestIdRef.current) setFeedLoading(false);
+    }
+  }, [feedScope]);
 
-  useEffect(() => { void loadFeed(); }, [feedScope, profileNameVersion]);
+  useEffect(() => { void loadFeed(); }, [loadFeed, profileNameVersion]);
 
   const handlePostUpdated = useCallback((nextPost: QuestFeedPost) => {
     setFeed((current) => {

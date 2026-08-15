@@ -1,9 +1,10 @@
 import { useEffect, type PropsWithChildren } from "react";
-import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable, type PressableProps, type StyleProp, type ViewProps, type ViewStyle } from "react-native";
 import Animated, {
   FadeInDown,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
   withSpring,
   withTiming,
 } from "react-native-reanimated";
@@ -158,4 +159,36 @@ export function MotionToggle({
       <Animated.View style={[{ width: 22, height: 22, borderRadius: 11, backgroundColor: "#ffffff", boxShadow: "0px 1px 2px rgba(61,52,56,0.22)" }, thumbStyle]} />
     </Pressable>
   );
+}
+
+/** A lightweight, reduced-motion-aware pulse for loading placeholders. */
+export function MotionPulse({
+  children,
+  style,
+  minimumOpacity = 0.42,
+  maximumOpacity = 0.78,
+  ...props
+}: PropsWithChildren<Omit<ViewProps, "style"> & {
+  style?: StyleProp<ViewStyle>;
+  minimumOpacity?: number;
+  maximumOpacity?: number;
+}>) {
+  const { reducedMotion } = useMotionPreferences();
+  const opacity = useSharedValue(minimumOpacity);
+  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  useEffect(() => {
+    if (reducedMotion) {
+      opacity.value = maximumOpacity;
+      return;
+    }
+    opacity.value = minimumOpacity;
+    opacity.value = withRepeat(
+      withTiming(maximumOpacity, timingConfig(false, 720, motionEasing.standard)),
+      -1,
+      true,
+    );
+  }, [maximumOpacity, minimumOpacity, opacity, reducedMotion]);
+
+  return <Animated.View {...props} style={[style, animatedStyle]}>{children}</Animated.View>;
 }

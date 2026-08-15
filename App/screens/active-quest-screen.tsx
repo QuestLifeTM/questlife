@@ -122,7 +122,7 @@ function ActiveQuestTabs({ active, onChange, accent, disabled = false }: { activ
   </View>;
 }
 
-const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoints = [], deviceLocation, liveLocation, trackingStatus, trackingMessage, notice, onEnableTracking, forceEnablePrompt = false, routePromptNudge = 0 }: { accent: string; route: ActiveQuestRoutePoint[]; renderSegments: ActiveQuestRenderableSegment[]; checkpoints?: ActiveQuestCheckpoint[]; deviceLocation: MapCoordinate | null; liveLocation: MapCoordinate | null; trackingStatus: "idle" | "tracking" | "permission-needed" | "unavailable"; trackingMessage: string | null; notice: QuestNotice | null; onEnableTracking: () => void; forceEnablePrompt?: boolean; routePromptNudge?: number }) {
+const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoints = [], deviceLocation, liveLocation, trackingStatus, trackingMessage, notice, onEnableTracking, forceEnablePrompt = false, routePromptNudge = 0, showUserLocation = true, animateInitialCamera = true }: { accent: string; route: ActiveQuestRoutePoint[]; renderSegments: ActiveQuestRenderableSegment[]; checkpoints?: ActiveQuestCheckpoint[]; deviceLocation: MapCoordinate | null; liveLocation: MapCoordinate | null; trackingStatus: "idle" | "tracking" | "permission-needed" | "unavailable"; trackingMessage: string | null; notice: QuestNotice | null; onEnableTracking: () => void; forceEnablePrompt?: boolean; routePromptNudge?: number; showUserLocation?: boolean; animateInitialCamera?: boolean }) {
   const map = useRef<MapView>(null);
   const [followingUser, setFollowingUser] = useState(true);
   const routeButtonNudge = useRef(new Animated.Value(0)).current;
@@ -136,8 +136,8 @@ const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoin
   const cameraRegion = region ? { ...region, latitude: region.latitude - region.latitudeDelta * 0.18 } : null;
 
   useEffect(() => {
-    if (cameraRegion && followingUser) map.current?.animateToRegion(cameraRegion, 450);
-  }, [cameraRegion?.latitude, cameraRegion?.longitude, followingUser]);
+    if (animateInitialCamera && cameraRegion && followingUser) map.current?.animateToRegion(cameraRegion, 450);
+  }, [animateInitialCamera, cameraRegion?.latitude, cameraRegion?.longitude, followingUser]);
 
   useEffect(() => {
     if (!routePromptNudge) return;
@@ -157,7 +157,7 @@ const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoin
   </View>;
 
   return <View style={{ flex: 1, backgroundColor: "#e5e8e2" }}>
-    <MapView ref={map} style={{ flex: 1 }} initialRegion={cameraRegion ?? undefined} mapType="standard" showsPointsOfInterest={false} showsBuildings={false} showsUserLocation showsMyLocationButton={false} showsCompass toolbarEnabled={false} onPanDrag={() => setFollowingUser(false)}>
+    <MapView ref={map} style={{ flex: 1 }} initialRegion={cameraRegion ?? undefined} mapType="standard" showsPointsOfInterest={false} showsBuildings={false} showsUserLocation={showUserLocation} showsMyLocationButton={false} showsCompass toolbarEnabled={false} onPanDrag={() => setFollowingUser(false)}>
       {renderSegments.map((segment) => {
         const coordinates = segment.points.map((point) => ({ latitude: point.latitude, longitude: point.longitude }));
         return coordinates.length > 1 ? <Polyline key={segment.id} coordinates={coordinates} strokeColor={segment.state === "paused" ? "#9D93A0" : accent} strokeWidth={5} lineCap="round" lineJoin="round" /> : null;
@@ -381,7 +381,7 @@ function ActiveQuestLoadingSkeleton() {
   return <View accessibilityRole="progressbar" accessibilityLabel="Loading active quest" style={{ flex: 1, backgroundColor: T.bg, paddingHorizontal: 20, paddingTop: 24, gap: 16 }}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: T.border }} /><View style={{ width: 112, height: 18, borderRadius: 9, backgroundColor: T.border }} /><View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: T.border }} /></View><View style={{ height: 128, borderRadius: 26, backgroundColor: `${T.blue}10`, gap: 12, padding: 20 }}><View style={{ width: "42%", height: 14, borderRadius: 7, backgroundColor: T.border }} /><View style={{ width: "78%", height: 27, borderRadius: 9, backgroundColor: T.border }} /><View style={{ width: "58%", height: 13, borderRadius: 7, backgroundColor: T.border }} /></View><View style={{ flexDirection: "row", gap: 10 }}><View style={{ flex: 1, height: 94, borderRadius: 22, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }} /><View style={{ flex: 1, height: 94, borderRadius: 22, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }} /></View><View style={{ flex: 1, borderRadius: 24, backgroundColor: T.white, borderWidth: 2, borderColor: T.border, padding: 16, gap: 12 }}><View style={{ width: "36%", height: 16, borderRadius: 8, backgroundColor: T.border }} /><View style={{ width: "100%", height: 12, borderRadius: 6, backgroundColor: T.border }} /><View style={{ width: "82%", height: 12, borderRadius: 6, backgroundColor: T.border }} /><View style={{ width: "67%", height: 12, borderRadius: 6, backgroundColor: T.border }} /></View><View style={{ height: 58, borderRadius: 20, backgroundColor: `${T.blue}26` }} /></View>;
 }
 
-export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: boolean; onboarding?: ActiveQuestOnboardingOptions }) {
+export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, previewRoute, previewElapsedMs }: { preview?: boolean; onboarding?: ActiveQuestOnboardingOptions; previewQuest?: Quest; previewRoute?: ActiveQuestRoutePoint[]; previewElapsedMs?: number }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const screenInsets = preview ? PREVIEW_PHONE_INSETS : insets;
@@ -420,7 +420,7 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
   // not loaded yet, or the quest was subsequently unpublished. The completion
   // RPC uses the stable session quest ID, so a lightweight local fallback
   // prevents the user being trapped on this screen.
-  const quest: Quest | null = loadedQuest ?? (session ? {
+  const quest: Quest | null = previewQuest ?? loadedQuest ?? (session ? {
     id: session.questId,
     title: isGuestQuest ? "Personalize your Quest" : "Your active quest",
     category: "ADVENTURE",
@@ -545,7 +545,10 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
     return () => clearTimeout(timer);
   }, [photoSavedVisible]);
 
-  const duration = formatElapsedFull(elapsedDuration);
+  const duration = formatElapsedFull(previewElapsedMs ?? elapsedDuration);
+  const renderedRoute = snapshot?.route ?? previewRoute ?? [];
+  const renderedSegments = snapshot?.renderSegments ?? (previewRoute?.length ? [{ id: "preview-route", state: "active" as const, points: previewRoute }] : []);
+  const previewLocation = previewRoute?.at(-1);
 
   if (completionReward) {
     return <QuestCompletionScreen
@@ -568,7 +571,7 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
   // controls while the device-local snapshot finishes hydrating.
   if (activeQuestLoading && session && !preview && !onboarding) return <ActiveQuestLoadingSkeleton />;
 
-  if (!session || !quest) return <View style={{ flex: 1, paddingTop: screenInsets.top + 24, backgroundColor: T.bg }}><EmptyState emoji="🧭" title="No active quest" body="Start a solo quest from Explore to create its live home." /></View>;
+  if ((!session && !previewQuest) || !quest) return <View style={{ flex: 1, paddingTop: screenInsets.top + 24, backgroundColor: T.bg }}><EmptyState emoji="🧭" title="No active quest" body="Start a solo quest from Explore to create its live home." /></View>;
 
   const togglePaused = () => { void (paused ? resume() : pause()); };
   const enableRouteRecording = beginQuestRoute;
@@ -736,7 +739,7 @@ export function ActiveQuestScreen({ preview = false, onboarding }: { preview?: b
       <View style={{ marginTop: 16 }}><ActiveQuestTabs active={tab} onChange={setTab} accent={accent} disabled={Boolean(onboarding?.locked)} /></View>
     </View>
     <View style={{ flex: 1 }}>
-      {tab === "map" ? isStartingQuest ? <QuestStartupSurface accent={accent} step={countdownStep} /> : <LiveMap accent={accent} route={snapshot?.route ?? []} renderSegments={snapshot?.renderSegments ?? []} deviceLocation={deviceLocation} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={null} onEnableTracking={handleEnableRouteRecording} forceEnablePrompt={onboarding?.guideStep === "route"} routePromptNudge={onboarding?.routePromptNudge} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} onManage={openPhotoManager} /> : <ActivityTimeline activity={snapshot?.activity ?? []} photos={snapshot?.photos ?? []} accent={accent} onManage={openActivityManager} focusLatest={Boolean(onboarding?.focusLatestActivity)} />}
+      {tab === "map" ? isStartingQuest ? <QuestStartupSurface accent={accent} step={countdownStep} /> : <LiveMap accent={accent} route={renderedRoute} renderSegments={renderedSegments} deviceLocation={deviceLocation ?? (previewLocation ? { latitude: previewLocation.latitude, longitude: previewLocation.longitude } : null)} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={null} onEnableTracking={handleEnableRouteRecording} forceEnablePrompt={onboarding?.guideStep === "route"} routePromptNudge={onboarding?.routePromptNudge} showUserLocation={!preview} animateInitialCamera={!preview} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} onManage={openPhotoManager} /> : <ActivityTimeline activity={snapshot?.activity ?? []} photos={snapshot?.photos ?? []} accent={accent} onManage={openActivityManager} focusLatest={Boolean(onboarding?.focusLatestActivity)} />}
     </View>
     {!countdownStep && photoSavedVisible ? <QuestNoticePill notice="photo-saved" accent={accent} message={trackingMessage} bottomOffset={Math.max(screenInsets.bottom + 98, 126)} /> : null}
     <FloatingQuestControls accent={accent} duration={duration} paused={paused} takingPhoto={takingPhoto} bottomInset={screenInsets.bottom} onTakePhoto={() => void takePhoto()} onQuickNote={() => setQuickNoteVisible(true)} onFinish={() => setCompleteVisible(true)} onTogglePaused={togglePaused} locked={Boolean(onboarding?.locked)} forcedOpen={Boolean(onboarding?.forceQuickActionsOpen) || onboarding?.allowPhotoCapture || onboarding?.allowQuickNote} allowQuickActions={Boolean(onboarding?.allowQuickActions)} allowPhotoCapture={Boolean(onboarding?.allowPhotoCapture)} allowQuickNote={Boolean(onboarding?.allowQuickNote)} showQuickActionsWhenPaused={Boolean(onboarding?.showQuickActionsWhenPaused)} onQuickActionsOpened={onboarding?.onQuickActionsOpened} onQuickNoteOpened={onboarding?.onQuickNoteOpened} />

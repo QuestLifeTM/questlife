@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import Reanimated from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
@@ -260,7 +260,10 @@ function QuestFeedCard({ quest, onSave }: { quest: Quest; onSave: () => void }) 
   );
 }
 
-export function ExploreScreen() {
+/** `previewQuests` is used by the onboarding phone preview; production keeps
+ * reading the live content store.  Keeping this screen as the renderer means
+ * the preview cannot drift from Explore's cards, header, or controls. */
+export function ExploreScreen({ previewQuests, previewAutoScroll = false, previewAutoScrollEnabled = true }: { previewQuests?: Quest[]; previewAutoScroll?: boolean; previewAutoScrollEnabled?: boolean } = {}) {
   const router = useRouter();
   const { contentWidth, horizontalPadding: sideGap, safeAreaOffset, insets } = useResponsiveScreenLayout();
   const { error, loading, quests, refresh } = useContent();
@@ -270,11 +273,16 @@ export function ExploreScreen() {
   const [sortBy, setSortBy] = useState("Best Match");
   const [filters, setFilters] = useState<Filters>({ duration: null, difficulty: null });
   const [filterVisible, setFilterVisible] = useState(false);
+  const listRef = useRef<FlatList<Quest> | null>(null);
+  const loopStartOffset = useRef(0);
+  const loopEndOffset = useRef(0);
+  const loopOffset = useRef(0);
   const feedCardWidth = contentWidth - sideGap * 2;
 
+  const sourceQuests = previewQuests ?? quests;
   const activeFilters = [filters.duration, filters.difficulty].filter(Boolean).length;
   const feed = useMemo(() => {
-    let result = quests.filter((quest) => {
+    let result = sourceQuests.filter((quest) => {
       const query = search.trim().toLowerCase();
       if (query && !`${quest.title} ${quest.description} ${quest.category}`.toLowerCase().includes(query)) return false;
       if (category !== "All" && quest.category !== category) return false;
@@ -286,7 +294,8 @@ export function ExploreScreen() {
       return true;
     });
     return sortQuests(result, sortBy);
-  }, [category, filters, quests, search, sortBy]);
+  }, [category, filters, search, sortBy, sourceQuests]);
+  const displayFeed = previewAutoScroll ? [...feed, ...feed] : feed;
 
   const reset = () => {
     setSearch("");
@@ -296,22 +305,34 @@ export function ExploreScreen() {
   };
   const { onScroll, scrollY } = useTopScrollBlur();
 
+  useEffect(() => {
+    if (!previewAutoScroll || !previewAutoScrollEnabled || !feed.length) return;
+    const timer = setInterval(() => {
+      const end = loopEndOffset.current;
+      if (!end) return;
+      const next = loopOffset.current + 0.8;
+      loopOffset.current = next >= end ? loopStartOffset.current : next;
+      listRef.current?.scrollToOffset({ offset: loopOffset.current, animated: false });
+    }, 16);
+    return () => clearInterval(timer);
+  }, [feed.length, previewAutoScroll, previewAutoScrollEnabled]);
+
   return (
     <Screen scroll={false} padded={false} ambientGlow={false} contentStyle={{ alignItems: "center", paddingTop: Math.max(insets.top - 12, 12) }}>
       <Reanimated.FlatList
-        data={loading || error ? [] : feed}
-        keyExtractor={(quest) => quest.id}
+        ref={listRef}
+        data={previewQuests ? displayFeed : loading || error ? [] : displayFeed}
+        keyExtractor={(quest, index) => `${quest.id}-${index}`}
         style={{ width: "100%" }}
         contentContainerStyle={{ alignItems: "center", paddingBottom: 112 }}
-        initialNumToRender={3}
-        maxToRenderPerBatch={3}
+        initialNumToRender={previewAutoScroll ? 4 : 3}
+        maxToRenderPerBatch={previewAutoScroll ? 4 : 3}
         updateCellsBatchingPeriod={40}
         windowSize={5}
         removeClippedSubviews
         onScroll={onScroll}
         scrollEventThrottle={16}
-        ListHeaderComponent={
-          <>
+        ListHeaderComponent={<View onLayout={(event) => { loopStartOffset.current = event.nativeEvent.layout.height + 12; loopEndOffset.current = loopStartOffset.current + feed.length * 232; }}>
             <View style={{ width: contentWidth, paddingHorizontal: sideGap, gap: 16, transform: [{ translateX: safeAreaOffset }] }}>
               <Header title="Explore" subtitle="Find your next adventure" right={<ExploreIconButton icon="folder-open-outline" color={T.blue} onPress={() => router.push("/saved")} />} animated={false} />
               <ExploreSearch value={search} onChangeText={setSearch} onFilter={() => setFilterVisible(true)} activeControls={sortBy !== "Best Match" || activeFilters > 0} />
@@ -329,11 +350,17 @@ export function ExploreScreen() {
                 <Text style={{ color: T.muted, fontWeight: "800", fontSize: 13 }}>{feed.length} quests</Text>
               </View>
             </View>
-          </>
-        }
+          </View>}
         ListHeaderComponentStyle={{ width: "100%", marginBottom: 12 }}
-        renderItem={({ item }) => <View style={{ width: feedCardWidth, marginBottom: 12 }}><QuestFeedCard quest={item} onSave={() => openQuestSave(item.id)} /></View>}
-        ListEmptyComponent={<View style={{ width: feedCardWidth }}>{loading ? <ExploreLoadingList /> : error ? <Card style={{ borderRadius: 24 }}><EmptyState emoji="!" title="Could not load quests" body={error} action={<SoftButton label="Try again" icon="refresh" onPress={refresh} />} /></Card> : <Card style={{ borderRadius: 24 }}><EmptyState emoji="🔍" title="No quests found" body="Create and publish quests in the admin dashboard, or adjust your filters." action={<SoftButton label="Reset all filters" icon="refresh" onPress={reset} />} /></Card>}</View>}
+        renderItem={({ item, index }) => <View onLayout={(event) => {
+          if (!previewAutoScroll) return;
+          if (index === 0) {
+            loopStartOffset.current = event.nativeEvent.layout.y;
+            if (!loopOffset.current) loopOffset.current = event.nativeEvent.layout.y;
+          }
+          if (index === feed.length) loopEndOffset.current = event.nativeEvent.layout.y;
+        }} style={{ width: feedCardWidth, marginBottom: 12 }}><QuestFeedCard quest={item} onSave={() => openQuestSave(item.id)} /></View>}
+        ListEmptyComponent={<View style={{ width: feedCardWidth }}>{!previewQuests && loading ? <ExploreLoadingList /> : !previewQuests && error ? <Card style={{ borderRadius: 24 }}><EmptyState emoji="!" title="Could not load quests" body={error} action={<SoftButton label="Try again" icon="refresh" onPress={refresh} />} /></Card> : <Card style={{ borderRadius: 24 }}><EmptyState emoji="🔍" title="No quests found" body="Create and publish quests in the admin dashboard, or adjust your filters." action={<SoftButton label="Reset all filters" icon="refresh" onPress={reset} />} /></Card>}</View>}
       />
       <ScrollTopBlur scrollY={scrollY} />
 

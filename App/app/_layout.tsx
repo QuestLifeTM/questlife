@@ -51,6 +51,14 @@ export default Sentry.wrap(RootLayout);
 
 function SessionDataProviders({ children }: PropsWithChildren) {
   const { session } = useAuth();
+  const segments = useSegments();
+  const currentPath = segments.join("/");
+  // Social data is comparatively expensive (two RPCs) and no launch surface
+  // needs it. Mount the provider for API compatibility, but defer its first
+  // fetch until a social-dependent route is actually opened.
+  const socialEnabled = currentPath === "(tabs)/social" || /^(party|friends|add-friends|add-friend|quest|streak|streak-invite)(\/|$)/.test(currentPath);
+  const streaksEnabled = currentPath === "(tabs)/index" || /^(streak|streak-invite|settings)(\/|$)/.test(currentPath);
+  const notificationsEnabled = currentPath === "(tabs)/index" || currentPath === "(tabs)/journal" || /^(notifications)(\/|$)/.test(currentPath);
 
   // User-scoped providers hold loaded data in memory. Remount them when the
   // account changes so a signed-out user (or the next user) never sees stale
@@ -60,9 +68,9 @@ function SessionDataProviders({ children }: PropsWithChildren) {
       <QuestEngineProvider>
         <GuestQuestProvider>
           <ActiveQuestProvider>
-            <StreaksProvider>
-              <SocialProvider>
-                <NotificationsProvider>
+            <StreaksProvider enabled={streaksEnabled}>
+              <SocialProvider enabled={socialEnabled}>
+                <NotificationsProvider enabled={notificationsEnabled}>
                   <QuestSaveProvider>{children}</QuestSaveProvider>
                 </NotificationsProvider>
               </SocialProvider>

@@ -1,4 +1,4 @@
-import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -110,12 +110,14 @@ const SocialContext = createContext<SocialContextValue>({
   dismissPartyBriefing: async () => undefined,
 });
 
-export function SocialProvider({ children }: PropsWithChildren) {
+export function SocialProvider({ children, enabled = true }: PropsWithChildren<{ enabled?: boolean }>) {
   const { isConfigured, session } = useAuth();
   const [overview, setOverview] = useState<SocialOverview | null>(null);
   const [partyHub, setPartyHub] = useState<PartyHub | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const requestIdRef = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!isConfigured || !session) {
@@ -123,22 +125,29 @@ export function SocialProvider({ children }: PropsWithChildren) {
       setPartyHub(null);
       return;
     }
-    setLoading(true);
-    setError(null);
-    try {
-      const [nextOverview, nextPartyHub] = await Promise.all([fetchSocialOverview(), fetchPartyHub()]);
-      setOverview(nextOverview);
-      setPartyHub(nextPartyHub);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to load social data.");
-    } finally {
-      setLoading(false);
-    }
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+    const requestId = ++requestIdRef.current;
+    const request = (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [nextOverview, nextPartyHub] = await Promise.all([fetchSocialOverview(), fetchPartyHub()]);
+        if (requestId !== requestIdRef.current) return;
+        setOverview(nextOverview);
+        setPartyHub(nextPartyHub);
+      } catch (nextError) {
+        if (requestId === requestIdRef.current) setError(nextError instanceof Error ? nextError.message : "Unable to load social data.");
+      } finally {
+        if (requestId === requestIdRef.current) setLoading(false);
+      }
+    })();
+    refreshInFlightRef.current = request;
+    try { await request; } finally { if (refreshInFlightRef.current === request) refreshInFlightRef.current = null; }
   }, [isConfigured, session]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (enabled) void refresh();
+  }, [enabled, refresh]);
 
   const runAndRefresh = useCallback(
     async (action: () => Promise<void>, fallback: string) => {

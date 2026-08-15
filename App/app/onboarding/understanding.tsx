@@ -13,6 +13,7 @@ import { T } from "@/components/theme";
 import { SoftButton, haptic } from "@/components/ui";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { useGuestQuest } from "@/contexts/GuestQuestContext";
+import { UnderstandingDemo } from "@/components/onboarding-understanding-demo";
 
 const stoneArchBackground = require("../../assets/onboarding/stone-arch-background.png");
 const iphoneMockup = require("../../assets/onboarding/iphone-mockup.png");
@@ -167,6 +168,11 @@ export default function UnderstandingOnboardingScreen() {
     router.replace({ pathname: "/onboarding/age", params: firstName ? { firstName } : {} });
   }
 
+  // The named welcome state is a presentation-only walkthrough. Keep the
+  // established post-age `quest` state below intact, because it is the real
+  // onboarding tutorial that follows the age question.
+  if (!startsAtQuest) return <UnderstandingDemo firstName={displayName} />;
+
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
@@ -175,15 +181,15 @@ export default function UnderstandingOnboardingScreen() {
       </ImageBackground>
       {stage === "intro" ? <Animated.View style={[styles.introStage, { paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top + 112, height * 0.34), paddingBottom: Math.max(insets.bottom + 18, 30), opacity: introOpacity, transform: [{ translateY: introOpacity.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }] }]}>
         <View style={styles.introCopyBlock}>
-          <Text selectable adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={titleLineCount} maxFontSizeMultiplier={1.15} accessibilityLabel={`${displayName}, answer these questions honestly`} style={[styles.title, styles.introTitle, { fontSize: titleFontSize, lineHeight: Math.round(titleFontSize * 1.17) }]}>
-            <Text style={styles.nameAccent}>{displayName}, </Text>answer these questions honestly
+          <Text selectable adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={titleLineCount} maxFontSizeMultiplier={1.15} accessibilityLabel={`Let’s get to know you, ${displayName}!`} style={[styles.title, styles.introTitle, { fontSize: titleFontSize, lineHeight: Math.round(titleFontSize * 1.17) }]}>
+            Let’s get to know you, <Text style={styles.nameAccent}>{displayName}!</Text>
           </Text>
-          <Text selectable adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={3} maxFontSizeMultiplier={1.15} style={styles.introBody}>Your answers help us recommend{`\n`}adventures and quests that are perfect for{`\n`}your journey.</Text>
+          <Text selectable adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={3} maxFontSizeMultiplier={1.15} style={styles.introBody}>A few quick questions will help us recommend quests you’ll love.</Text>
         </View>
         <SoftButton label="Continue" color={T.blue} disabled={transitioning} onPress={continueToAge} style={styles.continueButton} />
       </Animated.View> : <Animated.View style={[styles.questStage, { paddingTop: insets.top + 26, paddingBottom: Math.max(insets.bottom + 8, 16), paddingHorizontal: horizontalPadding, opacity: questOpacity, transform: [{ translateY: questOpacity.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }]}>
         <Animated.View style={[styles.questCopyBlock, { opacity: questCopyOpacity }]}>
-          <Text selectable adjustsFontSizeToFit minimumFontScale={0.75} numberOfLines={2} maxFontSizeMultiplier={1.15} style={[styles.questStageTitle, { fontSize: clamp(contentWidth * 0.061, 20, 23), lineHeight: clamp(contentWidth * 0.07, 25, 28) }]}>You know what!{"\n"}Lets Treat this as your <Text style={styles.questStageTitleAccent}>FIRST</Text> Quest</Text>
+          <Text selectable adjustsFontSizeToFit minimumFontScale={0.75} numberOfLines={2} maxFontSizeMultiplier={1.15} style={[styles.questStageTitle, { fontSize: clamp(contentWidth * 0.067, 22, 25), lineHeight: clamp(contentWidth * 0.076, 26, 30) }]}>Let’s treat this as your <Text style={styles.questStageTitleAccent}>FIRST</Text> quest</Text>
           <Text selectable style={styles.questStageBody}>Tap <Text style={styles.questStageBodyAccent}>Start Quest</Text> below to begin.</Text>
         </Animated.View>
         <View style={styles.previewArea}>
@@ -202,7 +208,7 @@ export default function UnderstandingOnboardingScreen() {
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.previewContent, { gap: 11 * previewContentScale, paddingTop: 10 * previewContentScale, paddingHorizontal: Math.max(12, Math.round(mockupWidth * 0.05)), paddingBottom: 10 * previewContentScale }]}>
                 <View style={[styles.previewStats, { minHeight: 48 * previewContentScale, borderRadius: 13 * previewContentScale, paddingVertical: 6 * previewContentScale }]}><PreviewStat label="Users completed" value="30K" icon="checkmark-circle" color={T.blue} scale={previewContentScale} /><PreviewStat label="Saved" value="–" icon="bookmark" color={T.blue} bordered scale={previewContentScale} /><PreviewStat label="Rating" value="5.0" icon="star" color={T.orange} bordered scale={previewContentScale} /></View>
                 <View style={[styles.previewSection, { gap: 5 * previewDetailsScale }]}><Text style={[styles.previewSectionTitle, { fontSize: Math.round(16 * previewDetailsScale) }]}>About this quest</Text><Text style={[styles.previewDescription, { fontSize: Math.round(10.5 * previewDetailsScale), lineHeight: Math.round(15 * previewDetailsScale) }]}>This quick quest will help personalize your experience so we can recommend adventures you'll love.</Text></View>
-                <View style={[styles.howItWorks, { gap: 7 * previewDetailsScale, borderRadius: 12 * previewDetailsScale, padding: 9 * previewDetailsScale }]}><Text style={[styles.previewSectionTitle, { fontSize: Math.round(16 * previewDetailsScale) }]}>How it works</Text>{["Answer a few questions while learning how QuestLife works.", "We’ll personalize your experience.", "Unlock the rest of your journey!"].map((step, index) => <View key={step} style={[styles.stepRow, { gap: 6 * previewDetailsScale }]}><View style={[styles.stepNumber, { width: Math.round(20 * previewDetailsScale), height: Math.round(20 * previewDetailsScale), borderRadius: Math.round(10 * previewDetailsScale) }]}><Text style={[styles.stepNumberText, { fontSize: Math.round(10 * previewDetailsScale) }]}>{index + 1}</Text></View><Text style={[styles.stepText, { fontSize: Math.round(9.5 * previewDetailsScale), lineHeight: Math.round(13 * previewDetailsScale) }]}>{step}</Text></View>)}</View>
+                <View style={[styles.howItWorks, { gap: 7 * previewDetailsScale, borderRadius: 12 * previewDetailsScale, padding: 9 * previewDetailsScale }]}><Text style={[styles.previewSectionTitle, { fontSize: Math.round(16 * previewDetailsScale) }]}>How it works</Text>{["Answer a few quick questions", "We personalize your experience", "Unlock the rest of QuestLife"].map((step, index) => <View key={step} style={[styles.stepRow, { gap: 6 * previewDetailsScale }]}><View style={[styles.stepNumber, { width: Math.round(20 * previewDetailsScale), height: Math.round(20 * previewDetailsScale), borderRadius: Math.round(10 * previewDetailsScale) }]}><Text style={[styles.stepNumberText, { fontSize: Math.round(10 * previewDetailsScale) }]}>{index + 1}</Text></View><Text style={[styles.stepText, { fontSize: Math.round(9.5 * previewDetailsScale), lineHeight: Math.round(13 * previewDetailsScale) }]}>{step}</Text></View>)}</View>
               </ScrollView>
 
               <View style={[styles.previewActions, { gap: 5 * previewExpansion, paddingTop: 7 * previewExpansion, paddingBottom: Math.max(8 * previewExpansion, Math.round(phoneHeight * 0.047)), paddingHorizontal: Math.max(12, Math.round(mockupWidth * 0.05)) }]}>
@@ -224,7 +230,7 @@ export default function UnderstandingOnboardingScreen() {
         <View style={styles.modalBackdrop}>
           <View accessibilityViewIsModal style={styles.unlockCard}>
             <Text style={styles.unlockTitle}>🏇 Hold your horses!</Text>
-            <Text selectable style={styles.unlockBody}>Complete your first quest to unlock Saved Quests, Challenges, and the rest of QuestLife.</Text>
+            <Text selectable style={styles.unlockBody}>Finish your first quest to unlock Saved Quests, Challenges, and the rest of QuestLife.</Text>
             <SoftButton label="Continue with quest" icon="arrow-forward" color={T.blue} onPress={() => setUnlockVisible(false)} />
           </View>
         </View>
@@ -244,7 +250,7 @@ const styles = StyleSheet.create({
   introBody: { color: "rgba(255,255,255,0.92)", fontFamily: "Rubik", fontSize: 16, lineHeight: 24, textAlign: "left" },
   continueButton: { minHeight: 60, borderRadius: 20, borderBottomColor: "#258fd8" },
   questStage: { flex: 1, alignItems: "center", gap: 10 },
-  questCopyBlock: { alignItems: "center", gap: 5, marginTop: 4, marginBottom: 6 },
+  questCopyBlock: { alignItems: "center", gap: 5, marginTop: -4, marginBottom: 10 },
   questStageTitle: { maxWidth: 350, color: T.white, fontFamily: "RubikBlack", letterSpacing: -0.35, textAlign: "center" },
   questStageTitleAccent: { color: T.blue },
   questStageBody: { color: "rgba(255,255,255,0.9)", fontFamily: "Rubik", fontSize: 15, lineHeight: 21, textAlign: "center" },

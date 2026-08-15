@@ -3,7 +3,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
-  Animated,
+  Animated as RNAnimated,
   FlatList,
   ListRenderItemInfo,
   Pressable,
@@ -12,6 +12,7 @@ import {
   TextInput,
   View
 } from "react-native";
+import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AvatarPile } from "@/components/avatar-pile";
 import { CachedImage } from "@/components/cached-image";
@@ -21,6 +22,8 @@ import { Card, EmptyState, Entrance, Header, IconButton, Screen, Sheet, SoftButt
 import { fetchJournalData, resolveJournalMedia, toLocalDateKey, upsertJournalEntry } from "@/services/journal/journalService";
 import { useActiveQuest } from "@/contexts/ActiveQuestContext";
 import { useNotifications } from "@/contexts/NotificationsContext";
+import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
+import { MotionPulse } from "@/motion/primitives";
 import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMood, PartyJournalCard } from "@/types/journal";
 
 type JournalTab = "journal" | "album";
@@ -138,16 +141,7 @@ function JournalTabs({ activeTab, onChange }: { activeTab: JournalTab; onChange:
 }
 
 function JournalLoadingSkeleton() {
-  const opacity = useRef(new Animated.Value(0.42)).current;
-  useEffect(() => {
-    const animation = Animated.loop(Animated.sequence([
-      Animated.timing(opacity, { toValue: 0.78, duration: 720, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 0.42, duration: 720, useNativeDriver: true }),
-    ]));
-    animation.start();
-    return () => animation.stop();
-  }, [opacity]);
-  const block = (width: number | `${number}%`, height: number, radiusValue = 9) => <Animated.View style={{ width, height, borderRadius: radiusValue, backgroundColor: "#dfe7ed", opacity }} />;
+  const block = (width: number | `${number}%`, height: number, radiusValue = 9) => <MotionPulse style={{ width, height, borderRadius: radiusValue, backgroundColor: "#dfe7ed" }} />;
 
   return <View accessibilityRole="progressbar" accessibilityLabel="Loading your journal" style={{ gap: 18, paddingTop: 18 }}>
     <View style={{ gap: 10 }}><View style={{ flexDirection: "row", justifyContent: "space-between" }}>{block("42%", 24)}{block("25%", 16)}</View>{block("100%", 64, 20)}</View>
@@ -220,6 +214,7 @@ function JournalCalendar({
   joinKey: string;
   onSelectDate: (key: string) => void;
 }) {
+  const reduceMotion = useReducedMotionPreference();
   const [width, setWidth] = useState(0);
   const active = parseKey(activeKey);
   const join = parseKey(joinKey);
@@ -229,18 +224,26 @@ function JournalCalendar({
   const monthGrid = getMonthGrid(active);
   const monthRows = monthGrid.length / 7;
 
-  const modeAnim = useRef(new Animated.Value(mode === "week" ? 0 : 1)).current;
-  const indicator = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const indicatorOpacity = useRef(new Animated.Value(0)).current;
+  const modeAnim = useSharedValue(mode === "week" ? 0 : 1);
+  const indicator = useRef(new RNAnimated.ValueXY({ x: 0, y: 0 })).current;
+  const indicatorOpacity = useRef(new RNAnimated.Value(0)).current;
 
   const weekBodyHeight = DOW_ROW_HEIGHT + WEEK_CELL_HEIGHT;
   const monthBodyHeight = DOW_ROW_HEIGHT + monthRows * MONTH_CELL_HEIGHT;
 
   useEffect(() => {
-    const animation = Animated.timing(modeAnim, { toValue: mode === "week" ? 0 : 1, duration: 260, useNativeDriver: false });
-    animation.start();
-    return () => animation.stop();
-  }, [mode, modeAnim]);
+    modeAnim.value = reduceMotion ? (mode === "week" ? 0 : 1) : withTiming(mode === "week" ? 0 : 1, { duration: 260 });
+  }, [mode, modeAnim, reduceMotion]);
+
+  const calendarStyle = useAnimatedStyle(() => ({
+    height: interpolate(modeAnim.value, [0, 1], [weekBodyHeight, monthBodyHeight]),
+  }));
+  const weekStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(modeAnim.value, [0, 0.4], [1, 0], Extrapolation.CLAMP),
+  }));
+  const monthStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(modeAnim.value, [0.5, 1], [0, 1], Extrapolation.CLAMP),
+  }));
 
   useEffect(() => {
     if (!width) return;
@@ -267,8 +270,13 @@ function JournalCalendar({
 
     // The indicator springs from wherever it currently is, so scrolling
     // through day boundaries slides it horizontally in the scroll direction.
-    const movement = Animated.spring(indicator, { toValue: { x, y }, damping: 20, stiffness: 240, mass: 0.8, useNativeDriver: true });
-    const fade = Animated.timing(indicatorOpacity, { toValue: visible ? 1 : 0, duration: 130, useNativeDriver: true });
+    if (reduceMotion) {
+      indicator.setValue({ x, y });
+      indicatorOpacity.setValue(visible ? 1 : 0);
+      return;
+    }
+    const movement = RNAnimated.spring(indicator, { toValue: { x, y }, damping: 20, stiffness: 240, mass: 0.8, useNativeDriver: true });
+    const fade = RNAnimated.timing(indicatorOpacity, { toValue: visible ? 1 : 0, duration: 130, useNativeDriver: true });
     movement.start();
     fade.start();
     return () => {
@@ -276,7 +284,7 @@ function JournalCalendar({
       fade.stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKey, mode, width]);
+  }, [activeKey, mode, reduceMotion, width]);
 
   function shift(direction: 1 | -1) {
     if (mode === "week") {
@@ -384,12 +392,9 @@ function JournalCalendar({
       </View>
 
       <Animated.View
-        style={{
-          height: modeAnim.interpolate({ inputRange: [0, 1], outputRange: [weekBodyHeight, monthBodyHeight] }),
-          overflow: "hidden"
-        }}
+        style={[{ overflow: "hidden" }, calendarStyle]}
       >
-        <Animated.View
+        <RNAnimated.View
           pointerEvents="none"
           style={{
             position: "absolute",
@@ -413,7 +418,7 @@ function JournalCalendar({
           ))}
         </View>
 
-        <Animated.View pointerEvents={mode === "week" ? "auto" : "none"} style={{ opacity: modeAnim.interpolate({ inputRange: [0, 0.4], outputRange: [1, 0], extrapolate: "clamp" }) }}>
+        <Animated.View pointerEvents={mode === "week" ? "auto" : "none"} style={weekStyle}>
           <View style={{ flexDirection: "row" }}>
             {weekDays.map((day, index) => renderCell(day, WEEK_CELL_HEIGHT, `week-${index}`))}
           </View>
@@ -421,13 +426,15 @@ function JournalCalendar({
 
         <Animated.View
           pointerEvents={mode === "month" ? "auto" : "none"}
-          style={{
+          style={[
+            {
             position: "absolute",
             top: DOW_ROW_HEIGHT,
             left: 0,
             right: 0,
-            opacity: modeAnim.interpolate({ inputRange: [0.5, 1], outputRange: [0, 1], extrapolate: "clamp" })
-          }}
+            },
+            monthStyle,
+          ]}
         >
           {Array.from({ length: monthRows }, (_, row) => (
             <View key={`row-${row}`} style={{ flexDirection: "row" }}>
@@ -877,7 +884,9 @@ function PartyHistoryCard({ party, onOpen }: { party: PartyJournalCard; onOpen: 
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
-export function JournalScreen() {
+export type JournalScreenPreview = { data: JournalData; todayKey: string };
+
+export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = {}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
@@ -886,13 +895,13 @@ export function JournalScreen() {
 
   const [tab, setTab] = useState<JournalTab>("journal");
   const [mode, setMode] = useState<CalendarMode>("week");
-  const [data, setData] = useState<JournalData | null>(null);
-  const [entries, setEntries] = useState<Record<string, JournalEntry>>({});
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<JournalData | null>(preview?.data ?? null);
+  const [entries, setEntries] = useState<Record<string, JournalEntry>>(preview?.data.entriesByDate ?? {});
+  const [loading, setLoading] = useState(!preview);
   const [error, setError] = useState<string | null>(null);
   const [partyCollection, setPartyCollection] = useState<PartyDayCollection | null>(null);
 
-  const [todayKey, setTodayKey] = useState(() => toLocalDateKey(new Date()));
+  const [todayKey, setTodayKey] = useState(() => preview?.todayKey ?? toLocalDateKey(new Date()));
   const [activeKey, setActiveKey] = useState(todayKey);
 
   const [editingTitle, setEditingTitle] = useState(false);
@@ -912,11 +921,12 @@ export function JournalScreen() {
   // Refresh this key at midnight so those captures move to Album without a
   // reload while the journal remains open.
   useEffect(() => {
+    if (preview) return;
     const now = new Date();
     const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     const timer = setTimeout(() => setTodayKey(toLocalDateKey(new Date())), Math.max(1_000, nextMidnight.getTime() - now.getTime() + 150));
     return () => clearTimeout(timer);
-  }, [todayKey]);
+  }, [preview, todayKey]);
 
   useEffect(() => {
     // If the user had today's entry open at midnight, keep them on the new
@@ -929,6 +939,12 @@ export function JournalScreen() {
   }, [todayKey]);
 
   const load = useCallback(async (showLoading = !hasLoadedJournal.current) => {
+    if (preview) {
+      setData(preview.data);
+      setEntries(preview.data.entriesByDate);
+      setLoading(false);
+      return;
+    }
     const requestId = ++journalLoadId.current;
     if (showLoading) setLoading(true);
     setError(null);
@@ -950,14 +966,15 @@ export function JournalScreen() {
     } finally {
       if (requestId === journalLoadId.current) setLoading(false);
     }
-  }, []);
+  }, [preview]);
 
   useFocusEffect(
     useCallback(() => {
+      if (preview) return;
       void load();
       void markJournalRead();
       return () => { journalLoadId.current += 1; };
-    }, [load, markJournalRead])
+    }, [load, markJournalRead, preview])
   );
 
   const joinKey = useMemo(() => {

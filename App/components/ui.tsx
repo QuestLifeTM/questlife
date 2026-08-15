@@ -4,13 +4,11 @@ import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { PropsWithChildren, useEffect, useRef, useState } from "react";
-import Reanimated from "react-native-reanimated";
+import Reanimated, { runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
 import {
-  Animated,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -22,11 +20,14 @@ import {
   ViewStyle,
   useWindowDimensions
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { radius, shadow, T } from "@/components/theme";
 import { BackIcon } from "@/components/back-icon";
 import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { isHapticFeedbackEnabled } from "@/services/settings/settingsService";
+import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
+import { motionDurations, motionEasing, motionSprings, springConfig, timingConfig } from "@/motion/tokens";
 
 const MIN_SCREEN_GUTTER = 16;
 const MAX_SCREEN_GUTTER = 24;
@@ -134,17 +135,21 @@ export function AmbientGlow({ right = true }: { right?: boolean }) {
 }
 
 export function Entrance({ children, delay = 0, style }: PropsWithChildren<{ delay?: number; style?: StyleProp<ViewStyle> }>) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const y = useRef(new Animated.Value(14)).current;
+  const reducedMotion = useReducedMotionPreference();
+  const opacity = useSharedValue(reducedMotion ? 1 : 0);
+  const y = useSharedValue(reducedMotion ? 0 : 14);
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 260, delay, useNativeDriver: true }),
-      Animated.spring(y, { toValue: 0, delay, damping: 18, stiffness: 180, mass: 0.8, useNativeDriver: true })
-    ]).start();
-  }, [delay, opacity, y]);
+    opacity.value = reducedMotion ? 1 : 0;
+    y.value = reducedMotion ? 0 : 14;
+    if (reducedMotion) return;
+    opacity.value = withDelay(delay, withTiming(1, timingConfig(false, motionDurations.state, motionEasing.enter)));
+    y.value = withDelay(delay, withSpring(0, springConfig(false, motionSprings.control)));
+  }, [delay, opacity, reducedMotion, y]);
 
-  return <Animated.View style={[style, { opacity, transform: [{ translateY: y }] }]}>{children}</Animated.View>;
+  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value, transform: [{ translateY: y.value }] }));
+
+  return <Reanimated.View style={[style, animatedStyle]}>{children}</Reanimated.View>;
 }
 
 export function Header({
@@ -388,29 +393,40 @@ export function Sheet({
   glass = false
 }: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"]; fillHeight?: boolean; keyboardAvoiding?: boolean; expandOnKeyboard?: boolean; glass?: boolean }>) {
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotionPreference();
   const { height: windowHeight } = useWindowDimensions();
-  const dragY = useRef(new Animated.Value(0)).current;
+  const dragY = useSharedValue(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-  const dragResponder = useRef(PanResponder.create({
-    onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
-    onPanResponderMove: (_, gesture) => dragY.setValue(Math.max(0, gesture.dy)),
-    onPanResponderRelease: (_, gesture) => {
-      if (gesture.dy > 88 || gesture.vy > 0.85) {
-        Animated.timing(dragY, { toValue: 360, duration: 160, useNativeDriver: true }).start(({ finished }) => {
-          if (finished) onCloseRef.current();
+  const [contentHeight, setContentHeight] = useState(0);
+  const dragGesture = Gesture.Pan()
+    .activeOffsetY(4)
+    .failOffsetX([-24, 24])
+    .onUpdate((event) => {
+      dragY.value = Math.max(0, event.translationY);
+    })
+    .onEnd((event) => {
+      if (event.translationY > 88 || event.velocityY > 850) {
+        if (reducedMotion) {
+          dragY.value = 360;
+          runOnJS(onClose)();
+          return;
+        }
+        dragY.value = withTiming(360, { duration: 160 }, (finished) => {
+          if (finished) runOnJS(onClose)();
         });
         return;
       }
-      Animated.spring(dragY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 240 }).start();
-    },
-    onPanResponderTerminate: () => Animated.spring(dragY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 240 }).start(),
-  })).current;
+      dragY.value = reducedMotion ? 0 : withSpring(0, springConfig(false, motionSprings.control));
+    })
+    .onFinalize((_event, success) => {
+      if (!success) dragY.value = reducedMotion ? 0 : withSpring(0, springConfig(false, motionSprings.control));
+    });
 
   useEffect(() => {
-    if (visible) dragY.setValue(0);
+    if (visible) dragY.value = 0;
   }, [dragY, visible]);
+
+  const sheetMotionStyle = useAnimatedStyle(() => ({ transform: [{ translateY: dragY.value }] }));
 
   useEffect(() => {
     if (!visible || !keyboardAvoiding || !expandOnKeyboard) {
@@ -434,19 +450,22 @@ export function Sheet({
     : typeof maxHeight === "string" && maxHeight.endsWith("%")
       ? (windowHeight * Number.parseFloat(maxHeight)) / 100
       : 0;
-  const keyboardAvailableHeight = Math.max(0, windowHeight - keyboardHeight - insets.top - 12);
-  const expandedHeight = expandOnKeyboard && keyboardHeight > 0
-    ? Math.min(keyboardAvailableHeight, Math.max(maxHeightPixels, 360))
+  const keyboardAvailableHeight = Math.max(0, windowHeight - insets.top - 12);
+  const expandedHeight = expandOnKeyboard && keyboardHeight > 0 && contentHeight > 0
+    ? Math.min(keyboardAvailableHeight, contentHeight + keyboardHeight)
     : undefined;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView enabled={keyboardAvoiding} behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
+      <KeyboardAvoidingView enabled={keyboardAvoiding && !expandOnKeyboard} behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
       <View style={{ flex: 1, backgroundColor: glass ? "rgba(61,52,56,0.28)" : "rgba(61,52,56,0.42)", justifyContent: "flex-end" }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={onClose} style={{ flex: 1 }} />
-        <Animated.View
+        <Reanimated.View
           accessibilityViewIsModal
-          style={{
+          onLayout={({ nativeEvent }) => {
+            if (keyboardHeight === 0) setContentHeight(nativeEvent.layout.height);
+          }}
+          style={[{
             maxHeight: expandedHeight ?? maxHeight,
             ...(fillHeight || expandedHeight !== undefined ? { height: expandedHeight ?? maxHeight } : null),
             backgroundColor: glass ? "rgba(255,255,255,0.72)" : T.white,
@@ -457,15 +476,16 @@ export function Sheet({
             borderBottomWidth: 0,
             paddingBottom: insets.bottom + 8,
             overflow: "hidden",
-            transform: [{ translateY: dragY }],
-          }}
+          }, sheetMotionStyle]}
         >
           {glass ? <BlurView pointerEvents="none" intensity={18} tint="light" style={{ position: "absolute", inset: 0 }} /> : null}
-          <View {...dragResponder.panHandlers} accessibilityLabel="Drag down to dismiss" style={{ alignItems: "center", paddingTop: 12, paddingBottom: 12 }}>
-            <View style={{ width: 36, height: 4, borderRadius: 99, backgroundColor: T.border }} />
-          </View>
+          <GestureDetector gesture={dragGesture}>
+            <View accessibilityLabel="Drag down to dismiss" style={{ alignItems: "center", paddingTop: 12, paddingBottom: 12 }}>
+              <View style={{ width: 36, height: 4, borderRadius: 99, backgroundColor: T.border }} />
+            </View>
+          </GestureDetector>
           {children}
-        </Animated.View>
+        </Reanimated.View>
       </View>
       </KeyboardAvoidingView>
     </Modal>
