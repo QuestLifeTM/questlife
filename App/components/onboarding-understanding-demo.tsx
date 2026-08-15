@@ -139,7 +139,7 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
         Animated.timing(phoneOpacity, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         Animated.timing(phoneScale, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]).start();
-      schedule(transitionToActive, reduceMotion ? 0 : 4_000);
+      schedule(transitionToActive, reduceMotion ? 0 : 2_000);
     }, 2_000);
     return () => timers.current.forEach(clearTimeout);
   // Animation values are stable refs.
@@ -209,7 +209,7 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
           setPhase("active");
           schedule(() => {
             Animated.timing(activePhoneX, { ...transition, toValue: 0 }).start(({ finished: activeEntered }) => {
-              if (activeEntered) schedule(transitionToJournal, reduceMotion ? 0 : 4_000);
+              if (activeEntered) schedule(transitionToJournal, reduceMotion ? 0 : 2_000);
             });
           }, reduceMotion ? 0 : 100);
         }
@@ -226,7 +226,7 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
       journalPhoneX.setValue(phoneTravel);
       schedule(() => {
         Animated.timing(journalPhoneX, { ...transition, toValue: 0 }).start(({ finished: journalEntered }) => {
-          if (journalEntered) schedule(() => setShowContinue(true), reduceMotion ? 0 : 4_000);
+          if (journalEntered) schedule(() => setShowContinue(true), reduceMotion ? 0 : 2_000);
         });
       }, reduceMotion ? 0 : 100);
     });
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   titleLayer: { position: "absolute", left: 0, right: 0, zIndex: 3, alignItems: "center", gap: 7 },
   title: { maxWidth: 355, color: T.white, fontFamily: "RubikBlack", letterSpacing: -0.36, textAlign: "center" },
   nameAccent: { color: T.blue },
-  subtitle: { maxWidth: 306, color: "rgba(255,255,255,0.92)", fontFamily: "Rubik", fontSize: 15, lineHeight: 21, textAlign: "center" },
+  subtitle: { maxWidth: 306, color: "rgba(255,255,255,0.92)", fontFamily: "RubikBold", fontSize: 16, lineHeight: 22, textAlign: "center" },
   phoneArea: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
   phoneMockup: { position: "absolute" },
   phoneDisplay: { position: "absolute", left: "7.02%", top: "4.4%", width: "85.6%", height: "90.85%", overflow: "hidden", backgroundColor: T.bg },

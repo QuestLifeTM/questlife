@@ -325,7 +325,9 @@ export function ExploreScreen({ previewQuests, previewAutoScroll = false, previe
         keyExtractor={(quest, index) => `${quest.id}-${index}`}
         style={{ width: "100%" }}
         contentContainerStyle={{ alignItems: "center", paddingBottom: 112 }}
-        initialNumToRender={previewAutoScroll ? 4 : 3}
+        // Render through the first item of the repeated feed so its layout can
+        // establish the seamless loop boundary without rendering both copies.
+        initialNumToRender={previewAutoScroll ? Math.min(displayFeed.length, feed.length + 1) : 3}
         maxToRenderPerBatch={previewAutoScroll ? 4 : 3}
         updateCellsBatchingPeriod={40}
         windowSize={5}
