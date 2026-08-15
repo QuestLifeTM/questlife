@@ -9,12 +9,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { T } from "@/components/theme";
 import { SoftButton, haptic } from "@/components/ui";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
+import { ActiveQuestScreen } from "@/screens/active-quest-screen";
 import { ExploreScreen } from "@/screens/explore-screen";
+import { JournalScreen, type JournalScreenPreview } from "@/screens/journal-screen";
+import type { ActiveQuestRoutePoint } from "@/types/active-quest";
 import type { Quest } from "@/types/content";
 
 const stoneArchBackground = require("../assets/onboarding/stone-arch-background.png");
 const iphoneMockup = require("../assets/onboarding/iphone-mockup.png");
-type DemoPhase = "title" | "explore";
+type DemoPhase = "title" | "explore" | "active" | "journal";
 
 // These records are intentionally shaped exactly like the data the app reads
 // in production. They are the only fake part of this walkthrough; every
@@ -32,12 +35,59 @@ const DEMO_QUESTS: Quest[] = [
   { id: "demo-seasonal", title: "Find something delicious", category: "FOOD AND DRINKS", xp: 170, description: "Try a dish, drink, or snack that is new to you.", steps: [], timeMin: 30, timeLabel: "30 min", difficulty: "EASY", status: "published", featured: false, color: T.orange, saved: false, completed: false },
 ];
 
+const DEMO_ACTIVE_QUEST: Quest = {
+  id: "demo-sunset-walk",
+  title: "Find a new city view",
+  category: "ADVENTURE",
+  xp: 180,
+  description: "Take a different route and pause somewhere with a view.",
+  steps: ["Take a new turn.", "Find a view worth remembering."],
+  timeMin: 45,
+  timeLabel: "45 min",
+  difficulty: "EASY",
+  status: "published",
+  featured: false,
+  color: T.blue,
+  saved: false,
+  completed: false,
+};
+
+const DEMO_ACTIVE_ROUTE: ActiveQuestRoutePoint[] = [
+  { id: 1, sessionId: "preview-sf-route", capturedAt: "2026-08-15T16:00:00.000Z", latitude: 37.7745, longitude: -122.4194, accuracy: 8, speed: 1.2, altitude: null, heading: 45 },
+  { id: 2, sessionId: "preview-sf-route", capturedAt: "2026-08-15T16:18:00.000Z", latitude: 37.7762, longitude: -122.417, accuracy: 7, speed: 1.1, altitude: null, heading: 38 },
+  { id: 3, sessionId: "preview-sf-route", capturedAt: "2026-08-15T16:42:00.000Z", latitude: 37.7781, longitude: -122.4148, accuracy: 6, speed: 1.3, altitude: null, heading: 34 },
+  { id: 4, sessionId: "preview-sf-route", capturedAt: "2026-08-15T17:10:00.000Z", latitude: 37.7798, longitude: -122.4128, accuracy: 7, speed: 1.1, altitude: null, heading: 32 },
+];
+
+function localDateKey(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function previewJournal(): JournalScreenPreview {
+  const today = new Date();
+  const key = localDateKey(today);
+  return {
+    todayKey: key,
+    data: {
+      joinedAt: today.toISOString(),
+      entriesByDate: { [key]: { entryDate: key, title: "A day worth remembering", mood: "happy" } },
+      memoriesByDate: { [key]: [{ completionId: "demo-city-view", questId: DEMO_ACTIVE_QUEST.id, title: DEMO_ACTIVE_QUEST.title, reflection: "I found a new corner of the city and stayed for the sunset.", completedAt: today.toISOString(), xp: DEMO_ACTIVE_QUEST.xp, category: DEMO_ACTIVE_QUEST.category, difficulty: DEMO_ACTIVE_QUEST.difficulty, color: DEMO_ACTIVE_QUEST.color, timeMin: DEMO_ACTIVE_QUEST.timeMin, partyId: null, photoPaths: [], participants: [] }] },
+      partyHistory: [],
+      activeQuest: null,
+    },
+  };
+}
+
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
-function PhoneScreen({ scale, width, height }: { scale: number; width: number; height: number }) {
-  const content = <ExploreScreen previewQuests={DEMO_QUESTS} previewAutoScroll />;
+function PhoneScreen({ phase, scale, width, height, journal }: { phase: Exclude<DemoPhase, "title">; scale: number; width: number; height: number; journal: JournalScreenPreview }) {
+  const content = phase === "explore" ? <ExploreScreen previewQuests={DEMO_QUESTS} previewAutoScroll />
+    : phase === "active" ? <ActiveQuestScreen preview previewQuest={DEMO_ACTIVE_QUEST} previewRoute={DEMO_ACTIVE_ROUTE} previewElapsedMs={4_200_000} />
+      : <JournalScreen preview={journal} />;
 
   return <View pointerEvents="none" style={styles.previewClip}>
     <View style={[styles.previewCanvas, { width, height, transform: [{ scale }] }]}>{content}</View>
@@ -59,13 +109,18 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   const phonePositionY = useRef(new Animated.Value(0)).current;
   const continueOpacity = useRef(new Animated.Value(0)).current;
   const screenOpacity = useRef(new Animated.Value(1)).current;
+  const explorePhoneX = useRef(new Animated.Value(0)).current;
+  const activePhoneX = useRef(new Animated.Value(0)).current;
+  const journalPhoneX = useRef(new Animated.Value(0)).current;
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const journal = useRef(previewJournal()).current;
   const horizontalPadding = clamp(width * 0.045, 16, 24);
   const phoneWidth = Math.min(width - horizontalPadding * 2, 326, Math.max(220, (height - insets.top - insets.bottom - 116) * (1624 / 3407)));
   const phoneHeight = phoneWidth * (3407 / 1624);
   const compactPhoneScale = Math.min(1, 275 / phoneWidth);
   const titleFontSize = clamp(Math.round(width * 0.064), 22, 26);
   const initialPhoneCenterY = (insets.top + 178 + height - Math.max(insets.bottom + 8, 24)) / 2;
+  const phoneTravel = Math.max(width, phoneWidth) * 1.15;
 
   const schedule = (callback: () => void, delay: number) => {
     const timer = setTimeout(callback, delay);
@@ -81,12 +136,19 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
         Animated.timing(phoneOpacity, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         Animated.timing(phoneScale, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]).start();
-      schedule(() => setShowContinue(true), reduceMotion ? 0 : 3_000);
+      schedule(transitionToActive, reduceMotion ? 0 : 4_000);
     }, 2_000);
     return () => timers.current.forEach(clearTimeout);
   // Animation values are stable refs.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduceMotion]);
+
+  useEffect(() => {
+    if (phase !== "title") return;
+    explorePhoneX.setValue(0);
+    activePhoneX.setValue(-phoneTravel);
+    journalPhoneX.setValue(phoneTravel);
+  }, [activePhoneX, explorePhoneX, journalPhoneX, phoneTravel, phase]);
 
   useEffect(() => {
     if (phase === "title") return;
@@ -125,8 +187,30 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
     router.replace({ pathname: "/onboarding/age", params: firstName ? { firstName } : {} });
   }
 
+  function transitionToActive() {
+    setPhase("active");
+    activePhoneX.setValue(-phoneTravel);
+    Animated.parallel([
+      Animated.timing(explorePhoneX, { toValue: phoneTravel, duration: reduceMotion ? 0 : 420, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(activePhoneX, { toValue: 0, duration: reduceMotion ? 0 : 420, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+    ]).start(({ finished }) => {
+      if (finished) schedule(transitionToJournal, reduceMotion ? 0 : 4_000);
+    });
+  }
+
+  function transitionToJournal() {
+    Animated.timing(activePhoneX, { toValue: phoneTravel, duration: reduceMotion ? 0 : 320, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }).start(({ finished }) => {
+      if (!finished) return;
+      setPhase("journal");
+      journalPhoneX.setValue(phoneTravel);
+      Animated.timing(journalPhoneX, { toValue: 0, duration: reduceMotion ? 0 : 320, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }).start(({ finished: journalEntered }) => {
+        if (journalEntered) schedule(() => setShowContinue(true), reduceMotion ? 0 : 4_000);
+      });
+    });
+  }
+
   const titleTranslate = titleLift.interpolate({ inputRange: [0, 1], outputRange: [Math.max(108, height * 0.29), 0] });
-  const subtitle = phase === "explore" ? "Browse through various quests" : null;
+  const subtitle = phase === "explore" ? "Pick a Quest" : phase === "active" ? "Go experience it." : phase === "journal" ? "Make it part of your story." : null;
   const measureSubtitle = (event: LayoutChangeEvent) => {
     const { y, height: subtitleHeight } = event.nativeEvent.layout;
     setSubtitleBottom(insets.top + 22 + y + subtitleHeight);
@@ -141,10 +225,9 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
     </Animated.View>
     <Animated.View pointerEvents="none" style={[styles.phoneArea, { opacity: phoneOpacity, transform: [{ translateY: phonePositionY }, { scale: phoneScale }] }]}>
       <Animated.View style={{ transform: [{ scale: phoneFrameScale }] }}>
-      <View style={{ width: phoneWidth, height: phoneHeight }}>
-        <Animated.View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085), opacity: screenOpacity }]}>{phase === "explore" ? <PhoneScreen scale={(phoneWidth * 0.856) / width} width={width} height={height} /> : null}</Animated.View>
-        <Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} />
-      </View>
+      {phase === "explore" || phase === "active" ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: explorePhoneX }] }]}><Animated.View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085), opacity: screenOpacity }]}><PhoneScreen phase="explore" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></Animated.View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
+      {phase === "active" ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: activePhoneX }] }]}><Animated.View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085), opacity: screenOpacity }]}><PhoneScreen phase="active" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></Animated.View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
+      {phase === "journal" ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: journalPhoneX }] }]}><Animated.View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085), opacity: screenOpacity }]}><PhoneScreen phase="journal" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></Animated.View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
       </Animated.View>
     </Animated.View>
     {showContinue ? <Animated.View onLayout={(event) => setContinueTop(event.nativeEvent.layout.y)} style={[styles.continueArea, { paddingHorizontal: horizontalPadding, paddingBottom: Math.max(insets.bottom + 18, 30), opacity: continueOpacity }]}><SoftButton label="Continue" color={T.blue} onPress={advance} style={styles.continueButton} /></Animated.View> : null}
@@ -158,6 +241,7 @@ const styles = StyleSheet.create({
   nameAccent: { color: T.blue },
   subtitle: { maxWidth: 306, color: "rgba(255,255,255,0.92)", fontFamily: "Rubik", fontSize: 15, lineHeight: 21, textAlign: "center" },
   phoneArea: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
+  phoneMockup: { position: "absolute" },
   phoneDisplay: { position: "absolute", left: "7.02%", top: "4.4%", width: "85.6%", height: "90.85%", overflow: "hidden", backgroundColor: T.bg },
   previewClip: { flex: 1, overflow: "hidden" },
   previewCanvas: { transformOrigin: "top left" },
