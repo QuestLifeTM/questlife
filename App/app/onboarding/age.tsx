@@ -9,13 +9,18 @@ import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 const AGE_OPTIONS = ["14–24", "25–34", "35–44", "45–54", "55+"];
 
 export default function AgeOnboardingScreen() {
-  const { firstName } = useLocalSearchParams<{ firstName?: string }>();
+  const { firstName, skipQuestPreview } = useLocalSearchParams<{ firstName?: string; skipQuestPreview?: string }>();
   const { insets, horizontalPadding } = useResponsiveScreenLayout();
   const [ageRange, setAgeRange] = useState<string | null>(null);
 
   function continueOnboarding() {
     if (!ageRange) return;
     haptic();
+    if (skipQuestPreview === "true") {
+      router.replace({ pathname: "/onboarding/questions-intro", params: firstName ? { firstName } : {} });
+      return;
+    }
+
     router.replace({ pathname: "/onboarding/understanding", params: firstName ? { firstName, stage: "quest" } : { stage: "quest" } });
   }
 

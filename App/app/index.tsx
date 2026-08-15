@@ -89,11 +89,11 @@ export default function OnboardingWelcomeScreen() {
           style={styles.artwork}
         />
       </Animated.View>
-      <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom + 2, 10) }]}>
+      <Animated.View style={[styles.actions, { opacity: welcomeOpacity, paddingBottom: Math.max(insets.bottom + 2, 10) }]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Start my adventure" onPress={getStarted} style={({ pressed }) => [styles.getStartedAction, pressed && styles.actionPressed]}><Text style={styles.getStartedActionText}>Start my Adventure</Text></Pressable>
         <View style={styles.divider} />
         <Pressable accessibilityRole="button" accessibilityLabel="Sign in" onPress={signIn} style={({ pressed }) => ({ alignSelf: "center", minHeight: 34, justifyContent: "center", opacity: pressed ? 0.65 : 1 })}><Text style={styles.authPrompt}>Already have an account? <Text style={styles.signInText}>Sign In</Text></Text></Pressable>
-      </View>
+      </Animated.View>
       <Sheet
         visible={nameSheetVisible}
         onClose={() => setNameSheetVisible(false)}

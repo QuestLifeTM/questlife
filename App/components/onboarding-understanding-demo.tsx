@@ -111,7 +111,6 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   const phoneFrameScale = useRef(new Animated.Value(1)).current;
   const phonePositionY = useRef(new Animated.Value(0)).current;
   const continueOpacity = useRef(new Animated.Value(0)).current;
-  const screenOpacity = useRef(new Animated.Value(1)).current;
   const explorePhoneX = useRef(new Animated.Value(0)).current;
   const activePhoneX = useRef(new Animated.Value(0)).current;
   const journalPhoneX = useRef(new Animated.Value(0)).current;
@@ -139,7 +138,7 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
         Animated.timing(phoneOpacity, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         Animated.timing(phoneScale, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]).start();
-      schedule(transitionToActive, reduceMotion ? 0 : 2_000);
+      schedule(transitionToActive, reduceMotion ? 0 : 3_000);
     }, 2_000);
     return () => timers.current.forEach(clearTimeout);
   // Animation values are stable refs.
@@ -152,12 +151,6 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
     activePhoneX.setValue(-phoneTravel);
     journalPhoneX.setValue(phoneTravel);
   }, [activePhoneX, explorePhoneX, journalPhoneX, phoneTravel, phase]);
-
-  useEffect(() => {
-    if (phase === "title") return;
-    screenOpacity.setValue(reduceMotion ? 1 : 0.72);
-    Animated.timing(screenOpacity, { toValue: 1, duration: reduceMotion ? 0 : 280, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-  }, [phase, reduceMotion, screenOpacity]);
 
   useEffect(() => {
     // Keep the phone in a fixed full-screen layer. Previously, changing the
@@ -187,7 +180,7 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
 
   function advance() {
     haptic();
-    router.replace({ pathname: "/onboarding/age", params: firstName ? { firstName } : {} });
+    router.replace({ pathname: "/onboarding/questions-path", params: firstName ? { firstName } : {} });
   }
 
   function transitionToActive() {
@@ -233,7 +226,13 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   }
 
   const titleTranslate = titleLift.interpolate({ inputRange: [0, 1], outputRange: [Math.max(108, height * 0.29), 0] });
-  const subtitle = phase === "explore" ? "Pick a Quest" : phase === "active" ? "Go experience it." : phase === "journal" ? "Make it part of your story." : null;
+  const subtitle = phase === "explore"
+    ? <>Pick a <Text style={styles.subtitleAccent}>Quest</Text></>
+    : phase === "active"
+      ? <>Go <Text style={styles.subtitleAccent}>experience</Text> it.</>
+      : phase === "journal"
+        ? <>Make it part of your <Text style={styles.subtitleAccent}>story</Text>.</>
+        : null;
   const measureSubtitle = (event: LayoutChangeEvent) => {
     const { y, height: subtitleHeight } = event.nativeEvent.layout;
     setSubtitleBottom(insets.top + 22 + y + subtitleHeight);
@@ -248,9 +247,9 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
     </Animated.View>
     <Animated.View pointerEvents="none" style={[styles.phoneArea, { opacity: phoneOpacity, transform: [{ translateY: phonePositionY }, { scale: phoneScale }] }]}>
       <Animated.View style={{ position: "relative", width: phoneWidth, height: phoneHeight, transform: [{ scale: phoneFrameScale }] }}>
-      {showExplorePhone ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: explorePhoneX }] }]}><Animated.View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085), opacity: screenOpacity }]}><PhoneScreen phase="explore" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} exploreAutoScrollEnabled={exploreAutoScrollEnabled} /></Animated.View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
-      {showActivePhone ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: activePhoneX }] }]}><Animated.View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085), opacity: screenOpacity }]}><PhoneScreen phase="active" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></Animated.View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
-      {phase === "journal" ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: journalPhoneX }] }]}><Animated.View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085), opacity: screenOpacity }]}><PhoneScreen phase="journal" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></Animated.View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
+      {showExplorePhone ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: explorePhoneX }] }]}><View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085) }]}><PhoneScreen phase="explore" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} exploreAutoScrollEnabled={exploreAutoScrollEnabled} /></View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
+      {showActivePhone ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: activePhoneX }] }]}><View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085) }]}><PhoneScreen phase="active" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
+      {phase === "journal" ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: journalPhoneX }] }]}><View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085) }]}><PhoneScreen phase="journal" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
       </Animated.View>
     </Animated.View>
     {showContinue ? <Animated.View onLayout={(event) => setContinueTop(event.nativeEvent.layout.y)} style={[styles.continueArea, { paddingHorizontal: horizontalPadding, paddingBottom: Math.max(insets.bottom + 18, 30), opacity: continueOpacity }]}><SoftButton label="Continue" color={T.blue} onPress={advance} style={styles.continueButton} /></Animated.View> : null}
@@ -262,7 +261,8 @@ const styles = StyleSheet.create({
   titleLayer: { position: "absolute", left: 0, right: 0, zIndex: 3, alignItems: "center", gap: 7 },
   title: { maxWidth: 355, color: T.white, fontFamily: "RubikBlack", letterSpacing: -0.36, textAlign: "center" },
   nameAccent: { color: T.blue },
-  subtitle: { maxWidth: 306, color: "rgba(255,255,255,0.92)", fontFamily: "RubikBold", fontSize: 16, lineHeight: 22, textAlign: "center" },
+  subtitle: { maxWidth: 330, color: "rgba(255,255,255,0.92)", fontFamily: "RubikBold", fontSize: 19, lineHeight: 25, textAlign: "center" },
+  subtitleAccent: { color: T.blue },
   phoneArea: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
   phoneMockup: { position: "absolute" },
   phoneDisplay: { position: "absolute", left: "7.02%", top: "4.4%", width: "85.6%", height: "90.85%", overflow: "hidden", backgroundColor: T.bg },
