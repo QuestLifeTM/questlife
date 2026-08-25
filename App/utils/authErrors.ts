@@ -1,11 +1,8 @@
 import { AuthError } from "@supabase/supabase-js";
 
 import {
-  AccountAlreadyExistsError,
-  EmailAlreadyConfirmedError,
   EmailNotVerifiedError,
   EmailVerificationDisabledError,
-  UsernameUnavailableError,
 } from "@/services/auth/authService";
 
 export function getAuthErrorMessage(error: unknown) {
@@ -15,18 +12,6 @@ export function getAuthErrorMessage(error: unknown) {
 
   if (error instanceof EmailVerificationDisabledError) {
     return "Email verification is not enabled for this project. Please check your authentication settings.";
-  }
-
-  if (error instanceof AccountAlreadyExistsError) {
-    return "An account with this email already exists.";
-  }
-
-  if (error instanceof EmailAlreadyConfirmedError) {
-    return "This email is already confirmed. Please log in.";
-  }
-
-  if (error instanceof UsernameUnavailableError) {
-    return "That username is already taken.";
   }
 
   const message =
@@ -39,11 +24,11 @@ export function getAuthErrorMessage(error: unknown) {
   }
 
   if (message.includes("already registered") || message.includes("already exists")) {
-    return "An account with this email already exists.";
+    return "We could not complete sign-up. Try signing in or resetting your password.";
   }
 
   if (message.includes("already confirmed")) {
-    return "This email is already confirmed. Please log in.";
+    return "We could not send a confirmation email. Try signing in instead.";
   }
 
   if (message.includes("invalid email")) {

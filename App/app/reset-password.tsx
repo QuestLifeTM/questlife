@@ -13,7 +13,7 @@ import {
 import { AuthTitle } from "@/components/auth/AuthText";
 import { AuthScaffold } from "@/components/auth/AuthScaffold";
 import {
-  exchangeAuthCodeForSession,
+  exchangePasswordRecoveryCode,
   updatePassword,
 } from "@/services/auth/authService";
 import { getAuthErrorMessage } from "@/utils/authErrors";
@@ -27,7 +27,8 @@ export default function ResetPasswordScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [preparing, setPreparing] = useState(Boolean(params.code));
+  const [preparing, setPreparing] = useState(true);
+  const [recoveryReady, setRecoveryReady] = useState(false);
   const {
     control,
     formState: { errors, isValid },
@@ -44,13 +45,20 @@ export default function ResetPasswordScreen() {
   useEffect(() => {
     async function exchangeRecoveryCode() {
       if (!params.code) {
+        Alert.alert("Reset link missing", "Request a new password reset link to continue.", [
+          { text: "Request link", onPress: () => router.replace("/(auth)/forgot-password") },
+        ]);
+        setPreparing(false);
         return;
       }
 
       try {
-        await exchangeAuthCodeForSession(params.code);
+        await exchangePasswordRecoveryCode(params.code);
+        setRecoveryReady(true);
       } catch (error) {
-        Alert.alert("Reset link failed", getAuthErrorMessage(error));
+        Alert.alert("Reset link failed", "This reset link is invalid or expired. Request a new one to continue.", [
+          { text: "Request link", onPress: () => router.replace("/(auth)/forgot-password") },
+        ]);
       }
       setPreparing(false);
     }
@@ -61,6 +69,7 @@ export default function ResetPasswordScreen() {
   async function handleSave(values: ResetPasswordForm) {
     setLoading(true);
     try {
+      if (!recoveryReady) return;
       await updatePassword(values.password);
       Alert.alert("Password updated", "You can now continue to QuestLife.", [
         { text: "OK", onPress: () => router.replace("/(tabs)") },
@@ -133,7 +142,7 @@ export default function ResetPasswordScreen() {
       </View>
 
       <PrimaryButton
-        disabled={!isValid || loading || preparing}
+        disabled={!isValid || loading || preparing || !recoveryReady}
         loading={loading || preparing}
         onPress={handleSubmit(handleSave)}
         title={preparing ? "Opening reset link..." : loading ? "Saving..." : "Save"}

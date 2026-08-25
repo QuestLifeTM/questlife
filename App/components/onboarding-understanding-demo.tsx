@@ -180,7 +180,7 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
 
   function advance() {
     haptic();
-    router.replace({ pathname: "/onboarding/questions-path", params: firstName ? { firstName } : {} });
+    router.replace({ pathname: "/(auth)/auth-options", params: firstName ? { firstName } : {} });
   }
 
   function transitionToActive() {

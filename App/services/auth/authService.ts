@@ -54,32 +54,6 @@ export class EmailVerificationDisabledError extends Error {
   }
 }
 
-export class AccountAlreadyExistsError extends Error {
-  email: string;
-
-  constructor(email: string) {
-    super("ACCOUNT_ALREADY_EXISTS");
-    this.email = email;
-    this.name = "AccountAlreadyExistsError";
-  }
-}
-
-export class EmailAlreadyConfirmedError extends Error {
-  constructor() {
-    super("EMAIL_ALREADY_CONFIRMED");
-    this.name = "EmailAlreadyConfirmedError";
-  }
-}
-
-export class UsernameUnavailableError extends Error {
-  constructor() {
-    super("USERNAME_UNAVAILABLE");
-    this.name = "UsernameUnavailableError";
-  }
-}
-
-export type RegistrationAccountState = "available" | "unverified" | "verified" | "invalid_email";
-
 export function isUserEmailVerified(user: {
   confirmed_at?: string | null;
   email_confirmed_at?: string | null;
@@ -127,59 +101,9 @@ export async function signInWithEmail(email: string, password: string) {
   await rememberEmail(normalizedEmail);
 }
 
-/** Starts the passwordless email entry flow used by the welcome sheet. */
-export async function sendEmailSignInLink(email: string) {
-  assertSupabaseConfigured();
-
-  const { error } = await supabase.auth.signInWithOtp({
-    email: normalizeEmail(email),
-    options: {
-      emailRedirectTo: emailAuthRedirectTo,
-      shouldCreateUser: true,
-    },
-  });
-
-  if (error) throw error;
-}
-
-export async function getRegistrationAccountState(email: string): Promise<RegistrationAccountState> {
-  assertSupabaseConfigured();
-  const { data, error } = await supabase.rpc("get_public_account_registration_state", {
-    raw_email: normalizeEmail(email),
-  });
-
-  if (error) throw error;
-
-  const status = (data as { status?: RegistrationAccountState } | null)?.status;
-  return status ?? "available";
-}
-
-export async function isUsernameAvailable(username: string) {
-  assertSupabaseConfigured();
-  const { data, error } = await supabase.rpc("is_username_available", {
-    raw_username: username.trim(),
-  });
-
-  if (error) throw error;
-  return Boolean(data);
-}
-
-export async function registerWithEmail(email: string, username: string, firstName: string, lastName: string, password: string) {
+export async function registerWithEmail(email: string, firstName: string, password: string) {
   assertSupabaseConfigured();
   const normalizedEmail = normalizeEmail(email);
-  const normalizedUsername = username.trim();
-  const [accountState, usernameAvailable] = await Promise.all([
-    getRegistrationAccountState(normalizedEmail),
-    isUsernameAvailable(normalizedUsername),
-  ]);
-
-  if (accountState === "verified") {
-    throw new AccountAlreadyExistsError(normalizedEmail);
-  }
-
-  if (!usernameAvailable) {
-    throw new UsernameUnavailableError();
-  }
 
   const { data, error } = await supabase.auth.signUp({
     email: normalizedEmail,
@@ -187,27 +111,20 @@ export async function registerWithEmail(email: string, username: string, firstNa
     options: {
       data: {
         first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        username: normalizedUsername,
       },
       emailRedirectTo: emailAuthRedirectTo,
     },
   });
 
   if (error) {
+    // Do not disclose whether this address belongs to an existing account.
+    // Supabase can intentionally return this response when email confirmation
+    // is enabled to prevent account enumeration.
     if (isAlreadyRegisteredError(error)) {
-      throw new AccountAlreadyExistsError(normalizedEmail);
+      return { email: normalizedEmail };
     }
 
     throw error;
-  }
-
-  if (data.user && data.user.identities?.length === 0) {
-    const state = await getRegistrationAccountState(normalizedEmail);
-    if (state === "unverified") {
-      throw new EmailNotVerifiedError(normalizedEmail);
-    }
-    throw new AccountAlreadyExistsError(normalizedEmail);
   }
 
   if (data.session || (data.user && isUserEmailVerified(data.user))) {
@@ -237,6 +154,18 @@ export async function exchangeAuthCodeForSession(code: string) {
   return data;
 }
 
+/** Exchanges a password-recovery code and requires a newly issued session. */
+export async function exchangePasswordRecoveryCode(code: string) {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+  if (error || !data.session || !data.user) {
+    throw error ?? new Error("PASSWORD_RECOVERY_SESSION_MISSING");
+  }
+
+  return data;
+}
+
 export async function resendSignupConfirmationLink(email: string) {
   assertSupabaseConfigured();
   const { error } = await supabase.auth.resend({
@@ -249,7 +178,9 @@ export async function resendSignupConfirmationLink(email: string) {
 
   if (error) {
     if (isAlreadyConfirmedError(error)) {
-      throw new EmailAlreadyConfirmedError();
+      // Keep resend responses neutral so this endpoint cannot reveal whether
+      // an address already belongs to a confirmed account.
+      return;
     }
 
     throw error;
@@ -272,11 +203,20 @@ export async function sendPasswordReset(email: string) {
 
 export async function updatePassword(password: string) {
   assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) {
+    throw userError ?? new Error("AUTHENTICATED_USER_REQUIRED");
+  }
+
   const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
     throw error;
   }
+
+  // Preserve the current device's new session while ending sessions that may
+  // remain active elsewhere after a recovery-based password change.
+  await supabase.auth.signOut({ scope: "others" });
 }
 
 export async function signOut() {
@@ -305,6 +245,10 @@ export async function openOAuth(provider: AuthProviderName) {
     throw error;
   }
 
+  if (!data.url) {
+    throw new Error("OAUTH_URL_MISSING");
+  }
+
   const result = await WebBrowser.openAuthSessionAsync(data.url, appAuthRedirectTo);
   if (result.type !== "success") {
     return;
@@ -315,5 +259,8 @@ export async function openOAuth(provider: AuthProviderName) {
 
   if (typeof code === "string") {
     await exchangeAuthCodeForSession(code);
+    return;
   }
+
+  throw new Error("OAUTH_CALLBACK_INVALID");
 }

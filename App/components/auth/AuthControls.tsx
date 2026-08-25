@@ -15,7 +15,7 @@ import { haptic, IconButton } from "@/components/ui";
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
 
 type AuthInputProps = TextInputProps & {
-  icon: IoniconName;
+  icon?: IoniconName;
   error?: string;
   label?: string;
   rightElement?: ReactNode;
@@ -26,7 +26,7 @@ export function AuthInput({ icon, error, label, rightElement, style, ...props }:
     <View style={styles.inputWrap}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
       <View style={[styles.inputShell, error ? styles.inputError : null]}>
-        <Ionicons name={icon} size={17} color={error ? T.red : T.muted} />
+        {icon ? <Ionicons name={icon} size={17} color={error ? T.red : T.muted} /> : null}
         <TextInput
           placeholderTextColor={T.muted}
           selectionColor={T.blue}

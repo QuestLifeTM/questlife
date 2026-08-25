@@ -1,22 +1,19 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BackButton, PrimaryButton } from "@/components/auth/AuthControls";
 import { AuthTitle } from "@/components/auth/AuthText";
 import { AuthScaffold } from "@/components/auth/AuthScaffold";
 import { T } from "@/components/theme";
-import {
-  getRegistrationAccountState,
-  resendSignupConfirmationLink,
-} from "@/services/auth/authService";
+import { resendSignupConfirmationLink } from "@/services/auth/authService";
 import { getAuthErrorMessage } from "@/utils/authErrors";
 
 const RESEND_SECONDS = 60;
 
 export default function VerifyEmailScreen() {
-  const params = useLocalSearchParams<{ email?: string }>();
-  const email = useMemo(() => String(params.email ?? ""), [params.email]);
+  const { email: emailParam } = useLocalSearchParams<{ email?: string }>();
+  const email = typeof emailParam === "string" ? emailParam : "";
   const [resending, setResending] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
 
@@ -31,32 +28,6 @@ export default function VerifyEmailScreen() {
 
     return () => clearTimeout(timeout);
   }, [secondsLeft]);
-
-  useEffect(() => {
-    if (!email) return;
-
-    let cancelled = false;
-
-    async function checkVerification() {
-      try {
-        const state = await getRegistrationAccountState(email);
-        if (!cancelled && state === "verified") {
-          cancelled = true;
-          router.replace("/(auth)/login");
-        }
-      } catch {
-        // Keep polling; transient network errors should not strand the screen.
-      }
-    }
-
-    checkVerification();
-    const interval = setInterval(checkVerification, 5000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [email]);
 
   async function handleResend() {
     try {
@@ -77,12 +48,12 @@ export default function VerifyEmailScreen() {
   if (!email) {
     return (
       <AuthScaffold>
-        <BackButton onPress={() => router.replace("/(auth)/register")} />
+        <BackButton onPress={() => router.replace("/(auth)/auth-options")} />
         <AuthTitle subtitle="Please register again to request a new confirmation email.">
           {"Missing\nEmail"}
         </AuthTitle>
         <PrimaryButton
-          onPress={() => router.replace("/(auth)/register")}
+          onPress={() => router.replace("/(auth)/auth-options")}
           title="Back to sign up"
         />
       </AuthScaffold>
@@ -91,16 +62,13 @@ export default function VerifyEmailScreen() {
 
   return (
     <AuthScaffold>
-      <BackButton onPress={() => router.replace("/(auth)/register")} />
+      <BackButton onPress={() => router.replace({ pathname: "/(auth)/auth-options", params: { email } })} />
       <AuthTitle subtitle={`Open the confirmation link sent to\n${email}`}>
         {"Verify\nEmail"}
       </AuthTitle>
 
       <View style={styles.form}>
-        <Text style={styles.instructions}>
-          Tap the confirmation link in your email. QuestLife will open
-          automatically and finish verification.
-        </Text>
+        <Text style={styles.instructions}>Tap the confirmation link in your email. QuestLife will open automatically and finish verification.</Text>
       </View>
 
       <PrimaryButton
