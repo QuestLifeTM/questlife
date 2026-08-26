@@ -1,4 +1,4 @@
-import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -50,9 +50,12 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
   const [userPacks, setUserPacks] = useState<UserPack[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const refreshVersion = useRef(0);
+  const userId = session?.user.id ?? null;
 
   const refresh = useCallback(async () => {
-    if (!isConfigured || !session) {
+    const requestVersion = ++refreshVersion.current;
+    if (!isConfigured || !userId) {
       setEngine(null);
       setUserPacks([]);
       return;
@@ -66,14 +69,19 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
         fetchEngineState(),
         fetchUserPacks(),
       ]);
+      // Active quests live in the user's server-side quest_sessions record.
+      // Ignore stale responses so a sign-out/sign-in cannot overwrite the
+      // freshly restored active session with an older auth state.
+      if (requestVersion !== refreshVersion.current) return;
       setEngine(engineState);
       setUserPacks(packs);
     } catch (nextError) {
+      if (requestVersion !== refreshVersion.current) return;
       setError(nextError instanceof Error ? nextError.message : "Unable to load quest engine state.");
     } finally {
-      setLoading(false);
+      if (requestVersion === refreshVersion.current) setLoading(false);
     }
-  }, [isConfigured, session]);
+  }, [isConfigured, userId]);
 
   useEffect(() => {
     refresh();

@@ -7,7 +7,7 @@ import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useGuestQuest } from "@/contexts/GuestQuestContext";
 import { addActiveQuestActivity, deleteActiveQuestActivity, deleteActiveQuestPhoto, ensureActiveQuestSession, getActiveQuestSnapshot, getPendingCompletionSyncSessionIds, setActiveQuestRecordingState, subscribeToActiveQuestStore, updateActiveQuestActivity, updateActiveQuestSession } from "@/services/active-quest/local-store";
 import { persistQuestPhoto, retryQuestPhotoSync } from "@/services/active-quest/media";
-import { syncActiveQuestRecord } from "@/services/active-quest/sync";
+import { hydrateActiveQuestFromServer, syncActiveQuestRecord } from "@/services/active-quest/sync";
 import { beginQuestLocationTracking, stopQuestLocationTracking } from "@/services/active-quest/tracking";
 import { persistQuestLocation } from "@/services/active-quest/location-task";
 import { ActiveQuestSnapshot } from "@/types/active-quest";
@@ -148,9 +148,16 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
       entryTitle: "",
       resumeExistingSession: Date.now() - new Date(activeSession.startedAt).getTime() > 15_000,
     })
-      .then(async (localSession) => {
+      .then(async () => {
+        // The server copy is authoritative for a session restored after login
+        // or on another device. If it is temporarily unavailable, retain the
+        // local session rather than clearing any in-progress work.
+        if (!isGuestSession) {
+          try { await hydrateActiveQuestFromServer(activeSession.id); } catch { /* Local-first fallback remains available. */ }
+        }
         void retryQuestPhotoSync(activeSession.id);
-        if (localSession?.recordingState === "recording" && localSession.trackingStatus !== "tracking") {
+        const restoredSession = await getActiveQuestSnapshot(activeSession.id);
+        if (restoredSession?.session.recordingState === "recording" && restoredSession.session.trackingStatus !== "tracking") {
           const result = await beginQuestLocationTracking(activeSession.id);
           if (result.started) await startForegroundLocationWatch(activeSession.id);
         }
@@ -163,7 +170,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
         if (mounted) setLoading(false);
       });
     return () => { mounted = false; };
-  }, [activeSession, startForegroundLocationWatch]);
+  }, [activeSession, isGuestSession, retryQuestPhotoSync, startForegroundLocationWatch]);
 
   const pause = useCallback(async () => {
     if (!snapshot || snapshot.session.recordingState === "paused") return;
@@ -173,6 +180,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
       activeSince: null,
       activeDurationMs: snapshot.session.activeDurationMs + elapsedSince(snapshot.session.activeSince),
     });
+    void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
     setTrackingMessage("Quest time is paused. Your route is still recording.");
     await reload();
   }, [reload, snapshot]);
@@ -184,6 +192,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
       activeSince: new Date().toISOString(),
       activeDurationMs: snapshot.session.activeDurationMs,
     });
+    void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
     if (snapshot.session.trackingStatus !== "tracking") {
       const result = await beginQuestLocationTracking(snapshot.session.sessionId);
       if (result.started) await startForegroundLocationWatch(snapshot.session.sessionId);
@@ -197,6 +206,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
   const saveEntry = useCallback(async (input: { title: string; body: string }) => {
     if (!snapshot) return;
     await updateActiveQuestSession(snapshot.session.sessionId, { entryTitle: input.title, entryBody: input.body });
+    void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
     await reload();
   }, [reload, snapshot]);
 
@@ -229,6 +239,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     if (!item) return;
     await updateActiveQuestActivity(id, item.kind === "photo" ? { caption: value } : { body: value });
     await reload();
+    void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
   }, [reload, snapshot]);
 
   const deletePhoto = useCallback(async (id: number) => {

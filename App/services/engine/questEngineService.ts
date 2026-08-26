@@ -5,6 +5,7 @@ import { compressFeedImage } from "@/services/media/feed-image";
 import {
   CompleteQuestInput,
   CompletionResult,
+  ActiveQuestSession,
   QuestEngineState,
   QuestReviewData,
   UserPack,
@@ -59,10 +60,32 @@ export async function fetchEngineState(): Promise<QuestEngineState> {
   const { data, error } = await supabase.rpc("get_quest_engine_state", { p_today: today() });
   if (error) throw error;
   const state = data as QuestEngineState;
+  let activeSession = state.activeSession ?? null;
+
+  // The engine RPC is the primary read model. This direct, RLS-protected
+  // fallback keeps an in-progress quest visible after authentication is
+  // restored if the RPC response is served without its active-session field.
+  if (!activeSession) {
+    const { data: session } = await supabase
+      .from("quest_sessions")
+      .select("id, quest_id, source, started_at")
+      .eq("status", "active")
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (session) {
+      activeSession = {
+        id: session.id,
+        questId: session.quest_id,
+        source: session.source as ActiveQuestSession["source"],
+        startedAt: session.started_at,
+      };
+    }
+  }
   return {
     dailyLimit: state.dailyLimit ?? 5,
     dailyUsed: state.dailyUsed ?? 0,
-    activeSession: state.activeSession ?? null,
+    activeSession,
     todayCompletions: state.todayCompletions ?? [],
   };
 }

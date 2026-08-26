@@ -5,7 +5,6 @@ import { Quest } from "@/types/content";
 
 export type QuestStartBlock =
   | { type: "daily_limit" }
-  | { type: "active_quest"; activeQuest: Quest | null }
   | { type: "repeat_quest"; quest: Quest; repeatXp: number }
   | { type: "error"; message: string };
 
@@ -37,8 +36,11 @@ export function useQuestStart(getQuest: (id?: string) => Quest | null) {
         if (message.includes("daily limit") || message.includes("5 quests")) {
           setBlock({ type: "daily_limit" });
         } else if (message.includes("already have an active")) {
-          const activeQuest = engine?.activeSession ? getQuest(engine.activeSession.questId) : null;
-          setBlock({ type: "active_quest", activeQuest: activeQuest ?? null });
+          // The disabled, dark "A quest is active right now" button is the
+          // normal affordance. This can only occur if another device starts a
+          // quest between render and request, so refresh silently instead of
+          // showing a second, redundant blocking sheet.
+          await refresh();
         } else if (message.includes("already completed")) {
           const quest = getQuest(input.questId);
           if (quest) setBlock({ type: "repeat_quest", quest, repeatXp: Math.round(quest.xp * 0.2) });
@@ -51,7 +53,7 @@ export function useQuestStart(getQuest: (id?: string) => Quest | null) {
         setStarting(false);
       }
     },
-    [engine?.activeSession, getQuest, refresh, startQuest],
+    [engine?.todayCompletions, getQuest, refresh, startQuest],
   );
 
   const clearBlock = useCallback(() => setBlock(null), []);

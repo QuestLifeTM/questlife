@@ -9,18 +9,16 @@ import { ProfileAvatar } from "@/components/profile-avatar";
 import { QuestStartBlockSheet } from "@/components/quest-start-block";
 import { StreakPill } from "@/components/streak-pill";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
-import { Card, PillStat, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
+import { Card, PillStat, Screen, Sheet, SoftButton, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { useContent } from "@/contexts/ContentContext";
 import { useNotifications } from "@/contexts/NotificationsContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
-import { useStreaks } from "@/contexts/StreaksContext";
 import { formatElapsedCompact, useElapsedDuration } from "@/hooks/useElapsedTime";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { useQuestStart } from "@/hooks/useQuestStart";
 import { Quest } from "@/types/content";
 import { fetchOwnProfileAvatar, fetchRequiredProfileName } from "@/services/profile/profileService";
-import { fetchQuestHistorySignals, QuestHistorySignal } from "@/services/journal/journalService";
 
 function LobbyReveal({
   children,
@@ -107,65 +105,6 @@ function greetingFor(date: Date, hasCompletedQuestToday: boolean, shuffle: numbe
         : ["Late night grind?", "Night owl?", "End strong."];
 
   return greetings[shuffle % greetings.length];
-}
-
-type PickTime = 10 | 20 | 40 | "any";
-type PickSetting = "indoors" | "outdoors" | "either";
-
-const outdoorCategories = new Set<Quest["category"]>(["ADVENTURE", "FITNESS", "EVENTS"]);
-const indoorCategories = new Set<Quest["category"]>(["CREATIVITY", "FOOD AND DRINKS"]);
-
-function recommendationFor({
-  quests,
-  dailyRemaining,
-  history,
-  currentStreak,
-  time,
-  setting,
-  attempt,
-}: {
-  quests: Quest[];
-  dailyRemaining: number;
-  history: QuestHistorySignal[];
-  currentStreak: number;
-  time: PickTime;
-  setting: PickSetting;
-  attempt: number;
-}) {
-  const favoriteCategory = history[0]?.category;
-  const candidates = quests.filter((quest) => quest.status === "published" && !quest.completed);
-  if (!candidates.length || dailyRemaining <= 0) return null;
-
-  const ranked = candidates
-    .map((quest) => {
-      let score = quest.saved ? 4 : 0;
-      if (favoriteCategory === quest.category) score += 12;
-      if (currentStreak > 0 && dailyRemaining > 0 && quest.timeMin <= 20) score += 7;
-      if (time !== "any") {
-        score += quest.timeMin <= time ? 18 + Math.max(0, 5 - Math.abs(time - quest.timeMin) / 5) : Math.max(-16, 8 - (quest.timeMin - time));
-      }
-      if (setting === "indoors") score += indoorCategories.has(quest.category) ? 11 : outdoorCategories.has(quest.category) ? -7 : 2;
-      if (setting === "outdoors") score += outdoorCategories.has(quest.category) ? 11 : indoorCategories.has(quest.category) ? -7 : 2;
-      if (dailyRemaining === 1 && quest.timeMin <= 20) score += 4;
-      return { quest, score };
-    })
-    .sort((a, b) => b.score - a.score || a.quest.timeMin - b.quest.timeMin || a.quest.title.localeCompare(b.quest.title));
-  const pick = ranked[attempt % Math.min(ranked.length, 5)]?.quest;
-  if (!pick) return null;
-
-  const monthlyHistory = history.find((item) => item.category === pick.category);
-  const reason = time !== "any" && pick.timeMin <= time
-    ? `Fits your ${time}-minute window.`
-    : setting !== "either" && ((setting === "indoors" && indoorCategories.has(pick.category)) || (setting === "outdoors" && outdoorCategories.has(pick.category)))
-      ? `A good ${setting} choice for today.`
-      : currentStreak > 0 && dailyRemaining > 0 && pick.timeMin <= 20
-        ? `Keep your ${currentStreak}-day streak alive.`
-      : monthlyHistory
-        ? `You have completed ${monthlyHistory.completedThisMonth} ${pick.category.toLowerCase()} quest${monthlyHistory.completedThisMonth === 1 ? "" : "s"} this month.`
-        : pick.saved
-          ? "You saved this one for a reason."
-          : "A fresh quest that fits your day.";
-  return { quest: pick, reason };
 }
 
 function LobbyAvatar({ uri, onPress }: { uri: string | null; onPress: () => void }) {
@@ -405,17 +344,28 @@ function ActiveQuestCard({
   );
 }
 
+function RestoredActiveQuestCard({ onView, reducedMotion }: { onView: () => void; reducedMotion: boolean }) {
+  return <LobbyReveal motionKey="restored-active-quest" reducedMotion={reducedMotion}>
+    <Card style={{ borderRadius: 24, gap: 12, borderColor: `${T.blue}55`, backgroundColor: T.white }}>
+      <View style={{ width: 46, height: 46, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: `${T.blue}16` }}><Ionicons name="navigate" size={23} color={T.blue} /></View>
+      <View style={{ gap: 4 }}>
+        <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21, lineHeight: 27 }}>Your active quest is ready</Text>
+        <Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 14, lineHeight: 20 }}>Open it to pick up where you left off.</Text>
+      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="View active quest" onPress={() => { haptic(); onView(); }} style={({ pressed }) => [styles.activePrimaryButton, pressed ? styles.pressed : null]}><Ionicons name="navigate" size={18} color={T.white} /><Text style={styles.activePrimaryText}>View Active Quest</Text><Ionicons name="arrow-forward" size={18} color={T.white} /></Pressable>
+    </Card>
+  </LobbyReveal>;
+}
+
 function ActiveQuestMetaPill({ label, color, background, maxWidth }: { label: string; color: string; background: string; maxWidth: `${number}%` }) {
   return <View style={{ maxWidth, minHeight: 32, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 99, alignSelf: "flex-start", justifyContent: "center", backgroundColor: background, borderWidth: 2, borderColor: color, borderBottomWidth: 4, borderBottomColor: `${color}88` }}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={{ color, fontFamily: "RubikBold", fontSize: 11, lineHeight: 14, letterSpacing: 0.55, textTransform: "uppercase" }}>{label}</Text></View>;
 }
 
 function EmptyActiveQuest({
   onExplore,
-  onPickForMe,
   reducedMotion,
 }: {
   onExplore: () => void;
-  onPickForMe: () => void;
   reducedMotion: boolean;
 }) {
   return (
@@ -423,107 +373,13 @@ function EmptyActiveQuest({
       <Card style={styles.emptyActiveCard}>
         <View style={styles.emptyQuestCopy}>
           <Text style={styles.emptyQuestTitle}>Choose your next quest</Text>
-          <Text style={styles.emptyQuestBody}>Get a quick match or explore on your own.</Text>
+          <Text style={styles.emptyQuestBody}>Find an adventure that fits your day.</Text>
         </View>
         <View style={styles.emptyActions}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Pick a quest for me" onPress={() => { haptic(); onPickForMe(); }} style={({ pressed }) => [styles.activePrimaryButton, pressed ? styles.pressed : null]}><Ionicons name="sparkles" size={18} color={T.white} /><Text style={styles.activePrimaryText}>Pick for me</Text><Ionicons name="arrow-forward" size={18} color={T.white} /></Pressable>
-          <SoftButton label="Explore quests" icon="compass" inverse color={T.blue} onPress={onExplore} style={styles.emptySecondaryAction} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Explore quests" onPress={() => { haptic(); onExplore(); }} style={({ pressed }) => [styles.activePrimaryButton, pressed ? styles.pressed : null]}><Ionicons name="compass" size={18} color={T.white} /><Text style={styles.activePrimaryText}>Explore quests</Text><Ionicons name="arrow-forward" size={18} color={T.white} /></Pressable>
         </View>
       </Card>
     </LobbyReveal>
-  );
-}
-
-function PickOption({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={({ pressed }) => [styles.pickOption, selected ? styles.pickOptionSelected : null, pressed ? styles.pressedSmall : null]}
-    >
-      <Text style={[styles.pickOptionText, selected ? styles.pickOptionTextSelected : null]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function PickForMeSheet({
-  visible,
-  onClose,
-  recommendation,
-  time,
-  setting,
-  starting,
-  onTimeChange,
-  onSettingChange,
-  onTryAnother,
-  onStart,
-  onView,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  recommendation: ReturnType<typeof recommendationFor>;
-  time: PickTime;
-  setting: PickSetting;
-  starting: boolean;
-  onTimeChange: (time: PickTime) => void;
-  onSettingChange: (setting: PickSetting) => void;
-  onTryAnother: () => void;
-  onStart: () => void;
-  onView: () => void;
-}) {
-  const quest = recommendation?.quest;
-  const category = quest ? categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` } : null;
-  const difficulty = quest ? difficultyColor[quest.difficulty] : null;
-  return (
-    <Sheet visible={visible} onClose={onClose} maxHeight="82%">
-      <View style={styles.pickSheet}>
-        <View style={styles.pickSheetHeader}>
-          <View style={styles.pickSparkle}><Ionicons name="sparkles" size={24} color={T.blue} /></View>
-          <View style={styles.pickHeaderCopy}>
-            <Text style={styles.pickTitle}>Pick for me</Text>
-            <Text style={styles.pickSubtitle}>A quest matched to the time and mood you have today.</Text>
-          </View>
-        </View>
-
-        <View style={styles.pickControlGroup}>
-          <Text style={styles.pickControlLabel}>Time available</Text>
-          <View style={styles.pickOptions}>{([10, 20, 40, "any"] as PickTime[]).map((item) => <PickOption key={String(item)} label={item === "any" ? "Any" : `${item} min`} selected={time === item} onPress={() => onTimeChange(item)} />)}</View>
-        </View>
-        <View style={styles.pickControlGroup}>
-          <Text style={styles.pickControlLabel}>Where are you up for going?</Text>
-          <View style={styles.pickOptions}>{(["indoors", "outdoors", "either"] as PickSetting[]).map((item) => <PickOption key={item} label={item === "either" ? "Either" : item[0].toUpperCase() + item.slice(1)} selected={setting === item} onPress={() => onSettingChange(item)} />)}</View>
-        </View>
-
-        {quest && category && difficulty ? (
-          <View style={styles.pickQuestCard}>
-            <View style={styles.pickQuestTopRow}>
-              <View style={styles.metaRow}>
-                <Tag label={quest.category} color={category.text} bg={category.bg} />
-                <Tag label={quest.difficulty} color={difficulty.text} bg={difficulty.bg} />
-              </View>
-              <Pressable accessibilityLabel="Try another recommendation" accessibilityRole="button" onPress={onTryAnother} hitSlop={8} style={({ pressed }) => [styles.pickShuffleButton, pressed ? styles.pressedSmall : null]}><Ionicons name="shuffle" size={17} color={T.blue} /></Pressable>
-            </View>
-            <Text style={styles.pickQuestTitle}>{quest.title}</Text>
-            <Text style={styles.pickQuestDescription} numberOfLines={2}>{quest.description}</Text>
-            <View style={styles.pickReason}><Ionicons name="heart" size={14} color={T.purple} /><Text style={styles.pickReasonText}>{recommendation.reason}</Text></View>
-            <View style={styles.pickStats}><PillStat icon="time" text={quest.timeLabel} color={T.orange} /><PillStat icon="flash" text={`+${quest.xp} XP`} color={T.blue} /></View>
-            <SoftButton label={starting ? "Starting..." : "Start this quest"} icon="navigate" disabled={starting} onPress={onStart} />
-            <Pressable accessibilityRole="button" onPress={onView} style={({ pressed }) => [styles.pickDetailsButton, pressed ? styles.pressedSmall : null]}><Text style={styles.pickDetailsText}>View quest details</Text><Ionicons name="arrow-forward" size={15} color={T.blue} /></Pressable>
-          </View>
-        ) : (
-          <View style={styles.pickEmpty}><Ionicons name="moon-outline" size={26} color={T.muted} /><Text style={styles.pickEmptyTitle}>You have earned a rest</Text><Text style={styles.pickEmptyBody}>There are no new quests available right now. Come back tomorrow for fresh energy.</Text></View>
-        )}
-      </View>
-    </Sheet>
   );
 }
 
@@ -607,18 +463,12 @@ export function LobbyScreen() {
   const { error: contentError, getQuest, loading, quests } = useContent();
   const { unreadCount } = useNotifications();
   const { engine, error: engineError, loading: engineLoading, refresh, saveActiveForLater } = useQuestEngine();
-  const { overview: streakOverview } = useStreaks();
-  const { block, clearBlock, starting, tryStart } = useQuestStart(getQuest);
+  const { block, clearBlock, tryStart } = useQuestStart(getQuest);
 
   const [savedSheet, setSavedSheet] = useState(false);
-  const [pickSheet, setPickSheet] = useState(false);
-  const [pickTime, setPickTime] = useState<PickTime>(20);
-  const [pickSetting, setPickSetting] = useState<PickSetting>("either");
-  const [pickAttempt, setPickAttempt] = useState(0);
   const [greetingShuffle] = useState(() => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
   const [firstName, setFirstName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [historySignals, setHistorySignals] = useState<QuestHistorySignal[]>([]);
 
   const { isCompact: compact } = getLobbyLayout(contentWidth);
   const now = new Date();
@@ -638,42 +488,19 @@ export function LobbyScreen() {
     return () => { active = false; };
   }, [profileNameVersion, user?.id]);
 
-  useEffect(() => {
-    let active = true;
-    if (!user) {
-      setHistorySignals([]);
-      return () => { active = false; };
-    }
-    void fetchQuestHistorySignals()
-      .then((signals) => { if (active) setHistorySignals(signals); })
-      .catch(() => { if (active) setHistorySignals([]); });
-    return () => { active = false; };
-  }, [user?.id]);
-
   const activeQuest = engine?.activeSession ? getQuest(engine.activeSession.questId) : null;
+  const hasActiveSession = Boolean(engine?.activeSession);
   const activeQuestElapsed = useElapsedDuration(engine?.activeSession?.startedAt);
   const dailyUsed = engine?.dailyUsed ?? 0;
   const dailyLimit = engine?.dailyLimit ?? 5;
   const completions = engine?.todayCompletions ?? [];
   const greeting = greetingFor(now, completions.length > 0, greetingShuffle);
-  const pickRecommendation = useMemo(
-    () => recommendationFor({
-      quests,
-      dailyRemaining: Math.max(0, dailyLimit - dailyUsed),
-      history: historySignals,
-      currentStreak: streakOverview?.personal.currentStreak ?? 0,
-      time: pickTime,
-      setting: pickSetting,
-      attempt: pickAttempt,
-    }),
-    [dailyLimit, dailyUsed, historySignals, pickAttempt, pickSetting, pickTime, quests, streakOverview?.personal.currentStreak],
-  );
   const lobbyStates = resolveLobbyStates({
     contentLoading: loading,
     contentError,
     engineLoading,
     engineError,
-    hasActiveQuest: Boolean(activeQuest && engine?.activeSession),
+    hasActiveQuest: hasActiveSession,
     hasCompletions: completions.length > 0,
     feedback: savedSheet ? "success" : "idle",
   });
@@ -721,8 +548,8 @@ export function LobbyScreen() {
         <EnergyCard dailyLimit={dailyLimit} dailyUsed={dailyUsed} reducedMotion={reducedMotion} />
 
         <View style={styles.section}>
-          <SectionHeader icon="sparkles" title={activeQuest && engine?.activeSession ? "Active Quest" : "No Quest Is Active"} />
-          {activeQuest && engine?.activeSession ? (
+          <SectionHeader icon="sparkles" title={hasActiveSession ? "Active Quest" : "No Quest Is Active"} />
+          {hasActiveSession ? activeQuest ? (
             <ActiveQuestCard
               activeQuest={activeQuest}
               elapsedLabel={formatElapsedCompact(activeQuestElapsed)}
@@ -730,12 +557,10 @@ export function LobbyScreen() {
               reducedMotion={reducedMotion}
             />
           ) : (
+            <RestoredActiveQuestCard onView={() => router.push("/active-quest")} reducedMotion={reducedMotion} />
+          ) : (
             <EmptyActiveQuest
               onExplore={() => router.push("/explore")}
-              onPickForMe={() => {
-                setPickAttempt(0);
-                setPickSheet(true);
-              }}
               reducedMotion={reducedMotion}
             />
           )}
@@ -754,50 +579,11 @@ export function LobbyScreen() {
         </View>
       </Sheet>
 
-      <PickForMeSheet
-        visible={pickSheet}
-        onClose={() => setPickSheet(false)}
-        recommendation={pickRecommendation}
-        time={pickTime}
-        setting={pickSetting}
-        starting={starting}
-        onTimeChange={(time) => {
-          setPickTime(time);
-          setPickAttempt(0);
-        }}
-        onSettingChange={(setting) => {
-          setPickSetting(setting);
-          setPickAttempt(0);
-        }}
-        onTryAnother={() => setPickAttempt((attempt) => attempt + 1)}
-        onView={() => {
-          if (!pickRecommendation) return;
-          setPickSheet(false);
-          router.push(`/quest/${pickRecommendation.quest.id}`);
-        }}
-        onStart={() => {
-          if (!pickRecommendation) return;
-          void tryStart({ questId: pickRecommendation.quest.id, source: "explore" }).then((started) => {
-            if (!started) return;
-            setPickSheet(false);
-            router.push("/active-quest");
-          });
-        }}
-      />
-
       <Sheet visible={block !== null} onClose={clearBlock}>
         <View style={styles.sheetContent}>
           <QuestStartBlockSheet
             block={block}
             onClose={clearBlock}
-            onGoActive={() => {
-              clearBlock();
-              if (engine?.activeSession) router.push("/active-quest");
-            }}
-            onSaveActive={async () => {
-              await handleSaveForLater();
-              clearBlock();
-            }}
             onRepeatQuest={async () => {
               if (block?.type !== "repeat_quest") return;
               const started = await tryStart({ questId: block.quest.id, source: "explore", confirmedRepeat: true });
@@ -1171,174 +957,6 @@ const styles = StyleSheet.create({
   emptyActions: {
     alignSelf: "stretch",
     gap: 10,
-  },
-  emptySecondaryAction: {
-    minHeight: 46,
-  },
-  pickSheet: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    gap: 16,
-  },
-  pickSheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  pickSparkle: {
-    width: 48,
-    height: 48,
-    borderRadius: 17,
-    backgroundColor: `${T.blue}16`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pickHeaderCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  pickTitle: {
-    color: T.dark,
-    fontSize: 23,
-    lineHeight: 28,
-    fontWeight: "900",
-  },
-  pickSubtitle: {
-    color: T.muted,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "700",
-  },
-  pickControlGroup: {
-    gap: 8,
-  },
-  pickControlLabel: {
-    color: T.muted,
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: "900",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-  },
-  pickOptions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  pickOption: {
-    minHeight: 38,
-    paddingHorizontal: 12,
-    borderRadius: 13,
-    borderWidth: 2,
-    borderColor: T.border,
-    backgroundColor: T.white,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pickOptionSelected: {
-    borderColor: T.blue,
-    backgroundColor: `${T.blue}13`,
-  },
-  pickOptionText: {
-    color: T.muted,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "900",
-  },
-  pickOptionTextSelected: {
-    color: T.blue,
-  },
-  pickQuestCard: {
-    gap: 11,
-    padding: 15,
-    borderRadius: radius.lg,
-    borderWidth: 2,
-    borderColor: T.border,
-    borderBottomWidth: 5,
-    borderBottomColor: "#e6ddd2",
-    backgroundColor: T.white,
-  },
-  pickQuestTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  pickShuffleButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: `${T.blue}12`,
-  },
-  pickQuestTitle: {
-    color: T.dark,
-    fontSize: 20,
-    lineHeight: 25,
-    fontWeight: "900",
-  },
-  pickQuestDescription: {
-    color: T.muted,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "700",
-  },
-  pickReason: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: `${T.purple}0e`,
-  },
-  pickReasonText: {
-    color: T.dark,
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "700",
-  },
-  pickStats: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  pickDetailsButton: {
-    minHeight: 30,
-    alignSelf: "center",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  pickDetailsText: {
-    color: T.blue,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "900",
-  },
-  pickEmpty: {
-    alignItems: "center",
-    gap: 7,
-    paddingHorizontal: 22,
-    paddingVertical: 20,
-    borderRadius: radius.lg,
-    borderWidth: 2,
-    borderColor: T.border,
-    backgroundColor: T.bg,
-  },
-  pickEmptyTitle: {
-    color: T.dark,
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: "900",
-  },
-  pickEmptyBody: {
-    color: T.muted,
-    fontSize: 12,
-    lineHeight: 18,
-    fontWeight: "700",
-    textAlign: "center",
   },
   completedEmpty: {
     borderRadius: radius.lg,

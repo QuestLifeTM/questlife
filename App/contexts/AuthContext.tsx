@@ -99,6 +99,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
       profileNameVersion,
       refreshProfileName: () => setProfileNameVersion((version) => version + 1),
       signOut: async () => {
+        // Keep a final server checkpoint before the local auth token is
+        // cleared. Failures leave the on-device copy intact for restoration.
+        try {
+          const { flushCurrentUsersActiveQuest } = await import("@/services/active-quest/sync");
+          await flushCurrentUsersActiveQuest();
+        } catch {
+          // Offline sign-out is still valid; local active-quest storage is not
+          // tied to the auth session and will retry after the user returns.
+        }
         await signOutFromService();
         // Supabase emits SIGNED_OUT, but update synchronously as well so the
         // protected-route boundary and user-scoped providers clear immediately.
