@@ -19,7 +19,7 @@ import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { formatElapsedCompact } from "@/hooks/useElapsedTime";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
-import { DEFAULT_PROFILE_PRIVACY, DEFAULT_PROFILE_STAT_VISIBILITY, fetchProfileOverview, fetchProfileQuestInsights, fetchWeeklyCompletedQuestActivity, ProfileQuestInsights, updateProfile, uploadProfileAvatar, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
+import { DEFAULT_PROFILE_PRIVACY, DEFAULT_PROFILE_STAT_VISIBILITY, fetchProfileOverview, ProfileQuestInsights, updateProfile, uploadProfileAvatar, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
 import { fetchFollowers, removeFollower } from "@/services/social/socialService";
 import { levelForXp, ProfileAudience, ProfileOverview, ProfilePrivacy, ProfileStatId, ProfileStatVisibility, QuestFeedPost } from "@/types/profile";
 import { FollowerProfile } from "@/types/social";
@@ -80,8 +80,6 @@ function ProfileHeaderIconButton({ icon, label, color, onPress }: { icon: keyof 
 function ImageControl({ label, onPress, style }: { label: string; onPress: () => void; style?: object }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [{ width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: T.white, borderWidth: 2, borderColor: T.border, boxShadow: `2px 2px 0px ${T.border}`, opacity: pressed ? 0.72 : 1 }, style]}><Ionicons name="image-outline" size={21} color={T.dark} /></Pressable>;
 }
-
-type ProfileTab = "posts" | "stats";
 
 function ProfileSkeletonBlock({ width, height, radius = 10 }: { width: number | `${number}%`; height: number; radius?: number }) {
   return <View style={{ width, height, borderRadius: radius, backgroundColor: T.border }} />;
@@ -324,13 +322,6 @@ function categoryLabel(category: string) {
   return category.toLowerCase().replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function ProfileTabButton({ tab, activeTab, onPress }: { tab: ProfileTab; activeTab: ProfileTab; onPress: () => void }) {
-  const active = tab === activeTab;
-  const label = tab === "posts" ? "Posts" : "Stats";
-  const icon = tab === "posts" ? "grid-outline" : "stats-chart-outline";
-  return <Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }} onPress={onPress} style={({ pressed }) => ({ flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", borderBottomWidth: active ? 3 : 0, borderBottomColor: active ? T.blue : "transparent", opacity: pressed ? 0.62 : 1 })}><Ionicons name={icon} size={25} color={T.blue} /></Pressable>;
-}
-
 function ProfileFollowersButton({ count, onPress }: { count: number; onPress: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityLabel="Manage followers" onPress={onPress} style={({ pressed }) => ({ minHeight: 42, marginTop: 14, paddingHorizontal: 14, borderRadius: 21, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: T.white, borderWidth: 2, borderColor: `${T.pink}55`, borderBottomWidth: pressed ? 2 : 4, borderBottomColor: `${T.pink}92`, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 2 : 0 }] })}><Ionicons name="people" size={16} color={T.pink} /><Text style={{ color: T.pink, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{count.toLocaleString()} follower{count === 1 ? "" : "s"}</Text><Ionicons name="chevron-forward" size={15} color={T.pink} /></Pressable>;
 }
@@ -368,7 +359,8 @@ function QuestTrail({ categories }: { categories: ProfileOverview["stats"]["topC
   </View>;
 }
 
-function ProfileStats({ overview, weeklyActivity, insights, scrollY }: { overview: ProfileOverview; weeklyActivity: WeeklyCompletedQuestActivity[]; insights: ProfileQuestInsights | null; scrollY: number }) {
+/** Private progress dashboard, shown from Journal's Your Stats tab. */
+export function YourStatsDashboard({ overview, weeklyActivity, insights, scrollY }: { overview: ProfileOverview; weeklyActivity: WeeklyCompletedQuestActivity[]; insights: ProfileQuestInsights | null; scrollY: number }) {
   const { profile, stats } = overview;
   const { level, intoLevel, toNext, progress } = levelForXp(profile?.totalXp ?? 0);
   const nextLevel = level + 1;
@@ -418,8 +410,6 @@ export function ProfileScreen() {
   const { refresh: refreshSocial } = useSocial();
   const { contentWidth, horizontalPadding, insets, safeAreaOffset } = useResponsiveScreenLayout();
   const [overview, setOverview] = useState<ProfileOverview | null>(null);
-  const [weeklyActivity, setWeeklyActivity] = useState<WeeklyCompletedQuestActivity[]>([]);
-  const [insights, setInsights] = useState<ProfileQuestInsights | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -433,25 +423,12 @@ export function ProfileScreen() {
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [readOnlyContentTop, setReadOnlyContentTop] = useState<number | null>(null);
   const [managedPost, setManagedPost] = useState<QuestFeedPost | null>(null);
-  const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
-  const [profileScrollY, setProfileScrollY] = useState(0);
-
-  const updateStatsScrollPosition = useCallback((offsetY: number) => {
-    // The charts only need coarse scroll changes to know when they are visible.
-    // Avoiding a full Profile render on every native scroll event keeps taps and
-    // the rest of the screen responsive.
-    setProfileScrollY((current) => Math.abs(current - offsetY) >= 24 ? offsetY : current);
-  }, []);
 
   async function load() {
     setLoading(true);
     try {
       const next = await fetchProfileOverview();
       setOverview(next.profile ? next : null);
-      // Stats queries are intentionally deferred until the Stats tab is
-      // opened, keeping the default Profile view responsive.
-      setWeeklyActivity([]);
-      setInsights(null);
       if (next.profile) {
         setDraftName(fullProfileName(next.profile.displayName, user?.user_metadata));
         setDraftBio(next.profile.bio ?? "");
@@ -465,20 +442,6 @@ export function ProfileScreen() {
   }
 
   useEffect(() => { void load(); }, [user?.id]);
-
-  useEffect(() => {
-    if (activeTab !== "stats" || !overview?.profile || insights !== null) return;
-    let mounted = true;
-    Promise.all([
-      fetchWeeklyCompletedQuestActivity().catch(() => []),
-      fetchProfileQuestInsights(overview.profile.userId).catch(() => null),
-    ]).then(([activity, nextInsights]) => {
-      if (!mounted) return;
-      setWeeklyActivity(activity);
-      setInsights(nextInsights);
-    });
-    return () => { mounted = false; };
-  }, [activeTab, insights, overview?.profile]);
 
   function startEditing() {
     if (!overview?.profile) return;
@@ -567,7 +530,7 @@ export function ProfileScreen() {
   }));
 
   return <View style={{ flex: 1, backgroundColor: T.bg }}>
-    <ScrollView contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} scrollEventThrottle={32} onScroll={activeTab === "stats" ? (event) => updateStatsScrollPosition(event.nativeEvent.contentOffset.y) : undefined} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + 112 }}>
+    <ScrollView contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + 112 }}>
       <View style={{ width: contentWidth, transform: [{ translateX: safeAreaOffset }] }}>
       <View style={{ backgroundColor: T.bg }}>
         <View style={{ paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top - 12, 12) }}>
@@ -602,13 +565,7 @@ export function ProfileScreen() {
         style={{ width: "100%" }}
       >
       <View style={{ paddingHorizontal: horizontalPadding, paddingTop: 20 }}>
-        <View accessibilityRole="tablist" style={{ height: 54, flexDirection: "row" }}>
-          <ProfileTabButton tab="posts" activeTab={activeTab} onPress={() => setActiveTab("posts")} />
-          <ProfileTabButton tab="stats" activeTab={activeTab} onPress={() => setActiveTab("stats")} />
-        </View>
-        <View style={{ marginTop: 16 }}>
-          {activeTab === "posts" ? (profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState framed emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." action={<SoftButton label="Explore quests" icon="compass-outline" inverse color={T.blue} onPress={() => router.push("/(tabs)/explore")} style={{ marginTop: 6 }} />} />) : <ProfileStats overview={overview} weeklyActivity={weeklyActivity} insights={insights} scrollY={profileScrollY} />}
-        </View>
+        {profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState framed emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." action={<SoftButton label="Explore quests" icon="compass-outline" inverse color={T.blue} onPress={() => router.push("/(tabs)/explore")} style={{ marginTop: 6 }} />} />}
       </View>
       </View>
     </View>

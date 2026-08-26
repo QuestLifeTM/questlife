@@ -23,7 +23,7 @@ function FeedScopeTab({ scope, active, onPress }: { scope: FeedScope; active: bo
 }
 
 function AddFriendsButton({ onPress }: { onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel="Add friends" onPress={onPress} style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: `${T.blue}12`, opacity: pressed ? 0.65 : 1 })}><AddFriendIcon size={23} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel="Add friends" onPress={() => { haptic(); onPress(); }} style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: T.white, borderWidth: 2, borderColor: T.blue, borderBottomWidth: pressed ? 2 : 4, borderBottomColor: `${T.blue}88`, opacity: pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.96 : 1 }, { translateY: pressed ? 2 : 0 }] })}><View style={{ width: 25, height: 25, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: `${T.blue}16` }}><AddFriendIcon size={19} /></View></Pressable>;
 }
 
 function SocialFeedLoading() {

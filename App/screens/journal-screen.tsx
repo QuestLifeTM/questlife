@@ -25,8 +25,11 @@ import { useNotifications } from "@/contexts/NotificationsContext";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { MotionPulse } from "@/motion/primitives";
 import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMood } from "@/types/journal";
+import { fetchProfileOverview, fetchProfileQuestInsights, fetchWeeklyCompletedQuestActivity, ProfileQuestInsights, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
+import { YourStatsDashboard } from "@/screens/profile-screen";
+import { ProfileOverview } from "@/types/profile";
 
-type JournalTab = "journal" | "album";
+type JournalTab = "journal" | "album" | "stats";
 type CalendarMode = "week" | "month";
 type JournalMediaItem = { id: string; source: string; dateKey: string; questTitle: string; completionId?: string; activePhotoId?: number };
 
@@ -90,8 +93,8 @@ function formatTime(iso: string) {
 // ── Header + tab switch ──────────────────────────────────────────────────────
 
 function JournalHeader({ tab }: { tab: JournalTab }) {
-  const title = tab === "journal" ? "My Journal" : "My Album";
-  const subtitle = tab === "journal" ? "Your story, one day at a time" : "Every quest, kept close";
+  const title = tab === "journal" ? "My Journal" : tab === "album" ? "My Album" : "Your Stats";
+  const subtitle = tab === "journal" ? "Your story, one day at a time" : tab === "album" ? "Every quest, kept close" : "Your progress, all in one place";
 
   return (
     <Header
@@ -106,14 +109,14 @@ function JournalHeader({ tab }: { tab: JournalTab }) {
 function JournalTabs({ activeTab, onChange }: { activeTab: JournalTab; onChange: (tab: JournalTab) => void }) {
   return (
     <View style={{ flexDirection: "row", padding: 4, borderRadius: 24, backgroundColor: T.white, borderWidth: 2, borderColor: T.border }}>
-      {(["journal", "album"] as JournalTab[]).map((tab) => {
+      {(["journal", "album", "stats"] as JournalTab[]).map((tab) => {
         const isActive = activeTab === tab;
         return (
           <Pressable
             key={tab}
             accessibilityRole="tab"
             accessibilityState={{ selected: isActive }}
-            accessibilityLabel={tab === "journal" ? "My Journal" : "My Album"}
+            accessibilityLabel={tab === "journal" ? "My Journal" : tab === "album" ? "My Album" : "Your Stats"}
             onPress={() => {
               if (isActive) return;
               haptic();
@@ -130,7 +133,7 @@ function JournalTabs({ activeTab, onChange }: { activeTab: JournalTab; onChange:
             })}
           >
             <Text style={{ color: isActive ? T.white : T.muted, fontSize: 13, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>
-              {tab === "journal" ? "My Journal" : "My Album"}
+              {tab === "journal" ? "My Journal" : tab === "album" ? "My Album" : "Your Stats"}
             </Text>
           </Pressable>
         );
@@ -869,6 +872,12 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
   const [entries, setEntries] = useState<Record<string, JournalEntry>>(preview?.data.entriesByDate ?? {});
   const [loading, setLoading] = useState(!preview);
   const [error, setError] = useState<string | null>(null);
+  const [statsOverview, setStatsOverview] = useState<ProfileOverview | null>(null);
+  const [weeklyActivity, setWeeklyActivity] = useState<WeeklyCompletedQuestActivity[]>([]);
+  const [statsInsights, setStatsInsights] = useState<ProfileQuestInsights | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsLoaded, setStatsLoaded] = useState(false);
+  const [statsScrollY, setStatsScrollY] = useState(0);
 
   const [todayKey, setTodayKey] = useState(() => preview?.todayKey ?? toLocalDateKey(new Date()));
   const [activeKey, setActiveKey] = useState(todayKey);
@@ -945,6 +954,28 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
       return () => { journalLoadId.current += 1; };
     }, [load, markJournalRead, preview])
   );
+
+  useEffect(() => {
+    if (preview || tab !== "stats" || statsLoaded) return;
+    let active = true;
+    setStatsLoading(true);
+    setStatsLoaded(true);
+    fetchProfileOverview()
+      .then(async (overview) => {
+        if (!active || !overview.profile) return;
+        const [activity, insights] = await Promise.all([
+          fetchWeeklyCompletedQuestActivity().catch(() => []),
+          fetchProfileQuestInsights(overview.profile.userId).catch(() => null),
+        ]);
+        if (!active) return;
+        setStatsOverview(overview);
+        setWeeklyActivity(activity);
+        setStatsInsights(insights);
+      })
+      .catch(() => { if (active) setStatsOverview(null); })
+      .finally(() => { if (active) setStatsLoading(false); });
+    return () => { active = false; };
+  }, [preview, statsLoaded, tab]);
 
   const joinKey = useMemo(() => {
     if (!data) return todayKey;
@@ -1137,7 +1168,9 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
             ListEmptyComponent={<View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>{loading ? <JournalLoadingSkeleton /> : <Card style={{ marginTop: 18, borderRadius: radius.lg }}><EmptyState emoji="!" title="Couldn't load your journal" body={error ?? "Please try again."} action={<SoftButton label="Try again" icon="refresh" onPress={() => void load(true)} />} /></Card>}</View>}
             ListFooterComponent={data && !loading ? <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><BeforeJoinMarker joinDate={join} /></View> : null}
           />
-        </> : <JournalAlbum items={albumItems} onExplore={goExplore} onManageItem={manageAlbumItem} contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} bottomInset={insets.bottom} />}
+        </> : tab === "album" ? <JournalAlbum items={albumItems} onExplore={goExplore} onManageItem={manageAlbumItem} contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} bottomInset={insets.bottom} /> : <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={32} onScroll={(event) => setStatsScrollY((current) => Math.abs(current - event.nativeEvent.contentOffset.y) >= 24 ? event.nativeEvent.contentOffset.y : current)} contentContainerStyle={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: insets.bottom + 112, gap: 12, transform: [{ translateX: safeAreaOffset }] }}>
+          {statsLoading ? <JournalLoadingSkeleton /> : statsOverview ? <YourStatsDashboard overview={statsOverview} weeklyActivity={weeklyActivity} insights={statsInsights} scrollY={statsScrollY} /> : <Card style={{ marginTop: 8, borderRadius: radius.lg }}><EmptyState emoji="📊" title="Stats unavailable" body="Your progress will appear here once your profile is ready." /></Card>}
+        </ScrollView>}
       </View>
 
       <Sheet visible={editingTitle} onClose={() => setEditingTitle(false)}>

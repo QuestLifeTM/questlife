@@ -35,7 +35,7 @@ function ActivityBar({ height, color, delay, active }: { height: number; color: 
   return <Animated.View style={[{ width: "100%", height, borderRadius: 11, backgroundColor: color, transformOrigin: "bottom center" }, animatedStyle]} />;
 }
 
-/** A native, seven-day completed-quest chart for the Profile stats screen. */
+/** A native, seven-day completed-quest chart for the private Your Stats dashboard. */
 export function ActivityChartCard({ title = "Weekly activity", totalValue, data, style, active = true }: ActivityChartCardProps) {
   const maxValue = useMemo(() => Math.max(1, ...data.map((item) => item.value)), [data]);
 
