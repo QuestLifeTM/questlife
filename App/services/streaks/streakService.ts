@@ -55,18 +55,64 @@ async function fetchQuestDays(userId: string): Promise<Set<string>> {
   return new Set((data ?? []).map((row) => row.completed_on));
 }
 
+function buildPersonalStreakFromQuestDays(questDays: Set<string>): PersonalStreak {
+  const completedDays = [...questDays].sort();
+  const today = localToday();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = toLocalDateKey(yesterday);
+  const lastQuestOn = completedDays.at(-1) ?? null;
+
+  let currentStreak = 0;
+  let streakStartedOn: string | null = null;
+  if (lastQuestOn === today || lastQuestOn === yesterdayKey) {
+    let cursor = new Date(`${lastQuestOn}T12:00:00`);
+    while (questDays.has(toLocalDateKey(cursor))) {
+      currentStreak += 1;
+      streakStartedOn = toLocalDateKey(cursor);
+      cursor.setDate(cursor.getDate() - 1);
+    }
+  }
+
+  let longestStreak = 0;
+  let run = 0;
+  let previous: string | null = null;
+  for (const day of completedDays) {
+    if (previous) {
+      const expected = new Date(`${previous}T12:00:00`);
+      expected.setDate(expected.getDate() + 1);
+      run = day === toLocalDateKey(expected) ? run + 1 : 1;
+    } else run = 1;
+    longestStreak = Math.max(longestStreak, run);
+    previous = day;
+  }
+
+  return { currentStreak, longestStreak, lastQuestOn, streakStartedOn, questedToday: questDays.has(today), streakVisibility: "public" };
+}
+
 export async function fetchStreakOverview(): Promise<StreakOverview> {
   assertSupabaseConfigured();
   const userId = await requireUserId();
 
-  const [{ data, error }, questDays] = await Promise.all([
+  const [overviewResult, questDays] = await Promise.all([
     supabase.rpc("get_streak_overview", { p_today: localToday() }),
     fetchQuestDays(userId),
   ]);
 
-  if (error) throw error;
+  // Completion history is sufficient for personal streaks. Keep that core
+  // experience usable if a migration or RPC deployment is temporarily behind.
+  if (overviewResult.error) {
+    return {
+      personal: buildPersonalStreakFromQuestDays(questDays),
+      friends: [],
+      duoStreaks: [],
+      incomingInvites: [],
+      outgoingInvites: [],
+      questDays,
+    };
+  }
 
-  const payload = (data ?? {}) as OverviewPayload;
+  const payload = (overviewResult.data ?? {}) as OverviewPayload;
   const personal: PersonalStreak = {
     currentStreak: payload.personal?.currentStreak ?? 0,
     longestStreak: payload.personal?.longestStreak ?? 0,

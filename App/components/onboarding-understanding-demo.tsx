@@ -73,8 +73,7 @@ function previewJournal(): JournalScreenPreview {
     data: {
       joinedAt: today.toISOString(),
       entriesByDate: { [key]: { entryDate: key, title: "A day worth remembering", mood: "happy" } },
-      memoriesByDate: { [key]: [{ completionId: "demo-city-view", questId: DEMO_ACTIVE_QUEST.id, title: DEMO_ACTIVE_QUEST.title, reflection: "I found a new corner of the city and stayed for the sunset.", completedAt: today.toISOString(), xp: DEMO_ACTIVE_QUEST.xp, category: DEMO_ACTIVE_QUEST.category, difficulty: DEMO_ACTIVE_QUEST.difficulty, color: DEMO_ACTIVE_QUEST.color, timeMin: DEMO_ACTIVE_QUEST.timeMin, partyId: null, photoPaths: [], participants: [] }] },
-      partyHistory: [],
+      memoriesByDate: { [key]: [{ completionId: "demo-city-view", questId: DEMO_ACTIVE_QUEST.id, title: DEMO_ACTIVE_QUEST.title, reflection: "I found a new corner of the city and stayed for the sunset.", completedAt: today.toISOString(), xp: DEMO_ACTIVE_QUEST.xp, category: DEMO_ACTIVE_QUEST.category, difficulty: DEMO_ACTIVE_QUEST.difficulty, color: DEMO_ACTIVE_QUEST.color, timeMin: DEMO_ACTIVE_QUEST.timeMin, photoPaths: [], participants: [] }] },
       activeQuest: null,
     },
   };

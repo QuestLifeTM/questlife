@@ -62,14 +62,14 @@ function FriendActionButton({ label, icon, color = T.blue, onPress, style }: { l
   </Pressable>;
 }
 
-function PersonRow({ person, onAdd }: { person: ProfileSearchResult; onAdd: (person: ProfileSearchResult) => void }) {
+function PersonRow({ person, onAdd, onOpenProfile }: { person: ProfileSearchResult; onAdd: (person: ProfileSearchResult) => void; onOpenProfile: () => void }) {
   const status = person.isFriend ? "Friends" : person.isFollowing ? "Following" : null;
   return <View style={{ minHeight: 72, flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 9 }}>
-    <ProfileAvatar uri={person.avatarUrl} color={person.avatarColor} size={48} label={`${person.displayName}'s profile photo`} />
-    <View style={{ flex: 1, gap: 2 }}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.displayName}'s profile`} onPress={onOpenProfile}><ProfileAvatar uri={person.avatarUrl} color={person.avatarColor} size={48} label={`${person.displayName}'s profile photo`} /></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.displayName}'s profile`} onPress={onOpenProfile} style={{ flex: 1, gap: 2 }}>
       <Text selectable style={{ color: T.dark, fontSize: 15, fontWeight: "900" }} numberOfLines={1}>{person.displayName}</Text>
       <Text selectable style={{ color: T.muted, fontSize: 12, fontWeight: "700" }} numberOfLines={1}>{person.username ? `@${person.username}` : "QuestLife adventurer"}</Text>
-    </View>
+    </Pressable>
     {status ? <View style={{ minHeight: 34, paddingHorizontal: 11, borderRadius: 13, backgroundColor: person.isFriend ? `${T.green}16` : `${T.blue}16`, alignItems: "center", justifyContent: "center" }}><Text style={{ color: person.isFriend ? T.green : T.blue, fontSize: 11, fontWeight: "900" }}>{status}</Text></View> : <Pressable accessibilityRole="button" accessibilityLabel={`Follow ${person.displayName}`} onPress={() => onAdd(person)} style={({ pressed }) => ({ minHeight: 42, paddingHorizontal: 14, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: T.blue, borderBottomWidth: 4, borderBottomColor: "#258fd8", transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 12, fontWeight: "900", letterSpacing: 0.45 }}>FOLLOW</Text></Pressable>}
   </View>;
 }
@@ -201,7 +201,7 @@ export function AddFriendsScreen() {
         <Text style={{ color: T.dark, fontSize: 13, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" }}>{query.trim().length >= 2 ? "Search results" : activeTab === "contacts" ? "Friends from your contacts" : "People you might know"}</Text>
         {activeTab === "contacts" && !contacts.length && !loadingContacts && !query.trim() ? <Card style={{ borderRadius: 22, alignItems: "center", gap: 12, paddingVertical: 28 }}><View style={{ width: 54, height: 54, borderRadius: 19, backgroundColor: `${T.purple}16`, alignItems: "center", justifyContent: "center" }}><Ionicons name="book-outline" size={26} color={T.purple} /></View><Text style={{ color: T.dark, fontSize: 18, fontWeight: "900" }}>{contactsLoaded ? "No contacts on QuestLife yet" : "Connect your contacts"}</Text><Text style={{ color: T.muted, textAlign: "center", fontSize: 13, lineHeight: 19, fontWeight: "700" }}>{contactsLoaded ? "Invite them below, or search by username instead." : "We’ll only look for people already using QuestLife."}</Text><FriendActionButton label={contactsLoaded ? "Check again" : "Connect securely"} icon={contactsLoaded ? "refresh" : "link-outline"} color={T.purple} onPress={connectContacts} /></Card> : null}
         {loadingSearch || (loadingSuggestions && activeTab === "suggested") || loadingContacts ? <PeopleLoadingSkeleton /> : null}
-        {!loadingSearch && !loadingSuggestions && !loadingContacts && displayedPeople.length ? <Card style={{ borderRadius: 22, paddingHorizontal: 14, paddingVertical: 4, boxShadow: "none" }}>{displayedPeople.map((person, index) => <View key={person.userId} style={{ borderBottomWidth: index === displayedPeople.length - 1 ? 0 : 1, borderBottomColor: T.border }}><PersonRow person={person} onAdd={addPerson} /></View>)}</Card> : null}
+        {!loadingSearch && !loadingSuggestions && !loadingContacts && displayedPeople.length ? <Card style={{ borderRadius: 22, paddingHorizontal: 14, paddingVertical: 4, boxShadow: "none" }}>{displayedPeople.map((person, index) => <View key={person.userId} style={{ borderBottomWidth: index === displayedPeople.length - 1 ? 0 : 1, borderBottomColor: T.border }}><PersonRow person={person} onAdd={addPerson} onOpenProfile={() => router.push(`/add-friend/${person.userId}`)} /></View>)}</Card> : null}
         {!loadingSearch && !loadingSuggestions && !loadingContacts && query.trim().length >= 2 && !displayedPeople.length ? <EmptyState emoji="🔎" title="No adventurers found" body="Try a different username." /> : null}
       </View> : null}
       {activeTab === "qr" && !query.trim() ? socialLoading || !overview ? <QrLoadingSkeleton /> : <View style={{ gap: 14, alignItems: "center", paddingTop: 10 }}>

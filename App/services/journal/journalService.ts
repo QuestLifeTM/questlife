@@ -2,7 +2,7 @@ import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { compressFeedImage } from "@/services/media/feed-image";
 import { normalizeQuestCategory, Quest } from "@/types/content";
-import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMood, PartyJournalCard, journalMoods } from "@/types/journal";
+import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMood, journalMoods } from "@/types/journal";
 
 type CompletionQuestRow = {
   title: string;
@@ -18,7 +18,6 @@ type CompletionRow = {
   quest_id: string;
   reflection: string | null;
   created_at: string;
-  party_id: string | null;
   photo_urls: string[] | null;
   quests: CompletionQuestRow | null;
 };
@@ -76,7 +75,6 @@ function mapMemory(row: CompletionRow): JournalMemory | null {
     difficulty: row.quests.difficulty,
     color: row.quests.accent_color,
     timeMin: row.quests.estimated_minutes,
-    partyId: row.party_id,
     photoPaths: row.photo_urls ?? [],
     participants: [],
   };
@@ -133,17 +131,16 @@ export async function fetchJournalData(): Promise<JournalData> {
 
   const userId = userData.user.id;
 
-  const [{ data: profileRow }, { data: completionRows, error: completionsError }, entriesByDate, partyHistoryResult, { data: activeSessionRow }] =
+  const [{ data: profileRow }, { data: completionRows, error: completionsError }, entriesByDate, { data: activeSessionRow }] =
     await Promise.all([
       supabase.from("profiles").select("created_at").eq("id", userId).maybeSingle<{ created_at: string }>(),
       supabase
         .from("quest_completions")
-        .select("id, quest_id, reflection, created_at, party_id, photo_urls, quests(title, category, experience_points, difficulty, accent_color, estimated_minutes)")
+        .select("id, quest_id, reflection, created_at, photo_urls, quests(title, category, experience_points, difficulty, accent_color, estimated_minutes)")
         .eq("user_id", userId)
         .order("created_at", { ascending: true })
         .returns<CompletionRow[]>(),
       fetchJournalEntries(userId),
-      supabase.rpc("get_party_journal_history"),
       supabase
         .from("quest_sessions")
         .select("id, quest_id, started_at, quests(title, category, experience_points, difficulty, accent_color, estimated_minutes)")
@@ -167,7 +164,7 @@ export async function fetchJournalData(): Promise<JournalData> {
   const earliestCompletion = completionRows?.[0]?.created_at;
   const joinedAt = profileRow?.created_at ?? earliestCompletion ?? new Date().toISOString();
 
-  return { joinedAt, memoriesByDate, entriesByDate, partyHistory: (partyHistoryResult.data ?? []) as PartyJournalCard[], activeQuest: mapActiveQuest(activeSessionRow) };
+  return { joinedAt, memoriesByDate, entriesByDate, activeQuest: mapActiveQuest(activeSessionRow) };
 }
 
 /** A lightweight monthly completion signal for contextual recommendations. */

@@ -4,7 +4,7 @@ import { T } from "@/components/theme";
 import { JournalParticipant } from "@/types/journal";
 
 /**
- * Overlapping avatar stack for quests done with others (Party Mode).
+ * Overlapping avatar stack for quests done with others.
  * No overlapping-avatar component existed in the app before this — the
  * closest pattern is the emoji-in-tinted-circle avatar used on the Streak
  * screen, which this follows (emoji, `${color}20` fill, colored ring),

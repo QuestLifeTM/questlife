@@ -22,7 +22,6 @@ const FAQS = [
   ["How do I start a quest?", "Choose a quest in Explore, then tap Start Quest. Your progress begins when the active quest opens."],
   ["What is a streak and how does it work?", "Complete at least one quest on consecutive days to build your streak. A streak alert can warn you before it breaks."],
   ["Can I create my own quests?", "QuestLife currently curates the quest catalog. You can make your own collections from the quests you save."],
-  ["How do Parties work?", "Create or join a Party from Social, invite friends, and choose whether to race together or complete quests independently."],
   ["How do I earn badges and titles?", "Badges and titles unlock as you complete quests, build streaks, and reach XP milestones."],
   ["Can I use QuestLife offline?", "Your active quest and journal draft stay available on your device. Sharing, friends, and new quests need a connection."],
 ] as const;
@@ -91,7 +90,6 @@ const notificationRows: ReadonlyArray<{ key: NotificationPreferenceKey; icon: Se
   { key: "questReminders", icon: "flash-outline", color: T.blue, title: "Quest Reminders", detail: "Daily nudges to complete a quest" },
   { key: "milestones", icon: "ribbon-outline", color: T.green, title: "Milestones & Badges", detail: "When you unlock something new" },
   { key: "friendActivity", icon: "people-outline", color: T.cyan, title: "Friend Activity", detail: "When friends complete quests" },
-  { key: "partyInvites", icon: "chatbox-outline", color: T.pink, title: "Party Invites", detail: "When someone invites you to a Party" },
   { key: "dailyMotivation", icon: "heart-outline", color: T.purple, title: "Daily Motivation", detail: "A morning nudge to get moving" },
   { key: "weeklyRecap", icon: "calendar-outline", color: T.muted, title: "Weekly Recap", detail: "Your week in quests every Sunday" },
 ];
@@ -115,7 +113,7 @@ function PreferenceRows({ keys }: { keys: NotificationPreferenceKey[] }) {
 
 export function NotificationPreferencesScreen() {
   const openSystemSettings = () => { void Linking.openSettings().catch(() => undefined); };
-  return <SettingsPage eyebrow="Account" title="Notifications"><SettingGroup title="Quests & streaks"><PreferenceRows keys={["streakAlerts", "questReminders", "milestones"]} /></SettingGroup><SettingGroup title="Social"><PreferenceRows keys={["friendActivity", "partyInvites"]} /></SettingGroup><SettingGroup title="Insights"><PreferenceRows keys={["dailyMotivation", "weeklyRecap"]} /></SettingGroup><Pressable accessibilityRole="button" accessibilityLabel="Open device notification settings" onPress={openSystemSettings} style={({ pressed }) => ({ minHeight: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: `${T.blue}70`, backgroundColor: `${T.blue}10`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.blue, fontFamily: "RubikBold", fontSize: 14 }}>Manage device notification permissions</Text></Pressable></SettingsPage>;
+  return <SettingsPage eyebrow="Account" title="Notifications"><SettingGroup title="Quests & streaks"><PreferenceRows keys={["streakAlerts", "questReminders", "milestones"]} /></SettingGroup><SettingGroup title="Social"><PreferenceRows keys={["friendActivity"]} /></SettingGroup><SettingGroup title="Insights"><PreferenceRows keys={["dailyMotivation", "weeklyRecap"]} /></SettingGroup><Pressable accessibilityRole="button" accessibilityLabel="Open device notification settings" onPress={openSystemSettings} style={({ pressed }) => ({ minHeight: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: `${T.blue}70`, backgroundColor: `${T.blue}10`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.blue, fontFamily: "RubikBold", fontSize: 14 }}>Manage device notification permissions</Text></Pressable></SettingsPage>;
 }
 
 export function PrivacySettingsScreen() {

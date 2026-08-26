@@ -35,6 +35,11 @@ function fullProfileName(displayName: string, metadata: unknown) {
   return displayName.trim().split(/\s+/).filter(Boolean).length >= 2 ? displayName : fullName || displayName;
 }
 
+function saveErrorMessage(error: unknown) {
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+  return "We couldn't save your profile. Please try again.";
+}
+
 function HeaderControl({ label, positive = false, disabled = false, onPress }: { label: string; positive?: boolean; disabled?: boolean; onPress: () => void }) {
   return <Pressable disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={label} onPress={onPress} style={({ pressed }) => ({ minHeight: 42, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 5, borderRadius: 21, backgroundColor: T.white, borderWidth: 2, borderColor: T.border, opacity: disabled ? 0.45 : pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.96 : 1 }] })}>
     <Text style={{ color: positive ? T.green : T.dark, fontFamily: "RubikBold", fontSize: 14, lineHeight: 18 }}>{label}</Text>
@@ -522,7 +527,8 @@ export function ProfileScreen() {
       const avatarChanged = Boolean(draftAvatarUri && draftAvatarUri !== overview.profile.avatarUrl);
       const avatarUrl = avatarChanged ? await uploadProfileAvatar(draftAvatarUri!) : undefined;
       const metadataUsername = accountValue(user?.user_metadata, "username");
-      await updateProfile({ displayName, bio: draftBio, avatarUrl, username: !overview.profile.username && metadataUsername ? metadataUsername : undefined, statVisibility: draftStatVisibility, privacy: draftPrivacy });
+      const validMetadataUsername = metadataUsername && /^[A-Za-z0-9_]{3,20}$/.test(metadataUsername) ? metadataUsername : undefined;
+      await updateProfile({ displayName, bio: draftBio, avatarUrl, username: !overview.profile.username ? validMetadataUsername : undefined, statVisibility: draftStatVisibility, privacy: draftPrivacy });
       refreshProfileName();
       await refreshSocial();
       setEditing(false);
@@ -533,7 +539,7 @@ export function ProfileScreen() {
         color: T.blue,
       });
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "We couldn't save your profile. Please try again.");
+      setError(saveErrorMessage(nextError));
     } finally {
       setSaving(false);
     }
@@ -561,7 +567,7 @@ export function ProfileScreen() {
   }));
 
   return <View style={{ flex: 1, backgroundColor: T.bg }}>
-    <ScrollView contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} scrollEventThrottle={32} onScroll={activeTab === "stats" ? (event) => updateStatsScrollPosition(event.nativeEvent.contentOffset.y) : undefined} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + (editing ? 178 : 112) }}>
+    <ScrollView contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} scrollEventThrottle={32} onScroll={activeTab === "stats" ? (event) => updateStatsScrollPosition(event.nativeEvent.contentOffset.y) : undefined} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + 112 }}>
       <View style={{ width: contentWidth, transform: [{ translateX: safeAreaOffset }] }}>
       <View style={{ backgroundColor: T.bg }}>
         <View style={{ paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top - 12, 12) }}>
@@ -601,17 +607,12 @@ export function ProfileScreen() {
           <ProfileTabButton tab="stats" activeTab={activeTab} onPress={() => setActiveTab("stats")} />
         </View>
         <View style={{ marginTop: 16 }}>
-          {activeTab === "posts" ? (profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." action={<SoftButton label="Explore quests" icon="compass-outline" inverse color={T.blue} onPress={() => router.push("/(tabs)/explore")} style={{ marginTop: 6 }} />} />) : <ProfileStats overview={overview} weeklyActivity={weeklyActivity} insights={insights} scrollY={profileScrollY} />}
+          {activeTab === "posts" ? (profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} onManage={() => setManagedPost(post)} />)}</View> : <EmptyState framed emoji="📷" title="No posts yet" body="Complete a quest and share the first story here." action={<SoftButton label="Explore quests" icon="compass-outline" inverse color={T.blue} onPress={() => router.push("/(tabs)/explore")} style={{ marginTop: 6 }} />} />) : <ProfileStats overview={overview} weeklyActivity={weeklyActivity} insights={insights} scrollY={profileScrollY} />}
         </View>
       </View>
       </View>
     </View>
     </ScrollView>
-
-    {editing ? <View style={{ position: "absolute", right: 0, bottom: 0, left: 0, zIndex: 20, elevation: 20, flexDirection: "row", gap: 10, paddingHorizontal: horizontalPadding, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 14), backgroundColor: "rgba(255,252,245,0.97)", borderTopWidth: 1, borderTopColor: T.border }}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Discard profile changes" onPress={discard} style={({ pressed }) => ({ flex: 1, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: T.border, backgroundColor: T.white, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 14 }}>Discard</Text></Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel="Save profile changes" disabled={saving} onPress={() => void save()} style={({ pressed }) => ({ flex: 1, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: T.blue, borderBottomWidth: 4, borderBottomColor: "#258fd8", opacity: saving ? 0.55 : pressed ? 0.72 : 1 })}><Text style={{ color: T.white, fontFamily: "RubikBold", fontSize: 14 }}>{saving ? "Saving…" : "Save"}</Text></Pressable>
-    </View> : null}
 
     {editing && readOnlyContentTop !== null ? <View pointerEvents="none" style={{ position: "absolute", top: readOnlyContentTop, right: 0, bottom: 0, left: 0, overflow: "hidden" }}>
       <BlurView tint="light" intensity={16} style={{ position: "absolute", inset: 0 }} />

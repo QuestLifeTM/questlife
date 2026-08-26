@@ -56,7 +56,7 @@ function SessionDataProviders({ children }: PropsWithChildren) {
   // Social data is comparatively expensive (two RPCs) and no launch surface
   // needs it. Mount the provider for API compatibility, but defer its first
   // fetch until a social-dependent route is actually opened.
-  const socialEnabled = currentPath === "(tabs)/social" || /^(party|friends|add-friends|add-friend|quest|streak|streak-invite)(\/|$)/.test(currentPath);
+  const socialEnabled = currentPath === "(tabs)/social" || /^(friends|add-friends|add-friend|quest|streak|streak-invite)(\/|$)/.test(currentPath);
   const streaksEnabled = currentPath === "(tabs)/index" || /^(streak|streak-invite|settings)(\/|$)/.test(currentPath);
   const notificationsEnabled = currentPath === "(tabs)/index" || currentPath === "(tabs)/journal" || /^(notifications)(\/|$)/.test(currentPath);
 
@@ -134,7 +134,6 @@ function AppLayout() {
         <Stack.Screen name="manage-saved" options={{ presentation: "card" }} />
         <Stack.Screen name="streak" options={{ presentation: "card" }} />
         <Stack.Screen name="streak-invite" options={{ presentation: "card" }} />
-        <Stack.Screen name="party/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="notifications" options={{ presentation: "card" }} />
         <Stack.Screen name="settings" options={{ presentation: "card" }} />
         <Stack.Screen name="friends" options={{ presentation: "card" }} />

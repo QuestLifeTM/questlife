@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ProfileAvatar } from "@/components/profile-avatar";
@@ -12,6 +13,7 @@ function CommentAvatar({ comment, size = 36 }: { comment: QuestPostComment; size
 }
 
 export function QuestCommentsSheet({ postId, visible, onClose, onCountChange }: { postId: string; visible: boolean; onClose: () => void; onCountChange: (count: number) => void }) {
+  const router = useRouter();
   const { user } = useAuth();
   const [comments, setComments] = useState<QuestPostComment[]>([]);
   const [draft, setDraft] = useState("");
@@ -80,9 +82,9 @@ export function QuestCommentsSheet({ postId, visible, onClose, onCountChange }: 
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 12 }}>
         {comments.length ? comments.filter((comment) => !comment.parentId).map((comment) => <View key={comment.id} style={{ gap: 8 }}>
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <CommentAvatar comment={comment} />
+            <Pressable accessibilityRole="button" accessibilityLabel={`View ${comment.displayName}'s profile`} onPress={() => router.push(`/add-friend/${comment.userId}`)}><CommentAvatar comment={comment} /></Pressable>
             <View style={{ flex: 1, gap: 3 }}>
-              <Text style={{ color: T.dark, fontSize: 13, fontWeight: "900" }}>@{comment.username ?? comment.displayName.replace(/\s+/g, "").toLowerCase()}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={`View ${comment.displayName}'s profile`} onPress={() => router.push(`/add-friend/${comment.userId}`)}><Text style={{ color: T.dark, fontSize: 13, fontWeight: "900" }}>@{comment.username ?? comment.displayName.replace(/\s+/g, "").toLowerCase()}</Text></Pressable>
               <Text style={{ color: T.dark, fontSize: 14, lineHeight: 20, fontWeight: "600" }}>{comment.body}</Text>
               <View style={{ flexDirection: "row", gap: 14 }}>
                 <Pressable disabled={Boolean(deletingCommentId)} onPress={() => setReplyTo(comment)}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900" }}>Reply</Text></Pressable>
@@ -91,9 +93,9 @@ export function QuestCommentsSheet({ postId, visible, onClose, onCountChange }: 
             </View>
           </View>
           {comments.filter((reply) => reply.parentId === comment.id).map((reply) => <View key={reply.id} style={{ marginLeft: 46, flexDirection: "row", gap: 8 }}>
-            <CommentAvatar comment={reply} size={25} />
+            <Pressable accessibilityRole="button" accessibilityLabel={`View ${reply.displayName}'s profile`} onPress={() => router.push(`/add-friend/${reply.userId}`)}><CommentAvatar comment={reply} size={25} /></Pressable>
             <View style={{ flex: 1, gap: 3 }}>
-              <Text style={{ color: T.dark, fontSize: 12, fontWeight: "900" }}>@{reply.username ?? reply.displayName.replace(/\s+/g, "").toLowerCase()}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={`View ${reply.displayName}'s profile`} onPress={() => router.push(`/add-friend/${reply.userId}`)}><Text style={{ color: T.dark, fontSize: 12, fontWeight: "900" }}>@{reply.username ?? reply.displayName.replace(/\s+/g, "").toLowerCase()}</Text></Pressable>
               <Text style={{ color: T.dark, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{reply.body}</Text>
               {reply.userId === user?.id ? <Pressable disabled={Boolean(deletingCommentId)} onPress={() => confirmDelete(reply)}><Text style={{ color: T.red, fontSize: 11, fontWeight: "900" }}>{deletingCommentId === reply.id ? "Deleting…" : "Delete"}</Text></Pressable> : null}
             </View>
