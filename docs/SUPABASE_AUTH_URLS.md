@@ -10,7 +10,9 @@ deployment is live on `myquestlife.app`:
   - `questlife://auth/callback`
   - `questlife://reset-password`
 
-Keep email confirmation enabled and leaked-password protection enabled.
+Keep email confirmation enabled and leaked-password protection enabled. See
+[`SUPABASE_AUTH_SECURITY.md`](SUPABASE_AUTH_SECURITY.md) for the remaining
+production dashboard settings.
 
 The HTTPS routes display a branded confirmation/reset page. They remove the
 one-time code from browser history and only forward it to the installed
