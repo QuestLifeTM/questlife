@@ -39,7 +39,7 @@
         "expo-image-picker",
         {
           "cameraPermission": "QuestLife uses your camera to capture memories during an active quest.",
-          "photosPermission": "QuestLife uses your photos when you choose a profile picture or cover, a Party photo, share a Party completion, or add a collection cover."
+          "photosPermission": "QuestLife uses your photos when you choose a profile picture or cover, share a quest completion, or add a collection cover."
         }
       ],
       "expo-sqlite",

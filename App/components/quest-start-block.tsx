@@ -18,14 +18,10 @@ const repeatQuestPresentation: Record<QuestCategory, { accent: string; encourage
 export function QuestStartBlockSheet({
   block,
   onClose,
-  onGoActive,
-  onSaveActive,
   onRepeatQuest,
 }: {
   block: QuestStartBlock | null;
   onClose: () => void;
-  onGoActive?: () => void;
-  onSaveActive?: () => void;
   onRepeatQuest?: () => void | Promise<void>;
 }) {
   if (!block) return null;
@@ -39,24 +35,6 @@ export function QuestStartBlockSheet({
           You've used all 5 quests for today. Your energy resets at midnight — rest up and come back tomorrow!
         </Text>
         <SoftButton label="Got it" onPress={onClose} inverse color={T.muted} />
-      </Card>
-    );
-  }
-
-  if (block.type === "active_quest") {
-    const title = block.activeQuest?.title ?? "another quest";
-    return (
-      <Card style={{ borderRadius: 24, gap: 12, borderColor: `${T.blue}55` }}>
-        <Text style={{ fontSize: 36, textAlign: "center" }}>🗺️</Text>
-        <Text style={{ color: T.dark, fontSize: 20, fontWeight: "900", textAlign: "center" }}>Quest already active</Text>
-        <Text style={{ color: T.muted, fontWeight: "700", textAlign: "center", lineHeight: 20 }}>
-          You're already doing "{title}". Complete it or move it to saved for later before starting a new one.
-        </Text>
-        <View style={{ gap: 10 }}>
-          {onGoActive ? <SoftButton label="Go to active quest" icon="arrow-forward" onPress={onGoActive} /> : null}
-          {onSaveActive ? <SoftButton label="Save active for later" icon="bookmark-outline" inverse color={T.blue} onPress={onSaveActive} /> : null}
-          <SoftButton label="Not now" inverse color={T.muted} onPress={onClose} />
-        </View>
       </Card>
     );
   }
@@ -93,21 +71,17 @@ export function QuestStartBlockModal({
   block,
   visible,
   onClose,
-  onGoActive,
-  onSaveActive,
   onRepeatQuest,
 }: {
   block: QuestStartBlock | null;
   visible: boolean;
   onClose: () => void;
-  onGoActive?: () => void;
-  onSaveActive?: () => void;
   onRepeatQuest?: () => void | Promise<void>;
 }) {
   if (!visible || !block) return null;
   return <Sheet visible={visible} onClose={onClose} maxHeight="78%">
     <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}>
-      <QuestStartBlockSheet block={block} onClose={onClose} onGoActive={onGoActive} onSaveActive={onSaveActive} onRepeatQuest={onRepeatQuest} />
+      <QuestStartBlockSheet block={block} onClose={onClose} onRepeatQuest={onRepeatQuest} />
     </View>
   </Sheet>;
 }

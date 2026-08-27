@@ -8,16 +8,15 @@ import { Card, EmptyState, Header, IconButton, Screen, useResponsiveScreenLayout
 import { useNotifications } from "@/contexts/NotificationsContext";
 import { AppNotification, AppNotificationCategory } from "@/types/notifications";
 
-type NotificationFilter = "All" | "Quests" | "Progress" | "Social" | "Parties" | "System";
+type NotificationFilter = "All" | "Quests" | "Progress" | "Social" | "System";
 type NotificationPeriod = "today" | "earlier";
 
-const categories: NotificationFilter[] = ["All", "Quests", "Progress", "Social", "Parties", "System"];
+const categories: NotificationFilter[] = ["All", "Quests", "Progress", "Social", "System"];
 
 const filterCategory: Record<Exclude<NotificationFilter, "All">, AppNotificationCategory> = {
   Quests: "quest",
   Progress: "progress",
   Social: "social",
-  Parties: "party",
   System: "system",
 };
 
@@ -26,7 +25,6 @@ function categoryTint(category: NotificationFilter) {
   if (category === "Quests") return T.blue;
   if (category === "Progress") return T.orange;
   if (category === "Social") return T.cyan;
-  if (category === "Parties") return T.purple;
   return T.pink;
 }
 
@@ -70,9 +68,7 @@ export function NotificationsScreen({ onBack }: { onBack: () => void }) {
   const openNotification = async (item: AppNotification) => {
     if (!item.readAt) await markRead([item.id]);
     const questId = typeof item.metadata.questId === "string" ? item.metadata.questId : null;
-    const partyId = typeof item.metadata.partyId === "string" ? item.metadata.partyId : null;
     if (questId) router.push(`/quest/${questId}`);
-    else if (partyId) router.push(`/party/${partyId}`);
   };
 
   return <Screen padded={false} contentStyle={{ alignItems: "center", gap: 22 }}><View style={{ width: contentWidth, gap: 22, transform: [{ translateX: safeAreaOffset }] }}><View style={{ gap: 12 }}><View style={{ paddingHorizontal: horizontalPadding }}><Header title="Notifications" subtitle="QuestLife activity" right={<IconButton icon="chevron-back" onPress={onBack} />} animated={false} /></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: horizontalPadding, paddingTop: 2, paddingBottom: 7, paddingRight: horizontalPadding + 8 }}>{categories.map((category) => <CategoryChip key={category} category={category} active={selectedCategory === category} onPress={() => setSelectedCategory(category)} />)}</ScrollView></View><View style={{ paddingHorizontal: horizontalPadding, gap: 24 }}>{error ? <Card style={{ borderColor: T.red }}><EmptyState emoji="⚠️" title="Notifications unavailable" body={error} /></Card> : null}{loading && !notifications.length ? <EmptyState emoji="⏳" title="Opening notifications" body="Checking your latest QuestLife updates." /> : <><FeedSection title="Today" items={today} onOpen={openNotification} /><FeedSection title="Earlier" items={earlier} onOpen={openNotification} /></>}</View></View></Screen>;

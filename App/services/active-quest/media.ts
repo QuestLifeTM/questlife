@@ -35,15 +35,24 @@ export async function persistQuestPhoto(sessionId: string, temporaryUri: string,
   const uri = `${root}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
   await FileSystem.copyAsync({ from: compressedUri, to: uri });
   const photoId = await addActiveQuestPhoto(sessionId, uri, undefined, Boolean(options.tutorialOnly));
-  if (!options.tutorialOnly) void syncQuestPhoto(photoId, uri);
+  if (!options.tutorialOnly) void syncQuestPhoto(sessionId, photoId, uri);
   return { id: photoId, uri };
 }
 
-async function syncQuestPhoto(id: number, uri: string) {
+async function syncQuestPhoto(sessionId: string, id: number, uri: string) {
   try {
     await updateActiveQuestPhoto(id, { syncStatus: "uploading" });
     const remotePath = await uploadQuestPhoto(uri);
     await updateActiveQuestPhoto(id, { syncStatus: "synced", remotePath });
+    // Persist the now-uploaded URL immediately, rather than waiting for the
+    // next GPS point or screen action to happen to trigger a full sync.
+    try {
+      const { syncActiveQuestRecord } = await import("@/services/active-quest/sync");
+      await syncActiveQuestRecord(sessionId);
+    } catch {
+      // The image itself is safely uploaded and will be included on the next
+      // normal checkpoint; do not mark it failed or upload it twice.
+    }
   } catch {
     // The local file and its pending row remain durable. A later app launch or
     // active-quest visit retries it without losing the captured memory.
@@ -53,5 +62,5 @@ async function syncQuestPhoto(id: number, uri: string) {
 
 export async function retryQuestPhotoSync(sessionId: string) {
   const photos = await getActiveQuestPhotos(sessionId);
-  await Promise.all(photos.filter((photo) => !photo.isTutorialMock && photo.syncStatus !== "synced").map((photo) => syncQuestPhoto(photo.id, photo.uri)));
+  await Promise.all(photos.filter((photo) => !photo.isTutorialMock && photo.syncStatus !== "synced").map((photo) => syncQuestPhoto(sessionId, photo.id, photo.uri)));
 }

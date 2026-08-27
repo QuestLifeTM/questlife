@@ -253,26 +253,40 @@ function ActivityTimeline({ activity, photos, accent, onManage, focusLatest = fa
 function FloatingQuestControls({ accent, duration, paused, takingPhoto, bottomInset, onTakePhoto, onQuickNote, onFinish, onTogglePaused, locked = false, forcedOpen = false, allowQuickActions = false, allowPhotoCapture = false, allowQuickNote = false, showQuickActionsWhenPaused = false, onQuickActionsOpened, onQuickNoteOpened }: { accent: string; duration: string; paused: boolean; takingPhoto: boolean; bottomInset: number; onTakePhoto: () => void; onQuickNote: () => void; onFinish: () => void; onTogglePaused: () => void; locked?: boolean; forcedOpen?: boolean; allowQuickActions?: boolean; allowPhotoCapture?: boolean; allowQuickNote?: boolean; showQuickActionsWhenPaused?: boolean; onQuickActionsOpened?: () => void; onQuickNoteOpened?: () => void }) {
   const [open, setOpen] = useState(false);
   const menuProgress = useRef(new Animated.Value(0)).current;
+  const pauseProgress = useRef(new Animated.Value(paused ? 1 : 0)).current;
 
   useEffect(() => {
     Animated.spring(menuProgress, { toValue: open ? 1 : 0, damping: 18, stiffness: 260, mass: 0.72, useNativeDriver: true }).start();
   }, [menuProgress, open]);
 
   useEffect(() => {
+    Animated.spring(pauseProgress, { toValue: paused ? 1 : 0, damping: 17, stiffness: 230, mass: 0.76, useNativeDriver: true }).start();
     if (paused) setOpen(false);
-  }, [paused]);
+  }, [pauseProgress, paused]);
 
   useEffect(() => {
     setOpen(forcedOpen);
   }, [forcedOpen]);
 
+  // While paused, ending the quest has its own red control. Keeping it out
+  // of the + menu prevents a duplicate destructive action and lets it move
+  // above the expanded actions as a deliberate final choice.
   const actions: Array<{ label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void }> = [
-    { label: "End quest", icon: "flag", color: T.red, onPress: onFinish },
+    ...(!paused ? [{ label: "End quest", icon: "flag" as const, color: T.red, onPress: onFinish }] : []),
     { label: "Quick note", icon: "create-outline", color: T.orange, onPress: onQuickNote },
     { label: takingPhoto ? "Opening camera" : "Take photo", icon: takingPhoto ? "hourglass" : "camera", color: accent, onPress: onTakePhoto },
   ];
 
   const controlBottom = Math.max(bottomInset + 10, 18);
+  const quickActionLift = pauseProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -82] });
+  // `bottom` is a layout property and cannot be driven by the native animated
+  // module. Keep the menu anchored and compose its pause offset into the
+  // existing transform so the whole transition stays off the JS thread.
+  const actionMenuPauseLift = pauseProgress.interpolate({ inputRange: [0, 1], outputRange: [-82, -164] });
+  const actionMenuEnterLift = menuProgress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
+  const actionMenuLift = Animated.add(actionMenuPauseLift, actionMenuEnterLift);
+  const stopAboveMenuProgress = Animated.multiply(pauseProgress, menuProgress);
+  const stopMenuLift = stopAboveMenuProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -220] });
   return <View pointerEvents="box-none" style={{ position: "absolute", left: 20, right: 20, bottom: controlBottom, flexDirection: "row", alignItems: "flex-end", gap: 12 }}>
     <View pointerEvents="none" style={{ position: "absolute", left: -20, right: -20, bottom: -controlBottom, height: 150, overflow: "hidden" }}>
       <MaskedView style={{ position: "absolute", inset: 0 }} maskElement={<LinearGradient colors={["transparent", "rgba(0,0,0,0.52)", "#000000"]} locations={[0, 0.42, 0.72]} style={{ flex: 1 }} />}>
@@ -289,13 +303,18 @@ function FloatingQuestControls({ accent, duration, paused, takingPhoto, bottomIn
       <Pressable accessibilityRole="button" accessibilityLabel={paused ? "Resume quest" : "Pause quest"} accessibilityState={{ disabled: locked }} disabled={locked} onPress={() => { haptic(); onTogglePaused(); }} style={({ pressed }) => ({ width: 52, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: `${accent}16`, borderWidth: 2, borderColor: accent, borderBottomWidth: pressed ? 2 : 4, borderBottomColor: `${accent}88`, opacity: pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.96 : 1 }, { translateY: pressed ? 2 : 0 }] })}><Ionicons name={paused ? "play" : "pause"} size={21} color={accent} /></Pressable>
     </View>
     <View style={{ width: 70, height: 70, overflow: "visible" }}>
-      {(!paused || showQuickActionsWhenPaused) ? <Animated.View pointerEvents={open ? "auto" : "none"} style={{ position: "absolute", right: 0, bottom: 82, width: 224, gap: 10, opacity: menuProgress, transform: [{ translateY: menuProgress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }, { scale: menuProgress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }}>
+      <Animated.View pointerEvents={open ? "auto" : "none"} style={{ position: "absolute", right: 0, bottom: 0, width: 224, gap: 10, opacity: menuProgress, transform: [{ translateY: actionMenuLift }, { scale: menuProgress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }}>
         {actions.map((action, index) => <View key={action.label} style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
           <View style={{ maxWidth: 150, minHeight: 38, borderRadius: 19, paddingHorizontal: 13, justifyContent: "center", backgroundColor: "rgba(255,255,255,0.96)", borderWidth: 1, borderColor: "rgba(232,223,213,0.94)", boxShadow: "0px 4px 13px rgba(35,40,37,0.16)" }}><Text numberOfLines={1} style={{ color: T.dark, fontSize: 13, lineHeight: 17, fontWeight: "900" }}>{action.label}</Text></View>
           <Pressable accessibilityRole="button" accessibilityLabel={action.label} disabled={(locked && !((action.label === "Take photo" && allowPhotoCapture) || (action.label === "Quick note" && allowQuickNote))) || (takingPhoto && action.label === "Take photo")} onPress={() => { haptic(); if (!forcedOpen) setOpen(false); if (action.label === "Quick note") onQuickNoteOpened?.(); action.onPress(); }} style={({ pressed }) => ({ width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: action.color, borderWidth: 3, borderColor: T.white, boxShadow: "0px 5px 13px rgba(35,40,37,0.20)", opacity: pressed ? 0.78 : 1, transform: [{ scale: pressed ? 0.93 : 1 }] })}><Ionicons name={action.icon} size={25} color={T.white} /></Pressable>
         </View>)}
-      </Animated.View> : null}
-      {paused && !showQuickActionsWhenPaused ? <Pressable accessibilityRole="button" accessibilityLabel="End quest" disabled={locked} onPress={() => { haptic(); onFinish(); }} style={({ pressed }) => ({ position: "absolute", right: 0, bottom: 0, width: 70, height: 70, borderRadius: 35, alignItems: "center", justifyContent: "center", backgroundColor: T.red, borderWidth: 3, borderColor: T.white, boxShadow: "0px 8px 20px rgba(35,40,37,0.24)", transform: [{ scale: pressed ? 0.92 : 1 }] })}><Ionicons name="flag" size={29} color={T.white} /></Pressable> : <Pressable accessibilityRole="button" accessibilityLabel={open ? "Close quest actions" : "Open quest actions"} accessibilityState={{ expanded: open, disabled: locked && !allowQuickActions }} disabled={locked && !allowQuickActions} onPress={() => { haptic(); setOpen((current) => { const next = !current; if (next) onQuickActionsOpened?.(); return next; }); }} style={({ pressed }) => ({ position: "absolute", right: 0, bottom: 0, width: 70, height: 70, borderRadius: 35, alignItems: "center", justifyContent: "center", backgroundColor: open ? T.dark : accent, borderWidth: 3, borderColor: T.white, boxShadow: "0px 8px 20px rgba(35,40,37,0.24)", transform: [{ scale: pressed ? 0.92 : 1 }] })}><Animated.View style={{ transform: [{ rotate: menuProgress.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] }) }] }}><Ionicons name="add" size={38} color={T.white} /></Animated.View></Pressable>}
+      </Animated.View>
+      <Animated.View pointerEvents={paused ? "auto" : "none"} style={{ position: "absolute", right: 0, bottom: 0, opacity: pauseProgress, transform: [{ translateY: stopMenuLift }, { scale: pauseProgress.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] }) }] }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="End quest" disabled={locked} onPress={() => { haptic(); onFinish(); }} style={({ pressed }) => ({ width: 70, height: 70, borderRadius: 35, alignItems: "center", justifyContent: "center", backgroundColor: T.red, borderWidth: 3, borderColor: T.white, boxShadow: "0px 8px 20px rgba(35,40,37,0.24)", transform: [{ scale: pressed ? 0.92 : 1 }] })}><Ionicons name="stop" size={27} color={T.white} /></Pressable>
+      </Animated.View>
+      <Animated.View style={{ position: "absolute", right: 0, bottom: 0, zIndex: 2, transform: [{ translateY: quickActionLift }] }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={open ? "Close quest actions" : "Open quest actions"} accessibilityState={{ expanded: open, disabled: locked && !allowQuickActions }} disabled={locked && !allowQuickActions} onPress={() => { haptic(); setOpen((current) => { const next = !current; if (next) onQuickActionsOpened?.(); return next; }); }} style={({ pressed }) => ({ width: 70, height: 70, borderRadius: 35, alignItems: "center", justifyContent: "center", backgroundColor: open ? T.dark : accent, borderWidth: 3, borderColor: T.white, boxShadow: "0px 8px 20px rgba(35,40,37,0.24)", transform: [{ scale: pressed ? 0.92 : 1 }] })}><Animated.View style={{ transform: [{ rotate: menuProgress.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] }) }] }}><Ionicons name="add" size={38} color={T.white} /></Animated.View></Pressable>
+      </Animated.View>
     </View>
   </View>;
 }

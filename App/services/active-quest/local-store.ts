@@ -149,6 +149,62 @@ export async function ensureActiveQuestSession(input: { sessionId: string; quest
   return getActiveQuestSession(input.sessionId);
 }
 
+type RemoteActiveQuestRecord = {
+  session: Omit<ActiveQuestLocalSession, "trackingStatus" | "completionSyncState">;
+  route: ActiveQuestRoutePoint[];
+  renderRoute: ActiveQuestRoutePoint[];
+  photos: ActiveQuestPhoto[];
+  activity: ActiveQuestActivity[];
+};
+
+/**
+ * Restores the durable server copy without discarding any newer local work.
+ * The stable client IDs used by sync make this safe to call repeatedly.
+ */
+export async function hydrateActiveQuestRecord(record: RemoteActiveQuestRecord) {
+  await mutate((store) => {
+    const sessionId = record.session.sessionId;
+    const local = store.sessions[sessionId];
+    const localHasProgress = Boolean(local && (
+      local.activeDurationMs > 0 ||
+      local.distanceMeters > 0 ||
+      Boolean(local.entryTitle.trim() || local.entryBody.trim()) ||
+      local.routeSegments.some((segment) => segment.pointIds.length > 0) ||
+      store.route.some((point) => point.sessionId === sessionId) ||
+      store.photos.some((photo) => photo.sessionId === sessionId) ||
+      store.activity.some((item) => item.sessionId === sessionId)
+    ));
+    // `ensureActiveQuestSession` creates an intentionally empty local shell
+    // before this restore runs. Its fresh timestamp must never win over the
+    // durable server record just because the app was opened more recently.
+    const retainNewerLocalWork = Boolean(
+      local && localHasProgress && new Date(local.updatedAt).getTime() > new Date(record.session.updatedAt).getTime(),
+    );
+    const restoredSession: ActiveQuestLocalSession = {
+      ...record.session,
+      trackingStatus: local?.trackingStatus ?? "idle",
+      completionSyncState: local?.completionSyncState ?? "idle",
+    };
+    store.sessions[sessionId] = retainNewerLocalWork
+      ? { ...restoredSession, ...local!, routeSegments: local!.routeSegments.length ? local!.routeSegments : restoredSession.routeSegments }
+      : restoredSession;
+
+    const knownRouteIds = new Set(store.route.filter((point) => point.sessionId === sessionId).map((point) => point.id));
+    for (const point of record.route) if (!knownRouteIds.has(point.id)) store.route.push({ ...point, sessionId });
+    if (record.renderRoute.length) store.renderRoutes[sessionId] = record.renderRoute.map((point) => ({ ...point, sessionId }));
+
+    const knownPhotoIds = new Set(store.photos.filter((photo) => photo.sessionId === sessionId).map((photo) => photo.id));
+    for (const photo of record.photos) if (!knownPhotoIds.has(photo.id)) store.photos.push({ ...photo, sessionId });
+    const knownActivityIds = new Set(store.activity.filter((item) => item.sessionId === sessionId).map((item) => item.id));
+    for (const activity of record.activity) if (!knownActivityIds.has(activity.id)) store.activity.push({ ...activity, sessionId });
+
+    store.nextPointId = Math.max(store.nextPointId, ...record.route.map((point) => point.id + 1), 1);
+    store.nextPhotoId = Math.max(store.nextPhotoId, ...record.photos.map((photo) => photo.id + 1), 1);
+    store.nextActivityId = Math.max(store.nextActivityId, ...record.activity.map((activity) => activity.id + 1), 1);
+  });
+  return getActiveQuestSnapshot(record.session.sessionId);
+}
+
 export async function getActiveQuestSession(sessionId: string) {
   await mutationQueue;
   const store = await loadStore();

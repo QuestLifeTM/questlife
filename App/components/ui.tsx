@@ -20,7 +20,7 @@ import {
   ViewStyle,
   useWindowDimensions
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { radius, shadow, T } from "@/components/theme";
 import { BackIcon } from "@/components/back-icon";
@@ -254,6 +254,7 @@ export function SoftButton({
   style?: StyleProp<ViewStyle>;
 }) {
   const guardPress = usePressGuard();
+  const baseColor = color === T.blue ? "#258fd8" : `${color}88`;
   return (
     <Pressable
       disabled={disabled}
@@ -277,16 +278,16 @@ export function SoftButton({
           backgroundColor: inverse ? T.white : color,
           borderWidth: 2,
           borderColor: inverse ? color : color,
-          borderBottomWidth: pressed && !disabled ? 2 : 5,
-          borderBottomColor: `${color}88`,
+          borderBottomWidth: pressed && !disabled ? (inverse ? 2 : 3) : (inverse ? 4 : 6),
+          borderBottomColor: inverse ? `${color}88` : baseColor,
           opacity: disabled ? 0.5 : 1,
           transform: [{ scale: pressed && !disabled ? 0.96 : 1 }, { translateY: pressed && !disabled ? 3 : 0 }]
         },
         style
       ]}
     >
-      {icon ? <Ionicons name={icon} size={17} color={inverse ? color : T.white} /> : null}
-      <Text style={{ fontSize: 15, fontWeight: "800", color: inverse ? color : T.white }}>{label}</Text>
+      {icon ? <Ionicons name={icon} size={19} color={inverse ? color : T.white} /> : null}
+      <Text style={{ fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.55, textTransform: "uppercase", color: inverse ? color : T.white }}>{label}</Text>
     </Pressable>
   );
 }
@@ -457,37 +458,39 @@ export function Sheet({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView enabled={keyboardAvoiding && !expandOnKeyboard} behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
-      <View style={{ flex: 1, backgroundColor: glass ? "rgba(61,52,56,0.28)" : "rgba(61,52,56,0.42)", justifyContent: "flex-end" }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={onClose} style={{ flex: 1 }} />
-        <Reanimated.View
-          accessibilityViewIsModal
-          onLayout={({ nativeEvent }) => {
-            if (keyboardHeight === 0) setContentHeight(nativeEvent.layout.height);
-          }}
-          style={[{
-            maxHeight: expandedHeight ?? maxHeight,
-            ...(fillHeight || expandedHeight !== undefined ? { height: expandedHeight ?? maxHeight } : null),
-            backgroundColor: glass ? "rgba(255,255,255,0.72)" : T.white,
-            borderTopLeftRadius: radius.sheet,
-            borderTopRightRadius: radius.sheet,
-            borderWidth: 2,
-            borderColor: glass ? "rgba(255,255,255,0.88)" : T.border,
-            borderBottomWidth: 0,
-            paddingBottom: insets.bottom + 8,
-            overflow: "hidden",
-          }, sheetMotionStyle]}
-        >
-          {glass ? <BlurView pointerEvents="none" intensity={18} tint="light" style={{ position: "absolute", inset: 0 }} /> : null}
-          <GestureDetector gesture={dragGesture}>
-            <View accessibilityLabel="Drag down to dismiss" style={{ alignItems: "center", paddingTop: 12, paddingBottom: 12 }}>
-              <View style={{ width: 36, height: 4, borderRadius: 99, backgroundColor: T.border }} />
-            </View>
-          </GestureDetector>
-          {children}
-        </Reanimated.View>
-      </View>
-      </KeyboardAvoidingView>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <KeyboardAvoidingView enabled={keyboardAvoiding && !expandOnKeyboard} behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
+          <View style={{ flex: 1, backgroundColor: glass ? "rgba(61,52,56,0.28)" : "rgba(61,52,56,0.42)", justifyContent: "flex-end" }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={onClose} style={{ flex: 1 }} />
+            <Reanimated.View
+              accessibilityViewIsModal
+              onLayout={({ nativeEvent }) => {
+                if (keyboardHeight === 0) setContentHeight(nativeEvent.layout.height);
+              }}
+              style={[{
+                maxHeight: expandedHeight ?? maxHeight,
+                ...(fillHeight || expandedHeight !== undefined ? { height: expandedHeight ?? maxHeight } : null),
+                backgroundColor: glass ? "rgba(255,255,255,0.72)" : T.white,
+                borderTopLeftRadius: radius.sheet,
+                borderTopRightRadius: radius.sheet,
+                borderWidth: 2,
+                borderColor: glass ? "rgba(255,255,255,0.88)" : T.border,
+                borderBottomWidth: 0,
+                paddingBottom: insets.bottom + 8,
+                overflow: "hidden",
+              }, sheetMotionStyle]}
+            >
+              {glass ? <BlurView pointerEvents="none" intensity={18} tint="light" style={{ position: "absolute", inset: 0 }} /> : null}
+              <GestureDetector gesture={dragGesture}>
+                <View accessibilityLabel="Drag down to dismiss" style={{ alignItems: "center", paddingTop: 12, paddingBottom: 12 }}>
+                  <View style={{ width: 36, height: 4, borderRadius: 99, backgroundColor: T.border }} />
+                </View>
+              </GestureDetector>
+              {children}
+            </Reanimated.View>
+          </View>
+        </KeyboardAvoidingView>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -539,12 +542,75 @@ export function GradientBand({ color, children, bleedTop = false, bleedTopSpacin
   );
 }
 
-export function EmptyState({ emoji, artwork, title, body, action }: { emoji?: string; artwork?: React.ReactNode; title: string; body: string; action?: React.ReactNode }) {
+type EmptyStateVisual = {
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+};
+
+/**
+ * Empty states use the same icon family as navigation and actions. This keeps
+ * their personality without relying on an emoji's platform-specific rendering.
+ */
+function emptyStateVisual(emoji?: string): EmptyStateVisual {
+  switch (emoji) {
+    case "!":
+    case "⚠️":
+      return { icon: "alert-circle-outline", color: T.red };
+    case "🌍":
+      return { icon: "globe-outline", color: T.teal };
+    case "🤝":
+    case "👋":
+    case "🫂":
+      return { icon: "people-outline", color: T.teal };
+    case "📷":
+      return { icon: "camera-outline", color: T.pink };
+    case "📭":
+    case "🗂️":
+      return { icon: "bookmarks-outline", color: T.purple };
+    case "🔍":
+    case "🔎":
+      return { icon: "search-outline", color: T.purple };
+    case "✅":
+      return { icon: "checkmark-circle-outline", color: T.green };
+    case "🧭":
+      return { icon: "compass-outline", color: T.blue };
+    case "⏳":
+      return { icon: "hourglass-outline", color: T.orange };
+    case "✨":
+      return { icon: "sparkles-outline", color: T.purple };
+    default:
+      return { icon: "sparkles-outline", color: T.blue };
+  }
+}
+
+function EmptyStateIcon({ emoji }: { emoji?: string }) {
+  const { icon, color } = emptyStateVisual(emoji);
   return (
-    <View style={{ alignItems: "center", paddingVertical: 32, paddingHorizontal: 18 }}>
-      {artwork ? <View style={{ marginBottom: 12 }}>{artwork}</View> : emoji ? <Text style={{ fontSize: 44, marginBottom: 12 }}>{emoji}</Text> : null}
-      <Text style={{ color: T.dark, fontWeight: "900", fontSize: 18, marginBottom: 8 }}>{title}</Text>
-      <Text style={{ color: T.muted, fontWeight: "600", lineHeight: 20, textAlign: "center", marginBottom: action ? 18 : 0 }}>{body}</Text>
+    <View
+      style={{
+        width: 66,
+        height: 66,
+        borderRadius: 23,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: `${color}14`,
+        borderWidth: 2,
+        borderColor: `${color}36`,
+        borderBottomWidth: 4,
+        borderBottomColor: `${color}52`
+      }}
+    >
+      <Ionicons name={icon} size={31} color={color} />
+    </View>
+  );
+}
+
+export function EmptyState({ emoji, artwork, title, body, action, fill = false, framed = fill }: { emoji?: string; artwork?: React.ReactNode; title: string; body: string; action?: React.ReactNode; fill?: boolean; /** Wrap the state in a QuestLife tactile surface. */ framed?: boolean }) {
+  return (
+    <View accessibilityRole="summary" style={{ flex: fill ? 1 : undefined, minHeight: fill ? 292 : undefined, width: framed ? "100%" : undefined, alignSelf: framed ? "stretch" : undefined, justifyContent: "center", alignItems: "center", paddingVertical: fill ? 48 : 30, paddingHorizontal: 24, ...(framed ? { borderRadius: radius.xl, borderWidth: 2, borderColor: T.border, borderBottomWidth: 6, borderBottomColor: "#dfd6cc", backgroundColor: T.white, boxShadow: `4px 4px 0px ${T.border}` } : {}) }}>
+      {artwork ? <View style={{ marginBottom: 18 }}>{artwork}</View> : <View style={{ marginBottom: 18 }}><EmptyStateIcon emoji={emoji} /></View>}
+      <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21, lineHeight: 27, letterSpacing: -0.35, textAlign: "center", marginBottom: 8 }}>{title}</Text>
+      <Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 15, lineHeight: 22, textAlign: "center", maxWidth: 325, marginBottom: action ? 22 : 0 }}>{body}</Text>
       {action}
     </View>
   );

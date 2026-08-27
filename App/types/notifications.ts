@@ -1,4 +1,4 @@
-export type AppNotificationCategory = "quest" | "progress" | "social" | "party" | "system";
+export type AppNotificationCategory = "quest" | "progress" | "social" | "system";
 
 export type AppNotificationKind =
   | "daily_quest"
@@ -15,8 +15,6 @@ export type AppNotificationKind =
   | "friend_accepted"
   | "comment_reply_deleted"
   | "quest_challenge"
-  | "party_invite"
-  | "party_completed"
   | "admin_announcement"
   | "feature_notice"
   | "service_update";

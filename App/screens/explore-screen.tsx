@@ -310,10 +310,13 @@ export function ExploreScreen({ previewQuests, previewAutoScroll = false, previe
     const timer = setInterval(() => {
       const end = loopEndOffset.current;
       if (!end) return;
-      const next = loopOffset.current + 0.8;
+      // The phone preview is small, so a 30 Hz feed motion is visually smooth
+      // while avoiding 60 JS-to-native scroll commands per second during the
+      // onboarding transition. Keep the same perceived scroll speed.
+      const next = loopOffset.current + 1.65;
       loopOffset.current = next >= end ? loopStartOffset.current : next;
       listRef.current?.scrollToOffset({ offset: loopOffset.current, animated: false });
-    }, 16);
+    }, 33);
     return () => clearInterval(timer);
   }, [feed.length, previewAutoScroll, previewAutoScrollEnabled]);
 

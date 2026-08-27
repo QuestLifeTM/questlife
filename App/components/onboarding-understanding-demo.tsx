@@ -73,8 +73,7 @@ function previewJournal(): JournalScreenPreview {
     data: {
       joinedAt: today.toISOString(),
       entriesByDate: { [key]: { entryDate: key, title: "A day worth remembering", mood: "happy" } },
-      memoriesByDate: { [key]: [{ completionId: "demo-city-view", questId: DEMO_ACTIVE_QUEST.id, title: DEMO_ACTIVE_QUEST.title, reflection: "I found a new corner of the city and stayed for the sunset.", completedAt: today.toISOString(), xp: DEMO_ACTIVE_QUEST.xp, category: DEMO_ACTIVE_QUEST.category, difficulty: DEMO_ACTIVE_QUEST.difficulty, color: DEMO_ACTIVE_QUEST.color, timeMin: DEMO_ACTIVE_QUEST.timeMin, partyId: null, photoPaths: [], participants: [] }] },
-      partyHistory: [],
+      memoriesByDate: { [key]: [{ completionId: "demo-city-view", questId: DEMO_ACTIVE_QUEST.id, title: DEMO_ACTIVE_QUEST.title, reflection: "I found a new corner of the city and stayed for the sunset.", completedAt: today.toISOString(), xp: DEMO_ACTIVE_QUEST.xp, category: DEMO_ACTIVE_QUEST.category, difficulty: DEMO_ACTIVE_QUEST.difficulty, color: DEMO_ACTIVE_QUEST.color, timeMin: DEMO_ACTIVE_QUEST.timeMin, photoPaths: [], participants: [] }] },
       activeQuest: null,
     },
   };
@@ -128,6 +127,11 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   const compactPhoneScale = Math.min(1, 275 / phoneWidth);
   const titleFontSize = clamp(Math.round(width * 0.064), 22, 26);
   const initialPhoneCenterY = (insets.top + 178 + height - Math.max(insets.bottom + 8, 24)) / 2 - 14;
+  // Align the visible display (rather than the phone's outer bezel) just
+  // below the copy. This works across phone heights and pulls each preview
+  // higher without changing type scale or animation geometry.
+  const phoneScreenTopInset = phoneHeight * 0.044;
+  const phoneCopyGap = clamp(height * 0.016, 10, 14);
   const phoneTravel = Math.max(width, phoneWidth) * 1.15;
 
   const schedule = (callback: () => void, delay: number) => {
@@ -206,6 +210,20 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
     // device dimensions change.
     if (!showContinue) phonePositionY.setValue(initialPhoneCenterY - height / 2);
   }, [height, initialPhoneCenterY, phonePositionY, showContinue]);
+
+  useEffect(() => {
+    // Every preview shares the same text-anchored position. Using a transform
+    // avoids re-layout while the content inside each phone is being animated.
+    if (phase === "title" || showContinue || subtitleBottom === null) return;
+
+    const phoneCenterY = subtitleBottom + phoneCopyGap - phoneScreenTopInset + phoneHeight / 2;
+    Animated.timing(phonePositionY, {
+      toValue: phoneCenterY - height / 2,
+      duration: reduceMotion ? 0 : 420,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [height, phoneCopyGap, phoneHeight, phonePositionY, phoneScreenTopInset, phase, reduceMotion, showContinue, subtitleBottom]);
 
   function advance() {
     haptic();

@@ -18,13 +18,7 @@ export type JournalMemory = {
   difficulty: QuestDifficulty;
   color: string;
   timeMin: number;
-  partyId: string | null;
   photoPaths: string[];
-  /**
-   * Party Mode co-participants. There is no co-participant table in the
-   * current schema, so this is always empty from the backend today —
-   * the UI supports it so Party Mode can light it up without a redesign.
-   */
   participants: JournalParticipant[];
 };
 
@@ -54,22 +48,10 @@ export type JournalActiveQuest = {
   color: string;
 };
 
-export type PartyJournalCard = {
-  partyId: string;
-  name: string;
-  status: "active" | "ended";
-  endedAt: string | null;
-  leftEarly: boolean;
-  members: { name: string; emoji: string; color: string }[];
-  rankings: { name: string; emoji: string; xp: number; rank: number }[];
-  entryCount: number;
-};
-
 export type JournalData = {
   /** ISO timestamp of profiles.created_at — Day 1 of the archive. */
   joinedAt: string;
   memoriesByDate: Record<string, JournalMemory[]>;
   entriesByDate: Record<string, JournalEntry>;
-  partyHistory: PartyJournalCard[];
   activeQuest: JournalActiveQuest | null;
 };

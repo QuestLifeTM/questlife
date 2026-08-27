@@ -13,33 +13,8 @@ import { useSocial } from "@/contexts/SocialContext";
 import { ProfileLoadingSkeleton, ProfileStatMarquee, ProfileTitleBadge } from "@/screens/profile-screen";
 import { DEFAULT_PROFILE_STAT_VISIBILITY, fetchProfileOverview } from "@/services/profile/profileService";
 import { fetchFriendProfile } from "@/services/social/socialService";
-import { levelForXp, ProfileOverview, QuestFeedPost } from "@/types/profile";
+import { ProfileOverview, QuestFeedPost } from "@/types/profile";
 import { ProfileSearchResult } from "@/types/social";
-
-type FriendProfileTab = "posts" | "stats";
-
-function ReadOnlyTab({ tab, active, onPress }: { tab: FriendProfileTab; active: boolean; onPress: () => void }) {
-  const icon = tab === "posts" ? "grid-outline" : "stats-chart-outline";
-  return <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={`${tab} tab`} onPress={onPress} style={({ pressed }) => ({ flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", borderBottomWidth: active ? 3 : 0, borderBottomColor: active ? T.dark : "transparent", opacity: pressed ? 0.65 : 1 })}><Ionicons name={icon} size={25} color={active ? T.dark : T.muted} /></Pressable>;
-}
-
-function FriendProfileStats({ overview }: { overview: ProfileOverview }) {
-  const { profile, stats } = overview;
-  if (!profile) return null;
-  const visibility = profile.statVisibility;
-  const level = levelForXp(profile.totalXp ?? 0).level;
-  const entries = [
-    visibility.highestStreak ? { label: "Highest streak", value: `${stats.longestStreak} days`, icon: "flame" as const, color: T.orange, background: "#fff0df" } : null,
-    visibility.level ? { label: "Level", value: `Level ${level}`, icon: "rocket" as const, color: T.purple, background: "#f2eaff" } : null,
-    visibility.questsDone ? { label: "Quests done", value: stats.totalQuests.toLocaleString(), icon: "checkmark-circle" as const, color: T.green, background: "#e6f8ed" } : null,
-    visibility.timeSpent ? { label: "Time spent", value: `${Math.floor((stats.totalQuestDurationSeconds ?? 0) / 3600)}h`, icon: "time" as const, color: T.blue, background: "#e5f3ff" } : null,
-    visibility.totalXp ? { label: "Total XP", value: `${(profile.totalXp ?? 0).toLocaleString()} XP`, icon: "flash" as const, color: "#d39a00", background: "#fff7d8" } : null,
-    visibility.followers ? { label: "Followers", value: (stats.followers ?? 0).toLocaleString(), icon: "people" as const, color: T.pink, background: "#ffe8f3" } : null,
-    visibility.following ? { label: "Following", value: (stats.following ?? 0).toLocaleString(), icon: "person-add" as const, color: T.cyan, background: "#e1faff" } : null,
-  ].filter(Boolean) as Array<{ label: string; value: string; icon: keyof typeof Ionicons.glyphMap; color: string; background: string }>;
-
-  return entries.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>{entries.map((entry) => <View key={entry.label} style={{ width: "48.5%", minHeight: 100, padding: 12, borderRadius: 20, backgroundColor: T.white, borderWidth: 2, borderColor: `${entry.color}52`, borderBottomWidth: 4, borderBottomColor: `${entry.color}88`, alignItems: "center", justifyContent: "center", gap: 6 }}><View style={{ width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: entry.background }}><Ionicons name={entry.icon} size={17} color={entry.color} /></View><Text numberOfLines={1} style={{ color: entry.color, fontFamily: "RubikBold", fontSize: 17 }}>{entry.value}</Text><Text numberOfLines={1} style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 10, letterSpacing: 0.35, textTransform: "uppercase" }}>{entry.label}</Text></View>)}</View> : <EmptyState emoji="🔒" title="Stats are private" body="This adventurer has chosen not to share profile stats." />;
-}
 
 export function FriendProfileScreen() {
   const router = useRouter();
@@ -51,7 +26,6 @@ export function FriendProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [unfollowOpen, setUnfollowOpen] = useState(false);
-  const [tab, setTab] = useState<FriendProfileTab>("posts");
 
   useEffect(() => {
     let current = true;
@@ -117,7 +91,7 @@ export function FriendProfileScreen() {
           <View style={{ width: contentWidth, alignSelf: "stretch", marginHorizontal: -horizontalPadding, marginTop: 15 }}><ProfileStatMarquee overview={profileOverview} visibility={visibility} /></View>
           {isMe ? <SoftButton label="This is your profile" icon="person" inverse color={T.muted} style={{ width: "100%", marginTop: 14 }} /> : isFollowing ? <FollowStatusButton mutual={followsYou} saving={saving} onPress={() => setUnfollowOpen(true)} /> : <SoftButton label={saving ? "Following…" : "Follow"} icon="person-add" color={T.blue} onPress={() => void startFollowing()} style={{ width: "100%", marginTop: 14 }} />}
         </View>
-        <View style={{ width: "100%" }}><View accessibilityRole="tablist" style={{ height: 54, flexDirection: "row" }}><ReadOnlyTab tab="posts" active={tab === "posts"} onPress={() => setTab("posts")} /><ReadOnlyTab tab="stats" active={tab === "stats"} onPress={() => setTab("stats")} /></View><View style={{ marginTop: 16 }}>{tab === "posts" ? profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="This adventurer has not shared a quest post yet." /> : <FriendProfileStats overview={profileOverview} />}</View></View>
+        <View style={{ width: "100%", marginTop: 16 }}>{profilePosts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 6 }}>{profilePosts.map((post) => <QuestFeedThumbnail key={post.id} post={post} size={postTileSize} />)}</View> : <EmptyState emoji="📷" title="No posts yet" body="This adventurer has not shared a quest post yet." />}</View>
       </> : <View style={{ width: "100%", alignItems: "center", paddingTop: 2 }}><ProfileAvatar uri={profile.avatarUrl} color={profile.avatarColor} size={98} label={`${profile.displayName}'s profile photo`} /><Text selectable style={{ color: T.dark, marginTop: 10, fontFamily: "RubikBlack", fontSize: 22, lineHeight: 28, textAlign: "center" }}>{profile.displayName}</Text><Text style={{ color: T.muted, marginTop: 3, fontFamily: "RubikBold", fontSize: 13, lineHeight: 18, textAlign: "center" }}>{profile.username ? `@${profile.username}` : "QuestLife adventurer"}</Text>{isMe ? <SoftButton label="This is your profile" icon="person" inverse color={T.muted} style={{ width: "100%", marginTop: 14 }} /> : isFollowing ? <FollowStatusButton mutual={followsYou} saving={saving} onPress={() => setUnfollowOpen(true)} /> : <SoftButton label={saving ? "Following…" : "Follow"} icon="person-add" color={T.blue} onPress={() => void startFollowing()} style={{ width: "100%", marginTop: 14 }} />}</View>}
     </Reanimated.ScrollView>
     <ScrollTopBlur scrollY={scrollY} />

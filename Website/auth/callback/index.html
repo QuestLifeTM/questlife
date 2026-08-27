@@ -10,7 +10,11 @@
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
-    <main>
+    <main
+      data-app-path="auth/callback"
+      data-missing-message="This verification link is incomplete or has already been used. Return to QuestLife and request a new email."
+      data-ready-message="If the app does not open, launch QuestLife on your phone and sign in with your verified email."
+    >
       <div class="mark" aria-hidden="true">✓</div>
       <p class="eyebrow">QuestLife account</p>
       <h1>Your email is verified.</h1>
@@ -19,23 +23,6 @@
       <p id="help" class="help">Preparing your secure sign-in…</p>
       <footer>QuestLife</footer>
     </main>
-    <script>
-      (() => {
-        const code = new URLSearchParams(window.location.search).get("code");
-        const button = document.getElementById("open-app");
-        const help = document.getElementById("help");
-
-        if (!code) {
-          help.textContent = "This verification link is incomplete or has already been used. Return to QuestLife and request a new email.";
-          help.classList.add("error");
-          return;
-        }
-
-        button.href = `questlife://auth/callback?code=${encodeURIComponent(code)}`;
-        button.setAttribute("aria-disabled", "false");
-        help.textContent = "If the app does not open, launch QuestLife on your phone and sign in with your verified email.";
-        window.history.replaceState({}, document.title, window.location.pathname);
-      })();
-    </script>
+    <script src="/assets/auth-handoff.js" defer></script>
   </body>
 </html>
