@@ -102,8 +102,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         // Keep a final server checkpoint before the local auth token is
         // cleared. Failures leave the on-device copy intact for restoration.
         try {
-          const { flushCurrentUsersActiveQuest } = await import("@/services/active-quest/sync");
-          await flushCurrentUsersActiveQuest();
+          const { pauseAndFlushCurrentUsersActiveQuest } = await import("@/services/active-quest/sync");
+          await pauseAndFlushCurrentUsersActiveQuest();
         } catch {
           // Offline sign-out is still valid; local active-quest storage is not
           // tied to the auth session and will retry after the user returns.

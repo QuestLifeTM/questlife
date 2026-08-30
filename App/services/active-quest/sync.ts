@@ -1,5 +1,6 @@
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { getActiveQuestSnapshot, hydrateActiveQuestRecord } from "@/services/active-quest/local-store";
+import { getActiveQuestSnapshot, hydrateActiveQuestRecord, setActiveQuestRecordingState } from "@/services/active-quest/local-store";
+import { stopQuestLocationTracking } from "@/services/active-quest/tracking";
 import { ActiveQuestActivity, ActiveQuestPhoto, ActiveQuestRoutePoint, ActiveQuestRouteSegment, ActiveQuestRecordingState } from "@/types/active-quest";
 
 const ROUTE_SYNC_INTERVAL_MS = 30_000;
@@ -168,6 +169,36 @@ export async function flushCurrentUsersActiveQuest() {
     .maybeSingle();
   if (error) throw error;
   if (session) await syncActiveQuestRecord(session.id);
+}
+
+/**
+ * Ends local recording before auth is cleared, then mirrors that paused
+ * checkpoint. The server session intentionally remains active for recovery.
+ */
+export async function pauseAndFlushCurrentUsersActiveQuest() {
+  if (!isSupabaseConfigured) return;
+  const { data: session, error } = await supabase
+    .from("quest_sessions")
+    .select("id")
+    .eq("status", "active")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!session) return;
+
+  const snapshot = await getActiveQuestSnapshot(session.id);
+  if (snapshot?.session.recordingState === "recording") {
+    const now = new Date().toISOString();
+    const activeSince = snapshot.session.activeSince ? new Date(snapshot.session.activeSince).getTime() : Date.now();
+    await setActiveQuestRecordingState(session.id, "paused", {
+      pausedAt: now,
+      activeSince: null,
+      activeDurationMs: snapshot.session.activeDurationMs + Math.max(0, Date.now() - activeSince),
+    });
+  }
+  await stopQuestLocationTracking();
+  await syncActiveQuestRecord(session.id);
 }
 
 /** Persists route progress periodically without issuing a write per GPS update. */

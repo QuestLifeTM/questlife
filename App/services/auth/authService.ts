@@ -168,18 +168,6 @@ export async function registerWithEmail(email: string, username: string, firstNa
   assertSupabaseConfigured();
   const normalizedEmail = normalizeEmail(email);
   const normalizedUsername = username.trim();
-  const [accountState, usernameAvailable] = await Promise.all([
-    getRegistrationAccountState(normalizedEmail),
-    isUsernameAvailable(normalizedUsername),
-  ]);
-
-  if (accountState === "verified") {
-    throw new AccountAlreadyExistsError(normalizedEmail);
-  }
-
-  if (!usernameAvailable) {
-    throw new UsernameUnavailableError();
-  }
 
   const { data, error } = await supabase.auth.signUp({
     email: normalizedEmail,

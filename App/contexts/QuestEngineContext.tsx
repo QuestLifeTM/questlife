@@ -3,6 +3,7 @@ import { PropsWithChildren, createContext, useCallback, useContext, useEffect, u
 import { useAuth } from "@/contexts/AuthContext";
 import {
   abandonQuestSession,
+  cleanupStaleQuestSessions,
   completeQuestV2,
   deleteUserPack,
   fetchEngineState,
@@ -65,6 +66,9 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     setError(null);
 
     try {
+      // A crash should preserve a recent quest for recovery, but a session
+      // untouched for a full day cannot indefinitely block future starts.
+      await cleanupStaleQuestSessions().catch(() => undefined);
       const [engineState, packs] = await Promise.all([
         fetchEngineState(),
         fetchUserPacks(),

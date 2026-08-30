@@ -29,43 +29,43 @@ const GOALS: Record<string, Goal> = {
   "explore-less-scroll": {
     id: "explore-less-scroll",
     label: "Explore more, scroll less",
-    description: "Trade passive scrolling for real experiences. You'll spend less time watching life happen and more time creating stories worth remembering.",
+    description: "Trade passive scrolling for real experiences, real connection, and stories you’ll actually remember.",
     icon: QUESTION_OPTION_ICONS.backpack,
   },
   "more-consistent": {
     id: "more-consistent",
     label: "Become more consistent",
-    description: "Small actions repeated over time create extraordinary results. You'll build momentum through simple quests that keep you moving forward.",
+    description: "Small adventures, repeated over time, build momentum, helping you become someone who chooses to live intentionally instead of waiting.",
     icon: QUESTION_OPTION_ICONS.personalGrowth,
   },
   "comfort-zone": {
     id: "comfort-zone",
     label: "Break out of my comfort zone",
-    description: "Growth rarely happens in familiar places. QuestLife helps you take small steps into experiences that build confidence and courage.",
+    description: "Every step beyond what feels familiar builds confidence, making new experiences feel easier, more exciting, and more possible.",
     icon: QUESTION_OPTION_ICONS.campingTent,
   },
   "life-exciting": {
     id: "life-exciting",
     label: "Make life exciting again",
-    description: "Routine can make life feel smaller than it is. You'll discover new experiences, unexpected moments, and reasons to look forward to each day.",
+    description: "Give yourself something to look forward to, turning ordinary days into surprising moments, stories, and memories worth keeping.",
     icon: QUESTION_OPTION_ICONS.lightning,
   },
   "stop-procrastinating": {
     id: "stop-procrastinating",
     label: "Finally stop procrastinating",
-    description: "The hardest part is usually getting started. Quests turn good intentions into action by giving you a simple next step to take today.",
+    description: "Stop waiting for the perfect moment. One small decision today can break the cycle and start something unexpected.",
     icon: QUESTION_OPTION_ICONS.hourglass,
   },
   "best-self": {
     id: "best-self",
     label: "Become my best self",
-    description: "The person you want to become is built through daily choices. Every completed quest helps you grow into a stronger version of yourself.",
+    description: "Discover what you’re capable of by choosing experiences that challenge you, surprise you, and reveal strengths you never noticed.",
     emoji: "🌱",
   },
   "unforgettable-memories": {
     id: "unforgettable-memories",
     label: "Make unforgettable memories",
-    description: "The moments you'll treasure most are often the ones you never planned. QuestLife helps fill your life with experiences worth looking back on.",
+    description: "The moments you remember most are lived with people, in places, doing things you’ll still smile about years later.",
     icon: QUESTION_OPTION_ICONS.heartWithPulse,
   },
 };
@@ -135,7 +135,6 @@ export default function ReassuranceOnboardingScreen() {
                 <View style={styles.destinationIcon}><OptionIcon icon={destination.icon} /></View>
                 <Text selectable style={styles.destinationTitle}>{destination.label}</Text>
               </View>
-              <Text selectable style={styles.destinationStat}>92.02% of people formed this daily habit</Text>
             </View>
           ) : null}
         </View>
@@ -155,7 +154,7 @@ export default function ReassuranceOnboardingScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.blue },
   content: { paddingHorizontal: 12 },
-  cards: { gap: 18, marginBottom: 26 },
+  cards: { gap: 23, marginBottom: 26 },
   goalCard: { gap: 6, borderRadius: 16, borderWidth: 2, borderColor: T.dark, backgroundColor: T.white, padding: 14, boxShadow: `3px 3px 0px ${T.dark}` },
   firstGoalCard: { marginVertical: 2, transform: [{ rotate: "-2deg" }] },
   secondGoalCard: { marginVertical: 2, transform: [{ rotate: "0.9deg" }] },
@@ -165,12 +164,11 @@ const styles = StyleSheet.create({
   optionEmoji: { fontSize: 22, lineHeight: 24 },
   cardTitle: { flex: 1, color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22, letterSpacing: -0.15 },
   cardDescription: { color: T.muted, fontFamily: "Rubik", fontSize: 13.5, lineHeight: 18 },
-  destinationCard: { gap: 8, marginTop: 30, borderRadius: 16, borderWidth: 2, borderColor: T.dark, backgroundColor: T.white, padding: 14, boxShadow: `3px 3px 0px ${T.dark}` },
-  destinationEyebrow: { color: T.muted, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16, textAlign: "center" },
-  destinationTitleRow: { position: "relative", minHeight: 44, justifyContent: "center", paddingHorizontal: 30 },
-  destinationIcon: { position: "absolute", left: 0, top: "50%", transform: [{ translateY: -12 }] },
+  destinationCard: { gap: 10, marginTop: 30, borderRadius: 16, borderWidth: 2, borderColor: T.dark, backgroundColor: T.white, paddingHorizontal: 14, paddingVertical: 16, boxShadow: `3px 3px 0px ${T.dark}` },
+  destinationEyebrow: { color: T.muted, fontFamily: "RubikBold", fontSize: 14, lineHeight: 19, textAlign: "center" },
+  destinationTitleRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  destinationIcon: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
   destinationTitle: { color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22, textAlign: "center" },
-  destinationStat: { color: T.blue, fontFamily: "RubikBold", fontSize: 12.5, lineHeight: 17, textAlign: "center" },
   reassuranceCopy: { gap: 5, marginBottom: 22 },
   reassuranceTitle: { color: T.white, fontFamily: "RubikBlack", fontSize: 26, lineHeight: 31, letterSpacing: -0.45 },
   reassuranceBody: { color: T.white, fontFamily: "Rubik", fontSize: 16.5, lineHeight: 22 },

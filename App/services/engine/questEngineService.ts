@@ -66,13 +66,18 @@ export async function fetchEngineState(): Promise<QuestEngineState> {
   // fallback keeps an in-progress quest visible after authentication is
   // restored if the RPC response is served without its active-session field.
   if (!activeSession) {
-    const { data: session } = await supabase
-      .from("quest_sessions")
-      .select("id, quest_id, source, started_at")
-      .eq("status", "active")
-      .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    const { data: session } = userId
+      ? await supabase
+        .from("quest_sessions")
+        .select("id, quest_id, source, started_at")
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      : { data: null };
     if (session) {
       activeSession = {
         id: session.id,
@@ -88,6 +93,28 @@ export async function fetchEngineState(): Promise<QuestEngineState> {
     activeSession,
     todayCompletions: state.todayCompletions ?? [],
   };
+}
+
+/** Clears only the signed-in user's active session after they confirm recovery. */
+export async function abandonMyActiveQuestSession() {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("abandon_my_active_quest_session");
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+/** Marks an interrupted quest for owner-led recovery after 12 hours. */
+export async function cleanupStaleQuestSessions() {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("cleanup_my_stale_quest_sessions", { p_max_age_hours: 12 });
+  if (error) throw error;
+}
+
+/** Clears the explicit recovery gate after the owner chooses to resume. */
+export async function clearMyActiveQuestRecovery() {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("clear_my_active_quest_recovery");
+  if (error) throw error;
 }
 
 export async function startQuestSession(input: {

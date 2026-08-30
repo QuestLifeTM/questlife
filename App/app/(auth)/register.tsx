@@ -17,7 +17,6 @@ import { T } from "@/components/theme";
 import {
   AccountAlreadyExistsError,
   EmailNotVerifiedError,
-  isUsernameAvailable,
   registerWithEmail,
   resendSignupConfirmationLink,
 } from "@/services/auth/authService";
@@ -31,10 +30,8 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const {
     control,
-    clearErrors,
     formState: { errors, isValid },
     handleSubmit,
-    setError,
   } = useForm<RegisterForm>({
     defaultValues: {
       confirmPassword: "",
@@ -48,42 +45,6 @@ export default function RegisterScreen() {
     resolver: zodResolver(registerSchema),
   });
   const password = useWatch({ control, name: "password" });
-  const username = useWatch({ control, name: "username" });
-
-  useEffect(() => {
-    const trimmed = username.trim();
-    if (!/^[A-Za-z0-9_]{3,20}$/.test(trimmed)) return;
-
-    let cancelled = false;
-    const timeout = setTimeout(async () => {
-      try {
-        const available = await isUsernameAvailable(trimmed);
-        if (cancelled) return;
-
-        if (available) {
-          clearErrors("username");
-        } else {
-          setError("username", {
-            message: "That username is already taken.",
-            type: "validate",
-          });
-        }
-      } catch {
-        if (!cancelled) {
-          setError("username", {
-            message: "Unable to check username right now.",
-            type: "validate",
-          });
-        }
-      }
-    }, 350);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timeout);
-    };
-  }, [clearErrors, setError, username]);
-
   async function onSubmit(values: RegisterForm) {
     try {
       setLoading(true);

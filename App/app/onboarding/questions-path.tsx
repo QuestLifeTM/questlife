@@ -28,7 +28,7 @@ export default function QuestionsPathScreen() {
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 190, height * 0.35), paddingBottom: Math.max(insets.bottom + 24, 34) }]}>
         <View style={styles.copy}>
           <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={2} maxFontSizeMultiplier={1.15} style={styles.title}>Let&apos;s make <Text style={styles.questLifeAccent}>QuestLife</Text> feel like you.</Text>
-          <Text style={styles.body}>Answer a few quick questions so we can recommend adventures that fit your interests, lifestyle, and comfort level.</Text>
+          <Text style={styles.body}>A few quick picks help us find adventures you&apos;ll actually want to do.</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Let's do it" onPress={continueOnboarding} style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}>
           <Text style={styles.primaryButtonText}>Let&apos;s do it</Text>

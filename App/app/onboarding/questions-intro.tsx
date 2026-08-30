@@ -55,7 +55,7 @@ const QUESTIONS: OnboardingQuestion[] = [
   },
   {
     id: "ideal-life",
-    title: "Think bigger, what does an ideal life look like to you?",
+    title: "When you look back someday, what do you want to remember?",
     helper: "Choose 1 option",
     maximumSelections: 1,
     options: [
@@ -119,7 +119,7 @@ export default function QuestionsIntroScreen() {
         <View style={styles.progressSection}><OnboardingQuestionProgress currentStep={progressStep} /></View>
 
         <View style={styles.questionHeader}>
-          <Text numberOfLines={question.id === "ideal-life" ? 2 : undefined} adjustsFontSizeToFit={question.id === "ideal-life"} minimumFontScale={0.82} style={[styles.title, question.id === "ideal-life" && styles.secondQuestionTitle]}>{question.id === "questlife-goals" ? <>What do you want to <Text style={styles.titleAccent}>achieve</Text> with QuestLife?</> : question.id === "ideal-life" ? <>Think bigger, what does an <Text style={styles.titleAccent}>ideal{"\u00A0"}life</Text> look like to you?</> : question.title}</Text>
+          <Text numberOfLines={question.id === "ideal-life" ? 2 : undefined} adjustsFontSizeToFit={question.id === "ideal-life"} minimumFontScale={0.82} style={[styles.title, question.id === "ideal-life" && styles.secondQuestionTitle]}>{question.id === "questlife-goals" ? <>What do you want to <Text style={styles.titleAccent}>achieve</Text> with QuestLife?</> : question.id === "ideal-life" ? <>When you look back someday, what do you want to <Text style={styles.titleAccent}>remember</Text>?</> : question.title}</Text>
           <Text style={styles.helper}>{question.helper}</Text>
         </View>
 

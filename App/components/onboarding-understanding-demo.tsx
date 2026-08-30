@@ -18,6 +18,7 @@ import type { Quest } from "@/types/content";
 const stoneArchBackground = require("../assets/onboarding/stone-arch-background.png");
 const iphoneMockup = require("../assets/onboarding/iphone-mockup.png");
 type DemoPhase = "title" | "explore" | "active" | "journal";
+const SCREEN_FADE_DURATION = 460;
 
 // These records are intentionally shaped exactly like the data the app reads
 // in production. They are the only fake part of this walkthrough; every
@@ -98,10 +99,12 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotionPreference();
   const [phase, setPhase] = useState<DemoPhase>("title");
+  const [showValueStatement, setShowValueStatement] = useState(false);
   const [showContinue, setShowContinue] = useState(false);
   const [exploreAutoScrollEnabled, setExploreAutoScrollEnabled] = useState(true);
-  const [showExplorePhone, setShowExplorePhone] = useState(true);
-  const [showActivePhone, setShowActivePhone] = useState(false);
+  const [showExploreContent, setShowExploreContent] = useState(true);
+  const [showActiveContent, setShowActiveContent] = useState(false);
+  const [showJournalContent, setShowJournalContent] = useState(false);
   const [subtitleBottom, setSubtitleBottom] = useState<number | null>(null);
   const [continueTop, setContinueTop] = useState<number | null>(null);
   // The opening message commonly spans two lines; this keeps it centered from
@@ -110,15 +113,15 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   const titleLift = useRef(new Animated.Value(0)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const screenCopyOpacity = useRef(new Animated.Value(1)).current;
-  const screenCopyTranslateY = useRef(new Animated.Value(0)).current;
   const phoneOpacity = useRef(new Animated.Value(0)).current;
   const phoneScale = useRef(new Animated.Value(0.8)).current;
   const phoneFrameScale = useRef(new Animated.Value(1)).current;
   const phonePositionY = useRef(new Animated.Value(0)).current;
   const continueOpacity = useRef(new Animated.Value(0)).current;
-  const explorePhoneX = useRef(new Animated.Value(0)).current;
-  const activePhoneX = useRef(new Animated.Value(0)).current;
-  const journalPhoneX = useRef(new Animated.Value(0)).current;
+  const exploreContentOpacity = useRef(new Animated.Value(1)).current;
+  const activeContentOpacity = useRef(new Animated.Value(0)).current;
+  const journalContentOpacity = useRef(new Animated.Value(0)).current;
+  const hasPositionedPreview = useRef(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const journal = useRef(previewJournal()).current;
   const horizontalPadding = clamp(width * 0.045, 16, 24);
@@ -131,8 +134,11 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   // below the copy. This works across phone heights and pulls each preview
   // higher without changing type scale or animation geometry.
   const phoneScreenTopInset = phoneHeight * 0.044;
-  const phoneCopyGap = clamp(height * 0.016, 10, 14);
-  const phoneTravel = Math.max(width, phoneWidth) * 1.15;
+  // Leave a deliberate visual break between the supporting line and the
+  // phone bezel. The display itself has a top inset, so the gap needs to be
+  // larger than a typical text-to-content spacing to keep the frame from
+  // feeling crowded on every preview.
+  const phoneCopyGap = clamp(height * 0.025, 28, 34);
 
   const schedule = (callback: () => void, delay: number) => {
     const timer = setTimeout(callback, delay);
@@ -154,21 +160,41 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
             duration: reduceMotion ? 0 : 500,
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
-          }).start(({ finished: introHidden }) => {
-            if (!introHidden) return;
-            schedule(() => {
-              setPhase("explore");
+          }).start(({ finished: greetingHidden }) => {
+            if (!greetingHidden) return;
+            setShowValueStatement(true);
+            titleOpacity.setValue(0);
+            Animated.timing(titleOpacity, {
+              toValue: 1,
+              duration: reduceMotion ? 0 : 350,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }).start(({ finished: statementShown }) => {
+              if (!statementShown) return;
               schedule(() => {
-                const duration = reduceMotion ? 0 : 850;
-                Animated.parallel([
-                  Animated.timing(titleLift, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                  Animated.timing(titleOpacity, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                  Animated.timing(phoneOpacity, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                  Animated.timing(phoneScale, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                ]).start();
-                schedule(transitionToActive, reduceMotion ? 0 : 3_000);
-              }, 0);
-            }, reduceMotion ? 0 : 500);
+                Animated.timing(titleOpacity, {
+                  toValue: 0,
+                  duration: reduceMotion ? 0 : 500,
+                  easing: Easing.out(Easing.cubic),
+                  useNativeDriver: true,
+                }).start(({ finished: statementHidden }) => {
+                  if (!statementHidden) return;
+                  schedule(() => {
+                    setPhase("explore");
+                    schedule(() => {
+                      const duration = reduceMotion ? 0 : 850;
+                      Animated.parallel([
+                        Animated.timing(titleLift, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                        Animated.timing(titleOpacity, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                        Animated.timing(phoneOpacity, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                        Animated.timing(phoneScale, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                      ]).start();
+                      schedule(transitionToActive, reduceMotion ? 0 : 3_000);
+                    }, 0);
+                  }, reduceMotion ? 0 : 500);
+                });
+              }, reduceMotion ? 0 : 2_700);
+            });
           });
         }, reduceMotion ? 0 : 1_700);
       });
@@ -177,13 +203,6 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   // Animation values are stable refs.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduceMotion]);
-
-  useEffect(() => {
-    if (phase !== "title") return;
-    explorePhoneX.setValue(0);
-    activePhoneX.setValue(-phoneTravel);
-    journalPhoneX.setValue(phoneTravel);
-  }, [activePhoneX, explorePhoneX, journalPhoneX, phoneTravel, phase]);
 
   useEffect(() => {
     // Keep the phone in a fixed full-screen layer. Previously, changing the
@@ -212,9 +231,10 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   }, [height, initialPhoneCenterY, phonePositionY, showContinue]);
 
   useEffect(() => {
-    // Every preview shares the same text-anchored position. Using a transform
-    // avoids re-layout while the content inside each phone is being animated.
-    if (phase === "title" || showContinue || subtitleBottom === null) return;
+    // Position the frame once when the first preview appears. Every following
+    // preview is composited inside this exact frame, so only screen content
+    // changes during the walkthrough.
+    if (phase !== "explore" || hasPositionedPreview.current || showContinue || subtitleBottom === null) return;
 
     const phoneCenterY = subtitleBottom + phoneCopyGap - phoneScreenTopInset + phoneHeight / 2;
     Animated.timing(phonePositionY, {
@@ -222,7 +242,9 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
       duration: reduceMotion ? 0 : 420,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start();
+    }).start(({ finished }) => {
+      if (finished) hasPositionedPreview.current = true;
+    });
   }, [height, phoneCopyGap, phoneHeight, phonePositionY, phoneScreenTopInset, phase, reduceMotion, showContinue, subtitleBottom]);
 
   function advance() {
@@ -232,82 +254,107 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
 
   function transitionToActive() {
     // Stop the JavaScript-driven list updates before the heavy map preview
-    // mounts, leaving the transition frame budget for the phone movement.
+    // mounts, leaving the transition frame budget for the screen cross-fade.
     setExploreAutoScrollEnabled(false);
     hideScreenCopy();
-    schedule(beginExploreExit, reduceMotion ? 0 : 320);
+    schedule(beginExploreExit, reduceMotion ? 0 : SCREEN_FADE_DURATION);
   }
 
   function hideScreenCopy() {
-    Animated.parallel([
-      Animated.timing(screenCopyOpacity, { toValue: 0, duration: reduceMotion ? 0 : 280, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(screenCopyTranslateY, { toValue: -16, duration: reduceMotion ? 0 : 280, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
+    Animated.timing(screenCopyOpacity, {
+      toValue: 0,
+      duration: reduceMotion ? 0 : SCREEN_FADE_DURATION,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
   }
 
   function beginExploreExit() {
-    setShowActivePhone(true);
-    activePhoneX.setValue(phoneTravel);
-    // Let the native map complete its first layout off-screen before it moves.
+    setShowActiveContent(true);
+    activeContentOpacity.setValue(0);
+    // Let the native map complete its first layout beneath the stationary
+    // bezel before it fades in.
     schedule(() => {
-      const transition = { duration: reduceMotion ? 0 : 700, easing: Easing.bezier(0.22, 0.61, 0.36, 1), useNativeDriver: true } as const;
-      Animated.timing(explorePhoneX, { ...transition, toValue: phoneTravel }).start(({ finished }) => {
-        if (finished) {
-          setShowExplorePhone(false);
-          setPhase("active");
-          screenCopyOpacity.setValue(0);
-          screenCopyTranslateY.setValue(16);
-          schedule(() => {
-            Animated.parallel([
-              Animated.timing(activePhoneX, { ...transition, toValue: 0 }),
-              Animated.timing(screenCopyOpacity, { toValue: 1, duration: reduceMotion ? 0 : 460, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-              Animated.timing(screenCopyTranslateY, { toValue: 0, duration: reduceMotion ? 0 : 460, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-            ]).start(({ finished: activeEntered }) => {
-              if (activeEntered) schedule(transitionToJournal, reduceMotion ? 0 : 2_000);
-            });
-          }, reduceMotion ? 0 : 100);
-        }
+      const duration = reduceMotion ? 0 : SCREEN_FADE_DURATION;
+      setPhase("active");
+      screenCopyOpacity.setValue(0);
+      Animated.parallel([
+        Animated.timing(exploreContentOpacity, { toValue: 0, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(activeContentOpacity, { toValue: 1, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(screenCopyOpacity, { toValue: 1, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      ]).start(({ finished }) => {
+        if (!finished) return;
+        schedule(transitionToJournal, reduceMotion ? 0 : 3_000);
       });
     }, reduceMotion ? 0 : 100);
   }
 
   function transitionToJournal() {
-    const transition = { duration: reduceMotion ? 0 : 700, easing: Easing.bezier(0.22, 0.61, 0.36, 1), useNativeDriver: true } as const;
     hideScreenCopy();
-    Animated.timing(activePhoneX, { ...transition, toValue: phoneTravel }).start(({ finished }) => {
-      if (!finished) return;
-      setShowActivePhone(false);
+    schedule(() => {
+      setShowJournalContent(true);
       setPhase("journal");
-      journalPhoneX.setValue(phoneTravel);
+      journalContentOpacity.setValue(0);
       screenCopyOpacity.setValue(0);
-      screenCopyTranslateY.setValue(16);
       schedule(() => {
+        const duration = reduceMotion ? 0 : SCREEN_FADE_DURATION;
         Animated.parallel([
-          Animated.timing(journalPhoneX, { ...transition, toValue: 0 }),
-          Animated.timing(screenCopyOpacity, { toValue: 1, duration: reduceMotion ? 0 : 460, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-          Animated.timing(screenCopyTranslateY, { toValue: 0, duration: reduceMotion ? 0 : 460, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(activeContentOpacity, { toValue: 0, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(journalContentOpacity, { toValue: 1, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(screenCopyOpacity, { toValue: 1, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
         ]).start(({ finished: journalEntered }) => {
-          if (journalEntered) schedule(() => setShowContinue(true), reduceMotion ? 0 : 2_000);
+          if (!journalEntered) return;
+          if (!showContinue) {
+            schedule(() => {
+              setShowContinue(true);
+              schedule(restartDemo, reduceMotion ? 0 : 2_000);
+            }, reduceMotion ? 0 : 2_000);
+            return;
+          }
+          schedule(restartDemo, reduceMotion ? 0 : 2_000);
         });
       }, reduceMotion ? 0 : 100);
-    });
+    }, reduceMotion ? 0 : SCREEN_FADE_DURATION);
+  }
+
+  function restartDemo() {
+    hideScreenCopy();
+    schedule(() => {
+      setPhase("explore");
+      setShowExploreContent(true);
+      exploreContentOpacity.setValue(0);
+      screenCopyOpacity.setValue(0);
+      schedule(() => {
+        const duration = reduceMotion ? 0 : SCREEN_FADE_DURATION;
+        Animated.parallel([
+          Animated.timing(journalContentOpacity, { toValue: 0, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(exploreContentOpacity, { toValue: 1, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(screenCopyOpacity, { toValue: 1, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        ]).start(({ finished: exploreEntered }) => {
+          if (!exploreEntered) return;
+          schedule(transitionToActive, reduceMotion ? 0 : 3_000);
+        });
+      }, reduceMotion ? 0 : 100);
+    }, reduceMotion ? 0 : SCREEN_FADE_DURATION);
   }
 
   const initialTitleTranslate = Math.max(0, height / 2 - (insets.top + 22) - titleHeight / 2);
   const titleTranslate = titleLift.interpolate({ inputRange: [0, 1], outputRange: [initialTitleTranslate, 0] });
   const title = phase === "title"
-    ? <><Text style={styles.nameAccent}>{firstName}</Text>, here&apos;s how <Text style={styles.subtitleAccent}>QuestLife</Text> works.</>
+    ? showValueStatement
+      ? <>Here&apos;s how <Text style={styles.subtitleAccent}>QuestLife</Text> helps you live a life worth remembering.</>
+      : <>Nice to meet you, <Text style={styles.nameAccent}>{firstName}</Text>.</>
     : phase === "explore"
-      ? <>Pick a <Text style={styles.subtitleAccent}>Quest</Text></>
+      ? <>Pick your <Text style={styles.subtitleAccent}>adventure</Text></>
       : phase === "active"
-        ? <>Go <Text style={styles.subtitleAccent}>experience</Text> it.</>
-        : <>Make it part of your <Text style={styles.subtitleAccent}>story</Text>.</>;
+        ? <>Go make it <Text style={styles.subtitleAccent}>happen</Text></>
+        : <>Save the <Text style={styles.subtitleAccent}>moment</Text></>;
   const subtitle = phase === "explore"
-    ? "Find something worth doing."
+    ? "Break out of the usual"
     : phase === "active"
-      ? "Turn your free time into an adventure."
+      ? "Get out there and experience it."
       : phase === "journal"
-        ? "Save the memories you make"
+        ? "Save the moments you'll want to remember."
         : null;
   const measureSubtitle = (event: LayoutChangeEvent) => {
     const { y, height: subtitleHeight } = event.nativeEvent.layout;
@@ -318,16 +365,21 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
     <StatusBar style="light" />
     <ImageBackground source={stoneArchBackground} resizeMode="cover" style={StyleSheet.absoluteFill}><LinearGradient pointerEvents="none" colors={["rgba(5,10,7,0.5)", "rgba(5,10,7,0.76)"]} locations={[0, 1]} style={StyleSheet.absoluteFill} /></ImageBackground>
     <Animated.View style={[styles.titleLayer, { top: insets.top + 22, paddingHorizontal: horizontalPadding, opacity: titleOpacity, transform: [{ translateY: titleTranslate }] }]}>
-      <Animated.View style={{ opacity: screenCopyOpacity, transform: [{ translateY: screenCopyTranslateY }] }}>
+      <Animated.View style={{ opacity: screenCopyOpacity }}>
       <Text onLayout={(event) => setTitleHeight(event.nativeEvent.layout.height)} adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={3} maxFontSizeMultiplier={1.15} style={[styles.title, { fontSize: titleFontSize, lineHeight: Math.round(titleFontSize * 1.17) }]}>{title}</Text>
       {subtitle ? <Text onLayout={measureSubtitle} style={styles.subtitle}>{subtitle}</Text> : null}
       </Animated.View>
     </Animated.View>
     <Animated.View pointerEvents="none" style={[styles.phoneArea, { opacity: phoneOpacity, transform: [{ translateY: phonePositionY }, { scale: phoneScale }] }]}>
       <Animated.View style={{ position: "relative", width: phoneWidth, height: phoneHeight, transform: [{ scale: phoneFrameScale }] }}>
-      {showExplorePhone ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: explorePhoneX }] }]}><View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085) }]}><PhoneScreen phase="explore" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} exploreAutoScrollEnabled={exploreAutoScrollEnabled} /></View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
-      {showActivePhone ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: activePhoneX }] }]}><View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085) }]}><PhoneScreen phase="active" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
-      {phase === "journal" ? <Animated.View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight, transform: [{ translateX: journalPhoneX }] }]}><View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085) }]}><PhoneScreen phase="journal" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></View><Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} /></Animated.View> : null}
+      <View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight }]}>
+        <View style={[styles.phoneDisplay, { borderRadius: Math.round(phoneWidth * 0.085) }]}>
+          {showExploreContent ? <Animated.View style={[styles.previewLayer, { opacity: exploreContentOpacity }]}><PhoneScreen phase="explore" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} exploreAutoScrollEnabled={exploreAutoScrollEnabled} /></Animated.View> : null}
+          {showActiveContent ? <Animated.View style={[styles.previewLayer, { opacity: activeContentOpacity }]}><PhoneScreen phase="active" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></Animated.View> : null}
+          {showJournalContent ? <Animated.View style={[styles.previewLayer, { opacity: journalContentOpacity }]}><PhoneScreen phase="journal" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></Animated.View> : null}
+        </View>
+        <Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} />
+      </View>
       </Animated.View>
     </Animated.View>
     {showContinue ? <Animated.View onLayout={(event) => setContinueTop(event.nativeEvent.layout.y)} style={[styles.continueArea, { paddingHorizontal: horizontalPadding, paddingBottom: Math.max(insets.bottom + 18, 30), opacity: continueOpacity }]}><SoftButton label="Let's build yours →" color={T.blue} onPress={advance} style={styles.continueButton} /></Animated.View> : null}
@@ -344,6 +396,7 @@ const styles = StyleSheet.create({
   phoneArea: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
   phoneMockup: { position: "absolute" },
   phoneDisplay: { position: "absolute", left: "7.02%", top: "4.4%", width: "85.6%", height: "90.85%", overflow: "hidden", backgroundColor: T.bg },
+  previewLayer: { ...StyleSheet.absoluteFillObject },
   previewClip: { flex: 1, overflow: "hidden" },
   previewCanvas: { transformOrigin: "top left" },
   continueArea: { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 5 },
