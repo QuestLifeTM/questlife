@@ -68,7 +68,7 @@ export default function OnboardingWelcomeScreen() {
     setNameSheetVisible(false);
     // Replace the welcome route with the next onboarding step so a previous
     // instance of the intro screen can never be resumed from the stack.
-    router.replace({ pathname: "/onboarding/understanding", params: { firstName: normalizedFirstName } });
+    router.replace({ pathname: "/onboarding/about-you", params: { firstName: normalizedFirstName } });
   }
 
   if (!introComplete && introEnabled === null) {

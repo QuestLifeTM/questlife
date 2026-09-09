@@ -156,12 +156,13 @@ export async function getRegistrationAccountState(email: string): Promise<Regist
 
 export async function isUsernameAvailable(username: string) {
   assertSupabaseConfigured();
-  const { data, error } = await supabase.rpc("is_username_available", {
-    raw_username: username.trim(),
+  const { data, error } = await supabase.functions.invoke("username-availability", {
+    body: { username: username.trim() },
   });
 
   if (error) throw error;
-  return Boolean(data);
+  if (!data || typeof data.available !== "boolean") throw new Error("Invalid username availability response.");
+  return data.available;
 }
 
 export async function registerWithEmail(email: string, username: string, firstName: string, lastName: string, password: string) {

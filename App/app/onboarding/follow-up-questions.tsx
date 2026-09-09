@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { OnboardingQuestionProgress } from "@/components/onboarding-progress";
+import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
 import { T } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 
@@ -20,8 +20,8 @@ const QUESTION_OPTION_ICONS = {
   forest: require("../../assets/onboarding/question-icons/forest.png"),
   lightning: require("../../assets/onboarding/question-icons/lightning.png"),
   meetingFriends: require("../../assets/onboarding/question-icons/meeting-friends.png"),
-  meetingInterests: require("../../assets/onboarding/question-icons/meeting-interests.png"),
   meeting: require("../../assets/onboarding/question-icons/meeting.png"),
+  meetingInterests: require("../../assets/onboarding/question-icons/meeting-interests.png"),
   phone: require("../../assets/onboarding/question-icons/phone.png"),
   paintPalette: require("../../assets/onboarding/question-icons/paint-palette.png"),
   rollerCoaster: require("../../assets/onboarding/question-icons/roller-coaster.png"),
@@ -134,10 +134,19 @@ export default function FollowUpQuestionsOnboardingScreen() {
     router.replace({ pathname: "/onboarding/personalizing", params: firstName ? { firstName } : {} });
   }
 
+  function goBack() {
+    haptic();
+    if (questionIndex > 0) {
+      setQuestionIndex((current) => current - 1);
+      return;
+    }
+    router.replace({ pathname: "/onboarding/frequency", params: firstName ? { firstName } : {} });
+  }
+
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><OnboardingQuestionProgress currentStep={questionIndex + 4} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={questionIndex + 8} onBack={goBack} /></View>
         <View style={styles.questionHeader}>
           <Text style={styles.title}>
             {question.id === "life-now" ? (

@@ -343,7 +343,7 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   const title = phase === "title"
     ? showValueStatement
       ? <>Here&apos;s how <Text style={styles.subtitleAccent}>QuestLife</Text> helps you live a life worth remembering.</>
-      : <>Nice to meet you, <Text style={styles.nameAccent}>{firstName}</Text>.</>
+      : <>Small choices can make your life feel <Text style={styles.subtitleAccent}>bigger</Text>.</>
     : phase === "explore"
       ? <>Pick your <Text style={styles.subtitleAccent}>adventure</Text></>
       : phase === "active"
@@ -353,7 +353,7 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
     ? "Break out of the usual"
     : phase === "active"
       ? "Get out there and experience it."
-      : phase === "journal"
+    : phase === "journal"
         ? "Save the moments you'll want to remember."
         : null;
   const measureSubtitle = (event: LayoutChangeEvent) => {
@@ -390,7 +390,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#101510" },
   titleLayer: { position: "absolute", left: 0, right: 0, zIndex: 3, alignItems: "center", gap: 7 },
   title: { maxWidth: 355, color: T.white, fontFamily: "RubikBlack", letterSpacing: -0.36, textAlign: "center" },
-  nameAccent: { color: T.blue },
   subtitle: { maxWidth: 330, color: "rgba(255,255,255,0.92)", fontFamily: "RubikBold", fontSize: 19, lineHeight: 25, textAlign: "center" },
   subtitleAccent: { color: T.blue },
   phoneArea: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },

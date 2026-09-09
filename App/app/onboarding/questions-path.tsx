@@ -16,7 +16,7 @@ export default function QuestionsPathScreen() {
 
   function continueOnboarding() {
     haptic();
-    router.replace({ pathname: "/onboarding/questions-intro", params: firstName ? { firstName } : {} });
+    router.replace({ pathname: "/onboarding/claim-username", params: firstName ? { firstName } : {} });
   }
 
   return (

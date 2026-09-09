@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { OnboardingQuestionProgress } from "@/components/onboarding-progress";
+import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
 import { T } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { WeeklyFrequencySlider } from "@/components/weekly-frequency-slider";
@@ -11,7 +11,7 @@ import { WeeklyFrequencySlider } from "@/components/weekly-frequency-slider";
 export default function FrequencyOnboardingScreen() {
   const { firstName } = useLocalSearchParams<{ firstName?: string }>();
   const { insets, horizontalPadding } = useResponsiveScreenLayout();
-  const [daysPerWeek, setDaysPerWeek] = useState(3);
+  const [frequencyDays, setFrequencyDays] = useState(3);
 
   function continueOnboarding() {
     haptic();
@@ -19,20 +19,25 @@ export default function FrequencyOnboardingScreen() {
       pathname: "/onboarding/follow-up-questions",
       params: {
         ...(firstName ? { firstName } : {}),
-        daysTryingNewThings: String(daysPerWeek),
+        daysTryingNewThings: String(frequencyDays),
       },
     });
+  }
+
+  function goBack() {
+    haptic();
+    router.replace({ pathname: "/onboarding/claim-username", params: firstName ? { firstName } : {} });
   }
 
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><OnboardingQuestionProgress currentStep={3} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={7} onBack={goBack} /></View>
         <View style={styles.questionHeader}>
           <Text style={styles.title}>Be honest, how often do you try <Text style={styles.titleAccent}>something</Text> new?</Text>
         </View>
         <View style={styles.sliderSection}>
-          <WeeklyFrequencySlider value={daysPerWeek} onChange={setDaysPerWeek} />
+          <WeeklyFrequencySlider value={frequencyDays} onChange={setFrequencyDays} />
         </View>
       </View>
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 12, 20), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>

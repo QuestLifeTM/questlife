@@ -3,9 +3,10 @@ import { StyleSheet, View } from "react-native";
 import { T } from "@/components/theme";
 
 const ADVENTURE_CATEGORY_BLUE = "#4D9CFF";
+export const ONBOARDING_QUESTION_TOTAL = 12;
 
-/** Shared progress treatment for the preference questions, including routes between them. */
-export function OnboardingQuestionProgress({ currentStep, totalSteps = 8 }: { currentStep: number; totalSteps?: number }) {
+/** Shared progress treatment for every question in the onboarding flow. */
+export function OnboardingQuestionProgress({ currentStep, totalSteps = ONBOARDING_QUESTION_TOTAL }: { currentStep: number; totalSteps?: number }) {
   const progress = `${Math.round((currentStep / totalSteps) * 100)}%` as `${number}%`;
 
   return (

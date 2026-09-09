@@ -22,6 +22,7 @@ import {
 } from "@/services/auth/authService";
 import { getAuthErrorMessage } from "@/utils/authErrors";
 import { RegisterForm, registerSchema } from "@/validation/authSchemas";
+import { clearOnboardingUsernameDraft, getOnboardingUsernameDraft } from "@/services/onboarding/username-draft";
 
 export default function RegisterScreen() {
   const { firstName: onboardingFirstName } = useLocalSearchParams<{ firstName?: string }>();
@@ -32,6 +33,7 @@ export default function RegisterScreen() {
     control,
     formState: { errors, isValid },
     handleSubmit,
+    setValue,
   } = useForm<RegisterForm>({
     defaultValues: {
       confirmPassword: "",
@@ -45,10 +47,21 @@ export default function RegisterScreen() {
     resolver: zodResolver(registerSchema),
   });
   const password = useWatch({ control, name: "password" });
+  useEffect(() => {
+    getOnboardingUsernameDraft().then((username) => {
+      if (username) setValue("username", username, { shouldValidate: true });
+    }).catch(() => {
+      // The registration form remains usable if local draft storage is unavailable.
+    });
+  }, [setValue]);
+
   async function onSubmit(values: RegisterForm) {
     try {
       setLoading(true);
       const result = await registerWithEmail(values.email, values.username, values.firstName, values.lastName, values.password);
+      await clearOnboardingUsernameDraft().catch(() => {
+        // Cleanup is optional; the username has already been submitted to registration.
+      });
       router.replace({
         pathname: "/(auth)/verify-email",
         params: { email: result.email },

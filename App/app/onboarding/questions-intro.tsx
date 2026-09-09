@@ -5,7 +5,7 @@ import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, Vi
 
 import { T } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
-import { OnboardingQuestionProgress } from "@/components/onboarding-progress";
+import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
 
 type OnboardingOption = {
   id: string;
@@ -75,7 +75,7 @@ export default function QuestionsIntroScreen() {
   const question = QUESTIONS[questionIndex];
   const selectedIds = answers[question.id] ?? [];
   const hasRequiredSelections = selectedIds.length >= question.maximumSelections;
-  const progressStep = questionIndex + 1;
+  const progressStep = questionIndex + 5;
 
   function toggleOption(id: string) {
     haptic();
@@ -113,10 +113,19 @@ export default function QuestionsIntroScreen() {
     });
   }
 
+  function goBack() {
+    haptic();
+    if (questionIndex > 0) {
+      setQuestionIndex((current) => current - 1);
+      return;
+    }
+    router.replace({ pathname: "/onboarding/claim-username", params: firstName ? { firstName } : {} });
+  }
+
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><OnboardingQuestionProgress currentStep={progressStep} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={progressStep} onBack={goBack} /></View>
 
         <View style={styles.questionHeader}>
           <Text numberOfLines={question.id === "ideal-life" ? 2 : undefined} adjustsFontSizeToFit={question.id === "ideal-life"} minimumFontScale={0.82} style={[styles.title, question.id === "ideal-life" && styles.secondQuestionTitle]}>{question.id === "questlife-goals" ? <>What do you want to <Text style={styles.titleAccent}>achieve</Text> with QuestLife?</> : question.id === "ideal-life" ? <>When you look back someday, what do you want to <Text style={styles.titleAccent}>remember</Text>?</> : question.title}</Text>
