@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#000000",
   },
   artworkFade: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   artwork: {
     flex: 1,

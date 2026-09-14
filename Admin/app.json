@@ -12,7 +12,9 @@
       "expo-router",
       "expo-font",
       "expo-secure-store",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "ios": {
       "supportsTablet": false

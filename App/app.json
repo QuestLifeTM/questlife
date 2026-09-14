@@ -2,12 +2,11 @@
   "expo": {
     "name": "QuestLife",
     "slug": "questlife-native",
+    "icon": "./assets/icons/questlife-app-icon.png",
     "scheme": "questlife",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "jsEngine": "hermes",
-    "newArchEnabled": true,
     "plugins": [
       "expo-router",
       "expo-font",
@@ -43,7 +42,12 @@
         }
       ],
       "expo-sqlite",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "expo-asset",
+      "expo-image",
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "ios": {
       "supportsTablet": false,
@@ -59,7 +63,6 @@
       }
     },
     "android": {
-      "edgeToEdgeEnabled": true,
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ],

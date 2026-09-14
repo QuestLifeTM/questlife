@@ -2,20 +2,48 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Animated, { FadeInRight } from "react-native-reanimated";
 
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
 import { T } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
+import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 
-type Option = { id: string; label: string; emoji?: string; icon?: ImageSourcePropType };
+type Option = { id: string; label: string; emoji?: string; icon?: ImageSourcePropType; ionicon?: keyof typeof Ionicons.glyphMap; iconColor?: string };
 type Question = {
-  id: "ageRange" | "socialCircle" | "discoverySource";
+  id: "lookingFor" | "socialCircle" | "ageRange" | "discoverySource" | "idealLife";
   options: Option[];
   maximumSelections?: number;
+  minimumSelections?: number;
   helper?: string;
 };
 
 const QUESTIONS: Question[] = [
+  {
+    id: "lookingFor",
+    maximumSelections: 7,
+    minimumSelections: 1,
+    helper: "Choose all that apply",
+    options: [
+      { id: "discover", icon: require("../../assets/onboarding/question-icons/backpack.png"), label: "Discover something new" },
+      { id: "friends", icon: require("../../assets/onboarding/question-icons/friends.png"), label: "Something to do with friends" },
+      { id: "someone", icon: require("../../assets/onboarding/question-icons/heart-with-pulse.png"), label: "Something to do with someone" },
+      { id: "outside", icon: require("../../assets/onboarding/question-icons/forest.png"), label: "Get outside" },
+      { id: "creative", icon: require("../../assets/onboarding/question-icons/paint-palette.png"), label: "Try something creative" },
+      { id: "push-myself", icon: require("../../assets/onboarding/question-icons/lightning.png"), label: "Push myself" },
+      { id: "good-time", icon: require("../../assets/onboarding/question-icons/smiling.png"), label: "Just have a good time" },
+    ],
+  },
+  {
+    id: "socialCircle",
+    options: [
+      { id: "myself", icon: require("../../assets/onboarding/question-icons/person.png"), label: "Just me" },
+      { id: "friends", icon: require("../../assets/onboarding/question-icons/meeting-friends.png"), label: "Friends" },
+      { id: "family", icon: require("../../assets/onboarding/question-icons/social.png"), label: "Family" },
+      { id: "partner", icon: require("../../assets/onboarding/question-icons/star.png"), label: "Someone special" },
+      { id: "open-to-meeting", icon: require("../../assets/onboarding/question-icons/meeting.png"), label: "I'm open to meeting people" },
+    ],
+  },
   {
     id: "ageRange",
     options: [
@@ -28,24 +56,25 @@ const QUESTIONS: Question[] = [
     ],
   },
   {
-    id: "socialCircle",
+    id: "discoverySource",
     options: [
-      { id: "myself", label: "Myself" },
-      { id: "partner", label: "With my partner" },
-      { id: "family", label: "My family" },
-      { id: "friends", label: "My friends" },
+      { id: "instagram", ionicon: "logo-instagram", iconColor: "#E4405F", label: "Instagram" },
+      { id: "tiktok", ionicon: "logo-tiktok", iconColor: T.dark, label: "TikTok" },
+      { id: "friends-family", ionicon: "people", iconColor: T.blue, label: "Friends/Family" },
+      { id: "play-store", ionicon: "logo-google-playstore", iconColor: "#34A853", label: "Play Store" },
+      { id: "youtube", ionicon: "logo-youtube", iconColor: "#FF0000", label: "YouTube" },
+      { id: "reddit", ionicon: "logo-reddit", iconColor: "#FF4500", label: "Reddit" },
+      { id: "ai-chat", ionicon: "sparkles", iconColor: "#7C5CFC", label: "AI chat" },
     ],
   },
   {
-    id: "discoverySource",
+    id: "idealLife",
+    helper: "Choose 1 option",
     options: [
-      { id: "instagram", label: "Instagram" },
-      { id: "tiktok", label: "TikTok" },
-      { id: "friends-family", label: "Friends/Family" },
-      { id: "play-store", label: "Play Store" },
-      { id: "youtube", label: "YouTube" },
-      { id: "reddit", label: "Reddit" },
-      { id: "ai-chat", label: "AI chat" },
+      { id: "purpose", icon: require("../../assets/onboarding/question-icons/goal.png"), label: "Living each day with purpose" },
+      { id: "amazing-people", icon: require("../../assets/onboarding/question-icons/friends.png"), label: "Surrounding myself with amazing people" },
+      { id: "no-regrets", icon: require("../../assets/onboarding/question-icons/happy.png"), label: "Looking back with no regrets" },
+      { id: "proud-self", icon: require("../../assets/onboarding/question-icons/fortune-cookie.png"), label: "Becoming someone I'm proud to be" },
     ],
   },
 ];
@@ -53,12 +82,14 @@ const QUESTIONS: Question[] = [
 export default function AboutYouOnboardingScreen() {
   const { firstName } = useLocalSearchParams<{ firstName?: string }>();
   const { insets, horizontalPadding } = useResponsiveScreenLayout();
+  const reduceMotion = useReducedMotionPreference();
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<Question["id"], string[]>>({} as Record<Question["id"], string[]>);
   const question = QUESTIONS[questionIndex];
   const selectedIds = answers[question.id] ?? [];
   const maximumSelections = question.maximumSelections ?? 1;
-  const canContinue = selectedIds.length >= maximumSelections;
+  const minimumSelections = question.minimumSelections ?? maximumSelections;
+  const canContinue = selectedIds.length >= minimumSelections;
 
   function chooseOption(optionId: string) {
     haptic();
@@ -80,7 +111,13 @@ export default function AboutYouOnboardingScreen() {
       return;
     }
 
-    router.replace({ pathname: "/onboarding/understanding", params: firstName ? { firstName } : {} });
+    router.replace({
+      pathname: "/onboarding/understanding",
+      params: {
+        ...(firstName ? { firstName } : {}),
+        ...(answers.idealLife?.[0] ? { idealLifeId: answers.idealLife[0] } : {}),
+      },
+    });
   }
 
   function goBack() {
@@ -94,12 +131,16 @@ export default function AboutYouOnboardingScreen() {
 
   function questionTitle() {
     switch (question.id) {
+      case "lookingFor":
+        return <>What are you really looking for <Text style={styles.titleAccent}>right now</Text>?</>;
       case "ageRange":
         return <>How <Text style={styles.titleAccent}>old</Text> are you?</>;
       case "socialCircle":
-        return <>Who do you usually spend the <Text style={styles.titleAccent}>most time</Text> with?</>;
+        return <>Who do you usually go on <Text style={styles.titleAccent}>adventures</Text> with?</>;
       case "discoverySource":
         return <>Where did you <Text style={styles.titleAccent}>find</Text> us?</>;
+      case "idealLife":
+        return <>What do you want your <Text style={styles.titleAccent}>life</Text> to be about?</>;
     }
   }
 
@@ -107,21 +148,23 @@ export default function AboutYouOnboardingScreen() {
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
         <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={questionIndex + 1} onBack={goBack} /></View>
-        <View style={styles.questionHeader}>
-          {questionIndex === 0 && firstName?.trim() ? <Text style={styles.greeting}>Nice to meet you, <Text style={styles.greetingName}>{firstName.trim()}</Text>.</Text> : null}
-          <Text style={styles.title}>{questionTitle()}</Text>
-          {question.helper ? <Text style={styles.helper}>{question.helper}</Text> : null}
-        </View>
-        <ScrollView style={styles.optionScroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.optionList}>
+        <Animated.View key={question.id} entering={FadeInRight.duration(reduceMotion ? 0 : 280)} style={styles.questionStage}>
+          <View style={styles.questionHeader}>
+            {questionIndex === 0 && firstName?.trim() ? <Text style={styles.greeting}>Nice to meet you, <Text style={styles.greetingName}>{firstName.trim()}</Text>.</Text> : null}
+            <Text style={styles.title}>{questionTitle()}</Text>
+            {question.helper ? <Text style={styles.helper}>{question.helper}</Text> : null}
+          </View>
+          <ScrollView style={styles.optionScroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.optionList}>
           {question.options.map((option) => {
             const selected = selectedIds.includes(option.id);
             return <Pressable key={option.id} accessibilityRole={maximumSelections === 1 ? "radio" : "checkbox"} accessibilityLabel={option.label} accessibilityState={{ checked: selected, disabled: maximumSelections > 1 && !selected && selectedIds.length >= maximumSelections }} onPress={() => chooseOption(option.id)} style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && styles.optionPressed]}>
-              {option.icon ? <View style={styles.optionIconFrame}><Image source={option.icon} resizeMode="contain" style={styles.optionIcon} /></View> : option.emoji ? <View style={styles.optionIconFrame}><Text style={styles.optionEmoji}>{option.emoji}</Text></View> : null}
+              {option.icon ? <View style={styles.optionIconFrame}><Image source={option.icon} resizeMode="contain" style={styles.optionIcon} /></View> : option.ionicon ? <View style={styles.optionIconFrame}><Ionicons name={option.ionicon} size={25} color={option.iconColor ?? T.dark} /></View> : option.emoji ? <View style={styles.optionIconFrame}><Text style={styles.optionEmoji}>{option.emoji}</Text></View> : null}
               <Text style={styles.optionLabel}>{option.label}</Text>
               {selected ? <Ionicons name="checkmark" size={18} color={T.blue} /> : null}
             </Pressable>;
           })}
-        </ScrollView>
+          </ScrollView>
+        </Animated.View>
       </View>
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 12, 20), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Continue" accessibilityState={{ disabled: !canContinue }} disabled={!canContinue} onPress={continueOnboarding} style={({ pressed }) => [styles.continueButton, !canContinue && styles.continueButtonDisabled, pressed && canContinue && styles.continueButtonPressed]}>
@@ -137,7 +180,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
   content: { flex: 1 },
   progressSection: { paddingTop: 2 },
-  questionHeader: { paddingTop: 28, paddingBottom: 18, gap: 8 },
+  questionStage: { flex: 1 },
+  questionHeader: { paddingTop: 18, paddingBottom: 18, gap: 8 },
   greeting: { color: T.muted, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20 },
   greetingName: { color: T.blue },
   title: { maxWidth: 348, color: T.dark, fontFamily: "RubikBlack", fontSize: 23, lineHeight: 28, letterSpacing: -0.35 },

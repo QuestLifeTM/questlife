@@ -32,7 +32,7 @@ export default function FrequencyOnboardingScreen() {
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={7} onBack={goBack} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={8} onBack={goBack} /></View>
         <View style={styles.questionHeader}>
           <Text style={styles.title}>Be honest, how often do you try <Text style={styles.titleAccent}>something</Text> new?</Text>
         </View>
@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
   content: { flex: 1 },
   progressSection: { paddingTop: 2 },
-  questionHeader: { paddingTop: 28 },
+  questionHeader: { paddingTop: 18 },
   title: { maxWidth: 348, color: T.dark, fontFamily: "RubikBlack", fontSize: 23, lineHeight: 28, letterSpacing: -0.35 },
   titleAccent: { color: T.blue },
   sliderSection: { flex: 1, justifyContent: "center", paddingHorizontal: 4, paddingBottom: 60 },

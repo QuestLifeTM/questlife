@@ -2,10 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Animated, { FadeInRight } from "react-native-reanimated";
 
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
 import { T } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
+import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 
 type Option = { id: string; emoji?: string; icon?: ImageSourcePropType; label: string };
 type Question = { id: string; title: string; titleAccent?: string; titleSuffix?: string; helper?: string; helperAccent?: string; helperSuffix?: string; maximumSelections: number; options: Option[] };
@@ -105,6 +107,7 @@ const QUESTIONS: Question[] = [
 export default function FollowUpQuestionsOnboardingScreen() {
   const { firstName } = useLocalSearchParams<{ firstName?: string }>();
   const { insets, horizontalPadding } = useResponsiveScreenLayout();
+  const reduceMotion = useReducedMotionPreference();
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const question = QUESTIONS[questionIndex];
@@ -146,7 +149,8 @@ export default function FollowUpQuestionsOnboardingScreen() {
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={questionIndex + 8} onBack={goBack} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={questionIndex + 9} onBack={goBack} /></View>
+        <Animated.View key={question.id} entering={FadeInRight.duration(reduceMotion ? 0 : 280)} style={styles.questionStage}>
         <View style={styles.questionHeader}>
           <Text style={styles.title}>
             {question.id === "life-now" ? (
@@ -176,6 +180,7 @@ export default function FollowUpQuestionsOnboardingScreen() {
             );
           })}
         </ScrollView>
+        </Animated.View>
       </View>
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 12, 20), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Continue" accessibilityState={{ disabled: !canContinue }} disabled={!canContinue} onPress={continueOnboarding} style={({ pressed }) => [styles.continueButton, !canContinue && styles.continueButtonDisabled, pressed && canContinue && styles.continueButtonPressed]}>
@@ -191,7 +196,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
   content: { flex: 1 },
   progressSection: { paddingTop: 2 },
-  questionHeader: { paddingTop: 28, paddingBottom: 14, gap: 4 },
+  questionStage: { flex: 1 },
+  questionHeader: { paddingTop: 18, paddingBottom: 14, gap: 4 },
   title: { maxWidth: 348, color: T.dark, fontFamily: "RubikBlack", fontSize: 23, lineHeight: 28, letterSpacing: -0.35 },
   titleAccent: { color: T.blue },
   helper: { color: T.muted, fontFamily: "RubikBold", fontSize: 13, lineHeight: 18 },

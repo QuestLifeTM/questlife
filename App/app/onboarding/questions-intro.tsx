@@ -2,9 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Animated, { FadeInRight } from "react-native-reanimated";
 
 import { T } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
+import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
 
 type OnboardingOption = {
@@ -29,10 +31,6 @@ const QUESTION_OPTION_ICONS = {
   heartWithPulse: require("../../assets/onboarding/question-icons/heart-with-pulse.png"),
   hourglass: require("../../assets/onboarding/question-icons/hourglass.png"),
   lightning: require("../../assets/onboarding/question-icons/lightning.png"),
-  fortuneCookie: require("../../assets/onboarding/question-icons/fortune-cookie.png"),
-  happy: require("../../assets/onboarding/question-icons/happy.png"),
-  friends: require("../../assets/onboarding/question-icons/friends.png"),
-  goal: require("../../assets/onboarding/question-icons/goal.png"),
 };
 
 // Add future questions here. The progress indicator and handoff automatically
@@ -53,29 +51,18 @@ const QUESTIONS: OnboardingQuestion[] = [
       { id: "unforgettable-memories", icon: QUESTION_OPTION_ICONS.heartWithPulse, label: "make unforgettable memories" },
     ],
   },
-  {
-    id: "ideal-life",
-    title: "When you look back someday, what do you want to remember?",
-    helper: "Choose 1 option",
-    maximumSelections: 1,
-    options: [
-      { id: "purpose", icon: QUESTION_OPTION_ICONS.goal, label: "living each day with purpose" },
-      { id: "amazing-people", icon: QUESTION_OPTION_ICONS.friends, label: "surrounding myself with amazing people" },
-      { id: "no-regrets", icon: QUESTION_OPTION_ICONS.happy, label: "looking back with no regrets" },
-      { id: "proud-self", icon: QUESTION_OPTION_ICONS.fortuneCookie, label: "becoming someone I'm proud to be" },
-    ],
-  },
 ];
 
 export default function QuestionsIntroScreen() {
   const { firstName } = useLocalSearchParams<{ firstName?: string }>();
   const { insets, horizontalPadding } = useResponsiveScreenLayout();
+  const reduceMotion = useReducedMotionPreference();
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const question = QUESTIONS[questionIndex];
   const selectedIds = answers[question.id] ?? [];
   const hasRequiredSelections = selectedIds.length >= question.maximumSelections;
-  const progressStep = questionIndex + 5;
+  const progressStep = questionIndex + 7;
 
   function toggleOption(id: string) {
     haptic();
@@ -103,14 +90,7 @@ export default function QuestionsIntroScreen() {
       return;
     }
 
-    router.replace({
-      pathname: "/onboarding/reassurance",
-      params: {
-        ...(firstName ? { firstName } : {}),
-        goalIds: JSON.stringify(answers["questlife-goals"] ?? []),
-        idealLifeId: answers["ideal-life"]?.[0] ?? "",
-      },
-    });
+    router.replace({ pathname: "/onboarding/frequency", params: firstName ? { firstName } : {} });
   }
 
   function goBack() {
@@ -127,8 +107,9 @@ export default function QuestionsIntroScreen() {
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
         <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={progressStep} onBack={goBack} /></View>
 
+        <Animated.View key={question.id} entering={FadeInRight.duration(reduceMotion ? 0 : 280)} style={styles.questionStage}>
         <View style={styles.questionHeader}>
-          <Text numberOfLines={question.id === "ideal-life" ? 2 : undefined} adjustsFontSizeToFit={question.id === "ideal-life"} minimumFontScale={0.82} style={[styles.title, question.id === "ideal-life" && styles.secondQuestionTitle]}>{question.id === "questlife-goals" ? <>What do you want to <Text style={styles.titleAccent}>achieve</Text> with QuestLife?</> : question.id === "ideal-life" ? <>When you look back someday, what do you want to <Text style={styles.titleAccent}>remember</Text>?</> : question.title}</Text>
+          <Text style={styles.title}>{question.id === "questlife-goals" ? <>What do you want to <Text style={styles.titleAccent}>achieve</Text> with QuestLife?</> : question.title}</Text>
           <Text style={styles.helper}>{question.helper}</Text>
         </View>
 
@@ -151,6 +132,7 @@ export default function QuestionsIntroScreen() {
             );
           })}
         </ScrollView>
+        </Animated.View>
       </View>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 12, 20), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
@@ -167,11 +149,11 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
   content: { flex: 1 },
   progressSection: { paddingTop: 2 },
-  questionHeader: { paddingTop: 28, paddingBottom: 14, gap: 4 },
+  questionStage: { flex: 1 },
+  questionHeader: { paddingTop: 18, paddingBottom: 14, gap: 4 },
   // These match the Lobby's sheet title, supporting copy, and stat-label scale.
   title: { maxWidth: 348, color: T.dark, fontFamily: "RubikBlack", fontSize: 23, lineHeight: 28, letterSpacing: -0.35 },
   titleAccent: { color: T.blue },
-  secondQuestionTitle: { fontSize: 23, lineHeight: 28, letterSpacing: -0.35 },
   helper: { color: T.muted, fontFamily: "RubikBold", fontSize: 13, lineHeight: 18 },
   optionScroll: { flex: 1, marginHorizontal: -4, paddingHorizontal: 4 },
   optionList: { gap: 9, paddingBottom: 12 },

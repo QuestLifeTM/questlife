@@ -1,0 +1,2 @@
+[functions.username-availability]
+verify_jwt = false

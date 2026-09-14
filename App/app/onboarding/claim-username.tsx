@@ -90,7 +90,7 @@ export default function ClaimUsernameScreen() {
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={4} onBack={goBack} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={6} onBack={goBack} /></View>
         <View style={styles.copy}>
           <Text style={styles.title}>Claim your <Text style={styles.titleAccent}>username</Text></Text>
           <Text style={styles.body}>You can edit it later.</Text>

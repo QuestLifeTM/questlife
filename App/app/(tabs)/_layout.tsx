@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { View } from "react-native";
+import { type ColorValue, View } from "react-native";
 import { T } from "@/components/theme";
 import { useNotifications } from "@/contexts/NotificationsContext";
 
@@ -12,7 +12,7 @@ const tabIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   profile: "person",
 };
 
-function TabIcon({ routeName, focused, color }: { routeName: string; focused: boolean; color: string }) {
+function TabIcon({ routeName, focused, color }: { routeName: string; focused: boolean; color: ColorValue }) {
   const icon = tabIcons[routeName] ?? "ellipse";
   const { hasUnreadJournal } = useNotifications();
   return (

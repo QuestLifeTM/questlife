@@ -2,7 +2,8 @@ import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 
 import { T } from "@/components/theme";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
@@ -65,7 +66,7 @@ export function WeeklyFrequencySlider({ value, onChange }: { value: number; onCh
     thumbX.value = animate && !reducedMotion
       ? withSpring(snappedX, { stiffness: 360, damping: 32, mass: 0.85 })
       : snappedX;
-    runOnJS(commitValue)(nextValue);
+    scheduleOnRN(commitValue, nextValue);
   };
 
   const panGesture = Gesture.Pan()

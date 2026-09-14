@@ -94,7 +94,7 @@ const PhoneScreen = memo(function PhoneScreen({ phase, scale, width, height, jou
   </View>;
 });
 
-export function UnderstandingDemo({ firstName }: { firstName: string }) {
+export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: string; idealLifeId?: string }) {
   const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotionPreference();
@@ -121,7 +121,6 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   const exploreContentOpacity = useRef(new Animated.Value(1)).current;
   const activeContentOpacity = useRef(new Animated.Value(0)).current;
   const journalContentOpacity = useRef(new Animated.Value(0)).current;
-  const hasPositionedPreview = useRef(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const journal = useRef(previewJournal()).current;
   const horizontalPadding = clamp(width * 0.045, 16, 24);
@@ -130,14 +129,8 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   const compactPhoneScale = Math.min(1, 275 / phoneWidth);
   const titleFontSize = clamp(Math.round(width * 0.064), 22, 26);
   const initialPhoneCenterY = (insets.top + 178 + height - Math.max(insets.bottom + 8, 24)) / 2 - 14;
-  // Align the visible display (rather than the phone's outer bezel) just
-  // below the copy. This works across phone heights and pulls each preview
-  // higher without changing type scale or animation geometry.
-  const phoneScreenTopInset = phoneHeight * 0.044;
-  // Leave a deliberate visual break between the supporting line and the
-  // phone bezel. The display itself has a top inset, so the gap needs to be
-  // larger than a typical text-to-content spacing to keep the frame from
-  // feeling crowded on every preview.
+  // The outer bezel, not just the inner display, begins below the measured
+  // copy. This keeps every preview clear when a title wraps to two lines.
   const phoneCopyGap = clamp(height * 0.025, 28, 34);
 
   const schedule = (callback: () => void, delay: number) => {
@@ -180,9 +173,10 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
                 }).start(({ finished: statementHidden }) => {
                   if (!statementHidden) return;
                   schedule(() => {
+                    setSubtitleBottom(null);
                     setPhase("explore");
                     schedule(() => {
-                      const duration = reduceMotion ? 0 : 850;
+                      const duration = reduceMotion ? 0 : 1_100;
                       Animated.parallel([
                         Animated.timing(titleLift, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
                         Animated.timing(titleOpacity, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
@@ -190,13 +184,13 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
                         Animated.timing(phoneScale, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
                       ]).start();
                       schedule(transitionToActive, reduceMotion ? 0 : 3_000);
-                    }, 0);
-                  }, reduceMotion ? 0 : 500);
+                    }, reduceMotion ? 0 : 160);
+                  }, reduceMotion ? 0 : 650);
                 });
               }, reduceMotion ? 0 : 2_700);
             });
           });
-        }, reduceMotion ? 0 : 1_700);
+        }, reduceMotion ? 0 : 2_800);
       });
     }, reduceMotion ? 0 : 300);
     return () => timers.current.forEach(clearTimeout);
@@ -231,21 +225,19 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   }, [height, initialPhoneCenterY, phonePositionY, showContinue]);
 
   useEffect(() => {
-    // Position the frame once when the first preview appears. Every following
-    // preview is composited inside this exact frame, so only screen content
-    // changes during the walkthrough.
-    if (phase !== "explore" || hasPositionedPreview.current || showContinue || subtitleBottom === null) return;
+    // Each screen's copy can take a different number of lines. Recalculate
+    // from the measured subtitle for every preview phase so the phone's size
+    // remains stable while its position has enough breathing room.
+    if (phase === "title" || showContinue || subtitleBottom === null) return;
 
-    const phoneCenterY = subtitleBottom + phoneCopyGap - phoneScreenTopInset + phoneHeight / 2;
+    const phoneCenterY = subtitleBottom + phoneCopyGap + phoneHeight / 2;
     Animated.timing(phonePositionY, {
       toValue: phoneCenterY - height / 2,
-      duration: reduceMotion ? 0 : 420,
+      duration: reduceMotion ? 0 : 460,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) hasPositionedPreview.current = true;
-    });
-  }, [height, phoneCopyGap, phoneHeight, phonePositionY, phoneScreenTopInset, phase, reduceMotion, showContinue, subtitleBottom]);
+    }).start();
+  }, [height, phoneCopyGap, phoneHeight, phonePositionY, phase, reduceMotion, showContinue, subtitleBottom]);
 
   function advance() {
     haptic();
@@ -276,6 +268,7 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
     // bezel before it fades in.
     schedule(() => {
       const duration = reduceMotion ? 0 : SCREEN_FADE_DURATION;
+      setSubtitleBottom(null);
       setPhase("active");
       screenCopyOpacity.setValue(0);
       Animated.parallel([
@@ -293,6 +286,7 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
     hideScreenCopy();
     schedule(() => {
       setShowJournalContent(true);
+      setSubtitleBottom(null);
       setPhase("journal");
       journalContentOpacity.setValue(0);
       screenCopyOpacity.setValue(0);
@@ -320,6 +314,7 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
   function restartDemo() {
     hideScreenCopy();
     schedule(() => {
+      setSubtitleBottom(null);
       setPhase("explore");
       setShowExploreContent(true);
       exploreContentOpacity.setValue(0);
@@ -340,10 +335,19 @@ export function UnderstandingDemo({ firstName }: { firstName: string }) {
 
   const initialTitleTranslate = Math.max(0, height / 2 - (insets.top + 22) - titleHeight / 2);
   const titleTranslate = titleLift.interpolate({ inputRange: [0, 1], outputRange: [initialTitleTranslate, 0] });
+  const memoryIntro = idealLifeId === "purpose"
+    ? <>Here&apos;s how QuestLife helps you live each day <Text style={styles.subtitleAccent}>with purpose</Text>.</>
+    : idealLifeId === "amazing-people"
+      ? <>Here&apos;s how QuestLife helps you create <Text style={styles.subtitleAccent}>meaningful connections</Text>.</>
+      : idealLifeId === "no-regrets"
+        ? <>Here&apos;s how QuestLife helps you make memories you <Text style={styles.subtitleAccent}>won&apos;t regret</Text>.</>
+        : idealLifeId === "proud-self"
+          ? <>Here&apos;s how QuestLife helps you become <Text style={styles.subtitleAccent}>someone you&apos;re proud</Text> to be.</>
+          : null;
   const title = phase === "title"
     ? showValueStatement
-      ? <>Here&apos;s how <Text style={styles.subtitleAccent}>QuestLife</Text> helps you live a life worth remembering.</>
-      : <>Small choices can make your life feel <Text style={styles.subtitleAccent}>bigger</Text>.</>
+      ? memoryIntro ?? <>Here&apos;s how <Text style={styles.subtitleAccent}>QuestLife</Text> helps you live a life worth remembering.</>
+      : <><Text style={styles.subtitleAccent}>Big adventures</Text> start with one small yes.</>
     : phase === "explore"
       ? <>Pick your <Text style={styles.subtitleAccent}>adventure</Text></>
       : phase === "active"
@@ -392,10 +396,10 @@ const styles = StyleSheet.create({
   title: { maxWidth: 355, color: T.white, fontFamily: "RubikBlack", letterSpacing: -0.36, textAlign: "center" },
   subtitle: { maxWidth: 330, color: "rgba(255,255,255,0.92)", fontFamily: "RubikBold", fontSize: 19, lineHeight: 25, textAlign: "center" },
   subtitleAccent: { color: T.blue },
-  phoneArea: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
+  phoneArea: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center" },
   phoneMockup: { position: "absolute" },
   phoneDisplay: { position: "absolute", left: "7.02%", top: "4.4%", width: "85.6%", height: "90.85%", overflow: "hidden", backgroundColor: T.bg },
-  previewLayer: { ...StyleSheet.absoluteFillObject },
+  previewLayer: { ...StyleSheet.absoluteFill },
   previewClip: { flex: 1, overflow: "hidden" },
   previewCanvas: { transformOrigin: "top left" },
   continueArea: { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 5 },

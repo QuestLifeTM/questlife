@@ -7,7 +7,7 @@ import { UnderstandingDemo } from "@/components/onboarding-understanding-demo";
  * The next screen begins the personalization questions directly.
  */
 export default function UnderstandingOnboardingScreen() {
-  const { firstName } = useLocalSearchParams<{ firstName?: string }>();
+  const { firstName, idealLifeId } = useLocalSearchParams<{ firstName?: string; idealLifeId?: string }>();
 
-  return <UnderstandingDemo firstName={firstName?.trim() || "Friend"} />;
+  return <UnderstandingDemo firstName={firstName?.trim() || "Friend"} idealLifeId={idealLifeId} />;
 }

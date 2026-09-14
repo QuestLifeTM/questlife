@@ -4,7 +4,8 @@ import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { PropsWithChildren, useEffect, useRef, useState } from "react";
-import Reanimated, { runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
+import Reanimated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -409,11 +410,11 @@ export function Sheet({
       if (event.translationY > 88 || event.velocityY > 850) {
         if (reducedMotion) {
           dragY.value = 360;
-          runOnJS(onClose)();
+          scheduleOnRN(onClose);
           return;
         }
         dragY.value = withTiming(360, { duration: 160 }, (finished) => {
-          if (finished) runOnJS(onClose)();
+          if (finished) scheduleOnRN(onClose);
         });
         return;
       }
