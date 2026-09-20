@@ -7,6 +7,7 @@ import Svg, { Path } from "react-native-svg";
 import { categoryColor, difficultyColor, T } from "@/components/theme";
 import { CollectionGridSkeleton, SavedQuestListSkeleton } from "@/components/collection-loading-skeleton";
 import { Card, EmptyState, Header, IconButton, Screen, Sheet, SoftButton, Tag, useResponsiveScreenLayout } from "@/components/ui";
+import { twoColumnWidth } from "@/lib/responsive";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { Quest, QuestDifficulty, questDifficulties } from "@/types/content";
@@ -70,7 +71,7 @@ function QuestRow({ quest, status, onOpen, onRemove }: { quest: Quest; status?: 
   const [cardPressed, setCardPressed] = useState(false);
   const [moreInfoPressed, setMoreInfoPressed] = useState(false);
   return <Pressable onPress={onOpen} onPressIn={() => setCardPressed(true)} onPressOut={() => setCardPressed(false)} style={{ transform: [{ scale: cardPressed ? 0.99 : 1 }] }}>
-    <Card style={{ width: "100%", minHeight: quest.description.length > 84 ? 190 : 166, borderRadius: 24, padding: 0, overflow: "hidden", boxShadow: `4px 4px 0px ${T.border}` }}><View style={{ flexDirection: "row", flex: 1 }}>
+    <Card style={{ width: "100%", minHeight: 166, borderRadius: 24, padding: 0, overflow: "hidden", boxShadow: `4px 4px 0px ${T.border}` }}><View style={{ flexDirection: "row", flex: 1 }}>
       <View style={{ width: 5, backgroundColor: quest.color }} />
       <View style={{ flex: 1, padding: 16, gap: 8 }}>
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}><View style={{ flex: 1, flexDirection: "row", gap: 6, flexWrap: "wrap" }}><Tag label={quest.category} color={cat.text} bg={cat.bg} /><Tag label={quest.difficulty} color={diff.text} bg={diff.bg} />{status === "active" ? <Tag label="ACTIVE NOW" color={T.purple} bg={`${T.purple}18`} /> : null}</View><Pressable onPress={onRemove} accessibilityLabel={`Unsave ${quest.title}`} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: `${T.blue}1f`, alignItems: "center", justifyContent: "center" }}><Ionicons name="bookmark" size={15} color={T.blue} /></Pressable></View>
@@ -121,7 +122,7 @@ export function SavedScreen({ onBack }: { onBack: () => void }) {
   const activeFilterCount = [filters.duration, filters.difficulty].filter(Boolean).length;
   // `Screen` adds horizontal gutters, so use its inner content width. This
   // keeps the first four collection previews in a true 2 × 2 grid.
-  const collectionWidth = (contentWidth - horizontalPadding * 2 - 12) / 2;
+  const collectionWidth = twoColumnWidth(contentWidth - horizontalPadding * 2);
   const filedQuestIds = useMemo(() => new Set(userPacks.flatMap((pack) => pack.questIds)), [userPacks]);
   const filtered = useMemo(() => {
     let result = quests.filter((quest) => quest.saved && !filedQuestIds.has(quest.id));

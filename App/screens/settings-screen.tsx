@@ -2,7 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { QuestlifeFlame } from "@/components/questlife-flame";
 import { T } from "@/components/theme";
@@ -57,6 +58,8 @@ function Toggle({ value, onChange, label }: { value: boolean; onChange: () => vo
 
 function ConfirmationDialog({ action, onClose }: { action: AccountAction; onClose: () => void }) {
   const { signOut } = useAuth();
+  const insets = useSafeAreaInsets();
+  const { horizontalPadding } = useResponsiveScreenLayout();
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +78,36 @@ function ConfirmationDialog({ action, onClose }: { action: AccountAction; onClos
   };
   const actionReady = !isDelete || confirmation.trim().toUpperCase() === "DELETE";
   const color = isDelete ? T.red : "#e17055";
-  return <Modal transparent animationType="fade" visible onRequestClose={busy ? undefined : onClose}><View style={{ flex: 1, justifyContent: "center", padding: 24, backgroundColor: "rgba(30,25,28,0.48)" }}><View style={{ borderRadius: 28, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, padding: 24, gap: 14, boxShadow: "5px 6px 0px rgba(61,52,56,0.18)" }}><View style={{ alignItems: "center", gap: 8 }}><View style={{ width: 58, height: 58, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: iconTint(color) }}><Ionicons name={isDelete ? "trash-outline" : "log-out-outline"} size={28} color={color} /></View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 23 }}>{isDelete ? "Delete account?" : "Sign out?"}</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 13, lineHeight: 19, textAlign: "center" }}>{isDelete ? "This permanently removes your account and its data. This cannot be undone." : "Your active quest, streak, and progress stay safely stored. Your active quest will be waiting when you sign back in."}</Text></View>{isDelete ? <View style={{ gap: 7 }}><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12, textAlign: "center" }}>Type DELETE to confirm</Text><TextInput value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" autoCorrect={false} placeholder="DELETE" placeholderTextColor={T.muted} style={{ minHeight: 52, borderRadius: 16, borderWidth: 2, borderColor: confirmation.trim().toUpperCase() === "DELETE" ? T.red : T.border, paddingHorizontal: 14, color: T.dark, fontFamily: "RubikBold", fontSize: 15, textAlign: "center" }} /></View> : null}{error ? <Text accessibilityRole="alert" style={{ color: T.red, fontFamily: "RubikBold", fontSize: 12, lineHeight: 17, textAlign: "center" }}>{error}</Text> : null}<SoftButton label={busy ? "Working…" : isDelete ? "Delete Account" : "Sign Out"} icon={isDelete ? "trash" : "log-out"} color={color} disabled={busy || !actionReady} onPress={() => void confirm()} /><SoftButton label="Cancel" inverse color={T.muted} disabled={busy} onPress={onClose} /></View></View></Modal>;
+  return (
+    <Modal transparent animationType="fade" visible onRequestClose={busy ? undefined : onClose}>
+      <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, backgroundColor: "rgba(30,25,28,0.48)" }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 440, alignSelf: "center", borderRadius: 28, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, padding: 24, gap: 14, boxShadow: "5px 6px 0px rgba(61,52,56,0.18)" }}>
+            <View style={{ alignItems: "center", gap: 8 }}>
+              <View style={{ width: 58, height: 58, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: iconTint(color) }}>
+                <Ionicons name={isDelete ? "trash-outline" : "log-out-outline"} size={28} color={color} />
+              </View>
+              <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 23 }}>{isDelete ? "Delete account?" : "Sign out?"}</Text>
+              <Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 13, lineHeight: 19, textAlign: "center" }}>
+                {isDelete ? "This permanently removes your account and its data. This cannot be undone." : "Your active quest, streak, and progress stay safely stored. Your active quest will be waiting when you sign back in."}
+              </Text>
+            </View>
+            {isDelete ? <View style={{ gap: 7 }}>
+              <Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12, textAlign: "center" }}>Type DELETE to confirm</Text>
+              <TextInput value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" autoCorrect={false} placeholder="DELETE" placeholderTextColor={T.muted} style={{ minHeight: 52, borderRadius: 16, borderWidth: 2, borderColor: confirmation.trim().toUpperCase() === "DELETE" ? T.red : T.border, paddingHorizontal: 14, color: T.dark, fontFamily: "RubikBold", fontSize: 15, textAlign: "center" }} />
+            </View> : null}
+            {error ? <Text accessibilityRole="alert" style={{ color: T.red, fontFamily: "RubikBold", fontSize: 12, lineHeight: 17, textAlign: "center" }}>{error}</Text> : null}
+            <SoftButton label={busy ? "Working…" : isDelete ? "Delete Account" : "Sign Out"} icon={isDelete ? "trash" : "log-out"} color={color} disabled={busy || !actionReady} onPress={() => void confirm()} />
+            <SoftButton label="Cancel" inverse color={T.muted} disabled={busy} onPress={onClose} />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
 }
 
 export function SettingsHomeScreen() {

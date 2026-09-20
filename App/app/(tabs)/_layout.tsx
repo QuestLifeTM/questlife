@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { type ColorValue, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { T } from "@/components/theme";
 import { useNotifications } from "@/contexts/NotificationsContext";
+import { responsiveLayout, tabBarHeight } from "@/lib/responsive";
 
 const tabIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   index: "home",
@@ -35,6 +37,8 @@ function TabIcon({ routeName, focused, color }: { routeName: string; focused: bo
 }
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  const height = tabBarHeight(insets.bottom);
   return (
     <Tabs
       screenOptions={({ route }) => ({
@@ -44,14 +48,14 @@ export default function TabLayout() {
         tabBarInactiveTintColor: T.muted,
         tabBarStyle: {
           position: "absolute",
-          height: 76,
+          height,
           borderTopLeftRadius: 26,
           borderTopRightRadius: 26,
           borderTopWidth: 2,
           borderTopColor: T.border,
           backgroundColor: T.white,
-          paddingTop: 17,
-          paddingBottom: 15,
+          paddingTop: 12,
+          paddingBottom: Math.max(insets.bottom, responsiveLayout.tabBarMinimumBottomPadding),
           paddingHorizontal: 24,
           boxShadow: "0px -8px 8px rgba(0,0,0,0.05)",
         },

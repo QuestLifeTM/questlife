@@ -5,6 +5,7 @@ import * as FileSystem from "expo-file-system/legacy";
 
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useGuestQuest } from "@/contexts/GuestQuestContext";
+import { clearMyActiveQuestRecovery } from "@/services/engine/questEngineService";
 import { addActiveQuestActivity, deleteActiveQuestActivity, deleteActiveQuestPhoto, ensureActiveQuestSession, getActiveQuestSnapshot, getPendingCompletionSyncSessionIds, setActiveQuestRecordingState, subscribeToActiveQuestStore, updateActiveQuestActivity, updateActiveQuestSession } from "@/services/active-quest/local-store";
 import { persistQuestPhoto, retryQuestPhotoSync } from "@/services/active-quest/media";
 import { hydrateActiveQuestFromServer, syncActiveQuestRecord } from "@/services/active-quest/sync";
@@ -19,7 +20,7 @@ type ActiveQuestContextValue = {
   trackingMessage: string | null;
   reload: () => Promise<void>;
   pause: () => Promise<void>;
-  resume: () => Promise<void>;
+  resume: (additionalElapsedMs?: number) => Promise<void>;
   saveEntry: (input: { title: string; body: string }) => Promise<void>;
   enableTracking: () => Promise<void>;
   addActivityNote: (body: string, options?: { tutorialOnly?: boolean }) => Promise<void>;
@@ -156,7 +157,18 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
           try { await hydrateActiveQuestFromServer(activeSession.id); } catch { /* Local-first fallback remains available. */ }
         }
         void retryQuestPhotoSync(activeSession.id);
-        const restoredSession = await getActiveQuestSnapshot(activeSession.id);
+        let restoredSession = await getActiveQuestSnapshot(activeSession.id);
+        if (activeSession.recoveryStartedAt && restoredSession?.session.recordingState === "recording") {
+          // A restored server record may still be marked recording because an
+          // auth expiry could not send a final pause. Freeze it at the last
+          // checkpoint so absent time is never silently added to the timer.
+          await setActiveQuestRecordingState(activeSession.id, "paused", {
+            pausedAt: activeSession.recoveryStartedAt,
+            activeSince: null,
+            activeDurationMs: restoredSession.session.activeDurationMs,
+          });
+          restoredSession = await getActiveQuestSnapshot(activeSession.id);
+        }
         if (restoredSession?.session.recordingState === "recording" && restoredSession.session.trackingStatus !== "tracking") {
           const result = await beginQuestLocationTracking(activeSession.id);
           if (result.started) await startForegroundLocationWatch(activeSession.id);
@@ -185,12 +197,12 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     await reload();
   }, [reload, snapshot]);
 
-  const resume = useCallback(async () => {
+  const resume = useCallback(async (additionalElapsedMs = 0) => {
     if (!snapshot || snapshot.session.recordingState === "recording") return;
     await setActiveQuestRecordingState(snapshot.session.sessionId, "recording", {
       pausedAt: null,
       activeSince: new Date().toISOString(),
-      activeDurationMs: snapshot.session.activeDurationMs,
+      activeDurationMs: snapshot.session.activeDurationMs + Math.max(0, additionalElapsedMs),
     });
     void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
     if (snapshot.session.trackingStatus !== "tracking") {
@@ -202,6 +214,23 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     }
     await reload();
   }, [reload, snapshot, startForegroundLocationWatch]);
+
+  useEffect(() => {
+    const awaySince = activeSession?.recoveryStartedAt;
+    if (!snapshot || !awaySince || activeSession?.recoveryRequiredAt || snapshot.session.recordingState !== "paused") return;
+    if (Date.now() - new Date(awaySince).getTime() >= 60 * 60 * 1_000) return;
+
+    // Short sign-outs resume from the saved elapsed time; time away is not
+    // counted unless the owner explicitly chooses it in the recovery sheet.
+    void (async () => {
+      try {
+        await clearMyActiveQuestRecovery();
+        await resume();
+      } catch {
+        // The paused checkpoint remains intact and can still be resumed later.
+      }
+    })();
+  }, [activeSession?.recoveryRequiredAt, activeSession?.recoveryStartedAt, resume, snapshot]);
 
   const saveEntry = useCallback(async (input: { title: string; body: string }) => {
     if (!snapshot) return;

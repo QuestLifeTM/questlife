@@ -29,11 +29,17 @@ import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { isHapticFeedbackEnabled } from "@/services/settings/settingsService";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { motionDurations, motionEasing, motionSprings, springConfig, timingConfig } from "@/motion/tokens";
+import {
+  resolveSheetMaxHeight,
+  responsiveLayout,
+  responsiveScreenGutter,
+  screenBottomPadding,
+  useResponsiveScreenLayout,
+} from "@/lib/responsive";
 
-const MIN_SCREEN_GUTTER = 16;
-const MAX_SCREEN_GUTTER = 24;
-const DEFAULT_CONTENT_MAX_WIDTH = 520;
 const NAVIGATION_PRESS_COOLDOWN_MS = 650;
+
+export { responsiveScreenGutter, useResponsiveScreenLayout } from "@/lib/responsive";
 
 /** Prevents rapid taps from queuing duplicate navigation actions before a route mounts. */
 export function usePressGuard() {
@@ -47,28 +53,6 @@ export function usePressGuard() {
   };
 }
 
-export function responsiveScreenGutter(width: number) {
-  return Math.round(Math.min(MAX_SCREEN_GUTTER, Math.max(MIN_SCREEN_GUTTER, width * 0.05)));
-}
-
-/**
- * Shared layout values for screens that need to manage their own horizontal
- * content container. This keeps custom screens aligned with `Screen`.
- */
-export function useResponsiveScreenLayout(maxContentWidth = DEFAULT_CONTENT_MAX_WIDTH) {
-  const { width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const safeWidth = Math.max(0, width - insets.left - insets.right);
-  const contentWidth = Math.min(safeWidth, maxContentWidth);
-
-  return {
-    contentWidth,
-    horizontalPadding: responsiveScreenGutter(contentWidth),
-    safeAreaOffset: (insets.left - insets.right) / 2,
-    insets
-  };
-}
-
 export function haptic() {
   if (!isHapticFeedbackEnabled()) return;
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -78,20 +62,28 @@ export function Screen({
   children,
   scroll = true,
   padded = true,
+  // Most Screen consumers are tab destinations. Preserve their existing
+  // clearance by default; standalone routes can opt out explicitly.
+  bottomOverlay = "tab",
   contentStyle,
   ambientGlow = true
-}: PropsWithChildren<{ scroll?: boolean; padded?: boolean; contentStyle?: StyleProp<ViewStyle>; ambientGlow?: boolean }>) {
+}: PropsWithChildren<{ scroll?: boolean; padded?: boolean; bottomOverlay?: "none" | "tab"; contentStyle?: StyleProp<ViewStyle>; ambientGlow?: boolean }>) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const topPadding = Math.max(insets.top + 8, 20);
   const horizontalPadding = responsiveScreenGutter(width);
+  const contentWidth = Math.min(Math.max(0, width - insets.left - insets.right), responsiveLayout.defaultContentMaxWidth);
+  const contentInnerWidth = Math.max(0, contentWidth - horizontalPadding * 2);
   const { onScroll, scrollY } = useTopScrollBlur();
+  const constrainedContent = padded ? { width: contentInnerWidth, alignSelf: "center" as const } : null;
   if (!scroll) {
     return (
       <View style={{ flex: 1, backgroundColor: T.bg }}>
         {ambientGlow ? <AmbientGlow /> : null}
         <View style={[{ flex: 1, paddingTop: topPadding }, padded && { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }, contentStyle]}>
-          {children}
+          <View style={[{ flex: 1 }, constrainedContent]}>
+            {children}
+          </View>
         </View>
       </View>
     );
@@ -105,12 +97,12 @@ export function Screen({
         onScroll={onScroll}
         scrollEventThrottle={16}
         contentContainerStyle={[
-          { paddingTop: topPadding, paddingBottom: insets.bottom + 112, gap: 18 },
+          { paddingTop: topPadding, paddingBottom: screenBottomPadding(insets.bottom, bottomOverlay) },
           padded && { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding },
-          contentStyle
+          contentStyle,
         ]}
       >
-        {children}
+        <View style={[padded ? { gap: 18 } : null, constrainedContent]}>{children}</View>
       </Reanimated.ScrollView>
       <ScrollTopBlur scrollY={scrollY} />
     </View>
@@ -447,12 +439,8 @@ export function Sheet({
     };
   }, [expandOnKeyboard, keyboardAvoiding, visible]);
 
-  const maxHeightPixels = typeof maxHeight === "number"
-    ? maxHeight
-    : typeof maxHeight === "string" && maxHeight.endsWith("%")
-      ? (windowHeight * Number.parseFloat(maxHeight)) / 100
-      : 0;
-  const keyboardAvailableHeight = Math.max(0, windowHeight - insets.top - 12);
+  const resolvedMaxHeight = resolveSheetMaxHeight(maxHeight as number | `${number}%`, windowHeight, insets.top);
+  const keyboardAvailableHeight = Math.max(0, windowHeight - insets.top - responsiveLayout.sheetTopClearance);
   const expandedHeight = expandOnKeyboard && keyboardHeight > 0 && contentHeight > 0
     ? Math.min(keyboardAvailableHeight, contentHeight + keyboardHeight)
     : undefined;
@@ -469,8 +457,8 @@ export function Sheet({
                 if (keyboardHeight === 0) setContentHeight(nativeEvent.layout.height);
               }}
               style={[{
-                maxHeight: expandedHeight ?? maxHeight,
-                ...(fillHeight || expandedHeight !== undefined ? { height: expandedHeight ?? maxHeight } : null),
+                maxHeight: expandedHeight ?? resolvedMaxHeight,
+                ...(fillHeight || expandedHeight !== undefined ? { height: expandedHeight ?? resolvedMaxHeight } : null),
                 backgroundColor: glass ? "rgba(255,255,255,0.72)" : T.white,
                 borderTopLeftRadius: radius.sheet,
                 borderTopRightRadius: radius.sheet,

@@ -233,7 +233,7 @@ export default function RegisterScreen() {
           Log in
         </Text>
       </Text>
-      <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.legal}>By continuing, you agree to our <Text style={styles.legalLink}>Terms of Service</Text> and <Text style={styles.legalLink}>Privacy Policy</Text>.</Text>
+      <Text style={styles.legal}>By continuing, you agree to our <Text style={styles.legalLink}>Terms of Service</Text> and <Text style={styles.legalLink}>Privacy Policy</Text>.</Text>
     </AuthScaffold>
   );
 }

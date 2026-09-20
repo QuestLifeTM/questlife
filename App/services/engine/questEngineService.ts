@@ -103,10 +103,17 @@ export async function abandonMyActiveQuestSession() {
   return Number(data ?? 0);
 }
 
-/** Marks an interrupted quest for owner-led recovery after 12 hours. */
+/** Marks an interrupted quest for owner-led recovery after one hour. */
 export async function cleanupStaleQuestSessions() {
   assertSupabaseConfigured();
-  const { error } = await supabase.rpc("cleanup_my_stale_quest_sessions", { p_max_age_hours: 12 });
+  const { error } = await supabase.rpc("cleanup_my_stale_quest_sessions", { p_max_age_hours: 1 });
+  if (error) throw error;
+}
+
+/** Records the moment the signed-in user left an active quest. */
+export async function markMyActiveQuestAway() {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("mark_my_active_quest_away");
   if (error) throw error;
 }
 

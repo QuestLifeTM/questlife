@@ -23,6 +23,8 @@ export function AuthScaffold({ children }: PropsWithChildren) {
               paddingRight: insets.right + horizontalPadding
             }
           ]}
+          automaticallyAdjustKeyboardInsets
+          keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >

@@ -56,6 +56,15 @@ export const font = {
   body: "GeistPixel"
 };
 
+/** Fixed QuestLife type sizes; layouts adapt through wrapping and content width. */
+export const typography = {
+  display: { fontFamily: "GeistPixel", fontSize: 30, lineHeight: 36 },
+  headline: { fontFamily: "GeistPixel", fontSize: 21, lineHeight: 28 },
+  title: { fontFamily: "GeistPixel", fontSize: 18, lineHeight: 24 },
+  body: { fontFamily: "Rubik", fontSize: 16, lineHeight: 22 },
+  label: { fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 },
+} as const;
+
 export const shadow = {
   get boxShadow() {
     return `4px 4px 0px ${T.border}`;

@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import type { ComponentProps } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { cancelAnimation, Easing, type SharedValue, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -152,10 +152,21 @@ export default function AuthOptionsScreen() {
   }
 
   return (
-    <View style={[styles.root, { paddingTop: Math.max(insets.top + 18, 30), paddingBottom: Math.max(insets.bottom + 16, 24), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
+    <View style={styles.root}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, {
+          paddingTop: Math.max(insets.top + 18, 30),
+          paddingBottom: Math.max(insets.bottom + 16, 24),
+          paddingLeft: insets.left + horizontalPadding,
+          paddingRight: insets.right + horizontalPadding,
+        }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+      <View style={styles.content}>
       <View style={styles.header}>
         <Text style={styles.brand}>QuestLife</Text>
-        <Text adjustsFontSizeToFit minimumFontScale={0.82} numberOfLines={1} style={styles.title}>Ready to start questing?</Text>
+        <Text style={styles.title}>Ready to start questing?</Text>
         <Text style={styles.subtitle}>Create an account and start building your adventure.</Text>
       </View>
       <QuestPhonePreview />
@@ -166,14 +177,18 @@ export default function AuthOptionsScreen() {
         </Pressable>
         <OutlineButton title="Continue with Google" onPress={showOAuthSetup}><GoogleIcon /></OutlineButton>
         <OutlineButton title="Use email instead" onPress={continueWithEmail}><Ionicons color={T.blue} name="mail-outline" size={21} /></OutlineButton>
-        <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.legal}>By continuing, you agree to our <Text style={styles.legalLink}>Terms of Service</Text> and <Text style={styles.legalLink}>Privacy Policy</Text>.</Text>
+        <Text style={styles.legal}>By continuing, you agree to our <Text style={styles.legalLink}>Terms of Service</Text> and <Text style={styles.legalLink}>Privacy Policy</Text>.</Text>
       </View>
+      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
+  scrollContent: { flexGrow: 1 },
+  content: { flexGrow: 1 },
   header: { gap: 8 },
   brand: { color: T.blue, fontSize: 13, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" },
   title: { color: T.dark, fontFamily: "RubikBlack", fontSize: 39, lineHeight: 43, letterSpacing: -0.7 },

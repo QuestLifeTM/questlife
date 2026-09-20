@@ -57,24 +57,22 @@ export function toLocalDateKey(date: Date) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-function mapMemory(row: CompletionRow): JournalMemory | null {
-  // Quests join can come back null if a completed quest was later unpublished
-  // or archived (RLS only exposes published quests to regular users). There is
-  // no denormalised snapshot on quest_completions, so those memories are
-  // skipped rather than rendered with invented data.
-  if (!row.quests) return null;
-
+function mapMemory(row: CompletionRow): JournalMemory {
+  // A completion is the user's durable journal record. The quest join can be
+  // unavailable after a quest is unpublished, but that must not hide the
+  // already-earned memory from its owner.
+  const quest = row.quests;
   return {
     completionId: row.id,
     questId: row.quest_id,
-    title: row.quests.title,
+    title: quest?.title ?? "Completed quest",
     reflection: row.reflection,
     completedAt: row.created_at,
-    xp: row.quests.experience_points,
-    category: normalizeQuestCategory(row.quests.category),
-    difficulty: row.quests.difficulty,
-    color: row.quests.accent_color,
-    timeMin: row.quests.estimated_minutes,
+    xp: quest?.experience_points ?? 0,
+    category: normalizeQuestCategory(quest?.category ?? "ADVENTURE"),
+    difficulty: quest?.difficulty ?? "EASY",
+    color: quest?.accent_color ?? "#49a6f4",
+    timeMin: quest?.estimated_minutes ?? 0,
     photoPaths: row.photo_urls ?? [],
     participants: [],
   };
@@ -154,7 +152,6 @@ export async function fetchJournalData(): Promise<JournalData> {
   const memoriesByDate: Record<string, JournalMemory[]> = {};
   for (const row of completionRows ?? []) {
     const memory = mapMemory(row);
-    if (!memory) continue;
     const key = toLocalDateKey(new Date(memory.completedAt));
     (memoriesByDate[key] ??= []).push(memory);
   }
@@ -304,7 +301,9 @@ export async function upsertJournalEntry(input: {
 
   const { error } = await supabase
     .from("journal_entries")
-    .upsert(payload, { onConflict: "user_id,entry_date" });
+    .upsert(payload, { onConflict: "user_id,entry_date" })
+    .select("entry_date")
+    .single();
 
   if (error) throw error;
 }

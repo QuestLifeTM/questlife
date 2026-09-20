@@ -91,7 +91,7 @@ function QuestNoticePill({ notice, accent, message, bottomOffset = MAP_NOTICE_BO
   </View>;
 }
 
-export function QuestCountdownOverlay({ step, accent }: { step: QuestCountdownStep; accent: string }) {
+export function QuestCountdownOverlay({ step, accent, inline = false }: { step: QuestCountdownStep; accent: string; inline?: boolean }) {
   const scale = useRef(new Animated.Value(0.74)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -103,7 +103,7 @@ export function QuestCountdownOverlay({ step, accent }: { step: QuestCountdownSt
     ]).start();
   }, [opacity, scale, step]);
   const isGo = step === "GO";
-  return <View pointerEvents="none" style={{ position: "absolute", inset: 0, zIndex: 4, alignItems: "center", justifyContent: "center", paddingBottom: BOTTOM_SHEET_CONTENT_HEIGHT }}>
+  return <View pointerEvents="none" style={inline ? { alignItems: "center", justifyContent: "center" } : { position: "absolute", inset: 0, zIndex: 4, alignItems: "center", justifyContent: "center", paddingBottom: BOTTOM_SHEET_CONTENT_HEIGHT }}>
     <Animated.View style={{ width: isGo ? 132 : 124, height: isGo ? 132 : 124, borderRadius: 62, alignItems: "center", justifyContent: "center", backgroundColor: isGo ? accent : `${accent}ed`, borderWidth: 5, borderColor: T.white, transform: [{ scale }], opacity, boxShadow: `0px 10px 24px ${accent}52` }}>
       <Text style={{ color: T.white, fontSize: isGo ? 36 : 68, lineHeight: isGo ? 42 : 74, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{step}</Text>
     </Animated.View>
@@ -172,12 +172,9 @@ const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoin
 });
 
 function QuestStartupSurface({ accent, step }: { accent: string; step: QuestCountdownStep | null }) {
-  return <View style={{ flex: 1, backgroundColor: "#edf0eb", alignItems: "center", justifyContent: "center", paddingBottom: BOTTOM_SHEET_CONTENT_HEIGHT }}>
-    <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: `${accent}16`, alignItems: "center", justifyContent: "center" }}>
-      <Ionicons name="navigate" size={32} color={accent} />
-    </View>
-    <Text style={{ marginTop: 18, color: T.dark, fontSize: 18, fontWeight: "900" }}>Get ready to begin</Text>
-    {step ? <QuestCountdownOverlay step={step} accent={accent} /> : null}
+  return <View style={{ flex: 1, backgroundColor: "#edf0eb", alignItems: "center", justifyContent: "center", paddingBottom: BOTTOM_SHEET_CONTENT_HEIGHT, gap: 18 }}>
+    {step ? <QuestCountdownOverlay step={step} accent={accent} inline /> : <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: `${accent}16`, alignItems: "center", justifyContent: "center" }}><Ionicons name="navigate" size={32} color={accent} /></View>}
+    <Text style={{ color: T.dark, fontSize: 18, lineHeight: 24, fontWeight: "900", textAlign: "center" }}>Get ready to begin</Text>
   </View>;
 }
 

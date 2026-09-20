@@ -3,6 +3,7 @@ export type ActiveQuestSession = {
   questId: string;
   source: "explore" | "saved" | "social";
   startedAt: string;
+  recoveryStartedAt?: string | null;
   recoveryRequiredAt?: string | null;
 };
 

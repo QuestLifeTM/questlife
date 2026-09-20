@@ -103,7 +103,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
         // cleared. Failures leave the on-device copy intact for restoration.
         try {
           const { pauseAndFlushCurrentUsersActiveQuest } = await import("@/services/active-quest/sync");
+          const { markMyActiveQuestAway } = await import("@/services/engine/questEngineService");
           await pauseAndFlushCurrentUsersActiveQuest();
+          await markMyActiveQuestAway();
         } catch {
           // Offline sign-out is still valid; local active-quest storage is not
           // tied to the auth session and will retry after the user returns.

@@ -7,6 +7,7 @@ import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-nativ
 import { categoryColor, T } from "@/components/theme";
 import { CollectionGridSkeleton } from "@/components/collection-loading-skeleton";
 import { Card, EmptyState, IconButton, Screen, SearchInput, Sheet, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
+import { twoColumnWidth } from "@/lib/responsive";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useContent } from "@/contexts/ContentContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
@@ -52,7 +53,7 @@ export function QuestCollectionsScreen({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
   // `Screen` applies this same horizontal gutter. Size cards from the usable
   // content area, not the viewport, so two cards always occupy one row.
-  const cardWidth = (contentWidth - horizontalPadding * 2 - 12) / 2;
+  const cardWidth = twoColumnWidth(contentWidth - horizontalPadding * 2);
   const availableQuests = useMemo(() => quests.filter((quest) => quest.saved), [quests]);
   const visibleCollections = useMemo(() => {
     const query = collectionSearch.trim().toLowerCase();

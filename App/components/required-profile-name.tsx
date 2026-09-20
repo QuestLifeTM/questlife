@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useResponsiveScreenLayout } from "@/lib/responsive";
 
 import { PrimaryButton } from "@/components/auth/AuthControls";
 import { T } from "@/components/theme";
@@ -13,6 +14,7 @@ export function RequiredProfileName() {
   const [lastName, setLastName] = useState("");
   const [required, setRequired] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { horizontalPadding, insets } = useResponsiveScreenLayout();
 
   useEffect(() => {
     let active = true;
@@ -72,7 +74,17 @@ export function RequiredProfileName() {
 
   return (
     <Modal animationType="fade" transparent visible={required} onRequestClose={() => undefined}>
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", android: "height" })} style={styles.keyboard}>
+        <ScrollView
+          contentContainerStyle={[styles.backdrop, {
+            paddingTop: insets.top + 20,
+            paddingBottom: insets.bottom + 20,
+            paddingLeft: insets.left + horizontalPadding,
+            paddingRight: insets.right + horizontalPadding,
+          }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <View accessibilityViewIsModal style={styles.card}>
           <Text style={styles.eyebrow}>ONE QUICK STEP</Text>
           <Text style={styles.title}>Tell us your name</Text>
@@ -98,16 +110,18 @@ export function RequiredProfileName() {
           />
           <PrimaryButton disabled={saving} loading={saving} onPress={save} title={saving ? "Saving..." : "Save and continue"} />
         </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { alignItems: "center", backgroundColor: "rgba(23, 35, 49, 0.58)", flex: 1, justifyContent: "center", padding: 24 },
+  backdrop: { alignItems: "center", backgroundColor: "rgba(23, 35, 49, 0.58)", flexGrow: 1, justifyContent: "center" },
   body: { color: T.muted, fontSize: 14, fontWeight: "600", lineHeight: 21, marginBottom: 22 },
   card: { backgroundColor: T.white, borderRadius: 28, maxWidth: 440, padding: 24, width: "100%" },
   eyebrow: { color: T.blue, fontSize: 11, fontWeight: "900", letterSpacing: 1.1, marginBottom: 8 },
   input: { backgroundColor: T.bg, borderColor: `${T.blue}28`, borderRadius: 15, borderWidth: 1, color: T.dark, fontSize: 16, fontWeight: "700", marginBottom: 12, minHeight: 54, paddingHorizontal: 16 },
   title: { color: T.dark, fontFamily: "RubikBold", fontSize: 25, marginBottom: 8 },
+  keyboard: { flex: 1 },
 });

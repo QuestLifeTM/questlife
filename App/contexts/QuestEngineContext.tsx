@@ -8,6 +8,7 @@ import {
   deleteUserPack,
   fetchEngineState,
   fetchUserPacks,
+  markMyActiveQuestAway,
   resetTodaySoloQuestCompletions,
   saveSessionForLater,
   startQuestSession,
@@ -52,6 +53,7 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refreshVersion = useRef(0);
+  const recoveryInitializedForUser = useRef<string | null>(null);
   const userId = session?.user.id ?? null;
 
   const refresh = useCallback(async () => {
@@ -59,6 +61,7 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     if (!isConfigured || !userId) {
       setEngine(null);
       setUserPacks([]);
+      recoveryInitializedForUser.current = null;
       return;
     }
 
@@ -66,13 +69,23 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     setError(null);
 
     try {
+      // On a fresh authenticated restore (including an expired auth session),
+      // use the last durable checkpoint as the beginning of time away before
+      // deciding whether this quest needs an owner-led recovery choice.
+      if (recoveryInitializedForUser.current !== userId) {
+        await markMyActiveQuestAway().catch(() => undefined);
+        recoveryInitializedForUser.current = userId;
+      }
       // A crash should preserve a recent quest for recovery, but a session
-      // untouched for a full day cannot indefinitely block future starts.
+      // untouched for an hour requires an explicit owner decision.
       await cleanupStaleQuestSessions().catch(() => undefined);
-      const [engineState, packs] = await Promise.all([
+      const [engineResult, packsResult] = await Promise.allSettled([
         fetchEngineState(),
         fetchUserPacks(),
       ]);
+      if (engineResult.status === "rejected") throw engineResult.reason;
+      const engineState = engineResult.value;
+      const packs = packsResult.status === "fulfilled" ? packsResult.value : [];
       // Active quests live in the user's server-side quest_sessions record.
       // Ignore stale responses so a sign-out/sign-in cannot overwrite the
       // freshly restored active session with an older auth state.

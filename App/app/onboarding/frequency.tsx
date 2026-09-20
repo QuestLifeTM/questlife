@@ -3,15 +3,15 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { OnboardingScaffold } from "@/components/onboarding-scaffold";
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
 import { ONBOARDING_PERSONALIZATION_TOTAL } from "@/components/onboarding-progress";
 import { T } from "@/components/theme";
-import { haptic, useResponsiveScreenLayout } from "@/components/ui";
+import { haptic } from "@/components/ui";
 import { WeeklyFrequencySlider } from "@/components/weekly-frequency-slider";
 
 export default function FrequencyOnboardingScreen() {
   const { firstName } = useLocalSearchParams<{ firstName?: string }>();
-  const { insets, horizontalPadding } = useResponsiveScreenLayout();
   const [frequencyDays, setFrequencyDays] = useState(3);
 
   function continueOnboarding() {
@@ -32,7 +32,14 @@ export default function FrequencyOnboardingScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
+      <OnboardingScaffold
+        scroll
+        contentStyle={styles.content}
+        footer={<Pressable accessibilityRole="button" accessibilityLabel="Continue" onPress={continueOnboarding} style={({ pressed }) => [styles.continueButton, pressed && styles.continueButtonPressed]}>
+          <Ionicons name="arrow-forward" size={19} color={T.white} />
+          <Text style={styles.continueText}>Continue</Text>
+        </Pressable>}
+      >
         <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={3} totalSteps={ONBOARDING_PERSONALIZATION_TOTAL} phaseLabel="Personalizing your experience" onBack={goBack} /></View>
         <View style={styles.questionHeader}>
           <Text style={styles.title}>Be honest, how often do you try <Text style={styles.titleAccent}>something</Text> new?</Text>
@@ -40,13 +47,7 @@ export default function FrequencyOnboardingScreen() {
         <View style={styles.sliderSection}>
           <WeeklyFrequencySlider value={frequencyDays} onChange={setFrequencyDays} />
         </View>
-      </View>
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 12, 20), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Continue" onPress={continueOnboarding} style={({ pressed }) => [styles.continueButton, pressed && styles.continueButtonPressed]}>
-          <Ionicons name="arrow-forward" size={19} color={T.white} />
-          <Text style={styles.continueText}>Continue</Text>
-        </Pressable>
-      </View>
+      </OnboardingScaffold>
     </View>
   );
 }

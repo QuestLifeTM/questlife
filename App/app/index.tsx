@@ -6,13 +6,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { OnboardingIntro } from "@/components/onboarding-intro";
 import { T } from "@/components/theme";
-import { haptic, Sheet } from "@/components/ui";
+import { haptic, Sheet, useResponsiveScreenLayout } from "@/components/ui";
 import { getIntroEnabled } from "@/services/announcements/announcementService";
 
 const welcomeArtwork = require("../assets/onboarding/screen-one.png");
 
 export default function OnboardingWelcomeScreen() {
   const insets = useSafeAreaInsets();
+  const { horizontalPadding } = useResponsiveScreenLayout();
   const [introComplete, setIntroComplete] = useState(false);
   const [introEnabled, setIntroEnabled] = useState<boolean | null>(null);
   const [firstName, setFirstName] = useState("");
@@ -89,7 +90,7 @@ export default function OnboardingWelcomeScreen() {
           style={styles.artwork}
         />
       </Animated.View>
-      <Animated.View style={[styles.actions, { opacity: welcomeOpacity, paddingBottom: Math.max(insets.bottom + 2, 10) }]}>
+      <Animated.View style={[styles.actions, { opacity: welcomeOpacity, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, paddingBottom: Math.max(insets.bottom + 2, 10) }]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Start my adventure" onPress={getStarted} style={({ pressed }) => [styles.getStartedAction, pressed && styles.actionPressed]}><Text style={styles.getStartedActionText}>Start my Adventure</Text></Pressable>
         <View style={styles.divider} />
         <Pressable accessibilityRole="button" accessibilityLabel="Sign in" onPress={signIn} style={({ pressed }) => ({ alignSelf: "center", minHeight: 34, justifyContent: "center", opacity: pressed ? 0.65 : 1 })}><Text style={styles.authPrompt}>Already have an account? <Text style={styles.signInText}>Sign In</Text></Text></Pressable>
@@ -137,8 +138,8 @@ const styles = StyleSheet.create({
   },
   actions: {
     position: "absolute",
-    left: 18,
-    right: 18,
+    left: 0,
+    right: 0,
     bottom: 0,
     gap: 12,
   },

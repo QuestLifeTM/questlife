@@ -3,10 +3,11 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { OnboardingScaffold } from "@/components/onboarding-scaffold";
 import { T } from "@/components/theme";
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
 import { ONBOARDING_PERSONALIZATION_TOTAL } from "@/components/onboarding-progress";
-import { haptic, useResponsiveScreenLayout } from "@/components/ui";
+import { haptic } from "@/components/ui";
 import { checkUsernameAvailability } from "@/services/auth/authService";
 import { getOnboardingUsernameDraft, saveOnboardingUsernameDraft } from "@/services/onboarding/username-draft";
 import { validateUsername } from "@/validation/username";
@@ -15,7 +16,6 @@ type Availability = "idle" | "checking" | "available" | "unavailable" | "invalid
 
 export default function ClaimUsernameScreen() {
   const { firstName } = useLocalSearchParams<{ firstName?: string }>();
-  const { insets, horizontalPadding } = useResponsiveScreenLayout();
   const [username, setUsername] = useState("");
   const [availability, setAvailability] = useState<Availability>("idle");
   const [availabilityMessage, setAvailabilityMessage] = useState<string | null>(null);
@@ -90,7 +90,14 @@ export default function ClaimUsernameScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
+      <OnboardingScaffold
+        scroll
+        contentStyle={styles.content}
+        footer={<Pressable accessibilityRole="button" accessibilityLabel="Continue" accessibilityState={{ disabled: !isAvailable }} disabled={!isAvailable} onPress={() => void continueOnboarding()} style={({ pressed }) => [styles.continueButton, !isAvailable && styles.continueButtonDisabled, pressed && isAvailable && styles.continueButtonPressed]}>
+          <Ionicons name="arrow-forward" size={19} color={T.white} />
+          <Text style={styles.continueText}>Continue</Text>
+        </Pressable>}
+      >
         <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={1} totalSteps={ONBOARDING_PERSONALIZATION_TOTAL} phaseLabel="Personalizing your experience" onBack={goBack} /></View>
         <View style={styles.copy}>
           <Text style={styles.title}>Claim your <Text style={styles.titleAccent}>username</Text></Text>
@@ -115,13 +122,7 @@ export default function ClaimUsernameScreen() {
           </View>
           <Text accessibilityLiveRegion="polite" style={[styles.feedback, { color: isAvailable ? T.green : availability === "unavailable" || availability === "invalid" || availability === "error" ? T.red : T.muted }]}>{feedback}</Text>
         </View>
-      </View>
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 12, 20), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Continue" accessibilityState={{ disabled: !isAvailable }} disabled={!isAvailable} onPress={() => void continueOnboarding()} style={({ pressed }) => [styles.continueButton, !isAvailable && styles.continueButtonDisabled, pressed && isAvailable && styles.continueButtonPressed]}>
-          <Ionicons name="arrow-forward" size={19} color={T.white} />
-          <Text style={styles.continueText}>Continue</Text>
-        </Pressable>
-      </View>
+      </OnboardingScaffold>
     </View>
   );
 }

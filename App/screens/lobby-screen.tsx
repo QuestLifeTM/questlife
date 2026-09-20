@@ -18,6 +18,7 @@ import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { formatElapsedCompact, useElapsedDuration } from "@/hooks/useElapsedTime";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { useQuestStart } from "@/hooks/useQuestStart";
+import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { Quest } from "@/types/content";
 import { fetchOwnProfileAvatar, fetchRequiredProfileName } from "@/services/profile/profileService";
 import { clearMyActiveQuestRecovery } from "@/services/engine/questEngineService";
@@ -389,11 +390,13 @@ function CompletedSection({
   completions,
   getQuest,
   onOpenJournal,
+  onOpenCompletion,
   reducedMotion,
 }: {
   completions: { completionId: string; questId: string; xpAwarded: number; logged: boolean; completedAt: string }[];
   getQuest: (id?: string) => Quest | null;
   onOpenJournal: () => void;
+  onOpenCompletion: (completionId: string) => void;
   reducedMotion: boolean;
 }) {
   const visibleCompletions = completions.slice(0, 3);
@@ -436,18 +439,28 @@ function CompletedSection({
             const quest = getQuest(completion.questId);
             return (
               <LobbyReveal key={completion.completionId} motionKey={`completion-${completion.completionId}`} delay={index * 45} reducedMotion={reducedMotion}>
-                <Card style={styles.completedItem}>
-                  <View style={[styles.completedStripe, { backgroundColor: quest?.color ?? T.blue }]} />
-                  <View style={styles.completedCopy}>
-                    <Text style={styles.completedTitle} numberOfLines={1}>
-                      {quest?.title ?? "Quest"}
-                    </Text>
-                    <Text style={styles.completedMeta}>
-                      {formatTime(completion.completedAt)} · {completion.logged ? "Logged" : "Skipped lore"}
-                    </Text>
-                  </View>
-                  <PillStat icon="flash" text={`+${completion.xpAwarded}`} />
-                </Card>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open completed quest: ${quest?.title ?? "Quest"}`}
+                  onPress={() => {
+                    haptic();
+                    onOpenCompletion(completion.completionId);
+                  }}
+                  style={({ pressed }) => pressed ? styles.pressed : undefined}
+                >
+                  <Card style={styles.completedItem}>
+                    <View style={[styles.completedStripe, { backgroundColor: quest?.color ?? T.blue }]} />
+                    <View style={styles.completedCopy}>
+                      <Text style={styles.completedTitle} numberOfLines={1}>
+                        {quest?.title ?? "Quest"}
+                      </Text>
+                      <Text style={styles.completedMeta}>
+                        {formatTime(completion.completedAt)} · {completion.logged ? "Logged" : "Skipped lore"}
+                      </Text>
+                    </View>
+                    <PillStat icon="flash" text={`+${completion.xpAwarded}`} />
+                  </Card>
+                </Pressable>
               </LobbyReveal>
             );
           })}
@@ -464,12 +477,14 @@ export function LobbyScreen() {
   const { profileNameVersion, user } = useAuth();
   const { error: contentError, getQuest, loading, quests } = useContent();
   const { unreadCount } = useNotifications();
-  const { engine, error: engineError, loading: engineLoading, refresh, saveActiveForLater, abandonActiveQuest } = useQuestEngine();
-  const { snapshot } = useActiveQuest();
+  const { engine, error: engineError, loading: engineLoading, refresh, saveActiveForLater, abandonActiveQuest, startQuest } = useQuestEngine();
+  const { snapshot, resume } = useActiveQuest();
+  const { showFeedback } = useAppFeedback();
   const { block, clearBlock, tryStart } = useQuestStart(getQuest);
 
   const [savedSheet, setSavedSheet] = useState(false);
   const [recoveryVisible, setRecoveryVisible] = useState(false);
+  const [recoveryActionBusy, setRecoveryActionBusy] = useState(false);
   const [greetingShuffle] = useState(() => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
   const [firstName, setFirstName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -499,6 +514,8 @@ export function LobbyScreen() {
   const recoveryDuration = snapshot?.session.sessionId === engine?.activeSession?.id
     ? snapshot?.session.activeDurationMs ?? 0
     : activeQuestElapsed;
+  const recoveryStartedAt = engine?.activeSession?.recoveryStartedAt ?? null;
+  const timeAwayMs = recoveryStartedAt ? Math.max(0, Date.now() - new Date(recoveryStartedAt).getTime()) : 0;
 
   useEffect(() => {
     if (recoveryRequired) setRecoveryVisible(true);
@@ -524,8 +541,30 @@ export function LobbyScreen() {
     await refresh();
   }
 
+  async function handleQuestRecovery(choice: "continue" | "restart" | "count-away") {
+    const session = engine?.activeSession;
+    if (!session || recoveryActionBusy) return;
+    setRecoveryActionBusy(true);
+    try {
+      if (choice === "restart") {
+        await abandonActiveQuest();
+        await startQuest({ questId: session.questId, source: session.source });
+      } else {
+        await clearMyActiveQuestRecovery();
+        await resume(choice === "count-away" ? timeAwayMs : 0);
+      }
+      await refresh();
+      setRecoveryVisible(false);
+      router.push("/active-quest");
+    } catch {
+      showFeedback({ message: "We couldn't restore this quest yet. Please try again.", icon: "alert-circle", color: T.red });
+    } finally {
+      setRecoveryActionBusy(false);
+    }
+  }
+
   return (
-    <Screen padded={false} contentStyle={styles.screenContent}>
+    <Screen padded={false} bottomOverlay="tab" contentStyle={styles.screenContent}>
       {isInitialLobbyLoad ? <LobbyLoadingSkeleton contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} /> : <LobbyReveal motionKey="lobby-page" reducedMotion={reducedMotion}>
         <View
           style={[styles.container, { width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }]}
@@ -578,7 +617,7 @@ export function LobbyScreen() {
           )}
         </View>
 
-        <CompletedSection completions={completions} getQuest={getQuest} onOpenJournal={() => router.push("/journal")} reducedMotion={reducedMotion} />
+        <CompletedSection completions={completions} getQuest={getQuest} onOpenJournal={() => router.push("/journal")} onOpenCompletion={(completionId) => router.push(`/memory/${completionId}`)} reducedMotion={reducedMotion} />
         </View>
       </LobbyReveal>}
 
@@ -595,17 +634,17 @@ export function LobbyScreen() {
         <View style={{ paddingHorizontal: 24, paddingBottom: 24, gap: 14 }}>
           <View style={{ alignItems: "center", gap: 7 }}>
             <View style={{ width: 58, height: 58, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: `${activeQuest?.color ?? T.blue}16` }}><Ionicons name="time-outline" size={29} color={activeQuest?.color ?? T.blue} /></View>
-            <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 24, textAlign: "center" }}>You left a quest in progress</Text>
-            <Text style={{ color: T.muted, fontSize: 14, lineHeight: 20, fontWeight: "700", textAlign: "center" }}>{activeQuest?.title ?? "Your active quest"} has been waiting for you.</Text>
+            <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 24, textAlign: "center" }}>Continue your quest?</Text>
+            <Text style={{ color: T.muted, fontSize: 14, lineHeight: 20, fontWeight: "700", textAlign: "center" }}>{activeQuest?.title ?? "Your active quest"} has been paused for over an hour.</Text>
           </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <View style={{ flex: 1, minHeight: 82, borderRadius: 18, alignItems: "center", justifyContent: "center", gap: 3, backgroundColor: `${activeQuest?.color ?? T.blue}0e`, borderWidth: 1, borderColor: `${activeQuest?.color ?? T.blue}30` }}><Ionicons name="time-outline" size={20} color={activeQuest?.color ?? T.blue} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 16, fontVariant: ["tabular-nums"] }}>{formatElapsedCompact(recoveryDuration)}</Text><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 10, textTransform: "uppercase" }}>Time spent</Text></View>
             <View style={{ flex: 1, minHeight: 82, borderRadius: 18, alignItems: "center", justifyContent: "center", gap: 3, backgroundColor: `${activeQuest?.color ?? T.blue}0e`, borderWidth: 1, borderColor: `${activeQuest?.color ?? T.blue}30` }}><Ionicons name="camera-outline" size={20} color={activeQuest?.color ?? T.blue} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 16 }}>{snapshot?.photoCount ?? 0}</Text><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 10, textTransform: "uppercase" }}>Photos</Text></View>
             <View style={{ flex: 1, minHeight: 82, borderRadius: 18, alignItems: "center", justifyContent: "center", gap: 3, backgroundColor: `${activeQuest?.color ?? T.blue}0e`, borderWidth: 1, borderColor: `${activeQuest?.color ?? T.blue}30` }}><Ionicons name="document-text-outline" size={20} color={activeQuest?.color ?? T.blue} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 16 }}>{snapshot?.activity.filter((item) => item.kind === "note").length ?? 0}</Text><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 10, textTransform: "uppercase" }}>Notes</Text></View>
           </View>
-          <SoftButton label="Resume quest" icon="play" color={activeQuest?.color ?? T.blue} onPress={() => void (async () => { await clearMyActiveQuestRecovery(); await refresh(); setRecoveryVisible(false); router.push("/active-quest"); })()} />
-          <SoftButton label="Save to Journal" icon="book-outline" inverse color={activeQuest?.color ?? T.blue} onPress={() => { setRecoveryVisible(false); router.push({ pathname: "/active-quest", params: { saveToJournal: "1" } }); }} />
-          <SoftButton label="Abandon quest" inverse color={T.muted} onPress={() => void (async () => { await abandonActiveQuest(); await refresh(); setRecoveryVisible(false); })()} />
+          <SoftButton label={recoveryActionBusy ? "Restoring..." : "Continue where I left off"} icon="play" disabled={recoveryActionBusy} color={activeQuest?.color ?? T.blue} onPress={() => void handleQuestRecovery("continue")} />
+          <SoftButton label={`Count ${formatElapsedCompact(timeAwayMs)} away`} icon="time-outline" disabled={recoveryActionBusy} inverse color={T.orange} onPress={() => void handleQuestRecovery("count-away")} />
+          <SoftButton label="Start fresh" icon="refresh" disabled={recoveryActionBusy} inverse color={T.muted} onPress={() => void handleQuestRecovery("restart")} />
         </View>
       </Sheet>
 

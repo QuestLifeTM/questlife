@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { T } from "@/components/theme";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,12 +11,15 @@ import {
   subscribeToAppAnnouncements,
 } from "@/services/announcements/announcementService";
 import { supabase } from "@/lib/supabase";
+import { useResponsiveScreenLayout } from "@/lib/responsive";
 
 export function GlobalAnnouncement() {
   const { isConfigured, session } = useAuth();
   const [announcement, setAnnouncement] = useState<AppAnnouncement | null>(null);
   const [dismissing, setDismissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
+  const { horizontalPadding } = useResponsiveScreenLayout();
 
   useEffect(() => {
     let active = true;
@@ -61,8 +65,11 @@ export function GlobalAnnouncement() {
 
   return (
     <Modal animationType="fade" onRequestClose={dismiss} transparent visible={Boolean(announcement)}>
-      <View style={{ flex: 1, justifyContent: "center", padding: 24, backgroundColor: "rgba(5, 10, 18, 0.62)" }}>
-        <View style={{ borderRadius: 24, borderWidth: 1, borderColor: "rgba(77,168,255,0.38)", backgroundColor: T.white, padding: 24, gap: 16, shadowColor: "#000000", shadowOpacity: 0.3, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 12 }}>
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, backgroundColor: "rgba(5, 10, 18, 0.62)" }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 440, alignSelf: "center", borderRadius: 24, borderWidth: 1, borderColor: "rgba(77,168,255,0.38)", backgroundColor: T.white, padding: 24, gap: 16, shadowColor: "#000000", shadowOpacity: 0.3, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 12 }}>
           <View style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "#eaf4ff" }}>
             <Text style={{ fontSize: 20 }}>✦</Text>
           </View>
@@ -75,7 +82,7 @@ export function GlobalAnnouncement() {
             {dismissing ? <ActivityIndicator color={T.white} /> : <Text style={{ color: T.white, fontSize: 16, fontWeight: "900" }}>Got it</Text>}
           </Pressable>
         </View>
-      </View>
+      </ScrollView>
     </Modal>
   );
 }
