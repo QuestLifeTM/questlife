@@ -8,6 +8,7 @@ import { T } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
+import { ONBOARDING_PERSONALIZATION_TOTAL } from "@/components/onboarding-progress";
 
 type OnboardingOption = {
   id: string;
@@ -18,37 +19,105 @@ type OnboardingOption = {
 
 type OnboardingQuestion = {
   id: string;
-  title: string;
+  titlePrefix: string;
+  titleAccent: string;
+  titleSuffix: string;
   helper: string;
   maximumSelections: number;
+  minimumSelections: number;
   options: OnboardingOption[];
 };
 
 const QUESTION_OPTION_ICONS = {
   backpack: require("../../assets/onboarding/question-icons/backpack.png"),
-  personalGrowth: require("../../assets/onboarding/question-icons/personal-growth.png"),
+  bed: require("../../assets/onboarding/question-icons/bed.png"),
   campingTent: require("../../assets/onboarding/question-icons/camping-tent.png"),
-  heartWithPulse: require("../../assets/onboarding/question-icons/heart-with-pulse.png"),
+  clock: require("../../assets/onboarding/question-icons/clock.png"),
+  confused: require("../../assets/onboarding/question-icons/confused.png"),
+  forest: require("../../assets/onboarding/question-icons/forest.png"),
+  fortuneCookie: require("../../assets/onboarding/question-icons/fortune-cookie.png"),
+  goal: require("../../assets/onboarding/question-icons/goal.png"),
+  happy: require("../../assets/onboarding/question-icons/happy.png"),
+  personalGrowth: require("../../assets/onboarding/question-icons/personal-growth.png"),
   hourglass: require("../../assets/onboarding/question-icons/hourglass.png"),
   lightning: require("../../assets/onboarding/question-icons/lightning.png"),
+  paintPalette: require("../../assets/onboarding/question-icons/paint-palette.png"),
+  rollerCoaster: require("../../assets/onboarding/question-icons/roller-coaster.png"),
+  shocked: require("../../assets/onboarding/question-icons/shocked.png"),
+  smiling: require("../../assets/onboarding/question-icons/smiling.png"),
+  social: require("../../assets/onboarding/question-icons/social.png"),
+  star: require("../../assets/onboarding/question-icons/star.png"),
+  strawberryCheesecake: require("../../assets/onboarding/question-icons/strawberry-cheesecake.png"),
 };
 
-// Add future questions here. The progress indicator and handoff automatically
-// use this list, so new question screens cannot get out of sync with progress.
 const QUESTIONS: OnboardingQuestion[] = [
   {
-    id: "questlife-goals",
-    title: "What do you want to achieve with QuestLife?",
-    helper: "Choose 3 options",
+    id: "quest-style",
+    titlePrefix: "What sounds like your kind of ",
+    titleAccent: "quest",
+    titleSuffix: "?",
+    helper: "Choose up to 3",
     maximumSelections: 3,
+    minimumSelections: 1,
     options: [
-      { id: "explore-less-scroll", icon: QUESTION_OPTION_ICONS.backpack, label: "explore more, scroll less" },
-      { id: "more-consistent", icon: QUESTION_OPTION_ICONS.personalGrowth, label: "become more consistent" },
-      { id: "comfort-zone", icon: QUESTION_OPTION_ICONS.campingTent, label: "break out of my comfort zone" },
-      { id: "life-exciting", icon: QUESTION_OPTION_ICONS.lightning, label: "make life exciting again" },
-      { id: "stop-procrastinating", icon: QUESTION_OPTION_ICONS.hourglass, label: "finally stop procrastinating" },
-      { id: "best-self", emoji: "🌱", label: "become my best self" },
-      { id: "unforgettable-memories", icon: QUESTION_OPTION_ICONS.heartWithPulse, label: "make unforgettable memories" },
+      { id: "chill", icon: QUESTION_OPTION_ICONS.bed, label: "Chill & laid-back" },
+      { id: "exploring", icon: QUESTION_OPTION_ICONS.forest, label: "Exploring & discovering" },
+      { id: "creative", icon: QUESTION_OPTION_ICONS.paintPalette, label: "Creative & unique" },
+      { id: "active", icon: QUESTION_OPTION_ICONS.lightning, label: "Active & energetic" },
+      { id: "competitive", icon: QUESTION_OPTION_ICONS.rollerCoaster, label: "Competitive & challenging" },
+      { id: "social", icon: QUESTION_OPTION_ICONS.social, label: "Social & outgoing" },
+      { id: "spontaneous", icon: QUESTION_OPTION_ICONS.shocked, label: "Spontaneous & unexpected" },
+    ],
+  },
+  {
+    id: "places",
+    titlePrefix: "What kind of ",
+    titleAccent: "places",
+    titleSuffix: " would you love to discover?",
+    helper: "Choose up to 3",
+    maximumSelections: 3,
+    minimumSelections: 1,
+    options: [
+      { id: "nature", icon: QUESTION_OPTION_ICONS.forest, label: "Nature & parks" },
+      { id: "beaches", icon: QUESTION_OPTION_ICONS.campingTent, label: "Beaches & water" },
+      { id: "restaurants", icon: QUESTION_OPTION_ICONS.strawberryCheesecake, label: "Restaurants & cafés" },
+      { id: "entertainment", icon: QUESTION_OPTION_ICONS.rollerCoaster, label: "Entertainment & games" },
+      { id: "museums", icon: QUESTION_OPTION_ICONS.goal, label: "Museums & attractions" },
+      { id: "hidden-spots", icon: QUESTION_OPTION_ICONS.confused, label: "Hidden local spots" },
+      { id: "anywhere-new", icon: QUESTION_OPTION_ICONS.backpack, label: "Anywhere I've never been" },
+    ],
+  },
+  {
+    id: "time",
+    titlePrefix: "How much ",
+    titleAccent: "time",
+    titleSuffix: " do you usually have for a quest?",
+    helper: "Choose 1",
+    maximumSelections: 1,
+    minimumSelections: 1,
+    options: [
+      { id: "10-30", icon: QUESTION_OPTION_ICONS.clock, label: "10–30 minutes" },
+      { id: "30-60", icon: QUESTION_OPTION_ICONS.hourglass, label: "30–60 minutes" },
+      { id: "1-2", icon: QUESTION_OPTION_ICONS.personalGrowth, label: "1–2 hours" },
+      { id: "2-4", icon: QUESTION_OPTION_ICONS.campingTent, label: "2–4 hours" },
+      { id: "half-day", icon: QUESTION_OPTION_ICONS.happy, label: "Half a day" },
+      { id: "full-day", icon: QUESTION_OPTION_ICONS.star, label: "A full day" },
+    ],
+  },
+  {
+    id: "adventure-level",
+    titlePrefix: "How ",
+    titleAccent: "adventurous",
+    titleSuffix: " should your quests be?",
+    helper: "Choose 1",
+    maximumSelections: 1,
+    minimumSelections: 1,
+    options: [
+      { id: "easy", icon: QUESTION_OPTION_ICONS.smiling, label: "Keep it easy" },
+      { id: "comfort-zone", icon: QUESTION_OPTION_ICONS.personalGrowth, label: "A little outside my comfort zone" },
+      { id: "mixed", icon: QUESTION_OPTION_ICONS.fortuneCookie, label: "Mix it up" },
+      { id: "push", icon: QUESTION_OPTION_ICONS.lightning, label: "Push me" },
+      { id: "surprise", icon: QUESTION_OPTION_ICONS.shocked, label: "Surprise me" },
     ],
   },
 ];
@@ -61,8 +130,8 @@ export default function QuestionsIntroScreen() {
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const question = QUESTIONS[questionIndex];
   const selectedIds = answers[question.id] ?? [];
-  const hasRequiredSelections = selectedIds.length >= question.maximumSelections;
-  const progressStep = questionIndex + 7;
+  const hasRequiredSelections = selectedIds.length >= question.minimumSelections;
+  const progressStep = questionIndex + 2;
 
   function toggleOption(id: string) {
     haptic();
@@ -90,7 +159,7 @@ export default function QuestionsIntroScreen() {
       return;
     }
 
-    router.replace({ pathname: "/onboarding/frequency", params: firstName ? { firstName } : {} });
+    router.replace({ pathname: "/onboarding/personalizing", params: firstName ? { firstName } : {} });
   }
 
   function goBack() {
@@ -105,11 +174,14 @@ export default function QuestionsIntroScreen() {
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={progressStep} onBack={goBack} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={progressStep} totalSteps={ONBOARDING_PERSONALIZATION_TOTAL} phaseLabel="Personalizing your experience" onBack={goBack} /></View>
 
         <Animated.View key={question.id} entering={FadeInRight.duration(reduceMotion ? 0 : 280)} style={styles.questionStage}>
         <View style={styles.questionHeader}>
-          <Text style={styles.title}>{question.id === "questlife-goals" ? <>What do you want to <Text style={styles.titleAccent}>achieve</Text> with QuestLife?</> : question.title}</Text>
+          <Text style={styles.title}>
+            {question.titlePrefix}<Text style={styles.titleAccent}>{question.titleAccent}</Text>
+            {question.id === "quest-style" ? <Text style={styles.titleAccent}>{question.titleSuffix}</Text> : question.titleSuffix}
+          </Text>
           <Text style={styles.helper}>{question.helper}</Text>
         </View>
 
@@ -119,7 +191,7 @@ export default function QuestionsIntroScreen() {
             return (
               <Pressable
                 key={option.id}
-                accessibilityRole="checkbox"
+                accessibilityRole={question.maximumSelections === 1 ? "radio" : "checkbox"}
                 accessibilityLabel={option.label}
                 accessibilityState={{ checked: selected, disabled: question.maximumSelections > 1 && !selected && selectedIds.length >= question.maximumSelections }}
                 onPress={() => toggleOption(option.id)}

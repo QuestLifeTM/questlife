@@ -4,6 +4,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { toLocalDateKey } from "@/services/journal/journalService";
 import { compressFeedImage } from "@/services/media/feed-image";
 import { normalizeQuestCategory, questCategoryColors, type QuestCategory } from "@/types/content";
+import { validateUsername } from "@/validation/username";
 
 export type WeeklyCompletedQuestActivity = { day: string; value: number };
 export const DEFAULT_PROFILE_STAT_VISIBILITY: ProfileStatVisibility = {
@@ -264,7 +265,11 @@ export async function updateProfile(input: ProfileEditInput) {
 
   const payload: Record<string, unknown> = {};
   if (input.displayName !== undefined) payload.display_name = input.displayName?.trim() || null;
-  if (input.username !== undefined) payload.username = input.username?.trim() || null;
+  if (input.username !== undefined) {
+    const usernameValidation = validateUsername(input.username);
+    if (!usernameValidation.valid) throw new Error(usernameValidation.message);
+    payload.username = input.username;
+  }
   if (input.bio !== undefined) payload.bio = input.bio?.trim() || null;
   if (input.avatarUrl !== undefined) payload.avatar_url = input.avatarUrl;
   if (input.emoji !== undefined) payload.emoji = input.emoji;

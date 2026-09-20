@@ -55,7 +55,17 @@ export default function TabLayout() {
           paddingHorizontal: 24,
           boxShadow: "0px -8px 8px rgba(0,0,0,0.05)",
         },
-        tabBarItemStyle: { height: 46, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+        // The tab item is the pressable control. Let it occupy its full column and
+        // nearly the full bar height, rather than leaving navigation limited to the icon.
+        tabBarItemStyle: {
+          flex: 1,
+          height: 46,
+          minWidth: 0,
+          borderRadius: 20,
+          alignSelf: "stretch",
+          alignItems: "center",
+          justifyContent: "center",
+        },
         tabBarIcon: ({ color, focused }) => <TabIcon routeName={route.name} focused={focused} color={color} />,
       })}
     >

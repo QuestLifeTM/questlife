@@ -5,6 +5,7 @@ import * as WebBrowser from "expo-web-browser";
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { supabase } from "@/lib/supabase";
+import { validateUsername } from "@/validation/username";
 import { upsertOwnProfile } from "@/services/profile/profileService";
 import { AuthProviderName } from "@/types/auth";
 import { rememberEmail } from "@/services/auth/rememberedEmail";
@@ -155,20 +156,28 @@ export async function getRegistrationAccountState(email: string): Promise<Regist
 }
 
 export async function isUsernameAvailable(username: string) {
+  return (await checkUsernameAvailability(username)).available;
+}
+
+export async function checkUsernameAvailability(username: string): Promise<{ available: boolean; reason?: string }> {
   assertSupabaseConfigured();
+  const validation = validateUsername(username);
+  if (!validation.valid) return { available: false, reason: validation.message };
   const { data, error } = await supabase.functions.invoke("username-availability", {
-    body: { username: username.trim() },
+    body: { username },
   });
 
   if (error) throw error;
   if (!data || typeof data.available !== "boolean") throw new Error("Invalid username availability response.");
-  return data.available;
+  return { available: data.available, reason: typeof data.reason === "string" ? data.reason : undefined };
 }
 
 export async function registerWithEmail(email: string, username: string, firstName: string, lastName: string, password: string) {
   assertSupabaseConfigured();
+  const usernameValidation = validateUsername(username);
+  if (!usernameValidation.valid) throw new Error(usernameValidation.message);
   const normalizedEmail = normalizeEmail(email);
-  const normalizedUsername = username.trim();
+  const normalizedUsername = username;
 
   const { data, error } = await supabase.auth.signUp({
     email: normalizedEmail,

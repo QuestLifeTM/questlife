@@ -5,6 +5,7 @@ import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, Vi
 import Animated, { FadeInRight } from "react-native-reanimated";
 
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
+import { ONBOARDING_PERSONALIZATION_TOTAL } from "@/components/onboarding-progress";
 import { T } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
@@ -149,7 +150,7 @@ export default function FollowUpQuestionsOnboardingScreen() {
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={questionIndex + 9} onBack={goBack} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={questionIndex + 4} totalSteps={ONBOARDING_PERSONALIZATION_TOTAL} phaseLabel="Personalizing your experience" onBack={goBack} /></View>
         <Animated.View key={question.id} entering={FadeInRight.duration(reduceMotion ? 0 : 280)} style={styles.questionStage}>
         <View style={styles.questionHeader}>
           <Text style={styles.title}>

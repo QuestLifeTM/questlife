@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validateUsername } from "@/validation/username";
 
 const email = z
   .string()
@@ -16,11 +17,10 @@ const password = z
 
 const username = z
   .string()
-  .trim()
-  .min(1, "Username is required.")
-  .min(3, "Username must be at least 3 characters.")
-  .max(20, "Username must be 20 characters or less.")
-  .regex(/^[A-Za-z0-9_]+$/, "Use letters, numbers, and underscores only.");
+  .superRefine((value, context) => {
+    const result = validateUsername(value);
+    if (!result.valid) context.addIssue({ code: "custom", message: result.message });
+  });
 
 const name = (label: string) => z
   .string()

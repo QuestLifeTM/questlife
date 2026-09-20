@@ -18,7 +18,21 @@ import type { Quest } from "@/types/content";
 const stoneArchBackground = require("../assets/onboarding/stone-arch-background.png");
 const iphoneMockup = require("../assets/onboarding/iphone-mockup.png");
 type DemoPhase = "title" | "explore" | "active" | "journal";
-const SCREEN_FADE_DURATION = 460;
+const SCREEN_FADE_DURATION = 360;
+const SCREEN_COPY_EXIT_DURATION = 220;
+const PREVIEW_MOUNT_SETTLE_MS = 80;
+const OPENING_TEXT_HOLD_MS = 1_600;
+const TEXT_HANDOFF_GAP_MS = 100;
+const MOCKUP_ENTRANCE_DURATION = 720;
+const MOCKUP_DWELL_MS = 2_600;
+const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
+const EASE_IN_OUT = Easing.bezier(0.77, 0, 0.175, 1);
+
+function personalizedTextHoldDuration(copy: string) {
+  // Give longer selected answers a little more reading time, without turning
+  // the walkthrough into a wait. The current options land around 2.15–2.3 s.
+  return Math.min(2_350, Math.max(2_000, 1_250 + copy.length * 16));
+}
 
 // These records are intentionally shaped exactly like the data the app reads
 // in production. They are the only fake part of this walkthrough; every
@@ -113,11 +127,13 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
   const titleLift = useRef(new Animated.Value(0)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const screenCopyOpacity = useRef(new Animated.Value(1)).current;
+  const screenCopyTranslateX = useRef(new Animated.Value(0)).current;
   const phoneOpacity = useRef(new Animated.Value(0)).current;
-  const phoneScale = useRef(new Animated.Value(0.8)).current;
+  const phoneScale = useRef(new Animated.Value(0.94)).current;
   const phoneFrameScale = useRef(new Animated.Value(1)).current;
   const phonePositionY = useRef(new Animated.Value(0)).current;
   const continueOpacity = useRef(new Animated.Value(0)).current;
+  const backgroundOpacity = useRef(new Animated.Value(0)).current;
   const exploreContentOpacity = useRef(new Animated.Value(1)).current;
   const activeContentOpacity = useRef(new Animated.Value(0)).current;
   const journalContentOpacity = useRef(new Animated.Value(0)).current;
@@ -126,12 +142,24 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
   const horizontalPadding = clamp(width * 0.045, 16, 24);
   const phoneWidth = Math.min(width - horizontalPadding * 2, 346, Math.max(220, (height - insets.top - insets.bottom - 92) * (1624 / 3407)));
   const phoneHeight = phoneWidth * (3407 / 1624);
-  const compactPhoneScale = Math.min(1, 275 / phoneWidth);
+  // Give the minimized journal preview a little more presence while retaining
+  // enough separation from its supporting copy and the Continue action.
+  const compactPhoneScale = Math.min(1, 285 / phoneWidth);
   const titleFontSize = clamp(Math.round(width * 0.064), 22, 26);
   const initialPhoneCenterY = (insets.top + 178 + height - Math.max(insets.bottom + 8, 24)) / 2 - 14;
   // The outer bezel, not just the inner display, begins below the measured
   // copy. This keeps every preview clear when a title wraps to two lines.
-  const phoneCopyGap = clamp(height * 0.025, 28, 34);
+  const phoneCopyGap = clamp(height * 0.012, 16, 20);
+  const personalizedIntroText = idealLifeId === "purpose"
+    ? "Here's how QuestLife helps you live each day with purpose."
+    : idealLifeId === "amazing-people"
+      ? "Here's how QuestLife helps you create meaningful connections."
+      : idealLifeId === "no-regrets"
+        ? "Here's how QuestLife helps you make memories you won't regret."
+        : idealLifeId === "proud-self"
+          ? "Here's how QuestLife helps you become someone you're proud to be."
+          : "Here's how QuestLife helps you live a life worth remembering.";
+  const personalizedTextHoldMs = personalizedTextHoldDuration(personalizedIntroText);
 
   const schedule = (callback: () => void, delay: number) => {
     const timer = setTimeout(callback, delay);
@@ -139,19 +167,25 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
   };
 
   useEffect(() => {
+    Animated.timing(backgroundOpacity, {
+      toValue: 1,
+      duration: reduceMotion ? 0 : 520,
+      easing: EASE_OUT,
+      useNativeDriver: true,
+    }).start();
     schedule(() => {
       Animated.timing(titleOpacity, {
         toValue: 1,
-        duration: reduceMotion ? 0 : 350,
-        easing: Easing.out(Easing.cubic),
+        duration: reduceMotion ? 0 : 420,
+        easing: EASE_OUT,
         useNativeDriver: true,
       }).start(({ finished }) => {
         if (!finished) return;
         schedule(() => {
           Animated.timing(titleOpacity, {
             toValue: 0,
-            duration: reduceMotion ? 0 : 500,
-            easing: Easing.out(Easing.cubic),
+            duration: reduceMotion ? 0 : 320,
+            easing: EASE_OUT,
             useNativeDriver: true,
           }).start(({ finished: greetingHidden }) => {
             if (!greetingHidden) return;
@@ -159,44 +193,44 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
             titleOpacity.setValue(0);
             Animated.timing(titleOpacity, {
               toValue: 1,
-              duration: reduceMotion ? 0 : 350,
-              easing: Easing.out(Easing.cubic),
+              duration: reduceMotion ? 0 : 420,
+              easing: EASE_OUT,
               useNativeDriver: true,
             }).start(({ finished: statementShown }) => {
               if (!statementShown) return;
               schedule(() => {
                 Animated.timing(titleOpacity, {
                   toValue: 0,
-                  duration: reduceMotion ? 0 : 500,
-                  easing: Easing.out(Easing.cubic),
+                  duration: reduceMotion ? 0 : 360,
+                  easing: EASE_OUT,
                   useNativeDriver: true,
                 }).start(({ finished: statementHidden }) => {
                   if (!statementHidden) return;
                   schedule(() => {
                     setSubtitleBottom(null);
                     setPhase("explore");
+                    titleLift.setValue(1);
                     schedule(() => {
-                      const duration = reduceMotion ? 0 : 1_100;
+                      const duration = reduceMotion ? 0 : MOCKUP_ENTRANCE_DURATION;
                       Animated.parallel([
-                        Animated.timing(titleLift, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                        Animated.timing(titleOpacity, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                        Animated.timing(phoneOpacity, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                        Animated.timing(phoneScale, { toValue: 1, duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                        Animated.timing(titleOpacity, { toValue: 1, duration, easing: EASE_OUT, useNativeDriver: true }),
+                        Animated.timing(phoneOpacity, { toValue: 1, duration, easing: EASE_OUT, useNativeDriver: true }),
+                        Animated.timing(phoneScale, { toValue: 1, duration, easing: EASE_OUT, useNativeDriver: true }),
                       ]).start();
-                      schedule(transitionToActive, reduceMotion ? 0 : 3_000);
-                    }, reduceMotion ? 0 : 160);
-                  }, reduceMotion ? 0 : 650);
+                      schedule(transitionToActive, reduceMotion ? 0 : MOCKUP_DWELL_MS);
+                    }, reduceMotion ? 0 : 180);
+                  }, reduceMotion ? 0 : TEXT_HANDOFF_GAP_MS);
                 });
-              }, reduceMotion ? 0 : 2_700);
+              }, reduceMotion ? 0 : personalizedTextHoldMs);
             });
           });
-        }, reduceMotion ? 0 : 2_800);
+        }, reduceMotion ? 0 : OPENING_TEXT_HOLD_MS);
       });
-    }, reduceMotion ? 0 : 300);
+    }, reduceMotion ? 0 : 80);
     return () => timers.current.forEach(clearTimeout);
   // Animation values are stable refs.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reduceMotion]);
+  }, [backgroundOpacity, personalizedTextHoldMs, reduceMotion, titleLift]);
 
   useEffect(() => {
     // Keep the phone in a fixed full-screen layer. Previously, changing the
@@ -207,7 +241,7 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
     const gapCenterY = (subtitleBottom + continueTop) / 2;
     const animationConfig = {
       duration: reduceMotion ? 0 : 400,
-      easing: Easing.out(Easing.cubic),
+      easing: EASE_OUT,
       useNativeDriver: true,
     } as const;
     // Wait for both measured bounds, then move and minimize as one motion.
@@ -234,7 +268,7 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
     Animated.timing(phonePositionY, {
       toValue: phoneCenterY - height / 2,
       duration: reduceMotion ? 0 : 460,
-      easing: Easing.out(Easing.cubic),
+      easing: EASE_OUT,
       useNativeDriver: true,
     }).start();
   }, [height, phoneCopyGap, phoneHeight, phonePositionY, phase, reduceMotion, showContinue, subtitleBottom]);
@@ -248,17 +282,35 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
     // Stop the JavaScript-driven list updates before the heavy map preview
     // mounts, leaving the transition frame budget for the screen cross-fade.
     setExploreAutoScrollEnabled(false);
-    hideScreenCopy();
-    schedule(beginExploreExit, reduceMotion ? 0 : SCREEN_FADE_DURATION);
+    hideScreenCopy(beginExploreExit);
   }
 
-  function hideScreenCopy() {
-    Animated.timing(screenCopyOpacity, {
-      toValue: 0,
-      duration: reduceMotion ? 0 : SCREEN_FADE_DURATION,
-      easing: Easing.inOut(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
+  function hideScreenCopy(onComplete?: () => void) {
+    Animated.parallel([
+      Animated.timing(screenCopyOpacity, {
+        toValue: 0,
+        duration: reduceMotion ? 0 : SCREEN_COPY_EXIT_DURATION,
+        easing: EASE_IN_OUT,
+        useNativeDriver: true,
+      }),
+      Animated.timing(screenCopyTranslateX, {
+        toValue: 24,
+        duration: reduceMotion ? 0 : SCREEN_COPY_EXIT_DURATION,
+        easing: EASE_IN_OUT,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) onComplete?.();
+    });
+  }
+
+  function showScreenCopy() {
+    screenCopyOpacity.setValue(0);
+    screenCopyTranslateX.setValue(16);
+    Animated.parallel([
+      Animated.timing(screenCopyOpacity, { toValue: 1, duration: reduceMotion ? 0 : 300, easing: EASE_OUT, useNativeDriver: true }),
+      Animated.timing(screenCopyTranslateX, { toValue: 0, duration: reduceMotion ? 0 : 300, easing: EASE_OUT, useNativeDriver: true }),
+    ]).start();
   }
 
   function beginExploreExit() {
@@ -271,33 +323,34 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
       setSubtitleBottom(null);
       setPhase("active");
       screenCopyOpacity.setValue(0);
+      screenCopyTranslateX.setValue(16);
       Animated.parallel([
-        Animated.timing(exploreContentOpacity, { toValue: 0, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(activeContentOpacity, { toValue: 1, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(screenCopyOpacity, { toValue: 1, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(exploreContentOpacity, { toValue: 0, duration, easing: EASE_IN_OUT, useNativeDriver: true }),
+        Animated.timing(activeContentOpacity, { toValue: 1, duration, easing: EASE_IN_OUT, useNativeDriver: true }),
       ]).start(({ finished }) => {
         if (!finished) return;
-        schedule(transitionToJournal, reduceMotion ? 0 : 3_000);
+        showScreenCopy();
+        schedule(transitionToJournal, reduceMotion ? 0 : MOCKUP_DWELL_MS);
       });
-    }, reduceMotion ? 0 : 100);
+    }, reduceMotion ? 0 : PREVIEW_MOUNT_SETTLE_MS);
   }
 
   function transitionToJournal() {
-    hideScreenCopy();
-    schedule(() => {
+    hideScreenCopy(() => {
       setShowJournalContent(true);
       setSubtitleBottom(null);
       setPhase("journal");
       journalContentOpacity.setValue(0);
       screenCopyOpacity.setValue(0);
+      screenCopyTranslateX.setValue(16);
       schedule(() => {
         const duration = reduceMotion ? 0 : SCREEN_FADE_DURATION;
         Animated.parallel([
-          Animated.timing(activeContentOpacity, { toValue: 0, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-          Animated.timing(journalContentOpacity, { toValue: 1, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-          Animated.timing(screenCopyOpacity, { toValue: 1, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(activeContentOpacity, { toValue: 0, duration, easing: EASE_IN_OUT, useNativeDriver: true }),
+          Animated.timing(journalContentOpacity, { toValue: 1, duration, easing: EASE_IN_OUT, useNativeDriver: true }),
         ]).start(({ finished: journalEntered }) => {
           if (!journalEntered) return;
+          showScreenCopy();
           if (!showContinue) {
             schedule(() => {
               setShowContinue(true);
@@ -307,58 +360,61 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
           }
           schedule(restartDemo, reduceMotion ? 0 : 2_000);
         });
-      }, reduceMotion ? 0 : 100);
-    }, reduceMotion ? 0 : SCREEN_FADE_DURATION);
+      }, reduceMotion ? 0 : PREVIEW_MOUNT_SETTLE_MS);
+    });
   }
 
   function restartDemo() {
-    hideScreenCopy();
-    schedule(() => {
+    hideScreenCopy(() => {
       setSubtitleBottom(null);
       setPhase("explore");
       setShowExploreContent(true);
+      // The Explore feed pauses before the map preview to keep the transition
+      // smooth. Re-enable it whenever the walkthrough returns to Explore.
+      setExploreAutoScrollEnabled(true);
       exploreContentOpacity.setValue(0);
       screenCopyOpacity.setValue(0);
+      screenCopyTranslateX.setValue(16);
       schedule(() => {
         const duration = reduceMotion ? 0 : SCREEN_FADE_DURATION;
         Animated.parallel([
-          Animated.timing(journalContentOpacity, { toValue: 0, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-          Animated.timing(exploreContentOpacity, { toValue: 1, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-          Animated.timing(screenCopyOpacity, { toValue: 1, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(journalContentOpacity, { toValue: 0, duration, easing: EASE_IN_OUT, useNativeDriver: true }),
+          Animated.timing(exploreContentOpacity, { toValue: 1, duration, easing: EASE_IN_OUT, useNativeDriver: true }),
         ]).start(({ finished: exploreEntered }) => {
           if (!exploreEntered) return;
-          schedule(transitionToActive, reduceMotion ? 0 : 3_000);
+          showScreenCopy();
+        schedule(transitionToActive, reduceMotion ? 0 : MOCKUP_DWELL_MS);
         });
-      }, reduceMotion ? 0 : 100);
-    }, reduceMotion ? 0 : SCREEN_FADE_DURATION);
+      }, reduceMotion ? 0 : PREVIEW_MOUNT_SETTLE_MS);
+    });
   }
 
   const initialTitleTranslate = Math.max(0, height / 2 - (insets.top + 22) - titleHeight / 2);
   const titleTranslate = titleLift.interpolate({ inputRange: [0, 1], outputRange: [initialTitleTranslate, 0] });
   const memoryIntro = idealLifeId === "purpose"
-    ? <>Here&apos;s how QuestLife helps you live each day <Text style={styles.subtitleAccent}>with purpose</Text>.</>
+    ? <>Here&apos;s how QuestLife helps you live each day <Text style={styles.subtitleAccent}>with purpose</Text><Text style={styles.subtitleAccent}>.</Text></>
     : idealLifeId === "amazing-people"
-      ? <>Here&apos;s how QuestLife helps you create <Text style={styles.subtitleAccent}>meaningful connections</Text>.</>
+      ? <>Here&apos;s how QuestLife helps you create <Text style={styles.subtitleAccent}>meaningful connections</Text><Text style={styles.subtitleAccent}>.</Text></>
       : idealLifeId === "no-regrets"
-        ? <>Here&apos;s how QuestLife helps you make memories you <Text style={styles.subtitleAccent}>won&apos;t regret</Text>.</>
+        ? <>Here&apos;s how QuestLife helps you make memories you <Text style={styles.subtitleAccent}>won&apos;t regret</Text><Text style={styles.subtitleAccent}>.</Text></>
         : idealLifeId === "proud-self"
-          ? <>Here&apos;s how QuestLife helps you become <Text style={styles.subtitleAccent}>someone you&apos;re proud</Text> to be.</>
+          ? <>Here&apos;s how QuestLife helps you become <Text style={styles.subtitleAccent}>someone you&apos;re proud</Text> to be<Text style={styles.subtitleAccent}>.</Text></>
           : null;
   const title = phase === "title"
     ? showValueStatement
-      ? memoryIntro ?? <>Here&apos;s how <Text style={styles.subtitleAccent}>QuestLife</Text> helps you live a life worth remembering.</>
+      ? memoryIntro ?? <>Here&apos;s how <Text style={styles.subtitleAccent}>QuestLife</Text> helps you live a life worth remembering<Text style={styles.subtitleAccent}>.</Text></>
       : <><Text style={styles.subtitleAccent}>Big adventures</Text> start with one small yes.</>
     : phase === "explore"
       ? <>Pick your <Text style={styles.subtitleAccent}>adventure</Text></>
       : phase === "active"
         ? <>Go make it <Text style={styles.subtitleAccent}>happen</Text></>
-        : <>Save the <Text style={styles.subtitleAccent}>moment</Text></>;
+        : <>Make <Text style={styles.subtitleAccent}>Memories</Text></>;
   const subtitle = phase === "explore"
     ? "Break out of the usual"
     : phase === "active"
       ? "Get out there and experience it."
     : phase === "journal"
-        ? "Save the moments you'll want to remember."
+        ? "Save moments worth keeping."
         : null;
   const measureSubtitle = (event: LayoutChangeEvent) => {
     const { y, height: subtitleHeight } = event.nativeEvent.layout;
@@ -367,13 +423,15 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
 
   return <View style={styles.root}>
     <StatusBar style="light" />
-    <ImageBackground source={stoneArchBackground} resizeMode="cover" style={StyleSheet.absoluteFill}><LinearGradient pointerEvents="none" colors={["rgba(5,10,7,0.5)", "rgba(5,10,7,0.76)"]} locations={[0, 1]} style={StyleSheet.absoluteFill} /></ImageBackground>
-    <Animated.View style={[styles.titleLayer, { top: insets.top + 22, paddingHorizontal: horizontalPadding, opacity: titleOpacity, transform: [{ translateY: titleTranslate }] }]}>
-      <Animated.View style={{ opacity: screenCopyOpacity }}>
+    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: backgroundOpacity }]}><ImageBackground source={stoneArchBackground} resizeMode="cover" style={StyleSheet.absoluteFill}><LinearGradient pointerEvents="none" colors={["rgba(5,10,7,0.5)", "rgba(5,10,7,0.76)"]} locations={[0, 1]} style={StyleSheet.absoluteFill} /></ImageBackground></Animated.View>
+    <View style={[styles.titleLayer, { top: insets.top + 22, paddingHorizontal: horizontalPadding }]}>
+      <Animated.View style={{ opacity: titleOpacity, transform: [{ translateY: titleTranslate }] }}>
+        <Animated.View style={{ opacity: screenCopyOpacity, transform: [{ translateX: screenCopyTranslateX }] }}>
       <Text onLayout={(event) => setTitleHeight(event.nativeEvent.layout.height)} adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={3} maxFontSizeMultiplier={1.15} style={[styles.title, { fontSize: titleFontSize, lineHeight: Math.round(titleFontSize * 1.17) }]}>{title}</Text>
       {subtitle ? <Text onLayout={measureSubtitle} style={styles.subtitle}>{subtitle}</Text> : null}
+        </Animated.View>
       </Animated.View>
-    </Animated.View>
+    </View>
     <Animated.View pointerEvents="none" style={[styles.phoneArea, { opacity: phoneOpacity, transform: [{ translateY: phonePositionY }, { scale: phoneScale }] }]}>
       <Animated.View style={{ position: "relative", width: phoneWidth, height: phoneHeight, transform: [{ scale: phoneFrameScale }] }}>
       <View style={[styles.phoneMockup, { width: phoneWidth, height: phoneHeight }]}>
@@ -382,11 +440,18 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
           {showActiveContent ? <Animated.View style={[styles.previewLayer, { opacity: activeContentOpacity }]}><PhoneScreen phase="active" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></Animated.View> : null}
           {showJournalContent ? <Animated.View style={[styles.previewLayer, { opacity: journalContentOpacity }]}><PhoneScreen phase="journal" scale={(phoneWidth * 0.856) / width} width={width} height={height} journal={journal} /></Animated.View> : null}
         </View>
-        <Image source={iphoneMockup} contentFit="fill" style={StyleSheet.absoluteFill} />
+        <Image
+          source={iphoneMockup}
+          contentFit="fill"
+          cachePolicy="memory-disk"
+          transition={0}
+          allowDownscaling
+          style={StyleSheet.absoluteFill}
+        />
       </View>
       </Animated.View>
     </Animated.View>
-    {showContinue ? <Animated.View onLayout={(event) => setContinueTop(event.nativeEvent.layout.y)} style={[styles.continueArea, { paddingHorizontal: horizontalPadding, paddingBottom: Math.max(insets.bottom + 18, 30), opacity: continueOpacity }]}><SoftButton label="Let's build yours →" color={T.blue} onPress={advance} style={styles.continueButton} /></Animated.View> : null}
+    {showContinue ? <Animated.View onLayout={(event) => setContinueTop(event.nativeEvent.layout.y)} style={[styles.continueArea, { paddingHorizontal: horizontalPadding, paddingBottom: Math.max(insets.bottom + 18, 30), opacity: continueOpacity }]}><SoftButton label="Continue" color={T.blue} onPress={advance} style={styles.continueButton} /></Animated.View> : null}
   </View>;
 }
 

@@ -5,26 +5,20 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { T } from "@/components/theme";
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
+import { ONBOARDING_PERSONALIZATION_TOTAL } from "@/components/onboarding-progress";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
-import { isUsernameAvailable } from "@/services/auth/authService";
+import { checkUsernameAvailability } from "@/services/auth/authService";
 import { getOnboardingUsernameDraft, saveOnboardingUsernameDraft } from "@/services/onboarding/username-draft";
+import { validateUsername } from "@/validation/username";
 
 type Availability = "idle" | "checking" | "available" | "unavailable" | "invalid" | "error";
-
-const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
-
-function validationMessage(username: string) {
-  if (!username) return "Choose a username to continue.";
-  if (username.length < 3) return "Username must be at least 3 characters.";
-  if (username.length > 20) return "Username must be 20 characters or less.";
-  return "Use letters, numbers, and underscores only.";
-}
 
 export default function ClaimUsernameScreen() {
   const { firstName } = useLocalSearchParams<{ firstName?: string }>();
   const { insets, horizontalPadding } = useResponsiveScreenLayout();
   const [username, setUsername] = useState("");
   const [availability, setAvailability] = useState<Availability>("idle");
+  const [availabilityMessage, setAvailabilityMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -37,21 +31,27 @@ export default function ClaimUsernameScreen() {
   }, []);
 
   useEffect(() => {
-    const candidate = username.trim();
-    if (!candidate) {
+    if (!username) {
       setAvailability("idle");
+      setAvailabilityMessage(null);
       return;
     }
-    if (!USERNAME_PATTERN.test(candidate)) {
+    const validation = validateUsername(username);
+    if (!validation.valid) {
       setAvailability("invalid");
+      setAvailabilityMessage(validation.message);
       return;
     }
 
     let active = true;
     setAvailability("checking");
     const timer = setTimeout(() => {
-      isUsernameAvailable(candidate)
-        .then((available) => { if (active) setAvailability(available ? "available" : "unavailable"); })
+      checkUsernameAvailability(username)
+        .then(({ available, reason }) => {
+          if (!active) return;
+          setAvailability(available ? "available" : "unavailable");
+          setAvailabilityMessage(reason ?? null);
+        })
         .catch(() => { if (active) setAvailability("error"); });
     }, 400);
 
@@ -63,17 +63,18 @@ export default function ClaimUsernameScreen() {
 
   const isAvailable = availability === "available";
   const inputColor = isAvailable ? T.green : availability === "unavailable" || availability === "invalid" || availability === "error" ? T.red : T.border;
+  const validation = validateUsername(username);
   const feedback = availability === "available"
     ? "This username is available."
     : availability === "unavailable"
-      ? "That username is already taken. Try another one."
+      ? availabilityMessage ?? "That username is already taken. Try another one."
       : availability === "invalid"
-        ? validationMessage(username.trim())
+        ? availabilityMessage ?? (validation.valid ? "That username isn't available." : validation.message)
         : availability === "checking"
           ? "Checking availability…"
           : availability === "error"
             ? "We couldn't check availability. Please try again."
-            : "Use 3–20 letters, numbers, or underscores.";
+            : "Use 3–20 letters, numbers, . or _.";
 
   async function continueOnboarding() {
     if (!isAvailable) return;
@@ -90,7 +91,7 @@ export default function ClaimUsernameScreen() {
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={6} onBack={goBack} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={1} totalSteps={ONBOARDING_PERSONALIZATION_TOTAL} phaseLabel="Personalizing your experience" onBack={goBack} /></View>
         <View style={styles.copy}>
           <Text style={styles.title}>Claim your <Text style={styles.titleAccent}>username</Text></Text>
           <Text style={styles.body}>You can edit it later.</Text>

@@ -124,6 +124,7 @@ function AppLayout() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="auth/callback" />
+        <Stack.Screen name="onboarding/understanding" options={{ animation: "none", contentStyle: { backgroundColor: "#101510" } }} />
         <Stack.Screen name="reset-password" />
         <Stack.Screen name="quest/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="active-quest" options={{ presentation: "card" }} />

@@ -5,7 +5,6 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Origin": "*",
 };
-const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 const MAX_REQUESTS_PER_MINUTE = 12;
 const attempts = new Map<string, { count: number; resetAt: number }>();
 
@@ -53,18 +52,22 @@ Deno.serve(async (req) => {
 
   try {
     const input = await req.json() as { username?: unknown };
-    const username = typeof input.username === "string" ? input.username.trim() : "";
-    if (!USERNAME_PATTERN.test(username)) return json({ available: false }, 200);
+    const username = typeof input.username === "string" ? input.username : "";
+    if (!username) return json({ available: false }, 200);
 
     const adminClient = createClient(requiredEnv("SUPABASE_URL"), serviceRoleKey(), {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const { data, error } = await adminClient.rpc("is_username_available", {
+    const { data, error } = await adminClient.rpc("check_username_availability", {
       raw_username: username,
     });
     if (error) throw error;
 
-    return json({ available: Boolean(data) });
+    const result = data as { available?: unknown; reason?: unknown } | null;
+    return json({
+      available: result?.available === true,
+      reason: typeof result?.reason === "string" ? result.reason : undefined,
+    });
   } catch (error) {
     console.error("username-availability failed", error);
     return json({ error: "Unable to check username availability." }, 500);

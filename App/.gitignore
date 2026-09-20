@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+.expo-shared/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# iOS
+ios/Pods/
+ios/build/
+*.xcuserstate
+xcuserdata/
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/build/
+android/build/
+
+# Supabase local temp
+supabase/.temp/
+
+# IDE
+.vscode/
+.idea/

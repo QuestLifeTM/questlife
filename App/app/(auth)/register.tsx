@@ -2,15 +2,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
   AuthInput,
-  BackButton,
   PasswordToggle,
-  PrimaryButton,
 } from "@/components/auth/AuthControls";
-import { AuthTitle } from "@/components/auth/AuthText";
 import { PasswordStrength } from "@/components/auth/PasswordStrength";
 import { AuthScaffold } from "@/components/auth/AuthScaffold";
 import { T } from "@/components/theme";
@@ -23,9 +20,17 @@ import {
 import { getAuthErrorMessage } from "@/utils/authErrors";
 import { RegisterForm, registerSchema } from "@/validation/authSchemas";
 import { clearOnboardingUsernameDraft, getOnboardingUsernameDraft } from "@/services/onboarding/username-draft";
+import { haptic, IconButton } from "@/components/ui";
+
+function pendingUsername() {
+  return `quest_${Date.now().toString(36).slice(-10)}`;
+}
 
 export default function RegisterScreen() {
-  const { firstName: onboardingFirstName } = useLocalSearchParams<{ firstName?: string }>();
+  const { firstName: onboardingFirstName, fromOnboarding } = useLocalSearchParams<{
+    firstName?: string;
+    fromOnboarding?: string;
+  }>();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,10 +43,10 @@ export default function RegisterScreen() {
     defaultValues: {
       confirmPassword: "",
       email: "",
-      firstName: onboardingFirstName ?? "",
-      lastName: "",
+      firstName: onboardingFirstName?.trim() || "Adventurer",
+      lastName: "QuestLife",
       password: "",
-      username: "",
+      username: pendingUsername(),
     },
     mode: "onChange",
     resolver: zodResolver(registerSchema),
@@ -124,44 +129,29 @@ export default function RegisterScreen() {
     }
   }
 
+  function handleBack() {
+    if (fromOnboarding === "true") {
+      router.replace({
+        pathname: "/onboarding/personalizing",
+        params: onboardingFirstName ? { firstName: onboardingFirstName } : {},
+      });
+      return;
+    }
+
+    router.replace("/(auth)/auth-options");
+  }
+
   return (
     <AuthScaffold>
-      <BackButton onPress={() => router.replace("/(auth)/auth-options")} />
-      <AuthTitle>{"Let's get\nStarted"}</AuthTitle>
+      <View style={styles.header}>
+        <View style={styles.headerCopy}>
+          <Text style={styles.brand}>QuestLife</Text>
+          <Text style={styles.title}>Let's get started!</Text>
+        </View>
+        <IconButton icon="arrow-back" label="Back" onPress={handleBack} size={40} />
+      </View>
 
       <View style={styles.form}>
-        <Controller
-          control={control}
-          name="firstName"
-          render={({ field: { onBlur, onChange, value } }) => (
-            <AuthInput
-              autoComplete="given-name"
-              error={errors.firstName?.message}
-              icon="person-outline"
-              onBlur={onBlur}
-              onChangeText={onChange}
-              placeholder="Enter your first name"
-              textContentType="givenName"
-              value={value}
-            />
-          )}
-        />
-        <Controller
-          control={control}
-          name="lastName"
-          render={({ field: { onBlur, onChange, value } }) => (
-            <AuthInput
-              autoComplete="family-name"
-              error={errors.lastName?.message}
-              icon="person-outline"
-              onBlur={onBlur}
-              onChangeText={onChange}
-              placeholder="Enter your last name"
-              textContentType="familyName"
-              value={value}
-            />
-          )}
-        />
         <Controller
           control={control}
           name="email"
@@ -173,25 +163,8 @@ export default function RegisterScreen() {
               keyboardType="email-address"
               onBlur={onBlur}
               onChangeText={onChange}
-              placeholder="Email id"
+              placeholder="Email"
               textContentType="emailAddress"
-              value={value}
-            />
-          )}
-        />
-        <Controller
-          control={control}
-          name="username"
-          render={({ field: { onBlur, onChange, value } }) => (
-            <AuthInput
-              autoCapitalize="none"
-              autoComplete="username"
-              error={errors.username?.message}
-              icon="person-outline"
-              onBlur={onBlur}
-              onChangeText={onChange}
-              placeholder="Username"
-              textContentType="username"
               value={value}
             />
           )}
@@ -232,7 +205,7 @@ export default function RegisterScreen() {
               icon="lock-closed-outline"
               onBlur={onBlur}
               onChangeText={onChange}
-              placeholder="Confirm Password"
+              placeholder="Confirm your password"
               rightElement={
                 <PasswordToggle
                   visible={showConfirmPassword}
@@ -247,24 +220,59 @@ export default function RegisterScreen() {
         />
       </View>
 
-      <PrimaryButton
+      <AppButton
         disabled={!isValid || loading}
         loading={loading}
         onPress={handleSubmit(onSubmit)}
-        title={loading ? "Creating account..." : "Sign up"}
+        title={loading ? "Creating account..." : "Create my account"}
       />
 
       <Text style={styles.footer}>
         Already have an account?{" "}
         <Text style={styles.link} onPress={() => router.push("/(auth)/login")}>
-          Login
+          Log in
         </Text>
       </Text>
+      <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.legal}>By continuing, you agree to our <Text style={styles.legalLink}>Terms of Service</Text> and <Text style={styles.legalLink}>Privacy Policy</Text>.</Text>
     </AuthScaffold>
   );
 }
 
+function AppButton({ disabled, loading, onPress, title }: { disabled: boolean; loading: boolean; onPress: () => void; title: string }) {
+  return <Pressable
+    accessibilityRole="button"
+    accessibilityState={{ disabled }}
+    disabled={disabled}
+    onPress={() => { haptic(); onPress(); }}
+    style={({ pressed }) => [styles.submitButton, disabled && styles.submitButtonDisabled, pressed && !disabled && styles.submitButtonPressed]}
+  ><Text style={[styles.submitButtonLabel, disabled && styles.submitButtonLabelDisabled]}>{title}</Text></Pressable>;
+}
+
 const styles = StyleSheet.create({
+  header: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 16,
+    marginBottom: 30,
+  },
+  headerCopy: {
+    flex: 1,
+    gap: 10,
+  },
+  brand: {
+    color: T.blue,
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+  },
+  title: {
+    color: T.dark,
+    fontSize: 36,
+    lineHeight: 41,
+    fontWeight: "900",
+    letterSpacing: 0,
+  },
   form: {
     gap: 13,
     marginBottom: 22,
@@ -272,6 +280,11 @@ const styles = StyleSheet.create({
   passwordGroup: {
     gap: 10,
   },
+  submitButton: { minHeight: 54, borderRadius: 20, borderBottomWidth: 5, borderBottomColor: "#258fd8", backgroundColor: T.blue, alignItems: "center", justifyContent: "center" },
+  submitButtonDisabled: { borderBottomColor: "#d7cec2", backgroundColor: T.border },
+  submitButtonPressed: { borderBottomWidth: 2, transform: [{ translateY: 3 }] },
+  submitButtonLabel: { color: T.white, fontFamily: "RubikBold", fontSize: 16, lineHeight: 20 },
+  submitButtonLabelDisabled: { color: T.muted },
   footer: {
     color: T.muted,
     fontSize: 13,
@@ -282,4 +295,6 @@ const styles = StyleSheet.create({
     color: T.blue,
     fontWeight: "900",
   },
+  legal: { marginTop: 12, color: T.muted, fontFamily: "Rubik", fontSize: 11, lineHeight: 15, fontWeight: "500", textAlign: "center" },
+  legalLink: { color: T.muted, fontFamily: "RubikBold", textDecorationLine: "underline" },
 });

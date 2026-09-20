@@ -8,7 +8,7 @@ export async function getOnboardingUsernameDraft() {
 }
 
 export async function saveOnboardingUsernameDraft(username: string) {
-  await secureAuthStorage.setItem(ONBOARDING_USERNAME_DRAFT_KEY, username.trim());
+  await secureAuthStorage.setItem(ONBOARDING_USERNAME_DRAFT_KEY, username);
 }
 
 export async function clearOnboardingUsernameDraft() {

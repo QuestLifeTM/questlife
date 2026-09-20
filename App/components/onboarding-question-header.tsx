@@ -1,17 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { OnboardingQuestionProgress } from "@/components/onboarding-progress";
+import { ONBOARDING_QUESTION_TOTAL, OnboardingQuestionProgress } from "@/components/onboarding-progress";
 import { T } from "@/components/theme";
 
-/** Consistent question navigation that leaves the progress treatment unchanged. */
-export function OnboardingQuestionHeader({ currentStep, onBack }: { currentStep: number; onBack: () => void }) {
+/** Consistent question navigation with phase-specific, accessible progress. */
+export function OnboardingQuestionHeader({ currentStep, onBack, totalSteps = ONBOARDING_QUESTION_TOTAL, phaseLabel }: { currentStep: number; onBack: () => void; totalSteps?: number; phaseLabel?: string }) {
   return (
     <View style={styles.row}>
       <Pressable accessibilityRole="button" accessibilityLabel="Previous question" hitSlop={8} onPress={onBack} style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}>
         <Ionicons name="chevron-back" size={31} color={T.dark} />
       </Pressable>
-      <View style={styles.progress}><OnboardingQuestionProgress currentStep={currentStep} /></View>
+      <View style={styles.progress}>
+        <OnboardingQuestionProgress currentStep={currentStep} totalSteps={totalSteps} phaseLabel={phaseLabel} />
+      </View>
     </View>
   );
 }

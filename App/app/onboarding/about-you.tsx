@@ -1,17 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Asset } from "expo-asset";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeInRight } from "react-native-reanimated";
+import Animated, { Easing, FadeInRight, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
+import { ONBOARDING_DISCOVERY_TOTAL } from "@/components/onboarding-progress";
 import { T } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 
 type Option = { id: string; label: string; emoji?: string; icon?: ImageSourcePropType; ionicon?: keyof typeof Ionicons.glyphMap; iconColor?: string };
 type Question = {
-  id: "lookingFor" | "socialCircle" | "ageRange" | "discoverySource" | "idealLife";
+  id: "lookingFor" | "socialCircle" | "discoverySource" | "idealLife";
   options: Option[];
   maximumSelections?: number;
   minimumSelections?: number;
@@ -45,17 +47,6 @@ const QUESTIONS: Question[] = [
     ],
   },
   {
-    id: "ageRange",
-    options: [
-      { id: "under-18", label: "Under 18" },
-      { id: "18-24", label: "18 – 24" },
-      { id: "25-34", label: "25 – 34" },
-      { id: "35-44", label: "35 – 44" },
-      { id: "45-54", label: "45 – 54" },
-      { id: "55-plus", label: "55+" },
-    ],
-  },
-  {
     id: "discoverySource",
     options: [
       { id: "instagram", ionicon: "logo-instagram", iconColor: "#E4405F", label: "Instagram" },
@@ -85,11 +76,23 @@ export default function AboutYouOnboardingScreen() {
   const reduceMotion = useReducedMotionPreference();
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<Question["id"], string[]>>({} as Record<Question["id"], string[]>);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const completionOpacity = useSharedValue(1);
+  const completionStyle = useAnimatedStyle(() => ({ opacity: completionOpacity.get() }));
   const question = QUESTIONS[questionIndex];
   const selectedIds = answers[question.id] ?? [];
   const maximumSelections = question.maximumSelections ?? 1;
   const minimumSelections = question.minimumSelections ?? maximumSelections;
   const canContinue = selectedIds.length >= minimumSelections;
+
+  useEffect(() => {
+    // Warm the next scene while the user answers these questions. It never
+    // gates interaction, but prevents a late image decode at the handoff.
+    void Asset.loadAsync([
+      require("../../assets/onboarding/iphone-mockup.png"),
+      require("../../assets/onboarding/stone-arch-background.png"),
+    ]).catch(() => {});
+  }, []);
 
   function chooseOption(optionId: string) {
     haptic();
@@ -103,7 +106,7 @@ export default function AboutYouOnboardingScreen() {
   }
 
   function continueOnboarding() {
-    if (!canContinue) return;
+    if (!canContinue || isCompleting) return;
     haptic();
 
     if (questionIndex < QUESTIONS.length - 1) {
@@ -111,13 +114,18 @@ export default function AboutYouOnboardingScreen() {
       return;
     }
 
-    router.replace({
-      pathname: "/onboarding/understanding",
-      params: {
-        ...(firstName ? { firstName } : {}),
-        ...(answers.idealLife?.[0] ? { idealLifeId: answers.idealLife[0] } : {}),
-      },
-    });
+    setIsCompleting(true);
+    const duration = reduceMotion ? 0 : 260;
+    completionOpacity.set(withTiming(0, { duration, easing: Easing.bezier(0.23, 1, 0.32, 1) }));
+    setTimeout(() => {
+      router.replace({
+        pathname: "/onboarding/understanding",
+        params: {
+          ...(firstName ? { firstName } : {}),
+          ...(answers.idealLife?.[0] ? { idealLifeId: answers.idealLife[0] } : {}),
+        },
+      });
+    }, duration);
   }
 
   function goBack() {
@@ -133,8 +141,6 @@ export default function AboutYouOnboardingScreen() {
     switch (question.id) {
       case "lookingFor":
         return <>What are you really looking for <Text style={styles.titleAccent}>right now</Text>?</>;
-      case "ageRange":
-        return <>How <Text style={styles.titleAccent}>old</Text> are you?</>;
       case "socialCircle":
         return <>Who do you usually go on <Text style={styles.titleAccent}>adventures</Text> with?</>;
       case "discoverySource":
@@ -146,8 +152,9 @@ export default function AboutYouOnboardingScreen() {
 
   return (
     <View style={styles.root}>
+      <Animated.View pointerEvents={isCompleting ? "none" : "auto"} style={[styles.completionLayer, completionStyle]}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={questionIndex + 1} onBack={goBack} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={questionIndex + 1} totalSteps={ONBOARDING_DISCOVERY_TOTAL} phaseLabel="Getting to know you" onBack={goBack} /></View>
         <Animated.View key={question.id} entering={FadeInRight.duration(reduceMotion ? 0 : 280)} style={styles.questionStage}>
           <View style={styles.questionHeader}>
             {questionIndex === 0 && firstName?.trim() ? <Text style={styles.greeting}>Nice to meet you, <Text style={styles.greetingName}>{firstName.trim()}</Text>.</Text> : null}
@@ -167,17 +174,21 @@ export default function AboutYouOnboardingScreen() {
         </Animated.View>
       </View>
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 12, 20), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Continue" accessibilityState={{ disabled: !canContinue }} disabled={!canContinue} onPress={continueOnboarding} style={({ pressed }) => [styles.continueButton, !canContinue && styles.continueButtonDisabled, pressed && canContinue && styles.continueButtonPressed]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Continue" accessibilityState={{ disabled: !canContinue || isCompleting }} disabled={!canContinue || isCompleting} onPress={continueOnboarding} style={({ pressed }) => [styles.continueButton, (!canContinue || isCompleting) && styles.continueButtonDisabled, pressed && canContinue && !isCompleting && styles.continueButtonPressed]}>
           <Ionicons name="arrow-forward" size={19} color={T.white} />
           <Text style={styles.continueText}>Continue</Text>
         </Pressable>
       </View>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: T.bg },
+  // The final question fades onto the same dark foundation as the mockup
+  // route, eliminating the white frame between the two screens.
+  root: { flex: 1, backgroundColor: "#101510" },
+  completionLayer: { flex: 1, backgroundColor: T.bg },
   content: { flex: 1 },
   progressSection: { paddingTop: 2 },
   questionStage: { flex: 1 },

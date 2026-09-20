@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
+import { ONBOARDING_PERSONALIZATION_TOTAL } from "@/components/onboarding-progress";
 import { T } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { WeeklyFrequencySlider } from "@/components/weekly-frequency-slider";
@@ -32,7 +33,7 @@ export default function FrequencyOnboardingScreen() {
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={8} onBack={goBack} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={3} totalSteps={ONBOARDING_PERSONALIZATION_TOTAL} phaseLabel="Personalizing your experience" onBack={goBack} /></View>
         <View style={styles.questionHeader}>
           <Text style={styles.title}>Be honest, how often do you try <Text style={styles.titleAccent}>something</Text> new?</Text>
         </View>
