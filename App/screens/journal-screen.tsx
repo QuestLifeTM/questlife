@@ -132,7 +132,7 @@ function JournalTabs({ activeTab, onChange }: { activeTab: JournalTab; onChange:
               transform: [{ scale: pressed ? 0.98 : 1 }]
             })}
           >
-            <Text style={{ color: isActive ? T.white : T.muted, fontSize: 13, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>
+            <Text style={{ color: isActive ? T.white : T.muted, fontSize: 13, fontWeight: "900", letterSpacing: 0.6 }}>
               {tab === "journal" ? "My Journal" : tab === "album" ? "My Album" : "Your Stats"}
             </Text>
           </Pressable>
