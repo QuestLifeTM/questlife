@@ -201,8 +201,13 @@ export async function uploadQuestPhoto(localUri: string): Promise<string> {
   if (userError) throw userError;
   if (!userData.user) throw new Error("No authenticated user.");
 
-  const compressedUri = await compressFeedImage(localUri);
-  const response = await fetch(compressedUri);
+  // Journal photos are stored privately and arrive here as short-lived signed
+  // HTTPS URLs. They must be copied into the public social bucket, while fresh
+  // device captures still receive the usual on-device compression.
+  const isRemoteImage = /^https?:\/\//i.test(localUri);
+  const sourceUri = isRemoteImage ? localUri : await compressFeedImage(localUri);
+  const response = await fetch(sourceUri);
+  if (isRemoteImage && !response.ok) throw new Error("We couldn't prepare one of your quest photos for posting. Please try again.");
   const blob = await response.arrayBuffer();
   const extension = "jpg";
   const path = `${userData.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;

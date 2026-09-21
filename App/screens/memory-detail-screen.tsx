@@ -10,6 +10,7 @@ import { Card, EmptyState, GradientBand, IconButton, Screen, Sheet, SoftButton, 
 import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { deleteJournalMedia, fetchJournalMemory, resolveJournalMedia, updateJournalMemoryPhotos, updateJournalMemoryReflection, uploadJournalMedia } from "@/services/journal/journalService";
+import { fetchMyQuestPostForCompletion, SharedQuestPost } from "@/services/profile/profileService";
 import { JournalMemory } from "@/types/journal";
 
 const memoryDifficultyIcons: Record<JournalMemory["difficulty"], keyof typeof Ionicons.glyphMap> = {
@@ -83,6 +84,7 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
   const [reflectionError, setReflectionError] = useState<string | null>(null);
   const [managedPhotoIndex, setManagedPhotoIndex] = useState<number | null>(null);
   const [savingPhoto, setSavingPhoto] = useState(false);
+  const [sharedPost, setSharedPost] = useState<SharedQuestPost | null>(null);
   const { showFeedback } = useAppFeedback();
   // This must run before the loading return below. A memory can render once
   // without data and then again with data, so calling it only for the latter
@@ -116,6 +118,13 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
     resolveJournalMedia(memory.photoPaths).then((urls) => { if (mounted) setPhotoUrls(urls); }).catch(() => { if (mounted) setPhotoUrls([]); });
     return () => { mounted = false; };
   }, [memory?.photoPaths]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!completionId) return () => { mounted = false; };
+    fetchMyQuestPostForCompletion(completionId).then((post) => { if (mounted) setSharedPost(post); }).catch(() => { if (mounted) setSharedPost(null); });
+    return () => { mounted = false; };
+  }, [completionId]);
 
   if (!memory) {
     return (
@@ -271,6 +280,15 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Your reflection</Text><Pressable accessibilityRole="button" accessibilityLabel={memory.reflection ? "Edit reflection" : "Add a reflection"} onPress={openReflectionEditor} hitSlop={8} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: pressed ? 0.68 : 1 })}><Ionicons name={memory.reflection ? "create-outline" : "add-circle-outline"} size={16} color={actionColor} /><Text style={{ color: actionColor, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{memory.reflection ? "Edit" : "Add"}</Text></Pressable></View>
             {memory.reflection ? <Pressable accessibilityRole="button" accessibilityLabel="Edit reflection" onPress={openReflectionEditor}><Card style={{ backgroundColor: `${actionColor}0b`, borderColor: `${actionColor}30`, gap: 0 }}><Text style={{ color: T.dark, fontFamily: "Rubik", fontSize: 16, lineHeight: 24 }}>“{memory.reflection}”</Text></Card></Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Add a reflection" onPress={openReflectionEditor}><View style={{ minHeight: 118, borderRadius: 20, borderWidth: 2, borderColor: `${actionColor}45`, backgroundColor: `${actionColor}0b`, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, gap: 8 }}><Ionicons name="create-outline" size={24} color={actionColor} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 14 }}>Add a thought to this memory</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 18, textAlign: "center" }}>A sentence is enough to help future you remember this moment.</Text></View></Pressable>}
           </View>
+
+          {sharedPost ? <View style={{ gap: 10 }}>
+            <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Shared post</Text>
+            <Card style={{ gap: 12, backgroundColor: `${actionColor}08`, borderColor: `${actionColor}36` }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><View style={{ width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${actionColor}16` }}><Ionicons name="paper-plane-outline" size={21} color={actionColor} /></View><View style={{ flex: 1, gap: 2 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15 }}>Shared with {sharedPost.visibility === "public" ? "everyone" : sharedPost.visibility === "friends" ? "friends" : "only you"}</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12 }}>{new Date(sharedPost.createdAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })} · Comments {sharedPost.commentsEnabled ? "on" : "off"}</Text></View></View>
+              {sharedPost.caption?.trim() ? <Text style={{ color: T.dark, fontFamily: "Rubik", fontSize: 14, lineHeight: 21 }}>“{sharedPost.caption.trim()}”</Text> : null}
+              {sharedPost.visibility !== "private" ? <MemoryAction label="View in Social" icon="people-outline" color={actionColor} fullWidth onPress={() => router.push({ pathname: "/(tabs)/social", params: { postId: sharedPost.id } })} /> : null}
+            </Card>
+          </View> : null}
         </Reanimated.ScrollView>
         <ScrollTopBlur scrollY={scrollY} />
 

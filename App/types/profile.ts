@@ -31,6 +31,7 @@ export type QuestPost = {
   caption: string | null;
   photoUrls: string[];
   durationSeconds?: number | null;
+  commentsEnabled: boolean;
   stats: QuestPostStats;
   visibility: "public" | "friends" | "private";
   likeCount: number;
@@ -52,6 +53,7 @@ export type QuestFeedPost = {
   userId: string;
   username: string | null;
   displayName: string;
+  firstName?: string | null;
   emoji: string;
   avatarColor: string;
   avatarUrl?: string | null;
@@ -69,6 +71,7 @@ export type QuestFeedPost = {
   likeCount: number;
   likedByMe: boolean;
   commentCount: number;
+  commentsEnabled: boolean;
   createdAt: string;
 };
 
@@ -122,6 +125,8 @@ export type ProfileOverview = {
 
 export type ProfileEditInput = {
   displayName?: string;
+  firstName?: string;
+  lastName?: string | null;
   username?: string;
   bio?: string | null;
   avatarUrl?: string | null;

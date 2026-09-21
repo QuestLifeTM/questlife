@@ -21,7 +21,7 @@ import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { formatElapsedCompact } from "@/hooks/useElapsedTime";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
-import { DEFAULT_PROFILE_PRIVACY, DEFAULT_PROFILE_STAT_VISIBILITY, fetchProfileOverview, ProfileQuestInsights, updateProfile, uploadProfileAvatar, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
+import { DEFAULT_PROFILE_PRIVACY, DEFAULT_PROFILE_STAT_VISIBILITY, fetchProfileOverview, fetchRequiredProfileName, ProfileQuestInsights, updateProfile, uploadProfileAvatar, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
 import { fetchFollowers, removeFollower } from "@/services/social/socialService";
 import { levelForXp, ProfileAudience, ProfileOverview, ProfilePrivacy, ProfileStatId, ProfileStatVisibility, QuestFeedPost } from "@/types/profile";
 import { FollowerProfile } from "@/types/social";
@@ -35,6 +35,11 @@ function accountValue(metadata: unknown, key: string) {
 function fullProfileName(displayName: string, metadata: unknown) {
   const fullName = [accountValue(metadata, "first_name"), accountValue(metadata, "last_name")].filter(Boolean).join(" ");
   return displayName.trim().split(/\s+/).filter(Boolean).length >= 2 ? displayName : fullName || displayName;
+}
+
+function nameParts(displayName: string) {
+  const [firstName = "", ...remaining] = displayName.trim().split(/\s+/).filter(Boolean);
+  return { firstName, lastName: remaining.join(" ") };
 }
 
 function saveErrorMessage(error: unknown) {
@@ -415,7 +420,10 @@ export function ProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [draftName, setDraftName] = useState("");
+  const [draftFirstName, setDraftFirstName] = useState("");
+  const [draftLastName, setDraftLastName] = useState("");
+  const [savedFirstName, setSavedFirstName] = useState("");
+  const [savedLastName, setSavedLastName] = useState("");
   const [draftBio, setDraftBio] = useState("");
   const [draftAvatarUri, setDraftAvatarUri] = useState<string | null>(null);
   const [draftStatVisibility, setDraftStatVisibility] = useState<ProfileStatVisibility>(DEFAULT_PROFILE_STAT_VISIBILITY);
@@ -428,10 +436,16 @@ export function ProfileScreen() {
   async function load() {
     setLoading(true);
     try {
-      const next = await fetchProfileOverview();
+      const [next, storedName] = await Promise.all([fetchProfileOverview(), user ? fetchRequiredProfileName(user.id).catch(() => null) : Promise.resolve(null)]);
       setOverview(next.profile ? next : null);
       if (next.profile) {
-        setDraftName(fullProfileName(next.profile.displayName, user?.user_metadata));
+        const fallbackName = nameParts(fullProfileName(next.profile.displayName, user?.user_metadata));
+        const firstName = storedName?.first_name?.trim() || fallbackName.firstName;
+        const lastName = storedName ? storedName.last_name?.trim() || "" : fallbackName.lastName;
+        setSavedFirstName(firstName);
+        setSavedLastName(lastName);
+        setDraftFirstName(firstName);
+        setDraftLastName(lastName);
         setDraftBio(next.profile.bio ?? "");
         setDraftAvatarUri(next.profile.avatarUrl);
         setDraftStatVisibility({ ...DEFAULT_PROFILE_STAT_VISIBILITY, ...next.profile.statVisibility });
@@ -447,7 +461,8 @@ export function ProfileScreen() {
   function startEditing() {
     if (!overview?.profile) return;
     setError(null);
-    setDraftName(fullProfileName(overview.profile.displayName, user?.user_metadata));
+    setDraftFirstName(savedFirstName);
+    setDraftLastName(savedLastName);
     setDraftBio(overview.profile.bio ?? "");
     setDraftAvatarUri(overview.profile.avatarUrl);
     setDraftStatVisibility({ ...DEFAULT_PROFILE_STAT_VISIBILITY, ...overview.profile.statVisibility });
@@ -458,7 +473,8 @@ export function ProfileScreen() {
 
   function discard() {
     if (!overview?.profile) return;
-    setDraftName(fullProfileName(overview.profile.displayName, user?.user_metadata));
+    setDraftFirstName(savedFirstName);
+    setDraftLastName(savedLastName);
     setDraftBio(overview.profile.bio ?? "");
     setDraftAvatarUri(overview.profile.avatarUrl);
     setDraftStatVisibility({ ...DEFAULT_PROFILE_STAT_VISIBILITY, ...overview.profile.statVisibility });
@@ -476,11 +492,13 @@ export function ProfileScreen() {
 
   async function save() {
     if (!overview?.profile || saving) return;
-    const displayName = draftName.trim();
-    if (!displayName) {
-      setError("Add your name before saving.");
+    const firstName = draftFirstName.trim();
+    const lastName = draftLastName.trim();
+    if (!firstName) {
+      setError("Add your first name before saving.");
       return;
     }
+    const displayName = [firstName, lastName].filter(Boolean).join(" ");
     if (Object.values(draftStatVisibility).filter(Boolean).length < 3) {
       setError("Keep at least three carousel stats visible.");
       return;
@@ -492,7 +510,7 @@ export function ProfileScreen() {
       const avatarUrl = avatarChanged ? await uploadProfileAvatar(draftAvatarUri!) : undefined;
       const metadataUsername = accountValue(user?.user_metadata, "username");
       const validMetadataUsername = metadataUsername && /^[A-Za-z0-9_]{3,20}$/.test(metadataUsername) ? metadataUsername : undefined;
-      await updateProfile({ displayName, bio: draftBio, avatarUrl, username: !overview.profile.username ? validMetadataUsername : undefined, statVisibility: draftStatVisibility, privacy: draftPrivacy });
+      await updateProfile({ displayName, firstName, lastName, bio: draftBio, avatarUrl, username: !overview.profile.username ? validMetadataUsername : undefined, statVisibility: draftStatVisibility, privacy: draftPrivacy });
       refreshProfileName();
       await refreshSocial();
       setEditing(false);
@@ -547,7 +565,7 @@ export function ProfileScreen() {
               {editing ? <ImageControl label="Change profile picture" onPress={() => void chooseImage()} style={{ width: 34, height: 34, borderRadius: 11, position: "absolute", right: -10, bottom: -7, zIndex: 3, elevation: 3 }} /> : null}
             </View>
 
-            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 40, marginTop: 9, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12 }}><TextInput value={draftName} onChangeText={setDraftName} accessibilityLabel="Name" autoCapitalize="words" placeholder="Your name" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center", paddingVertical: 6 }} /></View> : <Text style={{ marginTop: 10, color: T.dark, fontFamily: "RubikBlack", fontSize: 22, lineHeight: 28, textAlign: "center" }}>{displayName}</Text>}
+            {editing ? <View style={{ width: "100%", maxWidth: 276, marginTop: 9, gap: 8 }}><View style={{ minHeight: 40, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12 }}><TextInput value={draftFirstName} onChangeText={setDraftFirstName} accessibilityLabel="First name" autoCapitalize="words" placeholder="First name" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center", paddingVertical: 6 }} /></View><View style={{ minHeight: 40, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12 }}><TextInput value={draftLastName} onChangeText={setDraftLastName} accessibilityLabel="Last name" autoCapitalize="words" placeholder="Last name (optional)" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center", paddingVertical: 6 }} /></View></View> : <Text style={{ marginTop: 10, color: T.dark, fontFamily: "RubikBlack", fontSize: 22, lineHeight: 28, textAlign: "center" }}>{displayName}</Text>}
             <Text style={{ marginTop: editing ? 9 : 3, color: T.muted, fontFamily: "RubikBold", fontSize: 13, lineHeight: 18, textAlign: "center" }}>@{username}</Text>
             {!editing ? <ProfileTitleBadge title={profile.title} /> : null}
 

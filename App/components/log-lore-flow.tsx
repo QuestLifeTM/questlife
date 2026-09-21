@@ -188,7 +188,7 @@ function QuestMoments({ photoUris, notes, questColor }: { photoUris: string[]; n
   </View>;
 }
 
-function CompletionActionButton({ label, icon, inverse = false, onPress, disabled }: { label: string; icon?: keyof typeof Ionicons.glyphMap; inverse?: boolean; onPress: () => void; disabled: boolean }) {
+function CompletionActionButton({ label, icon, inverse = false, color, onPress, disabled }: { label: string; icon?: keyof typeof Ionicons.glyphMap; inverse?: boolean; color: string; onPress: () => void; disabled: boolean }) {
   return <Pressable
     accessibilityRole="button"
     accessibilityLabel={label}
@@ -199,21 +199,21 @@ function CompletionActionButton({ label, icon, inverse = false, onPress, disable
       minHeight: 58,
       paddingHorizontal: 18,
       borderRadius: 20,
-      backgroundColor: inverse ? T.white : T.blue,
+      backgroundColor: inverse ? T.white : color,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
       gap: icon ? 8 : 0,
       borderWidth: inverse ? 2 : 0,
-      borderColor: inverse ? T.blue : "transparent",
+      borderColor: inverse ? color : "transparent",
       borderBottomWidth: pressed && !disabled ? (inverse ? 2 : 3) : (inverse ? 4 : 6),
-      borderBottomColor: inverse ? "#258fd888" : "#258fd8",
+      borderBottomColor: inverse ? `${color}88` : `${color}a8`,
       opacity: disabled ? 0.5 : 1,
       transform: [{ scale: pressed && !disabled ? 0.985 : 1 }]
     })}
   >
-    {icon ? <Ionicons name={icon} size={18} color={inverse ? T.blue : T.white} /> : null}
-    <Text style={{ color: inverse ? T.blue : T.white, fontFamily: "RubikBold", fontSize: 16, lineHeight: 22 }}>{label}</Text>
+    {icon ? <Ionicons name={icon} size={18} color={inverse ? color : T.white} /> : null}
+    <Text style={{ color: inverse ? color : T.white, fontFamily: "RubikBold", fontSize: 16, lineHeight: 22 }}>{label}</Text>
   </Pressable>;
 }
 
@@ -229,7 +229,6 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
   const [error, setError] = useState<string | null>(null);
   const [celebrationStarted, setCelebrationStarted] = useState(false);
   const rewardPlayerRef = useRef<AudioPlayer | null>(null);
-  const ratingPlayerRef = useRef<AudioPlayer | null>(null);
   const rewardFadeStartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rewardFadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initializedForOpen = useRef(false);
@@ -260,7 +259,6 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
     if (rewardFadeStartRef.current) clearTimeout(rewardFadeStartRef.current);
     if (rewardFadeIntervalRef.current) clearInterval(rewardFadeIntervalRef.current);
     rewardPlayerRef.current?.release();
-    ratingPlayerRef.current?.release();
   }, []);
   const beginCelebration = useCallback(() => {
     setCelebrationStarted(true);
@@ -269,7 +267,7 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
       // the screen; current Expo clients play the bundled reward fanfare.
       const { createAudioPlayer } = require("expo-audio") as typeof import("expo-audio");
       rewardPlayerRef.current?.release();
-      const player = createAudioPlayer(require("@/assets/sounds/Quest-completition-sfx.mp3"));
+      const player = createAudioPlayer(require("@/assets/sounds/quest-completion-sfx.mp3"));
       rewardPlayerRef.current = player;
       player.volume = 1;
       player.play();
@@ -302,16 +300,6 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
   }, []);
   const playRatingFeedback = useCallback(() => {
     haptic();
-    try {
-      const { createAudioPlayer } = require("expo-audio") as typeof import("expo-audio");
-      ratingPlayerRef.current?.release();
-      const player = createAudioPlayer(require("@/assets/sounds/rating-sfx.mp3"));
-      ratingPlayerRef.current = player;
-      player.volume = 0.72;
-      player.play();
-    } catch {
-      // Keep star selection functional even on a runtime without the optional clip.
-    }
   }, []);
   if (!quest) return null;
   const persistCompletion = async () => {
@@ -385,11 +373,11 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
       <Animated.View entering={FadeInUp.delay(165).duration(260)} style={{ position: "absolute", bottom: 0, left: 0, right: 0, overflow: "hidden", paddingHorizontal: 24, paddingTop: 20, paddingBottom: Math.max(insets.bottom, 16), gap: 10 }}>
         <BlurView pointerEvents="none" tint="light" intensity={16} style={{ position: "absolute", inset: 0 }} />
         <View pointerEvents="none" style={{ position: "absolute", inset: 0, backgroundColor: "rgba(255,252,248,0.36)" }} />
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 }}><Ionicons name={busy ? "sync" : error ? "alert-circle" : completionRef.current ? "checkmark-circle" : "star-outline"} size={18} color={busy ? T.blue : error ? T.red : completionRef.current ? T.green : T.dark} /><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 13, lineHeight: 18 }}>{busy ? "Saving to your Journal…" : error ? "Your Journal entry needs to be saved" : completionRef.current ? "Already saved to your Journal" : "Rate your quest to save it"}</Text></View>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 }}><Ionicons name={busy ? "sync" : error ? "alert-circle" : completionRef.current ? "checkmark-circle" : "star-outline"} size={18} color={busy ? quest.color : error ? T.red : completionRef.current ? quest.color : T.dark} /><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 13, lineHeight: 18 }}>{busy ? "Saving to your Journal…" : error ? "Your Journal entry needs to be saved" : completionRef.current ? "Already saved to your Journal" : "Rate your quest to save it"}</Text></View>
           {error ? <Text accessibilityRole="alert" style={{ color: T.red, fontSize: 12, lineHeight: 17, fontWeight: "800", textAlign: "center" }}>{error}</Text> : null}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <View style={{ flex: 1 }}><CompletionActionButton label={busy ? "Saving..." : error ? "Retry save" : "Done"} icon="checkmark" inverse disabled={busy} onPress={() => void finish("journal")} /></View>
-            {!guestMode && !error ? <View style={{ flex: 2 }}><CompletionActionButton label={busy ? "Saving..." : "Share your adventure"} disabled={busy} onPress={() => void finish("share")} /></View> : null}
+            <View style={{ flex: 1 }}><CompletionActionButton label={busy ? "Saving..." : error ? "Retry save" : "Done"} icon="checkmark" inverse color={quest.color} disabled={busy} onPress={() => void finish("journal")} /></View>
+            {!guestMode && !error ? <View style={{ flex: 2 }}><CompletionActionButton label={busy ? "Saving..." : "Share your adventure"} color={quest.color} disabled={busy} onPress={() => void finish("share")} /></View> : null}
           </View>
       </Animated.View>
       <CompletionConfetti active={celebrationStarted} />

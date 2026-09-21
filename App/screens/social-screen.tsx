@@ -44,7 +44,7 @@ function FriendCard({ friend, onOpenProfile }: { friend: SocialFriend; onOpenPro
 
 export function SocialScreen() {
   const router = useRouter();
-  const { tab: requestedTab } = useLocalSearchParams<{ tab?: string }>();
+  const { tab: requestedTab, postId: requestedPostId, scope: requestedScope } = useLocalSearchParams<{ tab?: string; postId?: string; scope?: string }>();
   const guardPress = usePressGuard();
   const { contentWidth, horizontalPadding, safeAreaOffset, insets } = useResponsiveScreenLayout();
   const { profileNameVersion } = useAuth();
@@ -57,7 +57,11 @@ export function SocialScreen() {
   const [activeFeedIndex, setActiveFeedIndex] = useState(0);
   const feedRequestIdRef = useRef(0);
 
-  useFocusEffect(useCallback(() => setTab(requestedTab === "friends" ? "friends" : "feed"), [requestedTab]));
+  useFocusEffect(useCallback(() => {
+    setTab(requestedTab === "friends" ? "friends" : "feed");
+    if (requestedScope === "public" || requestedScope === "friends") setFeedScope(requestedScope);
+    else if (requestedPostId) setFeedScope("friends");
+  }, [requestedPostId, requestedScope, requestedTab]));
 
   const loadFeed = useCallback(async () => {
     const requestId = ++feedRequestIdRef.current;

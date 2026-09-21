@@ -289,6 +289,7 @@ export function IconButton({
   icon,
   onPress,
   color = T.muted,
+  backAccent,
   bg = T.white,
   badge,
   label,
@@ -297,6 +298,8 @@ export function IconButton({
   icon: keyof typeof Ionicons.glyphMap;
   onPress?: () => void;
   color?: string;
+  /** Overrides the standard blue accent for a back button without changing its established shape. */
+  backAccent?: string;
   bg?: string;
   badge?: string | number;
   label?: string;
@@ -305,7 +308,7 @@ export function IconButton({
 }) {
   const isBackButton = icon === "chevron-back" || icon === "arrow-back";
   const isFilled = bg !== T.white;
-  const accent = isFilled ? bg : (isBackButton ? T.blue : color);
+  const accent = isFilled ? bg : (isBackButton ? backAccent ?? T.blue : color);
   const innerSize = Math.round(size * 0.625);
   const iconColor = isFilled ? T.white : accent;
   const guardPress = usePressGuard();

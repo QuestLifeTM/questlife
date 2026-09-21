@@ -241,7 +241,7 @@ export async function fetchProfileOverview(userId?: string): Promise<ProfileOver
     },
     posts: (payload.posts ?? []).map((post) => {
       const category = normalizeQuestCategory(post.questCategory);
-      return { ...post, questCategory: category, questColor: questCategoryColors[category].text };
+      return { ...post, commentsEnabled: post.commentsEnabled ?? true, questCategory: category, questColor: questCategoryColors[category].text };
     }),
     recentCompletions: payload.recentCompletions ?? [],
   };
@@ -273,6 +273,8 @@ export async function updateProfile(input: ProfileEditInput) {
 
   const payload: Record<string, unknown> = {};
   if (input.displayName !== undefined) payload.display_name = input.displayName?.trim() || null;
+  if (input.firstName !== undefined) payload.first_name = input.firstName.trim();
+  if (input.lastName !== undefined) payload.last_name = input.lastName?.trim() || null;
   if (input.username !== undefined) {
     const usernameValidation = validateUsername(input.username);
     if (!usernameValidation.valid) throw new Error(usernameValidation.message);
@@ -349,7 +351,8 @@ export async function saveRequiredProfileName(firstName: string, lastName: strin
       id: userData.user.id,
       email: userData.user.email.trim().toLowerCase(),
       first_name: firstName.trim(),
-      last_name: lastName.trim(),
+      last_name: lastName.trim() || null,
+      display_name: [firstName.trim(), lastName.trim()].filter(Boolean).join(" "),
     },
     { onConflict: "id" },
   );
@@ -365,6 +368,7 @@ export async function createQuestPost(input: {
   durationSeconds?: number | null;
   stats?: QuestPostStats;
   visibility?: "public" | "friends" | "private";
+  commentsEnabled?: boolean;
 }) {
   assertSupabaseConfigured();
   const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -381,14 +385,34 @@ export async function createQuestPost(input: {
     duration_seconds: input.durationSeconds ?? null,
     post_stats: input.stats ?? {},
     visibility: input.visibility ?? "friends",
+    comments_enabled: input.commentsEnabled ?? true,
   };
+
+  const { data: createdPostId, error: rpcError } = await supabase.rpc("create_quest_post", {
+    p_completion_id: currentPayload.completion_id,
+    p_quest_id: currentPayload.quest_id,
+    p_post_title: currentPayload.post_title,
+    p_caption: currentPayload.caption,
+    p_photo_urls: currentPayload.photo_urls,
+    p_duration_seconds: currentPayload.duration_seconds,
+    p_post_stats: currentPayload.post_stats,
+    p_visibility: currentPayload.visibility,
+    p_comments_enabled: currentPayload.comments_enabled,
+  });
+  if (!rpcError) return { id: createdPostId as string };
+
+  // Keep currently released clients working while the database migration is
+  // rolling out; the direct insert preserves the prior behavior as a fallback.
+  const rpcUnavailable = rpcError.code === "PGRST202" || /create_quest_post/i.test(rpcError.message);
+  if (!rpcUnavailable) throw rpcError;
+
   const { data, error } = await supabase.from("quest_posts").insert(currentPayload).select("id").single();
   if (!error) return data;
 
   // The composition screen can be updated before its accompanying database
   // migration reaches a project. Fall back to the original post shape so a
   // completed quest can still be published while surfacing other real errors.
-  const missingPostColumns = error.code === "42703" || /post_(title|stats)|duration_seconds/i.test(error.message);
+  const missingPostColumns = error.code === "42703" || /post_(title|stats)|duration_seconds|comments_enabled/i.test(error.message);
   if (!missingPostColumns) throw error;
 
   const { data: legacyData, error: legacyError } = await supabase.from("quest_posts").insert({
@@ -403,11 +427,31 @@ export async function createQuestPost(input: {
   return legacyData;
 }
 
+export type SharedQuestPost = {
+  id: string;
+  completionId: string;
+  caption: string | null;
+  visibility: "public" | "friends" | "private";
+  commentsEnabled: boolean;
+  createdAt: string;
+};
+
+/** Reads the authenticated user's social post attached to one Journal memory. */
+export async function fetchMyQuestPostForCompletion(completionId: string): Promise<SharedQuestPost | null> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc("get_my_quest_post_for_completion", { p_completion_id: completionId });
+  if (error) {
+    if (error.code === "PGRST202" || /get_my_quest_post_for_completion/i.test(error.message)) return null;
+    throw error;
+  }
+  return data as SharedQuestPost | null;
+}
+
 export async function fetchQuestSocialFeed(scope: "public" | "friends") {
   assertSupabaseConfigured();
   const { data, error } = await supabase.rpc("get_quest_social_feed", { p_scope: scope, p_limit: 30 });
   if (error) throw error;
-  return (data ?? []) as QuestFeedPost[];
+  return ((data ?? []) as QuestFeedPost[]).map((post) => ({ ...post, commentsEnabled: post.commentsEnabled ?? true }));
 }
 
 export async function deleteQuestPost(postId: string) {

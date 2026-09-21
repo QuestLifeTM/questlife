@@ -33,7 +33,7 @@ export function RequiredProfileName() {
         if (!active) return;
         setFirstName(profile?.first_name ?? "");
         setLastName(profile?.last_name ?? "");
-        setRequired(!profile?.first_name?.trim() || !profile?.last_name?.trim());
+        setRequired(!profile?.first_name?.trim());
       } catch {
         // Do not trap a person behind a temporary connection failure. The next
         // app open will check again and prompt if their name is still missing.
@@ -53,8 +53,8 @@ export function RequiredProfileName() {
   async function save() {
     const normalizedFirstName = firstName.trim();
     const normalizedLastName = lastName.trim();
-    if (!normalizedFirstName || !normalizedLastName) {
-      Alert.alert("Name required", "Enter both your first and last name to continue.");
+    if (!normalizedFirstName) {
+      Alert.alert("First name required", "Enter your first name to continue.");
       return;
     }
 
@@ -88,7 +88,7 @@ export function RequiredProfileName() {
         <View accessibilityViewIsModal style={styles.card}>
           <Text style={styles.eyebrow}>ONE QUICK STEP</Text>
           <Text style={styles.title}>Tell us your name</Text>
-          <Text style={styles.body}>We need your first and last name before you continue. Your unique username stays your QuestLife handle.</Text>
+          <Text style={styles.body}>Your first name is required. Your unique username stays your QuestLife handle.</Text>
           <TextInput
             autoComplete="given-name"
             autoFocus
@@ -102,7 +102,7 @@ export function RequiredProfileName() {
           <TextInput
             autoComplete="family-name"
             onChangeText={setLastName}
-            placeholder="Enter your last name"
+            placeholder="Enter your last name (optional)"
             placeholderTextColor={T.muted}
             style={styles.input}
             textContentType="familyName"
