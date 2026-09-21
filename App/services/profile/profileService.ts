@@ -224,6 +224,15 @@ export async function fetchProfileOverview(userId?: string): Promise<ProfileOver
     } : null,
     stats: {
       ...payload.stats,
+      // The profile overview RPC has evolved independently of the mobile
+      // client. A partial (older) response must still render a usable Stats
+      // tab instead of passing undefined values into numeric formatters.
+      totalQuests: payload.stats?.totalQuests ?? 0,
+      currentStreak: payload.stats?.currentStreak ?? 0,
+      longestStreak: payload.stats?.longestStreak ?? 0,
+      friendsCount: payload.stats?.friendsCount ?? 0,
+      daysOnApp: payload.stats?.daysOnApp ?? 0,
+      totalQuestDurationSeconds: payload.stats?.totalQuestDurationSeconds ?? 0,
       followers: payload.stats?.followers ?? 0,
       following: payload.stats?.following ?? 0,
       // Older deployed schemas do not yet include the Quest Trail payload.

@@ -57,9 +57,6 @@ function SessionDataProviders({ children }: PropsWithChildren) {
   // needs it. Mount the provider for API compatibility, but defer its first
   // fetch until a social-dependent route is actually opened.
   const socialEnabled = currentPath === "(tabs)/social" || /^(friends|add-friends|add-friend|quest|streak|streak-invite)(\/|$)/.test(currentPath);
-  // The header streak pill is visible on both Lobby and Journal. Loading it
-  // only after opening the streak screen made the pill misleadingly show 0.
-  const streaksEnabled = currentPath === "(tabs)/index" || currentPath === "(tabs)/journal" || /^(streak|streak-invite|settings)(\/|$)/.test(currentPath);
   const notificationsEnabled = currentPath === "(tabs)/index" || currentPath === "(tabs)/journal" || /^(notifications)(\/|$)/.test(currentPath);
 
   // User-scoped providers hold loaded data in memory. Remount them when the
@@ -70,7 +67,7 @@ function SessionDataProviders({ children }: PropsWithChildren) {
       <QuestEngineProvider>
         <GuestQuestProvider>
           <ActiveQuestProvider>
-            <StreaksProvider enabled={streaksEnabled}>
+            <StreaksProvider>
               <SocialProvider enabled={socialEnabled}>
                 <NotificationsProvider enabled={notificationsEnabled}>
                   <QuestSaveProvider>{children}</QuestSaveProvider>

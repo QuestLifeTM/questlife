@@ -132,7 +132,7 @@ function JournalTabs({ activeTab, onChange }: { activeTab: JournalTab; onChange:
               transform: [{ scale: pressed ? 0.98 : 1 }]
             })}
           >
-            <Text style={{ color: isActive ? T.white : T.muted, fontSize: 13, fontWeight: "900", letterSpacing: 0.6 }}>
+            <Text style={{ width: "100%", color: isActive ? T.white : T.muted, fontSize: 13, fontWeight: "900", letterSpacing: 0.6, textAlign: "center", textAlignVertical: "center", includeFontPadding: false }}>
               {tab === "journal" ? "My Journal" : tab === "album" ? "My Album" : "Your Stats"}
             </Text>
           </Pressable>
@@ -527,7 +527,7 @@ function isDirectMediaUri(source: string) {
   return /^(?:https?:|file:|content:|ph:|asset:)/i.test(source);
 }
 
-function useResolvedMedia(items: JournalMediaItem[]) {
+function useResolvedMedia(items: JournalMediaItem[], refreshToken = 0) {
   const [resolvedItems, setResolvedItems] = useState<(JournalMediaItem & { uri: string })[]>([]);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -558,13 +558,16 @@ function useResolvedMedia(items: JournalMediaItem[]) {
       }
     });
     return () => { mounted = false; };
-  }, [itemKey, reloadKey]);
+  // Private Storage URLs are deliberately short-lived. Refresh them whenever
+  // the Journal refreshes, including after a logout/login cycle where the
+  // visible Journal screen can stay mounted with the same photo paths.
+  }, [itemKey, reloadKey, refreshToken]);
 
   return { resolvedItems, loading, failed, retry: () => setReloadKey((key) => key + 1) };
 }
 
-function TodayMediaSection({ items, onOpenAlbum }: { items: JournalMediaItem[]; onOpenAlbum: () => void }) {
-  const { resolvedItems, loading, failed, retry } = useResolvedMedia(items);
+function TodayMediaSection({ items, onOpenAlbum, mediaRefreshToken }: { items: JournalMediaItem[]; onOpenAlbum: () => void; mediaRefreshToken: number }) {
+  const { resolvedItems, loading, failed, retry } = useResolvedMedia(items, mediaRefreshToken);
 
   if (!items.length) return null;
   const activeItem = resolvedItems[0] ?? null;
@@ -589,8 +592,8 @@ function TodayMediaSection({ items, onOpenAlbum }: { items: JournalMediaItem[]; 
 
 type AlbumQuestGroup = { questTitle: string; dateKey: string; items: JournalMediaItem[] };
 
-function AlbumQuestGroupCard({ quest, onManageItem }: { quest: AlbumQuestGroup; onManageItem: (item: JournalMediaItem) => void }) {
-  const { resolvedItems, loading, failed, retry } = useResolvedMedia(quest.items);
+function AlbumQuestGroupCard({ quest, onManageItem, mediaRefreshToken }: { quest: AlbumQuestGroup; onManageItem: (item: JournalMediaItem) => void; mediaRefreshToken: number }) {
+  const { resolvedItems, loading, failed, retry } = useResolvedMedia(quest.items, mediaRefreshToken);
   const todayKey = toLocalDateKey(new Date());
   const yesterdayKey = toLocalDateKey(addDays(new Date(), -1));
   const displayDate = quest.dateKey === todayKey ? "Today" : quest.dateKey === yesterdayKey ? "Yesterday" : parseKey(quest.dateKey).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -600,7 +603,7 @@ function AlbumQuestGroupCard({ quest, onManageItem }: { quest: AlbumQuestGroup; 
   </View>;
 }
 
-function JournalAlbum({ items, onExplore, onManageItem, contentWidth, horizontalPadding, safeAreaOffset, bottomInset }: { items: JournalMediaItem[]; onExplore: () => void; onManageItem: (item: JournalMediaItem) => void; contentWidth: number; horizontalPadding: number; safeAreaOffset: number; bottomInset: number }) {
+function JournalAlbum({ items, onExplore, onManageItem, contentWidth, horizontalPadding, safeAreaOffset, bottomInset, mediaRefreshToken }: { items: JournalMediaItem[]; onExplore: () => void; onManageItem: (item: JournalMediaItem) => void; contentWidth: number; horizontalPadding: number; safeAreaOffset: number; bottomInset: number; mediaRefreshToken: number }) {
   const grouped = items.reduce<Record<string, AlbumQuestGroup>>((groups, item) => {
     const key = `${item.dateKey}\u0001${item.questTitle}`;
     (groups[key] ??= { questTitle: item.questTitle, dateKey: item.dateKey, items: [] }).items.push(item);
@@ -608,7 +611,7 @@ function JournalAlbum({ items, onExplore, onManageItem, contentWidth, horizontal
   }, {});
   const quests = Object.values(grouped).sort((a, b) => b.dateKey.localeCompare(a.dateKey) || a.questTitle.localeCompare(b.questTitle));
 
-  return <FlatList data={quests} keyExtractor={(quest) => `${quest.dateKey}-${quest.questTitle}`} style={{ flex: 1 }} removeClippedSubviews windowSize={5} initialNumToRender={4} maxToRenderPerBatch={4} updateCellsBatchingPeriod={80} contentContainerStyle={{ paddingTop: 12, paddingBottom: bottomInset + 112, gap: 20 }} ListEmptyComponent={<View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><Card style={{ borderRadius: radius.xl }}><EmptyState emoji="📷" title="Your album is waiting" body="Finish a quest with a photo and it will become part of your journal album." action={<SoftButton label="Explore quests" icon="compass" color={T.blue} onPress={onExplore} />} /></Card></View>} renderItem={({ item }) => <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><AlbumQuestGroupCard quest={item} onManageItem={onManageItem} /></View>} />;
+  return <FlatList data={quests} keyExtractor={(quest) => `${quest.dateKey}-${quest.questTitle}`} style={{ flex: 1 }} removeClippedSubviews windowSize={5} initialNumToRender={4} maxToRenderPerBatch={4} updateCellsBatchingPeriod={80} contentContainerStyle={{ paddingTop: 12, paddingBottom: bottomInset + 112, gap: 20 }} ListEmptyComponent={<View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><Card style={{ borderRadius: radius.xl }}><EmptyState emoji="📷" title="Your album is waiting" body="Finish a quest with a photo and it will become part of your journal album." action={<SoftButton label="Explore quests" icon="compass" color={T.blue} onPress={onExplore} />} /></Card></View>} renderItem={({ item }) => <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><AlbumQuestGroupCard quest={item} onManageItem={onManageItem} mediaRefreshToken={mediaRefreshToken} /></View>} />;
 }
 
 function DayStatStrip({ questCount, xp, minutes }: { questCount: number; xp: number; minutes: number }) {
@@ -749,7 +752,8 @@ function DaySection({
   onOpenAlbum,
   onExplore,
   focusedCompletionId,
-  onFocusedMemoryLayout
+  onFocusedMemoryLayout,
+  mediaRefreshToken
 }: {
   dayNumber: number;
   date: Date;
@@ -769,6 +773,7 @@ function DaySection({
   onExplore: () => void;
   focusedCompletionId?: string;
   onFocusedMemoryLayout?: (offsetY: number) => void;
+  mediaRefreshToken: number;
 }) {
   const editable = isToday;
   const customTitle = entry?.title?.trim();
@@ -832,7 +837,7 @@ function DaySection({
 
       {memories.length ? <DayStatStrip questCount={memories.length} xp={xp} minutes={minutes} /> : null}
 
-      {isToday ? <TodayMediaSection items={todayMediaItems} onOpenAlbum={onOpenAlbum} /> : null}
+      {isToday ? <TodayMediaSection items={todayMediaItems} onOpenAlbum={onOpenAlbum} mediaRefreshToken={mediaRefreshToken} /> : null}
 
       {activeQuest ? <View style={{ gap: 8 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>In progress</Text><ActiveQuestJournalCard quest={activeQuest} paused={activeQuestPaused} onPress={onOpenActiveQuest} /></View> : null}
 
@@ -889,6 +894,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsLoaded, setStatsLoaded] = useState(false);
   const [statsScrollY, setStatsScrollY] = useState(0);
+  const [mediaRefreshToken, setMediaRefreshToken] = useState(0);
 
   const [todayKey, setTodayKey] = useState(() => preview?.todayKey ?? toLocalDateKey(new Date()));
   const [activeKey, setActiveKey] = useState(todayKey);
@@ -942,6 +948,8 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
       const journal = await fetchJournalData();
       if (requestId !== journalLoadId.current) return;
       setData(journal);
+      // Re-sign private Journal images after every authenticated data refresh.
+      setMediaRefreshToken((value) => value + 1);
       setEntries((current) => {
         const merged = { ...journal.entriesByDate };
         for (const key of savingEntryDatesRef.current) {
@@ -974,10 +982,10 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
     setStatsLoaded(true);
     fetchProfileOverview()
       .then(async (overview) => {
-        if (!active || !overview.profile) return;
+        if (!active) return;
         const [activity, insights] = await Promise.all([
           fetchWeeklyCompletedQuestActivity().catch(() => []),
-          fetchProfileQuestInsights(overview.profile.userId).catch(() => null),
+          overview.profile ? fetchProfileQuestInsights(overview.profile.userId).catch(() => null) : Promise.resolve(null),
         ]);
         if (!active) return;
         setStatsOverview(overview);
@@ -1108,6 +1116,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
         onOpenAlbum={() => setTab("album")}
         onExplore={goExplore}
         focusedCompletionId={completionId}
+        mediaRefreshToken={mediaRefreshToken}
         onFocusedMemoryLayout={(offsetY) => {
           if (didFocusCompletionRef.current || !completionId) return;
           didFocusCompletionRef.current = true;
@@ -1118,7 +1127,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
         }}
       />
     </View>;
-  }, [activeQuestSnapshot?.session.recordingState, activeQuestSnapshot?.session.sessionId, completionId, contentWidth, data?.activeQuest, data?.memoriesByDate, dayKeys.length, entries, goExplore, horizontalPadding, join, router, safeAreaOffset, savingEntryDates, todayKey, todayMediaItems]);
+  }, [activeQuestSnapshot?.session.recordingState, activeQuestSnapshot?.session.sessionId, completionId, contentWidth, data?.activeQuest, data?.memoriesByDate, dayKeys.length, entries, goExplore, horizontalPadding, join, mediaRefreshToken, router, safeAreaOffset, savingEntryDates, todayKey, todayMediaItems]);
 
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ item: string | null; isViewable: boolean }> }) => {
     const pendingTarget = pendingCalendarTargetRef.current;
@@ -1191,7 +1200,12 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
             ListEmptyComponent={<View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>{loading ? <JournalLoadingSkeleton /> : <Card style={{ marginTop: 18, borderRadius: radius.lg }}><EmptyState emoji="!" title="Couldn't load your journal" body={error ?? "Please try again."} action={<SoftButton label="Try again" icon="refresh" onPress={() => void load(true)} />} /></Card>}</View>}
             ListFooterComponent={data && !loading ? <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><BeforeJoinMarker joinDate={join} /></View> : null}
           />
-        </> : tab === "album" ? <JournalAlbum items={albumItems} onExplore={goExplore} onManageItem={manageAlbumItem} contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} bottomInset={insets.bottom} /> : <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={32} onScroll={(event) => setStatsScrollY((current) => Math.abs(current - event.nativeEvent.contentOffset.y) >= 24 ? event.nativeEvent.contentOffset.y : current)} contentContainerStyle={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: insets.bottom + 112, gap: 12, transform: [{ translateX: safeAreaOffset }] }}>
+        </> : tab === "album" ? <JournalAlbum items={albumItems} onExplore={goExplore} onManageItem={manageAlbumItem} contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} bottomInset={insets.bottom} mediaRefreshToken={mediaRefreshToken} /> : <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={32} onScroll={(event) => {
+          // Synthetic scroll events are released after this callback. Read the
+          // primitive now rather than inside React's later state updater.
+          const offsetY = event.nativeEvent.contentOffset.y;
+          setStatsScrollY((current) => Math.abs(current - offsetY) >= 24 ? offsetY : current);
+        }} contentContainerStyle={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: insets.bottom + 112, gap: 12, transform: [{ translateX: safeAreaOffset }] }}>
           {statsLoading ? <JournalLoadingSkeleton /> : statsOverview ? <YourStatsDashboard overview={statsOverview} weeklyActivity={weeklyActivity} insights={statsInsights} scrollY={statsScrollY} /> : <Card style={{ marginTop: 8, borderRadius: radius.lg }}><EmptyState emoji="📊" title="Stats unavailable" body="Your progress will appear here once your profile is ready." /></Card>}
         </ScrollView>}
       </View>
