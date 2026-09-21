@@ -128,6 +128,7 @@ function AppLayout() {
         <Stack.Screen name="reset-password" />
         <Stack.Screen name="quest/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="active-quest" options={{ presentation: "card" }} />
+        <Stack.Screen name="share-adventure" options={{ presentation: "card", animation: "slide_from_right" }} />
         <Stack.Screen name="memory/[completionId]" options={{ presentation: "card" }} />
         <Stack.Screen name="collection/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="saved" options={{ presentation: "card" }} />

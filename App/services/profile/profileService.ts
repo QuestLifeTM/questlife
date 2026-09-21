@@ -13,8 +13,7 @@ export const DEFAULT_PROFILE_STAT_VISIBILITY: ProfileStatVisibility = {
   questsDone: true,
   timeSpent: true,
   totalXp: true,
-  followers: true,
-  following: true,
+  friends: true,
 };
 export const DEFAULT_PROFILE_PRIVACY: ProfilePrivacy = {
   stats: "public",
@@ -276,7 +275,7 @@ export async function updateProfile(input: ProfileEditInput) {
   if (input.avatarColor !== undefined) payload.avatar_color = input.avatarColor;
   if (input.title !== undefined) payload.title = input.title?.trim() || null;
   if (input.statVisibility !== undefined) payload.stat_visibility = input.statVisibility;
-  if (input.privacy !== undefined) payload.profile_privacy = input.privacy;
+  if (input.privacy !== undefined) payload.profile_privacy = { ...input.privacy, bio: "public" };
 
   const { error } = await supabase.from("profiles").update(payload).eq("id", userData.user.id);
   if (!error) return;

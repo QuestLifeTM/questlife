@@ -11,9 +11,8 @@ import * as Location from "expo-location";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { CompletionDestination, LogLoreFlow } from "@/components/log-lore-flow";
+import { LogLoreFlow } from "@/components/log-lore-flow";
 import { CachedImage } from "@/components/cached-image";
-import { QuestlifeFlame } from "@/components/questlife-flame";
 import { categoryColor, T } from "@/components/theme";
 import { EmptyState, haptic, Sheet, SoftButton } from "@/components/ui";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
@@ -24,7 +23,6 @@ import { useGuestQuest } from "@/contexts/GuestQuestContext";
 import { formatElapsedFull, useElapsedDuration } from "@/hooks/useElapsedTime";
 import { Quest } from "@/types/content";
 import { ActiveQuestActivity, ActiveQuestCheckpoint, ActiveQuestPhoto, ActiveQuestRenderableSegment, ActiveQuestRoutePoint } from "@/types/active-quest";
-import { CompletionResult } from "@/types/engine";
 
 type ActiveQuestTab = "map" | "album" | "entry";
 type QuestNotice = "active" | "paused" | "photo-saved" | "location-help";
@@ -91,7 +89,7 @@ function QuestNoticePill({ notice, accent, message, bottomOffset = MAP_NOTICE_BO
   </View>;
 }
 
-export function QuestCountdownOverlay({ step, accent, inline = false }: { step: QuestCountdownStep; accent: string; inline?: boolean }) {
+export function QuestCountdownOverlay({ step, accent }: { step: QuestCountdownStep; accent: string }) {
   const scale = useRef(new Animated.Value(0.74)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -103,7 +101,7 @@ export function QuestCountdownOverlay({ step, accent, inline = false }: { step: 
     ]).start();
   }, [opacity, scale, step]);
   const isGo = step === "GO";
-  return <View pointerEvents="none" style={inline ? { alignItems: "center", justifyContent: "center" } : { position: "absolute", inset: 0, zIndex: 4, alignItems: "center", justifyContent: "center", paddingBottom: BOTTOM_SHEET_CONTENT_HEIGHT }}>
+  return <View pointerEvents="none" style={{ position: "absolute", inset: 0, zIndex: 4, alignItems: "center", justifyContent: "center", paddingBottom: BOTTOM_SHEET_CONTENT_HEIGHT }}>
     <Animated.View style={{ width: isGo ? 132 : 124, height: isGo ? 132 : 124, borderRadius: 62, alignItems: "center", justifyContent: "center", backgroundColor: isGo ? accent : `${accent}ed`, borderWidth: 5, borderColor: T.white, transform: [{ scale }], opacity, boxShadow: `0px 10px 24px ${accent}52` }}>
       <Text style={{ color: T.white, fontSize: isGo ? 36 : 68, lineHeight: isGo ? 42 : 74, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{step}</Text>
     </Animated.View>
@@ -172,9 +170,9 @@ const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoin
 });
 
 function QuestStartupSurface({ accent, step }: { accent: string; step: QuestCountdownStep | null }) {
-  return <View style={{ flex: 1, backgroundColor: "#edf0eb", alignItems: "center", justifyContent: "center", paddingBottom: BOTTOM_SHEET_CONTENT_HEIGHT, gap: 18 }}>
-    {step ? <QuestCountdownOverlay step={step} accent={accent} inline /> : <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: `${accent}16`, alignItems: "center", justifyContent: "center" }}><Ionicons name="navigate" size={32} color={accent} /></View>}
-    <Text style={{ color: T.dark, fontSize: 18, lineHeight: 24, fontWeight: "900", textAlign: "center" }}>Get ready to begin</Text>
+  return <View style={{ flex: 1, backgroundColor: "#edf0eb", alignItems: "center", justifyContent: "center", paddingBottom: BOTTOM_SHEET_CONTENT_HEIGHT }}>
+    {!step ? <><View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: `${accent}16`, alignItems: "center", justifyContent: "center" }}><Ionicons name="navigate" size={32} color={accent} /></View><Text style={{ marginTop: 18, color: T.dark, fontSize: 18, lineHeight: 24, fontWeight: "900", textAlign: "center" }}>Get ready to begin</Text></> : <Text pointerEvents="none" style={{ position: "absolute", top: "62%", zIndex: 5, color: T.dark, fontSize: 18, lineHeight: 24, fontWeight: "900", textAlign: "center" }}>Get ready to begin</Text>}
+    {step ? <QuestCountdownOverlay step={step} accent={accent} /> : null}
   </View>;
 }
 
@@ -353,49 +351,9 @@ function StaleQuestReminder({
   );
 }
 
-function QuestCompletionScreen({
-  completion,
-  questTitle,
-  destination,
-  onClose,
-}: {
-  completion: CompletionResult;
-  questTitle: string;
-  destination: CompletionDestination;
-  onClose: () => void;
-}) {
-  const insets = useSafeAreaInsets();
-  const energyLeft = Math.max(0, completion.dailyLimit - completion.dailyUsed);
-  return (
-    <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top + 10 }}>
-      <StatusBar style="dark" />
-      <View style={{ alignItems: "flex-end", paddingHorizontal: 20 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={destination === "feed" ? "Close and open your feed" : "Close and open your Journal"} onPress={onClose} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: T.white, borderWidth: 2, borderColor: T.border, boxShadow: "2px 3px 0px #e6ddd2", opacity: pressed ? 0.72 : 1, transform: [{ translateY: pressed ? 2 : 0 }] })}><Ionicons name="close" size={23} color={T.dark} /></Pressable>
-      </View>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 56, gap: 22 }} showsVerticalScrollIndicator={false}>
-        <View style={{ alignItems: "center", gap: 10 }}>
-          <View style={{ width: 104, height: 104, borderRadius: 36, alignItems: "center", justifyContent: "center", backgroundColor: `${T.yellow}32`, borderWidth: 3, borderColor: `${T.orange}55`, borderBottomWidth: 7, borderBottomColor: `${T.orange}88`, boxShadow: `0px 12px 26px ${T.orange}2e` }}><Ionicons name="trophy" size={53} color={T.orange} /></View>
-          <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 31, lineHeight: 37, textAlign: "center" }}>Quest complete!</Text>
-          <Text style={{ color: T.muted, fontSize: 15, lineHeight: 22, fontWeight: "700", textAlign: "center" }} numberOfLines={2}>{questTitle}</Text>
-        </View>
-        <View style={{ borderRadius: 24, borderWidth: 2, borderColor: T.border, borderBottomWidth: 6, borderBottomColor: "#e6ddd2", backgroundColor: T.white, overflow: "hidden" }}>
-          <View style={{ padding: 18, alignItems: "center", gap: 4, backgroundColor: `${T.blue}08` }}><Text style={{ color: T.blue, fontFamily: "RubikBlack", fontSize: 30, lineHeight: 36 }}>+{completion.xpAwarded} XP</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>earned for this quest</Text></View>
-          <View style={{ height: 1, backgroundColor: T.border }} />
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 15 }}><View style={{ width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${T.orange}16` }}><QuestlifeFlame size={26} /></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>Your streak is covered today</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>Today counts as a completed day.</Text></View></View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 15, paddingBottom: 16 }}><View style={{ width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${T.green}16` }}><Ionicons name="battery-half" size={22} color={T.green} /></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>{energyLeft ? `${energyLeft} ${energyLeft === 1 ? "quest" : "quests"} of energy left` : "Today's energy is complete"}</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>{energyLeft ? "You can keep exploring whenever it feels right." : "Rest up. Your energy resets at midnight."}</Text></View></View>
-        </View>
-        <Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700", textAlign: "center" }}>Your {destination === "feed" ? "post is live in the feed" : "memory is saved in your Journal"}. Close this celebration when you’re ready.</Text>
-      </ScrollView>
-    </View>
-  );
-}
-
-function FinishQuestReviewSheet({ visible, questTitle, duration, photos, notes, accent, onContinue, onEndQuest }: { visible: boolean; questTitle: string; duration: string; photos: ActiveQuestPhoto[]; notes: ActiveQuestActivity[]; accent: string; onContinue: () => void; onEndQuest: () => void }) {
-  const [confirming, setConfirming] = useState(false);
-  useEffect(() => { if (!visible) setConfirming(false); }, [visible]);
+function FinishQuestReviewSheet({ visible, accent, onContinue, onEndQuest }: { visible: boolean; accent: string; onContinue: () => void; onEndQuest: () => void }) {
   if (!visible) return null;
-  if (confirming) return <Sheet visible onClose={() => setConfirming(false)} maxHeight="62%"><View style={{ paddingHorizontal: 24, paddingBottom: 22, gap: 15 }}><View style={{ alignItems: "center", gap: 7 }}><View style={{ width: 58, height: 58, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: `${accent}16` }}><Ionicons name="checkmark-circle-outline" size={30} color={accent} /></View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 25, textAlign: "center" }}>Ready to end this quest?</Text><Text style={{ color: T.muted, fontSize: 14, lineHeight: 20, fontWeight: "700", textAlign: "center" }}>You can still return to your quest if there’s more you want to capture.</Text></View><SoftButton label="End Quest" icon="checkmark" color={accent} onPress={onEndQuest} /><SoftButton label="Keep doing this quest" inverse color={accent} onPress={onContinue} /></View></Sheet>;
-  return <Sheet visible onClose={onContinue} maxHeight="86%"><View style={{ paddingHorizontal: 24, paddingBottom: 20, gap: 15 }}><View style={{ alignItems: "center", gap: 7 }}><View style={{ width: 58, height: 58, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: `${accent}16` }}><Ionicons name="trophy-outline" size={30} color={accent} /></View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 25, textAlign: "center" }}>You completed your quest!</Text><Text style={{ color: T.muted, fontSize: 14, lineHeight: 20, fontWeight: "700", textAlign: "center" }}>{questTitle}</Text></View><View style={{ minHeight: 82, borderRadius: 20, alignItems: "center", justifyContent: "center", gap: 3, backgroundColor: `${accent}0e`, borderWidth: 1, borderColor: `${accent}32` }}><Ionicons name="time-outline" size={22} color={accent} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 20, fontVariant: ["tabular-nums"] }}>{duration}</Text><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase" }}>Time taken</Text></View>{photos.length ? <View style={{ gap: 8 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15 }}>Photos from this quest</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 9 }}>{photos.map((photo) => <Image key={photo.id} source={{ uri: photo.uri }} style={{ width: 106, height: 106, borderRadius: 18, backgroundColor: T.border }} />)}</ScrollView></View> : null}{notes.length ? <View style={{ gap: 8, maxHeight: 145 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15 }}>Your notes</Text><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>{notes.map((note) => <View key={note.id} style={{ padding: 12, borderRadius: 15, backgroundColor: `${accent}0b`, borderWidth: 1, borderColor: `${accent}24` }}><Text style={{ color: T.dark, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>{note.body}</Text></View>)}</ScrollView></View> : null}<SoftButton label="Next" icon="arrow-forward" color={accent} onPress={() => setConfirming(true)} /></View></Sheet>;
+  return <Sheet visible onClose={onContinue} maxHeight="54%"><View style={{ paddingHorizontal: 24, paddingBottom: 20, gap: 16 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 25, lineHeight: 31, textAlign: "center" }}>Are you sure you are done?</Text><View style={{ gap: 11 }}><SoftButton label="End Quest" icon="checkmark" color={accent} onPress={onEndQuest} /><SoftButton label="Keep doing this quest" inverse color={accent} onPress={onContinue} /></View></View></Sheet>;
 }
 
 function ActiveQuestLoadingSkeleton() {
@@ -430,7 +388,6 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const [photoSavedVisible, setPhotoSavedVisible] = useState(false);
   const [staleQuestReminderVisible, setStaleQuestReminderVisible] = useState(false);
   const [staleQuestActionBusy, setStaleQuestActionBusy] = useState(false);
-  const [completionReward, setCompletionReward] = useState<{ result: CompletionResult; questTitle: string; destination: CompletionDestination } | null>(null);
   const [deviceLocation, setDeviceLocation] = useState<MapCoordinate | null>(null);
   const countdownSessionRef = useRef<string | null>(null);
   const routeRecordingStartedSessionRef = useRef<string | null>(null);
@@ -582,23 +539,6 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const renderedRoute = snapshot?.route ?? previewRoute ?? [];
   const renderedSegments = snapshot?.renderSegments ?? (previewRoute?.length ? [{ id: "preview-route", state: "active" as const, points: previewRoute }] : []);
   const previewLocation = previewRoute?.at(-1);
-
-  if (completionReward) {
-    return <QuestCompletionScreen
-      completion={completionReward.result}
-      questTitle={completionReward.questTitle}
-      destination={completionReward.destination}
-      onClose={() => {
-        const destination = completionReward.destination;
-        setCompletionReward(null);
-        if (isGuestQuest) {
-          router.replace("/(auth)/auth-options");
-          return;
-        }
-        router.replace(destination === "feed" ? "/(tabs)/social" : "/(tabs)/journal");
-      }}
-    />;
-  }
 
   // The guest guide needs the real shell immediately so it can teach the
   // controls while the device-local snapshot finishes hydrating.
@@ -776,7 +716,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
     </View>
     {!countdownStep && photoSavedVisible ? <QuestNoticePill notice="photo-saved" accent={accent} message={trackingMessage} bottomOffset={Math.max(screenInsets.bottom + 98, 126)} /> : null}
     <FloatingQuestControls accent={accent} duration={duration} paused={paused} takingPhoto={takingPhoto} bottomInset={screenInsets.bottom} onTakePhoto={() => void takePhoto()} onQuickNote={() => setQuickNoteVisible(true)} onFinish={() => setFinishReviewVisible(true)} onTogglePaused={togglePaused} locked={Boolean(onboarding?.locked)} forcedOpen={Boolean(onboarding?.forceQuickActionsOpen) || onboarding?.allowPhotoCapture || onboarding?.allowQuickNote} allowQuickActions={Boolean(onboarding?.allowQuickActions)} allowPhotoCapture={Boolean(onboarding?.allowPhotoCapture)} allowQuickNote={Boolean(onboarding?.allowQuickNote)} showQuickActionsWhenPaused={Boolean(onboarding?.showQuickActionsWhenPaused)} onQuickActionsOpened={onboarding?.onQuickActionsOpened} onQuickNoteOpened={onboarding?.onQuickNoteOpened} />
-    <FinishQuestReviewSheet visible={finishReviewVisible} questTitle={quest.title} duration={duration} photos={snapshot?.photos ?? []} notes={(snapshot?.activity ?? []).filter((item) => item.kind === "note")} accent={accent} onContinue={() => setFinishReviewVisible(false)} onEndQuest={() => { setFinishReviewVisible(false); setCompleteVisible(true); }} />
+    <FinishQuestReviewSheet visible={finishReviewVisible} accent={accent} onContinue={() => setFinishReviewVisible(false)} onEndQuest={() => { setFinishReviewVisible(false); setCompleteVisible(true); }} />
     <Sheet visible={quickNoteVisible} onClose={() => { setQuickNote(""); setQuickNoteVisible(false); onboarding?.onQuickNoteDiscarded?.(); }} maxHeight="58%">
       <View style={{ paddingHorizontal: 24, paddingBottom: 26, gap: 14 }}>
         <View style={{ gap: 3 }}><Text style={{ color: T.dark, fontSize: 24, lineHeight: 30, fontWeight: "900" }}>Quick note</Text><Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>Capture something before it slips away.</Text></View>
@@ -801,7 +741,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
         <View style={{ flexDirection: "row", gap: 10 }}><Pressable accessibilityRole="button" accessibilityLabel="Delete activity" onPress={confirmDeleteManagedItem} style={({ pressed }) => ({ flex: 1, minHeight: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: `${T.red}12`, borderWidth: 1.5, borderColor: `${T.red}45`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.red, fontSize: 15, fontWeight: "900" }}>Delete</Text></Pressable>{managedActivity ? <Pressable accessibilityRole="button" accessibilityLabel="Save activity changes" onPress={() => void saveActivityEdit()} style={({ pressed }) => ({ flex: 1, minHeight: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: accent, borderBottomWidth: 5, borderBottomColor: `${accent}a8`, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 15, fontWeight: "900" }}>Save changes</Text></Pressable> : null}</View>
       </View>
     </Sheet>
-    <LogLoreFlow guestMode={isGuestQuest} visible={completeVisible} quest={quest} initialTitle={snapshot?.session.entryTitle ?? ""} initialReflection={journalReflection} photoUris={(snapshot?.photos ?? []).map((photo) => photo.uri)} onSaveDraft={(draft) => saveEntry(draft)} onClose={() => setCompleteVisible(false)} onFinished={async (result, destination) => { await finishLocalQuest(); if (!isGuestQuest) await refresh(); setCompleteVisible(false); if (!isGuestQuest && saveToJournal === "1" && nextQuestId) { try { await startQuest({ questId: nextQuestId, source: "explore" }); await refresh(); router.replace("/active-quest"); } catch { showFeedback({ message: "Your quest is saved in the Journal, but we couldn't start the next quest. Please try again.", icon: "alert-circle", color: T.red }); router.replace("/(tabs)/journal"); } return; } setCompletionReward({ result, questTitle: quest.title, destination }); }} />
+    <LogLoreFlow guestMode={isGuestQuest} visible={completeVisible} quest={quest} initialTitle={snapshot?.session.entryTitle ?? ""} initialReflection={journalReflection} photoUris={(snapshot?.photos ?? []).map((photo) => photo.uri)} duration={duration} onSaveDraft={(draft) => saveEntry(draft)} onClose={() => setCompleteVisible(false)} onFinished={async (result, destination, details) => { await finishLocalQuest(); if (!isGuestQuest) await refresh(); setCompleteVisible(false); if (isGuestQuest) { router.replace("/(auth)/auth-options"); return; } if (destination === "share") { router.replace({ pathname: "/share-adventure", params: { completionId: result.completionId, questId: quest.id, title: quest.title, rating: String(details.rating) } }); return; } if (saveToJournal === "1" && nextQuestId) { try { await startQuest({ questId: nextQuestId, source: "explore" }); await refresh(); router.replace("/active-quest"); } catch { showFeedback({ message: "Your quest is saved in the Journal, but we couldn't start the next quest. Please try again.", icon: "alert-circle", color: T.red }); router.replace("/(tabs)/journal"); } return; } router.replace("/(tabs)/journal"); }} />
     <StaleQuestReminder visible={staleQuestReminderVisible} elapsedLabel={formatElapsedFull(elapsedDuration)} busy={staleQuestActionBusy} onResume={() => setStaleQuestReminderVisible(false)} onSaveForLater={() => void saveStaleQuestForLater()} onAbandon={confirmAbandonStaleQuest} />
   </View>;
 }

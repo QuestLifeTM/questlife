@@ -63,6 +63,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
   const activeSession = engine?.activeSession ?? guestSession;
   const isGuestSession = Boolean(guestSession && activeSession?.id === guestSession.id);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const shortRecoveryHandledSessionRef = useRef<string | null>(null);
 
   const stopForegroundLocationWatch = useCallback(() => {
     foregroundLocationSubscription.current?.remove();
@@ -216,12 +217,24 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
   }, [reload, snapshot, startForegroundLocationWatch]);
 
   useEffect(() => {
+    if (!activeSession) {
+      shortRecoveryHandledSessionRef.current = null;
+      return;
+    }
+
     const awaySince = activeSession?.recoveryStartedAt;
-    if (!snapshot || !awaySince || activeSession?.recoveryRequiredAt || snapshot.session.recordingState !== "paused") return;
+    if (
+      !snapshot ||
+      !awaySince ||
+      activeSession.recoveryRequiredAt ||
+      snapshot.session.recordingState !== "paused" ||
+      shortRecoveryHandledSessionRef.current === activeSession.id
+    ) return;
     if (Date.now() - new Date(awaySince).getTime() >= 60 * 60 * 1_000) return;
 
     // Short sign-outs resume from the saved elapsed time; time away is not
     // counted unless the owner explicitly chooses it in the recovery sheet.
+    shortRecoveryHandledSessionRef.current = activeSession.id;
     void (async () => {
       try {
         await clearMyActiveQuestRecovery();
@@ -230,7 +243,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
         // The paused checkpoint remains intact and can still be resumed later.
       }
     })();
-  }, [activeSession?.recoveryRequiredAt, activeSession?.recoveryStartedAt, resume, snapshot]);
+  }, [activeSession, resume, snapshot]);
 
   const saveEntry = useCallback(async (input: { title: string; body: string }) => {
     if (!snapshot) return;

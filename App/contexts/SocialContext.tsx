@@ -107,8 +107,8 @@ export function SocialProvider({ children, enabled = true }: PropsWithChildren<{
       refresh,
       searchUsers: searchProfiles,
       addFriend: (userId: string) => runAndRefresh(() => sendFriendRequest(userId), "Unable to send friend request."),
-      follow: (userId: string) => runAndRefresh(() => followProfile(userId), "Unable to follow this adventurer."),
-      unfollow: (userId: string) => runAndRefresh(() => unfollowProfile(userId), "Unable to unfollow this adventurer."),
+      follow: (userId: string) => runAndRefresh(() => followProfile(userId), "Unable to add this friend."),
+      unfollow: (userId: string) => runAndRefresh(() => unfollowProfile(userId), "Unable to remove this friend."),
       respondRequest: (requestId: string, accept: boolean) =>
         runAndRefresh(() => respondFriendRequest(requestId, accept), "Unable to respond to request."),
       cancelRequest: (requestId: string) => runAndRefresh(() => cancelFriendRequest(requestId), "Unable to cancel request."),

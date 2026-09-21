@@ -689,13 +689,15 @@ function MemoryCard({ memory, onPress }: { memory: JournalMemory; onPress: () =>
   );
 }
 
-function ActiveQuestJournalCard({ quest, onPress }: { quest: JournalActiveQuest; onPress: () => void }) {
+function ActiveQuestJournalCard({ quest, paused, onPress }: { quest: JournalActiveQuest; paused: boolean; onPress: () => void }) {
   const category = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
   const difficulty = difficultyColor[quest.difficulty];
+  const statusColor = paused ? T.yellow : T.blue;
+  const statusLabel = paused ? "Paused" : "Active";
   return <Card pressable onPress={onPress} style={{ borderRadius: radius.lg, borderColor: `${T.blue}55`, backgroundColor: `${T.blue}0b`, gap: 10 }}>
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, flex: 1 }}><Tag label={quest.category} color={category.text} bg={category.bg} /><Tag label={quest.difficulty} color={difficulty.text} bg={difficulty.bg} /></View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: `${T.blue}18` }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: T.blue }} /><Text style={{ color: T.blue, fontSize: 11, fontWeight: "900" }}>Active</Text></View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: `${T.blue}18` }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: statusColor }} /><Text style={{ color: statusColor, fontSize: 11, fontWeight: "900" }}>{statusLabel}</Text></View>
     </View>
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><View style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: `${T.blue}18` }}><Ionicons name="navigate" size={18} color={T.blue} /></View><View style={{ flex: 1, gap: 2 }}><Text style={{ color: T.dark, fontSize: 16, lineHeight: 21, fontWeight: "900" }} numberOfLines={1}>{quest.title}</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>Tap to continue your active quest</Text></View><Ionicons name="arrow-forward" size={17} color={T.blue} /></View>
   </Card>;
@@ -737,6 +739,7 @@ function DaySection({
   memories,
   todayMediaItems,
   activeQuest,
+  activeQuestPaused,
   isLast,
   savingEntry,
   onEditTitle,
@@ -753,6 +756,7 @@ function DaySection({
   memories: JournalMemory[];
   todayMediaItems: JournalMediaItem[];
   activeQuest: JournalActiveQuest | null;
+  activeQuestPaused: boolean;
   isLast: boolean;
   savingEntry: boolean;
   onEditTitle: () => void;
@@ -826,7 +830,7 @@ function DaySection({
 
       {isToday ? <TodayMediaSection items={todayMediaItems} onOpenAlbum={onOpenAlbum} /> : null}
 
-      {activeQuest ? <View style={{ gap: 8 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>In progress</Text><ActiveQuestJournalCard quest={activeQuest} onPress={onOpenActiveQuest} /></View> : null}
+      {activeQuest ? <View style={{ gap: 8 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>In progress</Text><ActiveQuestJournalCard quest={activeQuest} paused={activeQuestPaused} onPress={onOpenActiveQuest} /></View> : null}
 
       {memories.length ? (
         <View style={{ gap: 10 }}>
@@ -1076,6 +1080,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
     const dayNumber = Math.round((date.getTime() - join.getTime()) / 86400000) + 1;
     const memories = data?.memoriesByDate[key] ?? [];
     const activeQuest = data?.activeQuest && toLocalDateKey(new Date(data.activeQuest.startedAt)) === key ? data.activeQuest : null;
+    const activeQuestPaused = Boolean(activeQuest && activeQuestSnapshot?.session.sessionId === activeQuest.sessionId && activeQuestSnapshot.session.recordingState === "paused");
     return <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>
       <DaySection
         dayNumber={dayNumber}
@@ -1085,6 +1090,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
         memories={memories}
         todayMediaItems={todayMediaItems}
         activeQuest={activeQuest}
+        activeQuestPaused={activeQuestPaused}
         isLast={index === dayKeys.length - 1}
         savingEntry={savingEntryDates.has(key)}
         onEditTitle={openTitleEditor}
@@ -1095,7 +1101,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
         onExplore={goExplore}
       />
     </View>;
-  }, [contentWidth, data?.activeQuest, data?.memoriesByDate, dayKeys.length, entries, goExplore, horizontalPadding, join, router, safeAreaOffset, savingEntryDates, todayKey, todayMediaItems]);
+  }, [activeQuestSnapshot?.session.recordingState, activeQuestSnapshot?.session.sessionId, contentWidth, data?.activeQuest, data?.memoriesByDate, dayKeys.length, entries, goExplore, horizontalPadding, join, router, safeAreaOffset, savingEntryDates, todayKey, todayMediaItems]);
 
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ item: string | null; isViewable: boolean }> }) => {
     const pendingTarget = pendingCalendarTargetRef.current;

@@ -4,11 +4,13 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, PanResponder, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
+import Reanimated from "react-native-reanimated";
 
 import { EmptyState, Header, Screen, Sheet, SoftButton, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { PartyCategoryIcon } from "@/components/party-category-icon";
 import { QuestlifeFlame } from "@/components/questlife-flame";
+import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { categoryColor, T } from "@/components/theme";
 import { QuestFeedThumbnail } from "@/components/quest-feed-card";
 import { QuestPostManagementSheet } from "@/components/quest-post-management-sheet";
@@ -115,8 +117,7 @@ function profileCarouselMetrics(overview: ProfileOverview): ProfileCarouselMetri
     { id: "questsDone", label: "Quests done", value: stats.totalQuests.toLocaleString(), icon: "checkmark-circle", color: T.green, background: "#e6f8ed" },
     { id: "timeSpent", label: "Time spent", value: formatElapsedCompact((stats.totalQuestDurationSeconds ?? 0) * 1_000), icon: "time", color: T.blue, background: "#e5f3ff" },
     { id: "totalXp", label: "Total XP", value: `${(profile?.totalXp ?? 0).toLocaleString()} XP`, icon: "flash", color: "#d39a00", background: "#fff7d8" },
-    { id: "followers", label: "Followers", value: (stats.followers ?? 0).toLocaleString(), icon: "people", color: T.pink, background: "#ffe8f3" },
-    { id: "following", label: "Following", value: (stats.following ?? 0).toLocaleString(), icon: "person-add", color: T.cyan, background: "#e1faff" },
+    { id: "friends", label: "Friends", value: (stats.friendsCount ?? 0).toLocaleString(), icon: "people", color: T.pink, background: "#ffe8f3" },
   ];
 }
 
@@ -263,7 +264,7 @@ export function ProfileStatMarquee({ overview, visibility }: { overview: Profile
 function ProfileStatVisibilityBento({ overview, visibility, onToggle }: { overview: ProfileOverview; visibility: ProfileStatVisibility; onToggle: (id: ProfileStatId) => void }) {
   const shownCount = Object.values(visibility).filter(Boolean).length;
   return <View style={{ width: "100%", marginTop: 14, gap: 9 }}>
-    <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20 }}>Carousel stats</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 11, lineHeight: 15 }}>Choose what to include · keep at least 3.</Text></View><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 11 }}>{shownCount}/7 shown</Text></View>
+    <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20 }}>Carousel stats</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 11, lineHeight: 15 }}>Choose what to include · keep at least 3.</Text></View><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 11 }}>{shownCount}/6 shown</Text></View>
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
       {profileCarouselMetrics(overview).map((metric) => {
         const visible = visibility[metric.id];
@@ -278,12 +279,11 @@ function ProfileStatVisibilityBento({ overview, visibility, onToggle }: { overvi
   </View>;
 }
 
-const audienceLabels: Record<ProfileAudience, string> = { public: "Everyone", followers: "Followers", private: "Only me" };
+const audienceLabels: Record<ProfileAudience, string> = { public: "Everyone", followers: "Friends", private: "Only me" };
 
-function ProfilePrivacyControls({ privacy, hasBio, onChange }: { privacy: ProfilePrivacy; hasBio: boolean; onChange: (next: ProfilePrivacy) => void }) {
+function ProfilePrivacyControls({ privacy, onChange }: { privacy: ProfilePrivacy; onChange: (next: ProfilePrivacy) => void }) {
   const rows: Array<{ key: keyof ProfilePrivacy; label: string; detail: string; options: ProfileAudience[] }> = [
     { key: "stats", label: "Stats carousel", detail: "Who can see your selected stats", options: ["public", "followers", "private"] },
-    { key: "bio", label: "Bio", detail: hasBio ? "Who can read your bio" : "Add a bio to share it", options: ["public", "followers"] },
     { key: "posts", label: "Posts", detail: "Who can view your quest posts", options: ["public", "followers", "private"] },
   ];
   return <View style={{ width: "100%", marginTop: 16, gap: 9 }}>
@@ -298,7 +298,7 @@ function FollowerManagerSheet({ visible, onClose, onChanged }: { visible: boolea
   const [removingId, setRemovingId] = useState<string | null>(null);
   useEffect(() => { if (!visible) return; setLoading(true); fetchFollowers().then(setFollowers).catch(() => setFollowers([])).finally(() => setLoading(false)); }, [visible]);
   async function remove(person: FollowerProfile) { if (removingId) return; setRemovingId(person.userId); try { await removeFollower(person.userId); setFollowers((current) => current.filter((item) => item.userId !== person.userId)); onChanged(); } finally { setRemovingId(null); } }
-  return <Sheet visible={visible} onClose={onClose} maxHeight="78%"><View style={{ paddingHorizontal: 22, paddingBottom: 18, gap: 13 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 22 }}>Followers</Text><Text style={{ color: T.muted, marginTop: 3, fontFamily: "Rubik", fontSize: 12 }}>Remove anyone you no longer want following you.</Text></View>{loading ? <EmptyState emoji="⏳" title="Loading followers" body="" /> : !followers.length ? <EmptyState emoji="👋" title="No followers yet" body="When someone follows you, they’ll appear here." /> : <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>{followers.map((person) => <View key={person.userId} style={{ minHeight: 62, flexDirection: "row", alignItems: "center", gap: 10 }}><ProfileAvatar uri={person.avatarUrl} color={person.avatarColor} size={42} label={`${person.displayName}'s profile photo`} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 13 }}>{person.displayName}</Text><Text numberOfLines={1} style={{ color: T.muted, marginTop: 2, fontFamily: "Rubik", fontSize: 11 }}>{person.username ? `@${person.username}` : "QuestLife adventurer"}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Remove ${person.displayName} as a follower`} onPress={() => void remove(person)} style={({ pressed }) => ({ minHeight: 36, paddingHorizontal: 10, borderRadius: 13, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: `${T.red}66`, backgroundColor: `${T.red}0c`, opacity: removingId === person.userId ? 0.45 : pressed ? 0.68 : 1 })}><Text style={{ color: T.red, fontFamily: "RubikBold", fontSize: 11 }}>{removingId === person.userId ? "Removing…" : "Remove"}</Text></Pressable></View>)}</ScrollView>}</View></Sheet>;
+  return <Sheet visible={visible} onClose={onClose} maxHeight="78%"><View style={{ paddingHorizontal: 22, paddingBottom: 18, gap: 13 }}><View><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 22 }}>Friends</Text><Text style={{ color: T.muted, marginTop: 3, fontFamily: "Rubik", fontSize: 12 }}>Remove anyone you no longer want in your friend circle.</Text></View>{loading ? <EmptyState emoji="⏳" title="Loading friends" body="" /> : !followers.length ? <EmptyState emoji="👋" title="No friends yet" body="When someone adds you, they’ll appear here." /> : <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>{followers.map((person) => <View key={person.userId} style={{ minHeight: 62, flexDirection: "row", alignItems: "center", gap: 10 }}><ProfileAvatar uri={person.avatarUrl} color={person.avatarColor} size={42} label={`${person.displayName}'s profile photo`} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 13 }}>{person.displayName}</Text><Text numberOfLines={1} style={{ color: T.muted, marginTop: 2, fontFamily: "Rubik", fontSize: 11 }}>{person.username ? `@${person.username}` : "QuestLife adventurer"}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Remove ${person.displayName} as a friend`} onPress={() => void remove(person)} style={({ pressed }) => ({ minHeight: 36, paddingHorizontal: 10, borderRadius: 13, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: `${T.red}66`, backgroundColor: `${T.red}0c`, opacity: removingId === person.userId ? 0.45 : pressed ? 0.68 : 1 })}><Text style={{ color: T.red, fontFamily: "RubikBold", fontSize: 11 }}>{removingId === person.userId ? "Removing…" : "Remove"}</Text></Pressable></View>)}</ScrollView>}</View></Sheet>;
 }
 
 /** Starts chart motion only when the section actually enters the viewport. */
@@ -323,11 +323,11 @@ function categoryLabel(category: string) {
 }
 
 function ProfileFollowersButton({ count, onPress }: { count: number; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel="Manage followers" onPress={onPress} style={({ pressed }) => ({ minHeight: 42, marginTop: 14, paddingHorizontal: 14, borderRadius: 21, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: T.white, borderWidth: 2, borderColor: `${T.pink}55`, borderBottomWidth: pressed ? 2 : 4, borderBottomColor: `${T.pink}92`, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 2 : 0 }] })}><Ionicons name="people" size={16} color={T.pink} /><Text style={{ color: T.pink, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{count.toLocaleString()} follower{count === 1 ? "" : "s"}</Text><Ionicons name="chevron-forward" size={15} color={T.pink} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel="Manage friends" onPress={onPress} style={({ pressed }) => ({ minHeight: 42, marginTop: 14, paddingHorizontal: 14, borderRadius: 21, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: T.white, borderWidth: 2, borderColor: `${T.pink}55`, borderBottomWidth: pressed ? 2 : 4, borderBottomColor: `${T.pink}92`, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 2 : 0 }] })}><Ionicons name="people" size={16} color={T.pink} /><Text style={{ color: T.pink, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{count.toLocaleString()} friend{count === 1 ? "" : "s"}</Text><Ionicons name="chevron-forward" size={15} color={T.pink} /></Pressable>;
 }
 
-function ProfilePrivacySheet({ visible, privacy, hasBio, onChange, onClose }: { visible: boolean; privacy: ProfilePrivacy; hasBio: boolean; onChange: (next: ProfilePrivacy) => void; onClose: () => void }) {
-  return <Sheet visible={visible} onClose={onClose} maxHeight="82%"><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: 22, gap: 14 }}><View style={{ gap: 4 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22, lineHeight: 28 }}>Privacy settings</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 13, lineHeight: 19 }}>Choose who can see the personal parts of your profile.</Text></View><ProfilePrivacyControls privacy={privacy} hasBio={hasBio} onChange={onChange} /><SoftButton label="Done" icon="checkmark" color={T.blue} onPress={onClose} style={{ marginTop: 4 }} /></ScrollView></Sheet>;
+function ProfilePrivacySheet({ visible, privacy, onChange, onClose }: { visible: boolean; privacy: ProfilePrivacy; onChange: (next: ProfilePrivacy) => void; onClose: () => void }) {
+  return <Sheet visible={visible} onClose={onClose} maxHeight="82%"><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: 22, gap: 14 }}><View style={{ gap: 4 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22, lineHeight: 28 }}>Privacy settings</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 13, lineHeight: 19 }}>Your bio is always visible. Choose who can see other profile details.</Text></View><ProfilePrivacyControls privacy={privacy} onChange={onChange} /><SoftButton label="Done" icon="checkmark" color={T.blue} onPress={onClose} style={{ marginTop: 4 }} /></ScrollView></Sheet>;
 }
 
 function QuestTrail({ categories }: { categories: ProfileOverview["stats"]["topCategories"] }) {
@@ -409,6 +409,7 @@ export function ProfileScreen() {
   const { showFeedback } = useAppFeedback();
   const { refresh: refreshSocial } = useSocial();
   const { contentWidth, horizontalPadding, insets, safeAreaOffset } = useResponsiveScreenLayout();
+  const { onScroll, scrollY } = useTopScrollBlur();
   const [overview, setOverview] = useState<ProfileOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -530,7 +531,7 @@ export function ProfileScreen() {
   }));
 
   return <View style={{ flex: 1, backgroundColor: T.bg }}>
-    <ScrollView contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + 112 }}>
+    <Reanimated.ScrollView onScroll={onScroll} scrollEventThrottle={16} contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + 112 }}>
       <View style={{ width: contentWidth, transform: [{ translateX: safeAreaOffset }] }}>
       <View style={{ backgroundColor: T.bg }}>
         <View style={{ paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top - 12, 12) }}>
@@ -569,7 +570,9 @@ export function ProfileScreen() {
       </View>
       </View>
     </View>
-    </ScrollView>
+    </Reanimated.ScrollView>
+
+    <ScrollTopBlur scrollY={scrollY} />
 
     {editing && readOnlyContentTop !== null ? <View pointerEvents="none" style={{ position: "absolute", top: readOnlyContentTop, right: 0, bottom: 0, left: 0, overflow: "hidden" }}>
       <BlurView tint="light" intensity={16} style={{ position: "absolute", inset: 0 }} />
@@ -578,7 +581,7 @@ export function ProfileScreen() {
 
     <QuestPostManagementSheet post={managedPost} visible={Boolean(managedPost)} onClose={() => setManagedPost(null)} onUpdated={() => { setManagedPost(null); void load(); }} onDeleted={() => { setManagedPost(null); void load(); }} />
     <FollowerManagerSheet visible={followersOpen} onClose={() => setFollowersOpen(false)} onChanged={() => void load()} />
-    <ProfilePrivacySheet visible={privacyOpen} privacy={draftPrivacy} hasBio={Boolean(draftBio.trim())} onChange={setDraftPrivacy} onClose={() => setPrivacyOpen(false)} />
+    <ProfilePrivacySheet visible={privacyOpen} privacy={draftPrivacy} onChange={setDraftPrivacy} onClose={() => setPrivacyOpen(false)} />
 
   </View>;
 }

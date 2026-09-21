@@ -511,8 +511,16 @@ export function LobbyScreen() {
   const hasActiveSession = Boolean(engine?.activeSession);
   const recoveryRequired = Boolean(engine?.activeSession?.recoveryRequiredAt);
   const activeQuestElapsed = useElapsedDuration(engine?.activeSession?.startedAt);
-  const recoveryDuration = snapshot?.session.sessionId === engine?.activeSession?.id
-    ? snapshot?.session.activeDurationMs ?? 0
+  const activeQuestSnapshot = snapshot?.session;
+  let pauseAwareActiveQuestElapsed = activeQuestElapsed;
+  if (activeQuestSnapshot && activeQuestSnapshot.sessionId === engine?.activeSession?.id) {
+    pauseAwareActiveQuestElapsed = activeQuestSnapshot.activeDurationMs +
+      (activeQuestSnapshot.recordingState === "recording" && activeQuestSnapshot.activeSince
+        ? Math.max(0, Date.now() - new Date(activeQuestSnapshot.activeSince).getTime())
+        : 0);
+  }
+  const recoveryDuration = activeQuestSnapshot?.sessionId === engine?.activeSession?.id
+    ? pauseAwareActiveQuestElapsed
     : activeQuestElapsed;
   const recoveryStartedAt = engine?.activeSession?.recoveryStartedAt ?? null;
   const timeAwayMs = recoveryStartedAt ? Math.max(0, Date.now() - new Date(recoveryStartedAt).getTime()) : 0;
@@ -603,7 +611,7 @@ export function LobbyScreen() {
           {hasActiveSession ? activeQuest ? (
             <ActiveQuestCard
               activeQuest={activeQuest}
-              elapsedLabel={formatElapsedCompact(activeQuestElapsed)}
+              elapsedLabel={formatElapsedCompact(pauseAwareActiveQuestElapsed)}
               onView={() => router.push("/active-quest")}
               reducedMotion={reducedMotion}
             />

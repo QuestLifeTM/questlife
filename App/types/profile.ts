@@ -1,6 +1,6 @@
 import type { QuestCategory } from "@/types/content";
 
-export type ProfileStatId = "highestStreak" | "level" | "questsDone" | "timeSpent" | "totalXp" | "followers" | "following";
+export type ProfileStatId = "highestStreak" | "level" | "questsDone" | "timeSpent" | "totalXp" | "friends";
 export type ProfileStatVisibility = Record<ProfileStatId, boolean>;
 export type ProfileAudience = "public" | "followers" | "private";
 export type ProfilePrivacy = {
