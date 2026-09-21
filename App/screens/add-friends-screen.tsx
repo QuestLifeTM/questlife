@@ -92,7 +92,10 @@ export function AddFriendsScreen() {
   const qrCodeRef = useRef<{ toDataURL: (callback: (data: string) => void) => void } | null>(null);
 
   const ownUserId = overview?.me?.userId;
-  const profileUrl = useMemo(() => ownUserId ? Linking.createURL("/add-friend", { queryParams: { userId: ownUserId } }) : "questlife://add-friend", [ownUserId]);
+  // This must resolve to the dynamic profile route. The previous query-string
+  // URL targeted a route that does not exist, so a scanned code could open the
+  // app without ever reaching the shared profile.
+  const profileUrl = useMemo(() => ownUserId ? Linking.createURL(`/add-friend/${ownUserId}`) : "questlife://add-friend", [ownUserId]);
   const displayedPeople = query.trim().length >= 2 ? searchResults : activeTab === "contacts" ? contacts : suggestions;
 
   useEffect(() => {
@@ -191,7 +194,7 @@ export function AddFriendsScreen() {
       </View>
       <View style={{ flexDirection: "row", borderBottomWidth: 2, borderBottomColor: T.border }}>
         <DiscoveryTabButton tab="suggested" active={activeTab === "suggested"} icon="people-outline" label="People you might know" onPress={() => { setQuery(""); setActiveTab("suggested"); }} />
-        <DiscoveryTabButton tab="contacts" active={activeTab === "contacts"} icon="book-outline" label="Contacts" onPress={() => { setQuery(""); setActiveTab("contacts"); }} />
+        <DiscoveryTabButton tab="contacts" active={activeTab === "contacts"} icon="book-outline" label="Contacts" onPress={() => { setQuery(""); setActiveTab("contacts"); if (!contactsLoaded && !loadingContacts) void connectContacts(); }} />
         <DiscoveryTabButton tab="qr" active={activeTab === "qr"} icon="qr-code-outline" label="QR Code" onPress={() => { setQuery(""); setActiveTab("qr"); }} />
       </View>
     </View>

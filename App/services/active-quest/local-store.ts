@@ -178,7 +178,12 @@ export async function hydrateActiveQuestRecord(record: RemoteActiveQuestRecord) 
     // before this restore runs. Its fresh timestamp must never win over the
     // durable server record just because the app was opened more recently.
     const retainNewerLocalWork = Boolean(
-      local && localHasProgress && new Date(local.updatedAt).getTime() > new Date(record.session.updatedAt).getTime(),
+      local && localHasProgress && (
+        new Date(local.updatedAt).getTime() > new Date(record.session.updatedAt).getTime() ||
+        // A sign-out can race a delayed cloud snapshot. Never let that stale
+        // record replace a longer, already-persisted timer on this device.
+        local.activeDurationMs > record.session.activeDurationMs
+      ),
     );
     const restoredSession: ActiveQuestLocalSession = {
       ...record.session,

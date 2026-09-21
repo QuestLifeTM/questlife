@@ -4,7 +4,7 @@ import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { PropsWithChildren, useEffect, useRef, useState } from "react";
-import Reanimated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
+import Reanimated, { cancelAnimation, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import {
   Keyboard,
@@ -382,10 +382,14 @@ export function Sheet({
   children,
   maxHeight = "82%",
   fillHeight = false,
+  fullScreen = false,
+  dismissible = true,
   keyboardAvoiding = true,
   expandOnKeyboard = false,
-  glass = false
-}: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"]; fillHeight?: boolean; keyboardAvoiding?: boolean; expandOnKeyboard?: boolean; glass?: boolean }>) {
+  glass = false,
+  celebrationEntrance = false,
+  onCelebrationSettled,
+}: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"]; fillHeight?: boolean; /** Render as a locked, edge-to-edge completion screen instead of a bottom sheet. */ fullScreen?: boolean; /** Prevent backdrop, drag, and system-back dismissal while a flow must be completed. */ dismissible?: boolean; keyboardAvoiding?: boolean; expandOnKeyboard?: boolean; glass?: boolean; /** A one-off, fast reward-sheet entrance that lands before its celebration begins. */ celebrationEntrance?: boolean; onCelebrationSettled?: () => void }>) {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotionPreference();
   const { height: windowHeight } = useWindowDimensions();
@@ -417,8 +421,27 @@ export function Sheet({
     });
 
   useEffect(() => {
-    if (visible) dragY.value = 0;
-  }, [dragY, visible]);
+    if (!visible) {
+      cancelAnimation(dragY);
+      return;
+    }
+    if (!celebrationEntrance || reducedMotion) {
+      dragY.value = 0;
+      if (celebrationEntrance) onCelebrationSettled?.();
+      return;
+    }
+
+    // This rare reward state earns a distinct entrance: it clears the bottom
+    // edge quickly, then makes one compact, smooth landing bounce.
+    dragY.value = windowHeight;
+    dragY.value = withSequence(
+      withTiming(-14, { duration: 190, easing: motionEasing.enter }),
+      withSpring(0, { stiffness: 360, damping: 23, mass: 0.68 }, (finished) => {
+        if (finished && onCelebrationSettled) scheduleOnRN(onCelebrationSettled);
+      }),
+    );
+    return () => cancelAnimation(dragY);
+  }, [celebrationEntrance, dragY, onCelebrationSettled, reducedMotion, visible, windowHeight]);
 
   const sheetMotionStyle = useAnimatedStyle(() => ({ transform: [{ translateY: dragY.value }] }));
 
@@ -446,35 +469,35 @@ export function Sheet({
     : undefined;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent={!fullScreen} animationType="fade" onRequestClose={() => { if (dismissible) onClose(); }}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <KeyboardAvoidingView enabled={keyboardAvoiding && !expandOnKeyboard} behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
-          <View style={{ flex: 1, backgroundColor: glass ? "rgba(61,52,56,0.28)" : "rgba(61,52,56,0.42)", justifyContent: "flex-end" }}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={onClose} style={{ flex: 1 }} />
+          <View style={{ flex: 1, backgroundColor: fullScreen ? T.white : glass ? "rgba(61,52,56,0.28)" : "rgba(61,52,56,0.42)", justifyContent: "flex-end" }}>
+            {dismissible ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={onClose} style={{ flex: 1 }} /> : <View pointerEvents="none" style={{ flex: 1 }} />}
             <Reanimated.View
               accessibilityViewIsModal
               onLayout={({ nativeEvent }) => {
                 if (keyboardHeight === 0) setContentHeight(nativeEvent.layout.height);
               }}
               style={[{
-                maxHeight: expandedHeight ?? resolvedMaxHeight,
-                ...(fillHeight || expandedHeight !== undefined ? { height: expandedHeight ?? resolvedMaxHeight } : null),
+                maxHeight: fullScreen ? "100%" : expandedHeight ?? resolvedMaxHeight,
+                ...(fullScreen ? { height: "100%", borderRadius: 0, borderWidth: 0, paddingBottom: insets.bottom } : fillHeight || expandedHeight !== undefined ? { height: expandedHeight ?? resolvedMaxHeight } : null),
                 backgroundColor: glass ? "rgba(255,255,255,0.72)" : T.white,
-                borderTopLeftRadius: radius.sheet,
-                borderTopRightRadius: radius.sheet,
-                borderWidth: 2,
+                borderTopLeftRadius: fullScreen ? 0 : radius.sheet,
+                borderTopRightRadius: fullScreen ? 0 : radius.sheet,
+                borderWidth: fullScreen ? 0 : 2,
                 borderColor: glass ? "rgba(255,255,255,0.88)" : T.border,
                 borderBottomWidth: 0,
-                paddingBottom: insets.bottom + 8,
+                paddingBottom: fullScreen ? insets.bottom : insets.bottom + 8,
                 overflow: "hidden",
               }, sheetMotionStyle]}
             >
               {glass ? <BlurView pointerEvents="none" intensity={18} tint="light" style={{ position: "absolute", inset: 0 }} /> : null}
-              <GestureDetector gesture={dragGesture}>
+              {dismissible && !fullScreen ? <GestureDetector gesture={dragGesture}>
                 <View accessibilityLabel="Drag down to dismiss" style={{ alignItems: "center", paddingTop: 12, paddingBottom: 12 }}>
                   <View style={{ width: 36, height: 4, borderRadius: 99, backgroundColor: T.border }} />
                 </View>
-              </GestureDetector>
+              </GestureDetector> : <View style={{ height: fullScreen ? insets.top + 12 : 0 }} />}
               {children}
             </Reanimated.View>
           </View>

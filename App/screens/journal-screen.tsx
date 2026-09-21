@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -747,7 +747,9 @@ function DaySection({
   onOpenMemory,
   onOpenActiveQuest,
   onOpenAlbum,
-  onExplore
+  onExplore,
+  focusedCompletionId,
+  onFocusedMemoryLayout
 }: {
   dayNumber: number;
   date: Date;
@@ -765,6 +767,8 @@ function DaySection({
   onOpenActiveQuest: () => void;
   onOpenAlbum: () => void;
   onExplore: () => void;
+  focusedCompletionId?: string;
+  onFocusedMemoryLayout?: (offsetY: number) => void;
 }) {
   const editable = isToday;
   const customTitle = entry?.title?.trim();
@@ -836,7 +840,9 @@ function DaySection({
         <View style={{ gap: 10 }}>
           <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>Memories</Text>
           {memories.map((memory) => (
-            <MemoryCard key={memory.completionId} memory={memory} onPress={() => onOpenMemory(memory)} />
+            <View key={memory.completionId} onLayout={memory.completionId === focusedCompletionId ? (event) => onFocusedMemoryLayout?.(event.nativeEvent.layout.y) : undefined}>
+              <MemoryCard memory={memory} onPress={() => onOpenMemory(memory)} />
+            </View>
           ))}
         </View>
       ) : !memories.length && !activeQuest ? (
@@ -865,6 +871,7 @@ export type JournalScreenPreview = { data: JournalData; todayKey: string };
 
 export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = {}) {
   const router = useRouter();
+  const { completionId } = useLocalSearchParams<{ completionId?: string }>();
   const insets = useSafeAreaInsets();
   const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
   const { markJournalRead } = useNotifications();
@@ -898,6 +905,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
   const savingEntryDatesRef = useRef(new Set<string>());
   const pendingCalendarTargetRef = useRef<string | null>(null);
   const calendarScrollRetryCountRef = useRef(0);
+  const didFocusCompletionRef = useRef(false);
 
   // The inline media shelf is explicitly for the current local calendar day.
   // Refresh this key at midnight so those captures move to Album without a
@@ -1099,9 +1107,18 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
         onOpenActiveQuest={() => router.push("/active-quest")}
         onOpenAlbum={() => setTab("album")}
         onExplore={goExplore}
+        focusedCompletionId={completionId}
+        onFocusedMemoryLayout={(offsetY) => {
+          if (didFocusCompletionRef.current || !completionId) return;
+          didFocusCompletionRef.current = true;
+          // The completion card is inside today's day section. Its layout is
+          // measured after the refreshed Journal data is rendered, so this
+          // lands the card in the reading area instead of at the page top.
+          requestAnimationFrame(() => journalListRef.current?.scrollToOffset({ offset: Math.max(0, offsetY + 360), animated: true }));
+        }}
       />
     </View>;
-  }, [activeQuestSnapshot?.session.recordingState, activeQuestSnapshot?.session.sessionId, contentWidth, data?.activeQuest, data?.memoriesByDate, dayKeys.length, entries, goExplore, horizontalPadding, join, router, safeAreaOffset, savingEntryDates, todayKey, todayMediaItems]);
+  }, [activeQuestSnapshot?.session.recordingState, activeQuestSnapshot?.session.sessionId, completionId, contentWidth, data?.activeQuest, data?.memoriesByDate, dayKeys.length, entries, goExplore, horizontalPadding, join, router, safeAreaOffset, savingEntryDates, todayKey, todayMediaItems]);
 
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ item: string | null; isViewable: boolean }> }) => {
     const pendingTarget = pendingCalendarTargetRef.current;
@@ -1169,7 +1186,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
                 }
               }, 60);
             }}
-            contentContainerStyle={{ paddingBottom: insets.bottom + 112 }}
+            contentContainerStyle={{ paddingBottom: insets.bottom + (completionId ? 480 : 112) }}
             ListHeaderComponent={error && data ? <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 14, transform: [{ translateX: safeAreaOffset }] }}><Card style={{ borderRadius: radius.lg, padding: 14, gap: 8 }}><Text style={{ color: T.dark, fontSize: 13, fontWeight: "800" }}>Your latest journal refresh didn’t finish.</Text><SoftButton label="Try again" icon="refresh" inverse color={T.blue} onPress={() => void load(true)} style={{ minHeight: 48 }} /></Card></View> : null}
             ListEmptyComponent={<View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>{loading ? <JournalLoadingSkeleton /> : <Card style={{ marginTop: 18, borderRadius: radius.lg }}><EmptyState emoji="!" title="Couldn't load your journal" body={error ?? "Please try again."} action={<SoftButton label="Try again" icon="refresh" onPress={() => void load(true)} />} /></Card>}</View>}
             ListFooterComponent={data && !loading ? <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><BeforeJoinMarker joinDate={join} /></View> : null}

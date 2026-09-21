@@ -191,6 +191,25 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
       setSavingPhoto(false);
     }
   };
+  const addPhoto = async () => {
+    if (savingPhoto || memory.photoPaths.length >= 5) return;
+    let nextPath: string | null = null;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.78 });
+      if (result.canceled || !result.assets[0]) return;
+      setSavingPhoto(true);
+      nextPath = await uploadJournalMedia(result.assets[0].uri);
+      const photoPaths = [...memory.photoPaths, nextPath];
+      await updateJournalMemoryPhotos({ completionId: memory.completionId, photoPaths });
+      setMemory((current) => current ? { ...current, photoPaths } : current);
+      showFeedback({ message: "Photo added to your Journal.", icon: "checkmark-circle", color: actionColor });
+    } catch {
+      if (nextPath) void deleteJournalMedia([nextPath]);
+      showFeedback({ message: "We couldn't add that photo. Please try again.", icon: "alert-circle", color: T.red });
+    } finally {
+      setSavingPhoto(false);
+    }
+  };
   const confirmDeletePhoto = () => {
     if (managedPhotoIndex === null || savingPhoto) return;
     Alert.alert("Delete photo?", "This removes it from this Journal memory.", [
@@ -243,7 +262,10 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
 
           {memory.participants.length ? <Card style={{ flexDirection: "row", alignItems: "center", gap: 12 }}><AvatarPile people={memory.participants} size={32} /><View style={{ flex: 1, gap: 2 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 14 }}>Shared adventure</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 17 }}>You completed this with {memory.participants.length} other{memory.participants.length > 1 ? "s" : ""}.</Text></View></Card> : null}
 
-          {photoUrls.length ? <View style={{ gap: 10 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Photos from this quest</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{photoUrls.map((uri, index) => <View key={uri} style={{ width: 180, height: 132, overflow: "hidden", borderRadius: radius.lg, backgroundColor: T.border }}><Image accessibilityLabel={`Quest photo ${index + 1} of ${photoUrls.length}`} source={{ uri }} style={{ width: "100%", height: "100%" }} /><Pressable accessibilityRole="button" accessibilityLabel={`Manage photo ${index + 1}`} onPress={() => setManagedPhotoIndex(index)} hitSlop={7} style={({ pressed }) => ({ position: "absolute", top: 8, right: 8, width: 31, height: 31, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.94)", opacity: pressed ? 0.7 : 1 })}><Ionicons name="ellipsis-horizontal" size={18} color={T.dark} /></Pressable></View>)}</ScrollView></View> : null}
+          <View style={{ gap: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Photos from this quest</Text>{memory.photoPaths.length < 5 ? <Pressable accessibilityRole="button" accessibilityLabel="Add a photo to this memory" disabled={savingPhoto} onPress={() => void addPhoto()} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: savingPhoto ? 0.45 : pressed ? 0.68 : 1 })}><Ionicons name="add-circle-outline" size={17} color={actionColor} /><Text style={{ color: actionColor, fontFamily: "RubikBold", fontSize: 12 }}>Add photo</Text></Pressable> : null}</View>
+            {photoUrls.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{photoUrls.map((uri, index) => <View key={uri} style={{ width: 180, height: 132, overflow: "hidden", borderRadius: radius.lg, backgroundColor: T.border }}><Image accessibilityLabel={`Quest photo ${index + 1} of ${photoUrls.length}`} source={{ uri }} style={{ width: "100%", height: "100%" }} /><Pressable accessibilityRole="button" accessibilityLabel={`Manage photo ${index + 1}`} onPress={() => setManagedPhotoIndex(index)} hitSlop={7} style={({ pressed }) => ({ position: "absolute", top: 8, right: 8, width: 31, height: 31, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.94)", opacity: pressed ? 0.7 : 1 })}><Ionicons name="ellipsis-horizontal" size={18} color={T.dark} /></Pressable></View>)}</ScrollView> : <View style={{ minHeight: 108, borderRadius: radius.lg, borderWidth: 1.5, borderStyle: "dashed", borderColor: `${actionColor}65`, backgroundColor: `${actionColor}0a`, alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 22 }}><Ionicons name="images-outline" size={25} color={actionColor} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 13 }}>No photos saved yet</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700", textAlign: "center" }}>Add a photo to keep this moment in your Journal.</Text></View>}
+          </View>
 
           <View style={{ gap: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Your reflection</Text><Pressable accessibilityRole="button" accessibilityLabel={memory.reflection ? "Edit reflection" : "Add a reflection"} onPress={openReflectionEditor} hitSlop={8} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: pressed ? 0.68 : 1 })}><Ionicons name={memory.reflection ? "create-outline" : "add-circle-outline"} size={16} color={actionColor} /><Text style={{ color: actionColor, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{memory.reflection ? "Edit" : "Add"}</Text></Pressable></View>

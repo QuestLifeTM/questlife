@@ -166,6 +166,16 @@ export async function completeQuestV2(input: CompleteQuestInput): Promise<Comple
   return data as CompletionResult;
 }
 
+/** Adds the required rating after the completion has already been durably saved. */
+export async function rateQuestCompletion(completionId: string, rating: number) {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc("rate_quest_completion", {
+    p_completion_id: completionId,
+    p_rating: rating,
+  });
+  if (error) throw error;
+}
+
 /** Removes this user's solo completions for the supplied local calendar day. */
 export async function resetTodaySoloQuestCompletions(): Promise<number> {
   assertSupabaseConfigured();

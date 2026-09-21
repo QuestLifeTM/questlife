@@ -60,7 +60,7 @@ export function PrimaryButton({ title, onPress, disabled, loading }: PrimaryButt
       }}
       style={({ pressed }) => [
         styles.primaryButton,
-        pressed && !disabled ? styles.pressed : null,
+        pressed && !disabled ? styles.primaryPressed : null,
         disabled || loading ? styles.disabled : null
       ]}
     >
@@ -179,8 +179,10 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     minHeight: 54,
-    borderRadius: 999,
+    borderRadius: radius.md,
     backgroundColor: T.blue,
+    borderBottomWidth: 5,
+    borderBottomColor: "#258fd8",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -216,6 +218,10 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.58
+  },
+  primaryPressed: {
+    borderBottomWidth: 2,
+    transform: [{ translateY: 3 }]
   },
   pressed: {
     transform: [{ scale: 0.97 }]

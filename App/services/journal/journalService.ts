@@ -156,6 +156,13 @@ export async function fetchJournalData(): Promise<JournalData> {
     (memoriesByDate[key] ??= []).push(memory);
   }
 
+  // A journal day reads from the latest moment back through the day. The
+  // database query stays chronological so the earliest completion remains
+  // available for the journal's join-date fallback below.
+  for (const memories of Object.values(memoriesByDate)) {
+    memories.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+  }
+
   // Day 1 = the user's actual join date. Fall back to the earliest completion
   // (then today) so the journal still works if the profile row is missing.
   const earliestCompletion = completionRows?.[0]?.created_at;
@@ -213,30 +220,22 @@ export async function fetchJournalMemory(completionId: string): Promise<JournalM
 /** Updates the authenticated user's private reflection for a completed quest. */
 export async function updateJournalMemoryReflection(input: { completionId: string; reflection: string | null }) {
   assertSupabaseConfigured();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) throw userError;
-  if (!userData.user) throw new Error("No authenticated user.");
-
   const { error } = await supabase
-    .from("quest_completions")
-    .update({ reflection: input.reflection?.trim() || null })
-    .eq("id", input.completionId)
-    .eq("user_id", userData.user.id);
+    .rpc("update_journal_memory_reflection", {
+      p_completion_id: input.completionId,
+      p_reflection: input.reflection?.trim() || null,
+    });
   if (error) throw error;
 }
 
 /** Replaces the ordered photo list for one of the user's completed memories. */
 export async function updateJournalMemoryPhotos(input: { completionId: string; photoPaths: string[] }) {
   assertSupabaseConfigured();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) throw userError;
-  if (!userData.user) throw new Error("No authenticated user.");
-
   const { error } = await supabase
-    .from("quest_completions")
-    .update({ photo_urls: input.photoPaths })
-    .eq("id", input.completionId)
-    .eq("user_id", userData.user.id);
+    .rpc("replace_journal_memory_photos", {
+      p_completion_id: input.completionId,
+      p_photo_paths: input.photoPaths,
+    });
   if (error) throw error;
 }
 
@@ -252,15 +251,27 @@ export async function resolveJournalMedia(paths: string[]) {
   assertSupabaseConfigured();
   // Legacy completions may hold public URLs, while new private journal media
   // stores object paths. Keep both formats readable during the rollout.
-  const privatePaths = paths.filter((path) => !/^https?:\/\//i.test(path));
+  const isDirectUri = (path: string) => /^(?:https?:|file:|content:|ph:|asset:)/i.test(path);
+  const privatePaths = paths.filter((path) => !isDirectUri(path));
   if (!privatePaths.length) return paths;
 
-  const { data, error } = await supabase.storage.from("journal-media").createSignedUrls(privatePaths, 60 * 30);
-  if (error) throw error;
-  const signedByPath = new Map(privatePaths.map((path, index) => [path, data[index]?.signedUrl]));
-  return paths
-    .map((path) => /^https?:\/\//i.test(path) ? path : signedByPath.get(path))
+  // A deleted or legacy-invalid object must not make every other photo in an
+  // Album disappear. Sign objects independently and preserve the original
+  // ordering for the renderers that map an image back to its saved path.
+  const signed = await Promise.all(privatePaths.map(async (path) => {
+    const { data, error } = await supabase.storage.from("journal-media").createSignedUrl(path, 60 * 30);
+    if (error || !data?.signedUrl) return null;
+    return [path, data.signedUrl] as const;
+  }));
+  const signedByPath = new Map(signed.filter((entry): entry is readonly [string, string] => entry !== null));
+  const resolved = paths
+    .map((path) => isDirectUri(path) ? path : signedByPath.get(path))
     .filter((url): url is string => Boolean(url));
+
+  if (!resolved.length) {
+    throw new Error("Your Journal photos could not be opened. Please try again.");
+  }
+  return resolved;
 }
 
 /** Uploads a private journal image and returns the stored object path. */

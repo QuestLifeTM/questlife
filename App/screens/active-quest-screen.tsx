@@ -288,8 +288,8 @@ function FloatingQuestControls({ accent, duration, paused, takingPhoto, bottomIn
     </View>
     <View style={{ flex: 1, minHeight: 74, borderRadius: 26, flexDirection: "row", alignItems: "center", paddingHorizontal: 18, gap: 12, backgroundColor: "rgba(255,255,255,0.96)", borderWidth: 1, borderColor: "rgba(232,223,213,0.94)", boxShadow: "0px 8px 22px rgba(35,40,37,0.20)" }}>
       <View style={{ flex: 1, alignItems: "center", gap: 1 }}>
-        <Text style={{ color: T.dark, fontSize: 22, lineHeight: 27, fontWeight: "900", fontVariant: ["tabular-nums"], textAlign: "center" }}>{duration}</Text>
-        <Text style={{ color: T.muted, fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 0.45, textTransform: "uppercase", textAlign: "center" }}>{paused ? "Quest paused" : "Quest time"}</Text>
+        <Text style={{ color: T.dark, fontSize: 22, lineHeight: 27, fontWeight: "900", fontVariant: ["tabular-nums"], textAlign: "center", transform: [{ translateY: -4 }] }}>{duration}</Text>
+        <Text style={{ color: T.muted, fontSize: 13, lineHeight: 15, fontWeight: "900", letterSpacing: 0.45, textTransform: "uppercase", textAlign: "center" }}>{paused ? "Quest paused" : "Quest time"}</Text>
       </View>
       <View style={{ width: 1, alignSelf: "stretch", marginVertical: 13, backgroundColor: "rgba(232,223,213,0.92)" }} />
       <Pressable accessibilityRole="button" accessibilityLabel={paused ? "Resume quest" : "Pause quest"} accessibilityState={{ disabled: locked }} disabled={locked} onPress={() => { haptic(); onTogglePaused(); }} style={({ pressed }) => ({ width: 52, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: `${accent}16`, borderWidth: 2, borderColor: accent, borderBottomWidth: pressed ? 2 : 4, borderBottomColor: `${accent}88`, opacity: pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.96 : 1 }, { translateY: pressed ? 2 : 0 }] })}><Ionicons name={paused ? "play" : "pause"} size={21} color={accent} /></Pressable>
@@ -372,6 +372,10 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const { getQuest } = useContent();
   const [tab, setTab] = useState<ActiveQuestTab>("map");
   const [completeVisible, setCompleteVisible] = useState(false);
+  // The completion RPC clears the engine's active session immediately. Keep
+  // this render snapshot so the recap remains on screen until the user leaves.
+  const [completedQuest, setCompletedQuest] = useState<Quest | null>(null);
+  const [completedRecap, setCompletedRecap] = useState<{ title: string; reflection: string; photoUris: string[]; duration: string } | null>(null);
   const [finishReviewVisible, setFinishReviewVisible] = useState(false);
   const [takingPhoto, setTakingPhoto] = useState(false);
   const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
@@ -401,7 +405,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   // not loaded yet, or the quest was subsequently unpublished. The completion
   // RPC uses the stable session quest ID, so a lightweight local fallback
   // prevents the user being trapped on this screen.
-  const quest: Quest | null = previewQuest ?? loadedQuest ?? (session ? {
+  let quest: Quest | null = previewQuest ?? loadedQuest ?? (session ? {
     id: session.questId,
     title: isGuestQuest ? "Personalize your Quest" : "Your active quest",
     category: "ADVENTURE",
@@ -417,6 +421,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
     saved: false,
     completed: false,
   } : null);
+  if (completeVisible && completedQuest) quest = completedQuest;
   const accent = quest ? (categoryColor[quest.category]?.text ?? quest.color) : T.blue;
   const paused = snapshot?.session.recordingState === "paused";
   const countdownStartedAt = snapshot?.session.startedAt ?? session?.startedAt;
@@ -428,6 +433,12 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const journalReflection = saveToJournal === "1"
     ? [snapshot?.session.entryBody, ...(snapshot?.activity.filter((item) => item.kind === "note").map((item) => item.body) ?? [])].filter((value): value is string => Boolean(value?.trim())).join("\n\n")
     : snapshot?.session.entryBody ?? "";
+  const captureCompletionRecap = () => setCompletedRecap({
+    title: snapshot?.session.entryTitle ?? "",
+    reflection: journalReflection,
+    photoUris: (snapshot?.photos ?? []).map((photo) => photo.uri),
+    duration: formatElapsedFull(previewElapsedMs ?? elapsedDuration),
+  });
   const isFreshSession = Boolean(session?.id && countdownStartedAt && (onboarding?.forceCountdown || Date.now() - new Date(countdownStartedAt).getTime() <= 15_000));
   const shouldPlayCountdown = !onboarding?.holdCountdown && isFreshSession && snapshot?.session.recordingState === "paused";
   const isCountdownPending = shouldPlayCountdown && countdownSessionRef.current !== session?.id && !countdownLaunchAt;
@@ -439,6 +450,8 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   useEffect(() => {
     if (preview || saveToJournal !== "1" || activeQuestLoading || !session?.id || !quest || journalLaunchSessionRef.current === session.id) return;
     journalLaunchSessionRef.current = session.id;
+    setCompletedQuest(quest);
+    captureCompletionRecap();
     setCompleteVisible(true);
   }, [activeQuestLoading, preview, quest, saveToJournal, session?.id]);
 
@@ -544,9 +557,20 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   // controls while the device-local snapshot finishes hydrating.
   if (activeQuestLoading && session && !preview && !onboarding) return <ActiveQuestLoadingSkeleton />;
 
-  if ((!session && !previewQuest) || !quest) return <View style={{ flex: 1, paddingTop: screenInsets.top + 24, backgroundColor: T.bg }}><EmptyState emoji="🧭" title="No active quest" body="Start a solo quest from Explore to create its live home." /></View>;
+  // There is no standalone empty active-quest destination. Completion always
+  // continues into the Journal, and a stale deep link simply renders nothing
+  // while navigation resolves rather than flashing the old empty screen.
+  if ((!session && !previewQuest && !completeVisible) || !quest) return null;
 
   const togglePaused = () => { void (paused ? resume() : pause()); };
+  const openFinishReview = () => {
+    void (async () => {
+      // Opening the end-quest flow freezes the recorded duration immediately,
+      // including when the user backs out of the confirmation sheet.
+      try { if (!paused) await pause(); }
+      finally { setFinishReviewVisible(true); }
+    })();
+  };
   const enableRouteRecording = beginQuestRoute;
   const handleEnableRouteRecording = () => {
     // During guest onboarding the quest intentionally stays paused until the
@@ -715,8 +739,8 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
       {tab === "map" ? isStartingQuest ? <QuestStartupSurface accent={accent} step={countdownStep} /> : <LiveMap accent={accent} route={renderedRoute} renderSegments={renderedSegments} deviceLocation={deviceLocation ?? (previewLocation ? { latitude: previewLocation.latitude, longitude: previewLocation.longitude } : null)} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={null} onEnableTracking={handleEnableRouteRecording} forceEnablePrompt={onboarding?.guideStep === "route"} routePromptNudge={onboarding?.routePromptNudge} showUserLocation={!preview} animateInitialCamera={!preview} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} onManage={openPhotoManager} /> : <ActivityTimeline activity={snapshot?.activity ?? []} photos={snapshot?.photos ?? []} accent={accent} onManage={openActivityManager} focusLatest={Boolean(onboarding?.focusLatestActivity)} />}
     </View>
     {!countdownStep && photoSavedVisible ? <QuestNoticePill notice="photo-saved" accent={accent} message={trackingMessage} bottomOffset={Math.max(screenInsets.bottom + 98, 126)} /> : null}
-    <FloatingQuestControls accent={accent} duration={duration} paused={paused} takingPhoto={takingPhoto} bottomInset={screenInsets.bottom} onTakePhoto={() => void takePhoto()} onQuickNote={() => setQuickNoteVisible(true)} onFinish={() => setFinishReviewVisible(true)} onTogglePaused={togglePaused} locked={Boolean(onboarding?.locked)} forcedOpen={Boolean(onboarding?.forceQuickActionsOpen) || onboarding?.allowPhotoCapture || onboarding?.allowQuickNote} allowQuickActions={Boolean(onboarding?.allowQuickActions)} allowPhotoCapture={Boolean(onboarding?.allowPhotoCapture)} allowQuickNote={Boolean(onboarding?.allowQuickNote)} showQuickActionsWhenPaused={Boolean(onboarding?.showQuickActionsWhenPaused)} onQuickActionsOpened={onboarding?.onQuickActionsOpened} onQuickNoteOpened={onboarding?.onQuickNoteOpened} />
-    <FinishQuestReviewSheet visible={finishReviewVisible} accent={accent} onContinue={() => setFinishReviewVisible(false)} onEndQuest={() => { setFinishReviewVisible(false); setCompleteVisible(true); }} />
+    <FloatingQuestControls accent={accent} duration={duration} paused={paused} takingPhoto={takingPhoto} bottomInset={screenInsets.bottom} onTakePhoto={() => void takePhoto()} onQuickNote={() => setQuickNoteVisible(true)} onFinish={openFinishReview} onTogglePaused={togglePaused} locked={Boolean(onboarding?.locked)} forcedOpen={Boolean(onboarding?.forceQuickActionsOpen) || onboarding?.allowPhotoCapture || onboarding?.allowQuickNote} allowQuickActions={Boolean(onboarding?.allowQuickActions)} allowPhotoCapture={Boolean(onboarding?.allowPhotoCapture)} allowQuickNote={Boolean(onboarding?.allowQuickNote)} showQuickActionsWhenPaused={Boolean(onboarding?.showQuickActionsWhenPaused)} onQuickActionsOpened={onboarding?.onQuickActionsOpened} onQuickNoteOpened={onboarding?.onQuickNoteOpened} />
+    <FinishQuestReviewSheet visible={finishReviewVisible} accent={accent} onContinue={() => setFinishReviewVisible(false)} onEndQuest={() => { setFinishReviewVisible(false); setCompletedQuest(quest); captureCompletionRecap(); setCompleteVisible(true); }} />
     <Sheet visible={quickNoteVisible} onClose={() => { setQuickNote(""); setQuickNoteVisible(false); onboarding?.onQuickNoteDiscarded?.(); }} maxHeight="58%">
       <View style={{ paddingHorizontal: 24, paddingBottom: 26, gap: 14 }}>
         <View style={{ gap: 3 }}><Text style={{ color: T.dark, fontSize: 24, lineHeight: 30, fontWeight: "900" }}>Quick note</Text><Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>Capture something before it slips away.</Text></View>
@@ -741,7 +765,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
         <View style={{ flexDirection: "row", gap: 10 }}><Pressable accessibilityRole="button" accessibilityLabel="Delete activity" onPress={confirmDeleteManagedItem} style={({ pressed }) => ({ flex: 1, minHeight: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: `${T.red}12`, borderWidth: 1.5, borderColor: `${T.red}45`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.red, fontSize: 15, fontWeight: "900" }}>Delete</Text></Pressable>{managedActivity ? <Pressable accessibilityRole="button" accessibilityLabel="Save activity changes" onPress={() => void saveActivityEdit()} style={({ pressed }) => ({ flex: 1, minHeight: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: accent, borderBottomWidth: 5, borderBottomColor: `${accent}a8`, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 15, fontWeight: "900" }}>Save changes</Text></Pressable> : null}</View>
       </View>
     </Sheet>
-    <LogLoreFlow guestMode={isGuestQuest} visible={completeVisible} quest={quest} initialTitle={snapshot?.session.entryTitle ?? ""} initialReflection={journalReflection} photoUris={(snapshot?.photos ?? []).map((photo) => photo.uri)} duration={duration} onSaveDraft={(draft) => saveEntry(draft)} onClose={() => setCompleteVisible(false)} onFinished={async (result, destination, details) => { await finishLocalQuest(); if (!isGuestQuest) await refresh(); setCompleteVisible(false); if (isGuestQuest) { router.replace("/(auth)/auth-options"); return; } if (destination === "share") { router.replace({ pathname: "/share-adventure", params: { completionId: result.completionId, questId: quest.id, title: quest.title, rating: String(details.rating) } }); return; } if (saveToJournal === "1" && nextQuestId) { try { await startQuest({ questId: nextQuestId, source: "explore" }); await refresh(); router.replace("/active-quest"); } catch { showFeedback({ message: "Your quest is saved in the Journal, but we couldn't start the next quest. Please try again.", icon: "alert-circle", color: T.red }); router.replace("/(tabs)/journal"); } return; } router.replace("/(tabs)/journal"); }} />
+    <LogLoreFlow guestMode={isGuestQuest} visible={completeVisible} quest={quest} initialTitle={completedRecap?.title ?? snapshot?.session.entryTitle ?? ""} initialReflection={completedRecap?.reflection ?? journalReflection} photoUris={completedRecap?.photoUris ?? (snapshot?.photos ?? []).map((photo) => photo.uri)} duration={completedRecap?.duration ?? duration} onSaveDraft={(draft) => saveEntry(draft)} onFinished={async (result, destination, details) => { await finishLocalQuest(); if (!isGuestQuest) await refresh(); setCompleteVisible(false); setCompletedQuest(null); setCompletedRecap(null); if (isGuestQuest) { router.replace("/(auth)/auth-options"); return; } if (destination === "share") { router.replace({ pathname: "/share-adventure", params: { completionId: result.completionId, questId: quest.id, title: quest.title, rating: String(details.rating) } }); return; } if (saveToJournal === "1" && nextQuestId) { try { await startQuest({ questId: nextQuestId, source: "explore" }); await refresh(); router.replace("/active-quest"); } catch { showFeedback({ message: "Your quest is saved in the Journal, but we couldn't start the next quest. Please try again.", icon: "alert-circle", color: T.red }); router.replace("/(tabs)/journal"); } return; } router.replace({ pathname: "/(tabs)/journal", params: { completionId: result.completionId } }); }} />
     <StaleQuestReminder visible={staleQuestReminderVisible} elapsedLabel={formatElapsedFull(elapsedDuration)} busy={staleQuestActionBusy} onResume={() => setStaleQuestReminderVisible(false)} onSaveForLater={() => void saveStaleQuestForLater()} onAbandon={confirmAbandonStaleQuest} />
   </View>;
 }
