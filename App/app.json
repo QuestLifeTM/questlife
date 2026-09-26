@@ -42,7 +42,13 @@
         }
       ],
       "expo-sqlite",
-      "@sentry/react-native",
+      [
+        "@sentry/react-native",
+        {
+          "organization": "questlifetm",
+          "project": "questlife-mobile"
+        }
+      ],
       "expo-asset",
       "expo-image",
       "expo-sharing",

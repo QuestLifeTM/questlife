@@ -6,15 +6,24 @@
   "build": {
     "development": {
       "environment": "development",
+      "env": {
+        "SENTRY_ALLOW_FAILURE": "true"
+      },
       "developmentClient": true,
       "distribution": "internal"
     },
     "preview": {
       "environment": "preview",
+      "env": {
+        "SENTRY_ALLOW_FAILURE": "true"
+      },
       "distribution": "internal"
     },
     "production": {
       "environment": "production",
+      "env": {
+        "SENTRY_ALLOW_FAILURE": "true"
+      },
       "autoIncrement": true
     }
   },
