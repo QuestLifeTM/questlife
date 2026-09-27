@@ -44,7 +44,7 @@ export function useQuestStart(getQuest: (id?: string) => Quest | null) {
           const state = await fetchEngineState().catch(() => null);
           await refresh();
           Sentry.captureMessage("quest_active_session_recovery_required", "warning");
-          setBlock({ type: "active_session", quest: state?.activeSession ? getQuest(state.activeSession.questId) : null });
+          setBlock({ type: "active_session", quest: state?.doingNowSession ? getQuest(state.doingNowSession.questId) : null });
         } else if (message.includes("already completed")) {
           const quest = getQuest(input.questId);
           if (quest) setBlock({ type: "repeat_quest", quest, repeatXp: Math.round(quest.xp * 0.2) });
@@ -70,7 +70,7 @@ export function useQuestStart(getQuest: (id?: string) => Quest | null) {
     try {
       await clearMyActiveQuestRecovery();
       const state = await fetchEngineState();
-      if (!state.activeSession) throw new Error("Your active quest is no longer available.");
+      if (!state.doingNowSession) throw new Error("Your active quest is no longer available.");
       await refresh();
       setBlock(null);
       return true;
@@ -85,9 +85,9 @@ export function useQuestStart(getQuest: (id?: string) => Quest | null) {
   }, [refresh]);
 
   const showActiveSessionBlock = useCallback((requestedQuest: Quest, actionColor?: string) => {
-    const activeQuest = engine?.activeSession ? getQuest(engine.activeSession.questId) : null;
+    const activeQuest = engine?.doingNowSession ? getQuest(engine.doingNowSession.questId) : null;
     setBlock({ type: "active_session", quest: activeQuest, requestedQuest, actionColor });
-  }, [engine?.activeSession, getQuest]);
+  }, [engine?.doingNowSession, getQuest]);
 
   const abandonActiveAndRetry = useCallback(async (input: { questId: string; source?: "explore" | "saved" | "social" }) => {
     setStarting(true);

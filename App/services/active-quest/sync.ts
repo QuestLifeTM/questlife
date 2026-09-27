@@ -163,7 +163,7 @@ export async function flushCurrentUsersActiveQuest() {
   const { data: session, error } = await supabase
     .from("quest_sessions")
     .select("id")
-    .eq("status", "active")
+    .in("status", ["doing_now", "active"])
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -180,7 +180,7 @@ export async function pauseAndFlushCurrentUsersActiveQuest() {
   const { data: session, error } = await supabase
     .from("quest_sessions")
     .select("id")
-    .eq("status", "active")
+    .in("status", ["doing_now", "active"])
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();

@@ -27,6 +27,7 @@ type QuestRow = {
   steps: string[] | null;
   estimated_minutes: number;
   difficulty: Quest["difficulty"];
+  quest_mode: Quest["mode"];
   status: QuestStatus;
   featured: boolean;
   accent_color: string;
@@ -209,6 +210,7 @@ function mapQuest(
     timeMin: row.estimated_minutes,
     timeLabel: formatTimeLabel(row.estimated_minutes),
     difficulty: row.difficulty,
+    mode: row.quest_mode ?? "focused",
     status: row.status,
     featured: row.featured,
     color: questCategoryColors[category].text,
@@ -687,6 +689,7 @@ export async function upsertQuest(input: QuestFormInput & { id?: string }) {
     steps: input.steps.map((step) => step.trim()).filter(Boolean),
     estimated_minutes: input.timeMin,
     difficulty: input.difficulty,
+    quest_mode: input.mode,
     status: input.status,
     featured: input.featured,
     accent_color: categoryColor,
@@ -699,12 +702,25 @@ export async function upsertQuest(input: QuestFormInput & { id?: string }) {
     ...(input.id ? {} : { created_by: userData.user?.id ?? null }),
   };
 
-  const query = input.id
-    ? supabase.from("quests").update(payload).eq("id", input.id)
-    : supabase.from("quests").insert(payload);
+  const write = (body: typeof payload | Omit<typeof payload, "quest_mode">) => {
+    const query = input.id
+      ? supabase.from("quests").update(body).eq("id", input.id)
+      : supabase.from("quests").insert(body);
+    return query.select("*").single<QuestRow>();
+  };
 
-  const { data, error } = await query.select("*").single<QuestRow>();
+  let { data, error } = await write(payload);
+
+  // The Admin app can be deployed before its development or production
+  // database receives the quest-state migration. In that short window, keep
+  // publishing/editing existing quests working and let them default to focused.
+  if (error && /quest_mode|PGRST204|column .* does not exist/i.test(error.message)) {
+    const { quest_mode: _questMode, ...legacyPayload } = payload;
+    ({ data, error } = await write(legacyPayload));
+  }
+
   if (error) throw error;
+  if (!data) throw new Error("Quest save did not return the updated quest.");
 
   await writeAudit(input.id ? "quest.updated" : "quest.created", "quest", data.id, {
     status: input.status,

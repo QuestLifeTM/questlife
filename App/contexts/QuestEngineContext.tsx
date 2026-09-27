@@ -10,7 +10,6 @@ import {
   fetchUserPacks,
   markMyActiveQuestAway,
   resetTodaySoloQuestCompletions,
-  saveSessionForLater,
   startQuestSession,
   upsertUserPack,
 } from "@/services/engine/questEngineService";
@@ -22,9 +21,8 @@ type QuestEngineContextValue = {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  startQuest: (input: { questId: string; source?: "explore" | "saved" | "social" }) => Promise<void>;
-  abandonActiveQuest: () => Promise<void>;
-  saveActiveForLater: () => Promise<void>;
+  startQuest: (input: { questId: string; source?: "explore" | "saved" | "social" }) => Promise<{ sessionId: string; mode: "focused" | "flexible" }>;
+  abandonActiveQuest: (sessionId?: string) => Promise<void>;
   completeQuest: (input: CompleteQuestInput) => Promise<CompletionResult>;
   resetTodaySoloCompletions: () => Promise<number>;
   saveUserPack: (input: { id?: string; title: string; description?: string | null; icon: string; accentColor: string; coverImageUrl?: string | null; isPinned?: boolean; questIds: string[] }) => Promise<void>;
@@ -37,9 +35,8 @@ const QuestEngineContext = createContext<QuestEngineContextValue>({
   loading: false,
   error: null,
   refresh: async () => undefined,
-  startQuest: async () => undefined,
+  startQuest: async () => ({ sessionId: "", mode: "focused" }),
   abandonActiveQuest: async () => undefined,
-  saveActiveForLater: async () => undefined,
   completeQuest: async () => ({ completionId: "", xpAwarded: 0, dailyUsed: 0, dailyLimit: 5 }),
   resetTodaySoloCompletions: async () => 0,
   saveUserPack: async () => undefined,
@@ -112,41 +109,28 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
       } catch {
         // The session exists remotely. Preserve that fact locally so a retry
         // cannot accidentally try to start a second active quest.
-        setEngine((current) => current ? {
+        setEngine((current) => current ? session.mode === "focused" ? {
           ...current,
-          activeSession: {
-            id: session.sessionId,
-            questId: input.questId,
-            source: input.source ?? "explore",
-            startedAt: new Date().toISOString(),
-          },
+          doingNowSession: { id: session.sessionId, questId: input.questId, source: input.source ?? "explore", startedAt: new Date().toISOString() },
+        } : {
+          ...current,
+          inProgressSessions: [{ id: session.sessionId, questId: input.questId, source: input.source ?? "explore", startedAt: new Date().toISOString() }, ...current.inProgressSessions],
         } : current);
       }
+      return session;
     },
     [],
   );
 
-  const abandonActiveQuest = useCallback(async () => {
-    const sessionId = engine?.activeSession?.id;
+  const abandonActiveQuest = useCallback(async (sessionId = engine?.doingNowSession?.id) => {
     if (!sessionId) return;
     await abandonQuestSession(sessionId);
     try {
       setEngine(await fetchEngineState());
     } catch {
-      setEngine((current) => current ? { ...current, activeSession: null } : current);
+      setEngine((current) => current ? { ...current, doingNowSession: null } : current);
     }
-  }, [engine?.activeSession?.id]);
-
-  const saveActiveForLater = useCallback(async () => {
-    const sessionId = engine?.activeSession?.id;
-    if (!sessionId) return;
-    await saveSessionForLater(sessionId);
-    try {
-      setEngine(await fetchEngineState());
-    } catch {
-      setEngine((current) => current ? { ...current, activeSession: null } : current);
-    }
-  }, [engine?.activeSession?.id]);
+  }, [engine?.doingNowSession?.id]);
 
   const completeQuest = useCallback(async (input: CompleteQuestInput) => {
     const result = await completeQuestV2(input);
@@ -155,7 +139,7 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     try {
       setEngine(await fetchEngineState());
     } catch {
-      setEngine((current) => current ? { ...current, activeSession: null } : current);
+      setEngine((current) => current ? { ...current, doingNowSession: null } : current);
     }
     return result;
   }, []);
@@ -192,7 +176,6 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
       refresh,
       startQuest,
       abandonActiveQuest,
-      saveActiveForLater,
       completeQuest,
       resetTodaySoloCompletions,
       saveUserPack,
@@ -206,7 +189,6 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
       refresh,
       startQuest,
       abandonActiveQuest,
-      saveActiveForLater,
       completeQuest,
       resetTodaySoloCompletions,
       saveUserPack,

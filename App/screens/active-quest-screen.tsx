@@ -75,7 +75,7 @@ type MapCoordinate = { latitude: number; longitude: number };
 
 function QuestNoticePill({ notice, accent, message, bottomOffset = MAP_NOTICE_BOTTOM_OFFSET }: { notice: QuestNotice; accent: string; message?: string | null; bottomOffset?: number }) {
   const detail = notice === "active"
-    ? { icon: "ellipse" as const, iconColor: T.green, label: "Quest in progress" }
+    ? { icon: "ellipse" as const, iconColor: T.green, label: "Active now" }
     : notice === "paused"
       ? { icon: "pause" as const, iconColor: "#e7a52c", label: "Quest paused" }
       : notice === "photo-saved"
@@ -323,14 +323,12 @@ function StaleQuestReminder({
   elapsedLabel,
   busy,
   onResume,
-  onSaveForLater,
   onAbandon,
 }: {
   visible: boolean;
   elapsedLabel: string;
   busy: boolean;
   onResume: () => void;
-  onSaveForLater: () => void;
   onAbandon: () => void;
 }) {
   return (
@@ -343,7 +341,6 @@ function StaleQuestReminder({
         </View>
         <View style={{ gap: 9 }}>
           <StaleQuestActionButton label="Resume quest" icon="play" onPress={onResume} disabled={busy} />
-          <StaleQuestActionButton label="Save for later" icon="bookmark-outline" inverse onPress={onSaveForLater} disabled={busy} />
           <Pressable accessibilityRole="button" accessibilityLabel="Abandon this quest" accessibilityState={{ disabled: busy }} disabled={busy} onPress={onAbandon} style={({ pressed }) => ({ minHeight: 42, alignItems: "center", justifyContent: "center", opacity: busy || pressed ? 0.65 : 1 })}><Text style={{ color: T.red, fontFamily: "RubikBold", fontSize: 16, lineHeight: 21, fontWeight: "900" }}>Abandon this quest</Text></Pressable>
         </View>
       </View>
@@ -365,7 +362,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const { saveToJournal, nextQuestId } = useLocalSearchParams<{ saveToJournal?: string; nextQuestId?: string }>();
   const insets = useSafeAreaInsets();
   const screenInsets = preview ? PREVIEW_PHONE_INSETS : insets;
-  const { engine, refresh, startQuest, abandonActiveQuest, saveActiveForLater } = useQuestEngine();
+  const { engine, refresh, startQuest, abandonActiveQuest } = useQuestEngine();
   const { guestSession } = useGuestQuest();
   const { showFeedback } = useAppFeedback();
   const { snapshot, liveLocation, loading: activeQuestLoading, trackingMessage, pause, resume, saveEntry, enableTracking, addActivityNote, addPhoto, updateActivity, deleteActivity, deletePhoto, finishLocalQuest } = useActiveQuest();
@@ -398,7 +395,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const staleQuestReminderShownForSessionRef = useRef<string | null>(null);
   const shownTutorialMockRef = useRef<string | null>(null);
   const journalLaunchSessionRef = useRef<string | null>(null);
-  const session = engine?.activeSession ?? guestSession;
+  const session = engine?.doingNowSession ?? guestSession;
   const isGuestQuest = Boolean(guestSession && session?.id === guestSession.id);
   const loadedQuest = getQuest(session?.questId);
   // An active session remains completable even if the live content list has
@@ -686,20 +683,6 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
       })() },
     ]);
   };
-  const saveStaleQuestForLater = async () => {
-    if (staleQuestActionBusy) return;
-    setStaleQuestActionBusy(true);
-    try {
-      await saveActiveForLater();
-      showFeedback({ message: "Your quest is saved to My Stuff for later.", icon: "bookmark", color: T.blue });
-      setStaleQuestReminderVisible(false);
-      router.replace("/(tabs)");
-    } catch {
-      showFeedback({ message: "We couldn't save this quest for later. Please try again.", icon: "alert-circle", color: T.red });
-    } finally {
-      setStaleQuestActionBusy(false);
-    }
-  };
   const confirmAbandonStaleQuest = () => {
     Alert.alert("Abandon this quest?", "Your active timer and in-progress notes will be cleared. This cannot be undone.", [
       { text: "Keep quest", style: "cancel" },
@@ -728,7 +711,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
     <View style={{ backgroundColor: T.white, paddingTop: screenInsets.top + 10, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: T.border }}>
       <View style={{ paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <View style={{ flex: 1, gap: 3 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: paused ? T.orange : T.green }} /><Text style={{ color: T.dark, fontSize: 13, lineHeight: 17, fontWeight: "900" }}>{paused ? "Quest paused" : "Quest in progress"}</Text></View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: paused ? T.orange : T.green }} /><Text style={{ color: T.dark, fontSize: 13, lineHeight: 17, fontWeight: "900" }}>{paused ? "Quest paused" : "Active now"}</Text></View>
           <Text style={{ flexShrink: 1, color: T.dark, fontFamily: "RubikBlack", fontSize: 25, lineHeight: 31, fontWeight: "900" }}>{quest.title}</Text>
         </View>
         {!onboarding?.hideExit ? <Pressable accessibilityRole="button" accessibilityLabel="Leave active quest" onPress={() => router.back()} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, backgroundColor: "#f7f3ee", borderWidth: 1, borderColor: T.border, alignItems: "center", justifyContent: "center", transform: [{ translateY: -7 }, { scale: pressed ? 0.94 : 1 }] })}><Ionicons name="close" size={22} color={T.dark} /></Pressable> : null}
@@ -765,7 +748,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
         <View style={{ flexDirection: "row", gap: 10 }}><Pressable accessibilityRole="button" accessibilityLabel="Delete activity" onPress={confirmDeleteManagedItem} style={({ pressed }) => ({ flex: 1, minHeight: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: `${T.red}12`, borderWidth: 1.5, borderColor: `${T.red}45`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.red, fontSize: 15, fontWeight: "900" }}>Delete</Text></Pressable>{managedActivity ? <Pressable accessibilityRole="button" accessibilityLabel="Save activity changes" onPress={() => void saveActivityEdit()} style={({ pressed }) => ({ flex: 1, minHeight: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: accent, borderBottomWidth: 5, borderBottomColor: `${accent}a8`, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 15, fontWeight: "900" }}>Save changes</Text></Pressable> : null}</View>
       </View>
     </Sheet>
-    <LogLoreFlow guestMode={isGuestQuest} visible={completeVisible} quest={quest} initialTitle={completedRecap?.title ?? snapshot?.session.entryTitle ?? ""} initialReflection={completedRecap?.reflection ?? journalReflection} photoUris={completedRecap?.photoUris ?? (snapshot?.photos ?? []).map((photo) => photo.uri)} duration={completedRecap?.duration ?? duration} onSaveDraft={(draft) => saveEntry(draft)} onFinished={async (result, destination, details) => { await finishLocalQuest(); if (!isGuestQuest) await refresh(); setCompleteVisible(false); setCompletedQuest(null); setCompletedRecap(null); if (isGuestQuest) { router.replace("/(auth)/auth-options"); return; } if (destination === "share") { router.replace({ pathname: "/share-adventure", params: { completionId: result.completionId, questId: quest.id, title: quest.title, rating: String(details.rating), sharePhotos: JSON.stringify((completedRecap?.photoUris ?? snapshot?.photos.map((photo) => photo.uri) ?? []).slice(0, 4)) } }); return; } if (saveToJournal === "1" && nextQuestId) { try { await startQuest({ questId: nextQuestId, source: "explore" }); await refresh(); router.replace("/active-quest"); } catch { showFeedback({ message: "Your quest is saved in the Journal, but we couldn't start the next quest. Please try again.", icon: "alert-circle", color: T.red }); router.replace("/(tabs)/journal"); } return; } router.replace({ pathname: "/(tabs)/journal", params: { completionId: result.completionId } }); }} />
-    <StaleQuestReminder visible={staleQuestReminderVisible} elapsedLabel={formatElapsedFull(elapsedDuration)} busy={staleQuestActionBusy} onResume={() => setStaleQuestReminderVisible(false)} onSaveForLater={() => void saveStaleQuestForLater()} onAbandon={confirmAbandonStaleQuest} />
+    <LogLoreFlow guestMode={isGuestQuest} visible={completeVisible} quest={quest} sessionId={session?.id} initialTitle={completedRecap?.title ?? snapshot?.session.entryTitle ?? ""} initialReflection={completedRecap?.reflection ?? journalReflection} photoUris={completedRecap?.photoUris ?? (snapshot?.photos ?? []).map((photo) => photo.uri)} duration={completedRecap?.duration ?? duration} onSaveDraft={(draft) => saveEntry(draft)} onFinished={async (result, destination, details) => { await finishLocalQuest(); if (!isGuestQuest) await refresh(); setCompleteVisible(false); setCompletedQuest(null); setCompletedRecap(null); if (isGuestQuest) { router.replace("/(auth)/auth-options"); return; } if (destination === "share") { router.replace({ pathname: "/share-adventure", params: { completionId: result.completionId, questId: quest.id, title: quest.title, rating: String(details.rating), sharePhotos: JSON.stringify((completedRecap?.photoUris ?? snapshot?.photos.map((photo) => photo.uri) ?? []).slice(0, 4)) } }); return; } if (saveToJournal === "1" && nextQuestId) { try { await startQuest({ questId: nextQuestId, source: "explore" }); await refresh(); router.replace("/active-quest"); } catch { showFeedback({ message: "Your quest is saved in the Journal, but we couldn't start the next quest. Please try again.", icon: "alert-circle", color: T.red }); router.replace("/(tabs)/journal"); } return; } router.replace({ pathname: "/(tabs)/journal", params: { completionId: result.completionId } }); }} />
+    <StaleQuestReminder visible={staleQuestReminderVisible} elapsedLabel={formatElapsedFull(elapsedDuration)} busy={staleQuestActionBusy} onResume={() => setStaleQuestReminderVisible(false)} onAbandon={confirmAbandonStaleQuest} />
   </View>;
 }

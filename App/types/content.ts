@@ -21,6 +21,7 @@ export const questStatuses = ["draft", "in_review", "published", "archived"] as 
 export type QuestCategory = Exclude<(typeof questCategories)[number], "All">;
 export type QuestDifficulty = (typeof questDifficulties)[number];
 export type QuestStatus = (typeof questStatuses)[number];
+export type QuestMode = "focused" | "flexible";
 
 /** Maps records created before the category consolidation to their live category. */
 export function normalizeQuestCategory(category: string): QuestCategory {
@@ -49,6 +50,7 @@ export type Quest = {
   timeMin: number;
   timeLabel: string;
   difficulty: QuestDifficulty;
+  mode?: QuestMode;
   status: QuestStatus;
   featured: boolean;
   color: string;
@@ -74,6 +76,7 @@ export type QuestFormInput = {
   steps: string[];
   timeMin: number;
   difficulty: QuestDifficulty;
+  mode: QuestMode;
   status: QuestStatus;
   featured: boolean;
   color: string;

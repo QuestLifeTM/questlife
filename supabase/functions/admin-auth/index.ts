@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = requiredEnv("SUPABASE_URL");
     const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
-    const adminDashboardUrl = Deno.env.get("ADMIN_DASHBOARD_URL") ?? "https://admin.questlife.app";
+    const adminDashboardUrl = Deno.env.get("ADMIN_DASHBOARD_URL") ?? "https://admin.myquestlife.app";
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });

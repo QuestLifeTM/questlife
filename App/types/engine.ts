@@ -7,6 +7,8 @@ export type ActiveQuestSession = {
   recoveryRequiredAt?: string | null;
 };
 
+export type InProgressQuestSession = Omit<ActiveQuestSession, "recoveryStartedAt" | "recoveryRequiredAt">;
+
 export type TodayCompletion = {
   completionId: string;
   questId: string;
@@ -18,7 +20,8 @@ export type TodayCompletion = {
 export type QuestEngineState = {
   dailyLimit: number;
   dailyUsed: number;
-  activeSession: ActiveQuestSession | null;
+  doingNowSession: ActiveQuestSession | null;
+  inProgressSessions: InProgressQuestSession[];
   todayCompletions: TodayCompletion[];
 };
 
@@ -31,6 +34,7 @@ export type CompletionResult = {
 
 export type CompleteQuestInput = {
   questId: string;
+  sessionId?: string | null;
   logged: boolean;
   reflection?: string | null;
   rating?: number | null;

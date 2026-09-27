@@ -1,11 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Image, Pressable, ScrollView, Share, Text, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, Share, Text, View } from "react-native";
 import Reanimated from "react-native-reanimated";
 
 import { PartyCategoryIcon } from "@/components/party-category-icon";
-import { ActiveQuestSummary, QuestAbandonReviewModal, QuestStartBlockModal } from "@/components/quest-start-block";
+import * as SecureStore from "expo-secure-store";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { categoryColor, difficultyColor, T } from "@/components/theme";
 import { EmptyState, GradientBand, IconButton, Screen, Sheet, useResponsiveScreenLayout } from "@/components/ui";
@@ -14,9 +14,7 @@ import { useActiveQuest } from "@/contexts/ActiveQuestContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useQuestSave } from "@/contexts/QuestSaveContext";
 import { useSocial } from "@/contexts/SocialContext";
-import { useQuestStart } from "@/hooks/useQuestStart";
-import { formatElapsedFull, useElapsedDuration } from "@/hooks/useElapsedTime";
-import { fetchQuestReviews } from "@/services/engine/questEngineService";
+import { engineErrorMessage, fetchQuestReviews } from "@/services/engine/questEngineService";
 import { Quest } from "@/types/content";
 import { QuestReviewData } from "@/types/engine";
 
@@ -59,7 +57,7 @@ function QuestHeaderPill({
 function QuestAction({ label, icon, color, onPress, inverse = false, disabled = false, activeQuestLocked = false, fullWidth = false }: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; inverse?: boolean; disabled?: boolean; activeQuestLocked?: boolean; fullWidth?: boolean }) {
   const backgroundColor = activeQuestLocked ? `${color}38` : disabled ? `${color}38` : inverse ? T.white : color;
   const textColor = activeQuestLocked ? color : disabled ? T.muted : inverse ? color : T.white;
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ flex: fullWidth ? undefined : 1, minHeight: 54, borderRadius: 19, borderWidth: inverse ? 2 : 0, borderColor: inverse ? color : "transparent", borderBottomWidth: disabled ? 0 : inverse ? 4 : 5, borderBottomColor: disabled ? "transparent" : inverse ? `${color}99` : activeQuestLocked ? `${color}88` : "rgba(61,52,56,0.22)", backgroundColor, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7, paddingHorizontal: 10, opacity: pressed && !disabled ? 0.88 : 1, transform: [{ translateY: pressed && !disabled ? 2 : 0 }] })}><Ionicons name={icon} size={18} color={textColor} /><Text numberOfLines={1} style={{ color: textColor, fontFamily: "RubikBold", fontSize: 14, textAlign: "center" }}>{label}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ alignSelf: fullWidth ? "stretch" : undefined, flex: fullWidth ? undefined : 1, minHeight: 54, borderRadius: 19, borderWidth: inverse ? 2 : 0, borderColor: inverse ? color : "transparent", borderBottomWidth: disabled ? 0 : inverse ? 4 : 5, borderBottomColor: disabled ? "transparent" : inverse ? `${color}99` : activeQuestLocked ? `${color}88` : "rgba(61,52,56,0.22)", backgroundColor, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7, paddingHorizontal: 10, opacity: pressed && !disabled ? 0.88 : 1, transform: [{ translateY: pressed && !disabled ? 2 : 0 }] })}><Ionicons name={icon} size={18} color={textColor} /><Text numberOfLines={1} style={{ color: textColor, fontFamily: "RubikBold", fontSize: 14, textAlign: "center" }}>{label}</Text></Pressable>;
 }
 
 function Stat({ label, value, icon, color, bordered }: { label: string; value: string; icon?: keyof typeof Ionicons.glyphMap; color: string; bordered?: boolean }) {
@@ -71,21 +69,21 @@ export function QuestDetailScreen({ id, onBack, previewQuest }: { id?: string; o
   const { horizontalPadding, insets } = useResponsiveScreenLayout();
   const edgePadding = { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding };
   const { getQuest, loading } = useContent();
-  const { engine, refresh, userPacks } = useQuestEngine();
-  const { snapshot } = useActiveQuest();
+  const { engine, refresh, userPacks, startQuest, abandonActiveQuest } = useQuestEngine();
   const { openQuestSave } = useQuestSave();
   const { overview, shareQuestWith, challengeFriend } = useSocial();
   const quest = previewQuest ?? getQuest(id);
-  const { tryStart, abandonActiveAndRetry, resumeActiveQuest, block, clearBlock, showActiveSessionBlock, starting } = useQuestStart(getQuest);
   const [reviews, setReviews] = useState<QuestReviewData | null>(null);
   const [shareVisible, setShareVisible] = useState(false);
   const [shareFriendId, setShareFriendId] = useState<string | null>(null);
-  const [abandonReviewVisible, setAbandonReviewVisible] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [startEducationVisible, setStartEducationVisible] = useState(false);
+  const [doingNowBlockVisible, setDoingNowBlockVisible] = useState(false);
+  const [abandoningCurrentQuest, setAbandoningCurrentQuest] = useState(false);
 
-  const isActive = engine?.activeSession?.questId === quest?.id;
-  const hasOtherActive = Boolean(engine?.activeSession && !isActive);
-  const activeSnapshot = snapshot?.session.sessionId === engine?.activeSession?.id ? snapshot : null;
-  const activeQuestElapsed = useElapsedDuration(activeSnapshot?.session.activeSince ?? engine?.activeSession?.startedAt);
+  const isActive = engine?.doingNowSession?.questId === quest?.id;
+  const inProgressSession = engine?.inProgressSessions.find((session) => session.questId === quest?.id) ?? null;
+  const hasOtherActive = Boolean(engine?.doingNowSession && !isActive);
 
   useEffect(() => {
     if (previewQuest || !quest?.id) return;
@@ -97,6 +95,7 @@ export function QuestDetailScreen({ id, onBack, previewQuest }: { id?: string; o
   const category = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
   const difficulty = difficultyColor[quest.difficulty];
   const actionColor = categoryButtonColors[quest.category];
+  const questMode = quest.mode ?? "focused";
   const friends = overview?.friends ?? [];
   const savedCollections = userPacks.filter((pack) => pack.questIds.includes(quest.id)).length;
   const savedAnywhere = quest.saved || savedCollections > 0;
@@ -106,19 +105,54 @@ export function QuestDetailScreen({ id, onBack, previewQuest }: { id?: string; o
   const creatorHandle = creatorLabel ? (creatorLabel.startsWith("@") ? creatorLabel : `@${creatorLabel}`) : "@QuestLifeTeam";
   const isQuestLifeTeam = creatorHandle.slice(1).toLowerCase() === "questlifeteam";
   const steps = quest.steps.length ? quest.steps : ["Head out at your own pace — no timer starts until you choose.", "Complete the core challenge described above.", "Log your experience in the Journal after finishing."];
-  const activeQuest = engine?.activeSession ? getQuest(engine.activeSession.questId) : null;
-  const activeDurationMs = activeSnapshot
-    ? activeSnapshot.session.activeDurationMs + (activeSnapshot.session.recordingState === "recording" ? activeQuestElapsed : 0)
-    : activeQuestElapsed;
-  const activeQuestSummary: ActiveQuestSummary | null = engine?.activeSession ? {
-    title: activeQuest?.title ?? "Your active quest",
-    durationLabel: formatElapsedFull(activeDurationMs),
-    photoCount: activeSnapshot?.photoCount ?? 0,
-    noteCount: activeSnapshot?.activity.filter((activity) => activity.kind === "note").length ?? 0,
-    color: actionColor,
-  } : null;
+  const modeEducationKey = `quest-start-education-${questMode}`;
+  const beginQuest = async () => {
+    setStarting(true);
+    try {
+      const result = await startQuest({ questId: quest.id, source: "explore" });
+      await refresh();
+      // Older server functions return only a session ID. In that rollout case,
+      // the quest content remains the authoritative mode for navigation.
+      const startedMode = result.mode ?? questMode;
+      router.replace(startedMode === "focused" ? "/active-quest" : "/(tabs)");
+    } finally { setStarting(false); }
+  };
+  const requestStart = async () => {
+    if (questMode === "focused" && hasOtherActive) { setDoingNowBlockVisible(true); return; }
+    const seen = await SecureStore.getItemAsync(modeEducationKey);
+    if (seen) { await beginQuest(); } else { setStartEducationVisible(true); }
+  };
+  const confirmStart = async () => {
+    await SecureStore.setItemAsync(modeEducationKey, "seen");
+    setStartEducationVisible(false);
+    await beginQuest();
+  };
+  const continueCurrentQuest = () => {
+    // Replace removes the detail route (and its modal portal) before the live
+    // screen becomes visible, so the sheet cannot remain over the map.
+    setDoingNowBlockVisible(false);
+    router.replace("/active-quest");
+  };
+  const abandonCurrentQuest = async () => {
+    const sessionId = engine?.doingNowSession?.id;
+    if (!sessionId) {
+      setDoingNowBlockVisible(false);
+      return;
+    }
 
-  const startQuest = async () => { const ok = await tryStart({ questId: quest.id, source: "explore" }); if (ok) { await refresh(); router.replace("/active-quest"); } };
+    setAbandoningCurrentQuest(true);
+    try {
+      await abandonActiveQuest(sessionId);
+      await refresh();
+      // Stay on this requested quest's detail page. Starting it remains a
+      // separate, explicit choice once the existing run has been abandoned.
+      setDoingNowBlockVisible(false);
+    } catch (error) {
+      Alert.alert("Couldn't abandon this quest", engineErrorMessage(error));
+    } finally {
+      setAbandoningCurrentQuest(false);
+    }
+  };
   const saveQuest = async () => { await openQuestSave(quest.id); };
   const nativeShare = async () => { await Share.share({ message: `Try the QuestLife quest “${quest.title}”: ${quest.description}` }); };
   const sendToFriend = async (challenge: boolean) => { if (!shareFriendId) return; if (challenge) await challengeFriend(shareFriendId, quest.id); else await shareQuestWith(shareFriendId, quest.id); setShareVisible(false); setShareFriendId(null); };
@@ -131,10 +165,10 @@ export function QuestDetailScreen({ id, onBack, previewQuest }: { id?: string; o
         <View style={{ gap: 9 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>About this quest</Text><Text style={{ color: T.dark, fontFamily: "Rubik", fontSize: 16, lineHeight: 25 }}>{quest.description}</Text></View>
         <View style={{ gap: 16, borderRadius: 22, borderWidth: 2, borderColor: `${category.text}55`, backgroundColor: `${category.text}0d`, padding: 18 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>How it works</Text><View style={{ gap: 14 }}>{steps.map((step, index) => <View key={`${index}-${step}`} style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}><View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: actionColor, alignItems: "center", justifyContent: "center", marginTop: 1 }}><Text style={{ color: T.white, fontFamily: "RubikBold", fontSize: 13 }}>{index + 1}</Text></View><Text style={{ flex: 1, color: T.dark, fontFamily: "Rubik", fontSize: 14, lineHeight: 20 }}>{step}</Text></View>)}</View></View>
       </Reanimated.ScrollView>
-      <View style={{ ...edgePadding, paddingTop: 12, paddingBottom: Math.max(insets.bottom + 8, 16), gap: 10, borderTopWidth: 1, borderTopColor: T.border, backgroundColor: T.bg }}><View style={{ flexDirection: "row", gap: 10 }}><QuestAction label="Save Quest" icon={savedAnywhere ? "bookmark" : "bookmark-outline"} color={actionColor} inverse onPress={saveQuest} /><QuestAction label="Challenge friends" icon="share-social-outline" color={actionColor} inverse onPress={() => setShareVisible(true)} /></View>{isActive ? <QuestAction label="View Active Quest" icon="navigate" color={actionColor} fullWidth onPress={() => router.push("/active-quest")} /> : <QuestAction label={starting ? "Starting…" : hasOtherActive ? "A quest is active right now" : "Start Quest"} icon={hasOtherActive ? "lock-closed" : "play"} color={actionColor} fullWidth disabled={starting} activeQuestLocked={hasOtherActive} onPress={hasOtherActive ? () => showActiveSessionBlock(quest, actionColor) : startQuest} />}</View>
+      <View style={{ ...edgePadding, paddingTop: 12, paddingBottom: Math.max(insets.bottom + 8, 16), gap: 10, borderTopWidth: 1, borderTopColor: T.border, backgroundColor: T.bg }}><View style={{ flexDirection: "row", gap: 10 }}><QuestAction label="Save Quest" icon={savedAnywhere ? "bookmark" : "bookmark-outline"} color={actionColor} inverse onPress={saveQuest} /><QuestAction label="Challenge friends" icon="share-social-outline" color={actionColor} inverse onPress={() => setShareVisible(true)} /></View>{isActive ? <QuestAction label="View Doing Now Quest" icon="navigate" color={actionColor} fullWidth onPress={() => router.push("/active-quest")} /> : inProgressSession ? <QuestAction label="View In Progress Quest" icon="sparkles" color={actionColor} fullWidth onPress={() => router.push({ pathname: "/in-progress-quest", params: { sessionId: inProgressSession.id } })} /> : <><QuestAction label={starting ? "Starting…" : "Start Quest"} icon="play" color={actionColor} fullWidth disabled={starting} onPress={() => void requestStart()} /><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 17, textAlign: "center" }}>{questMode === "focused" ? "Starts a live quest with a timer. Add photos and notes as you go." : "Adds this to In progress. No timer starts—finish whenever you’re ready."}</Text></>}</View>
     </View>
-    <QuestStartBlockModal block={block} visible={Boolean(block)} onClose={clearBlock} onRepeatQuest={async () => { if (block?.type !== "repeat_quest") return; const started = await tryStart({ questId: block.quest.id, source: "explore", confirmedRepeat: true }); if (started) { await refresh(); router.replace("/active-quest"); } }} onResumeActiveQuest={() => void (async () => { if (await resumeActiveQuest()) router.replace("/active-quest"); })()} onAbandonActiveAndRetry={() => void (async () => { if (block?.type === "active_session" && block.requestedQuest) { clearBlock(); setAbandonReviewVisible(true); return; } const started = await abandonActiveAndRetry({ questId: quest.id, source: "explore" }); if (started) router.replace("/active-quest"); })()} />
-    <QuestAbandonReviewModal summary={activeQuestSummary} visible={abandonReviewVisible} onClose={() => setAbandonReviewVisible(false)} onSaveToJournal={() => { setAbandonReviewVisible(false); router.push({ pathname: "/active-quest", params: { saveToJournal: "1", nextQuestId: quest.id } }); }} onDeleteAndStart={async () => { const started = await abandonActiveAndRetry({ questId: quest.id, source: "explore" }); if (started) { setAbandonReviewVisible(false); router.replace("/active-quest"); } }} />
+    <Sheet visible={startEducationVisible} onClose={() => setStartEducationVisible(false)} maxHeight="56%"><View style={{ paddingHorizontal: 24, paddingBottom: 24, gap: 14, alignItems: "center" }}><View style={{ width: 56, height: 56, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: `${actionColor}16` }}><Ionicons name={questMode === "focused" ? "timer-outline" : "sparkles-outline"} size={28} color={actionColor} /></View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 24, textAlign: "center" }}>{questMode === "focused" ? "Ready to begin?" : "Add this quest to In progress?"}</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 14, lineHeight: 20, textAlign: "center" }}>{questMode === "focused" ? "Your live quest timer will start and you can capture moments as you go." : "No timer will start. This quest will stay with you until you are ready to finish it."}</Text><QuestAction label={questMode === "focused" ? "Start Quest" : "Add to In progress"} icon="play" color={actionColor} fullWidth onPress={() => void confirmStart()} /></View></Sheet>
+    <Sheet visible={doingNowBlockVisible} onClose={() => !abandoningCurrentQuest && setDoingNowBlockVisible(false)} maxHeight="54%"><View style={{ paddingHorizontal: 24, paddingBottom: 24, gap: 14, alignItems: "center", width: "100%" }}><Ionicons name="timer-outline" size={32} color={actionColor} /><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 23, textAlign: "center" }}>You already have an active quest</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 14, lineHeight: 20, textAlign: "center" }}>Finish or abandon your current focused quest before starting another.</Text><QuestAction label="Continue current quest" icon="navigate" color={T.blue} fullWidth onPress={continueCurrentQuest} /><QuestAction label={abandoningCurrentQuest ? "Abandoning…" : "Abandon current quest"} icon="trash-outline" color={T.red} inverse fullWidth disabled={abandoningCurrentQuest} onPress={() => void abandonCurrentQuest()} /></View></Sheet>
     <Sheet visible={shareVisible} onClose={() => { setShareVisible(false); setShareFriendId(null); }} maxHeight="76%"><View style={{ paddingHorizontal: 24, paddingBottom: 24, gap: 15 }}><View style={{ gap: 4 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 22 }}>Challenge friends</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 13 }}>Invite a friend or share this quest in another app.</Text></View>{friends.length ? <View style={{ gap: 3 }}>{friends.map((friend) => <Pressable key={friend.userId} accessibilityRole="radio" accessibilityState={{ selected: shareFriendId === friend.userId }} onPress={() => setShareFriendId(friend.userId)} style={{ flexDirection: "row", alignItems: "center", gap: 11, minHeight: 58 }}><ProfileAvatar uri={friend.avatarUrl} color={friend.avatarColor} size={40} label={`${friend.displayName}'s profile photo`} /><Text style={{ flex: 1, color: T.dark, fontFamily: "RubikBold", fontSize: 15 }}>{friend.displayName}</Text><Ionicons name={shareFriendId === friend.userId ? "checkmark-circle" : "radio-button-off"} size={22} color={shareFriendId === friend.userId ? actionColor : T.muted} /></Pressable>)}</View> : <EmptyState emoji="👋" title="No friends added yet" body="You can still send this quest through your favorite messaging app." />}{shareFriendId ? <View style={{ flexDirection: "row", gap: 9 }}><QuestAction label="Share" icon="paper-plane-outline" color={actionColor} inverse onPress={() => void sendToFriend(false)} /><QuestAction label="Challenge" icon="flash" color={actionColor} onPress={() => void sendToFriend(true)} /></View> : null}<QuestAction label="Share via other apps" icon="share-outline" color={actionColor} fullWidth inverse onPress={() => void nativeShare()} /></View></Sheet>
   </Screen>;
 }

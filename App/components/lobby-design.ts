@@ -58,57 +58,6 @@ export const lobbyDesign = {
   },
 } as const;
 
-export type LobbyRequiredState =
-  | "active-quest"
-  | "no-active-quest"
-  | "no-completions"
-  | "loading"
-  | "error"
-  | "success";
-
-type LobbyStateDefinition = {
-  group: "activity" | "history" | "request" | "feedback";
-  primaryAction: "complete" | "start" | "explore" | "retry" | "dismiss" | "none";
-  purpose: string;
-};
-
-/**
- * Required states are composable. For example, a ready Lobby can have an
- * active quest and no completions at the same time.
- */
-export const lobbyStateDefinitions: Record<LobbyRequiredState, LobbyStateDefinition> = {
-  "active-quest": {
-    group: "activity",
-    primaryAction: "complete",
-    purpose: "Show the current quest and its single next action.",
-  },
-  "no-active-quest": {
-    group: "activity",
-    primaryAction: "explore",
-    purpose: "Offer one clear route to a next quest when no session is active.",
-  },
-  "no-completions": {
-    group: "history",
-    primaryAction: "explore",
-    purpose: "Explain the empty history and return the user to an achievable quest.",
-  },
-  loading: {
-    group: "request",
-    primaryAction: "none",
-    purpose: "Preserve the page structure with a non-blocking loading treatment.",
-  },
-  error: {
-    group: "request",
-    primaryAction: "retry",
-    purpose: "Explain the failed request in place and offer a retry.",
-  },
-  success: {
-    group: "feedback",
-    primaryAction: "dismiss",
-    purpose: "Confirm a completed action without interrupting the next task.",
-  },
-};
-
 export type LobbyFeedbackState = "idle" | "success";
 
 export type LobbyStateInput = {

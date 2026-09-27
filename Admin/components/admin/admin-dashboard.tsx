@@ -230,6 +230,7 @@ const defaultQuest: QuestFormInput = {
   color: questCategoryColors.ADVENTURE.text,
   description: "",
   difficulty: "EASY",
+  mode: "focused",
   featured: false,
   reviewNote: null,
   status: "draft",
@@ -265,6 +266,7 @@ function asForm(quest: Quest): QuestFormInput {
     color: questCategoryColors[quest.category]?.text ?? quest.color,
     description: quest.description,
     difficulty: quest.difficulty,
+    mode: quest.mode ?? "focused",
     featured: quest.featured,
     reviewNote: quest.reviewNote ?? null,
     status: quest.status,
@@ -947,6 +949,19 @@ function QuestForm({
             <NumberField editable={editable} label="Experience points" t={t} value={form.xp} onChange={(xp) => onChange({ ...form, xp })} />
           </View>
         </View>
+      </View>
+      <View style={{ gap: 8 }}>
+        <FormSectionLabel t={t}>How this quest starts</FormSectionLabel>
+        <ChoiceGrid
+          minItemWidth={220}
+          options={["focused", "flexible"] as const}
+          t={t}
+          value={form.mode}
+          onChange={(mode: "focused" | "flexible") => onChange({ ...form, mode })}
+        />
+        <Text style={{ color: t.muted, fontSize: 13, lineHeight: 19, fontWeight: "600" }}>
+          {form.mode === "focused" ? "Focused starts a live, timed quest." : "Flexible adds the quest to In progress without a timer."}
+        </Text>
       </View>
       <Field editable={editable} label="Description" multiline t={t} value={form.description} onChangeText={(description) => onChange({ ...form, description })} placeholder="Describe what the user should do and what completion means." />
       <View style={{ gap: 10 }}>

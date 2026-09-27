@@ -55,6 +55,39 @@ function LobbyReveal({
   return <Animated.View style={{ opacity, transform: [{ translateY }] }}>{children}</Animated.View>;
 }
 
+/** A compact arrival cue for a flexible quest just added from its detail page. */
+function LobbyPopIn({ children, motionKey, reducedMotion }: PropsWithChildren<{ motionKey: string; reducedMotion: boolean }>) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(0.96)).current;
+  const translateY = useRef(new Animated.Value(8)).current;
+
+  useEffect(() => {
+    opacity.stopAnimation();
+    scale.stopAnimation();
+    translateY.stopAnimation();
+
+    if (reducedMotion) {
+      opacity.setValue(1);
+      scale.setValue(1);
+      translateY.setValue(0);
+      return;
+    }
+
+    opacity.setValue(0);
+    scale.setValue(0.96);
+    translateY.setValue(8);
+    const animation = Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [motionKey, opacity, reducedMotion, scale, translateY]);
+
+  return <Animated.View style={{ opacity, transform: [{ translateY }, { scale }] }}>{children}</Animated.View>;
+}
+
 function LobbySwapText({ text, style, reducedMotion }: { text: string; style: StyleProp<TextStyle>; reducedMotion: boolean }) {
   const [displayed, setDisplayed] = useState(text);
   const opacity = useRef(new Animated.Value(1)).current;
@@ -364,6 +397,10 @@ function ActiveQuestMetaPill({ label, color, background, maxWidth }: { label: st
   return <View style={{ maxWidth, minHeight: 32, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 99, alignSelf: "flex-start", justifyContent: "center", backgroundColor: background, borderWidth: 2, borderColor: color, borderBottomWidth: 4, borderBottomColor: `${color}88` }}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={{ color, fontFamily: "RubikBold", fontSize: 11, lineHeight: 14, letterSpacing: 0.55, textTransform: "uppercase" }}>{label}</Text></View>;
 }
 
+function InProgressMetaPill({ label, color, background }: { label: string; color: string; background: string }) {
+  return <View style={{ maxWidth: "100%", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: background, borderWidth: 2, borderColor: color, borderBottomWidth: 3, borderBottomColor: `${color}88`, alignSelf: "flex-start" }}><Text numberOfLines={1} style={{ color, fontSize: 10, lineHeight: 15, fontWeight: "900", letterSpacing: 0.55, textTransform: "uppercase" }}>{label}</Text></View>;
+}
+
 function EmptyActiveQuest({
   onExplore,
   reducedMotion,
@@ -384,6 +421,28 @@ function EmptyActiveQuest({
       </Card>
     </LobbyReveal>
   );
+}
+
+function InProgressQuestRow({ quest, startedAt, onOpen, reducedMotion }: { quest: Quest; startedAt: string; onOpen: () => void; reducedMotion: boolean }) {
+  const accent = categoryColor[quest.category]?.text ?? quest.color;
+  const category = categoryColor[quest.category] ?? { text: accent, bg: `${accent}18` };
+  const difficulty = difficultyColor[quest.difficulty];
+  const started = new Date(startedAt);
+  const today = new Date();
+  const label = started.toDateString() === today.toDateString() ? "Started today" : `Started ${started.toLocaleDateString([], { month: "short", day: "numeric" })}`;
+  return <LobbyPopIn motionKey={`in-progress-${quest.id}-${startedAt}`} reducedMotion={reducedMotion}><Pressable accessibilityRole="button" accessibilityLabel={`Open in progress quest: ${quest.title}`} onPress={() => { haptic(); onOpen(); }} style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.99 : 1 }] })}>
+    <View style={{ width: "100%", borderRadius: 24, flexDirection: "row", overflow: "hidden", backgroundColor: T.white, borderWidth: 2, borderColor: T.border, boxShadow: `4px 4px 0px ${T.border}` }}>
+    <View style={{ width: 5, backgroundColor: accent }} />
+    <View style={{ flex: 1, minWidth: 0, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 10, gap: 6 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}><InProgressMetaPill label={quest.category} color={category.text} background={category.bg} /><InProgressMetaPill label={quest.difficulty} color={difficulty.text} background={difficulty.bg} /></View>
+      <Text numberOfLines={2} style={{ color: T.dark, fontSize: 18, lineHeight: 23, fontWeight: "900" }}>{quest.title}</Text>
+      <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
+        <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 7 }}><Ionicons name="calendar-outline" size={18} color={T.muted} /><Text numberOfLines={1} style={{ color: T.muted, fontSize: 15, lineHeight: 20, fontWeight: "700" }}>{label}</Text></View>
+        <View style={{ minWidth: 74, minHeight: 36, borderRadius: 22, backgroundColor: T.blue, borderBottomWidth: 4, borderBottomColor: "#258fd8", alignItems: "center", justifyContent: "center", paddingHorizontal: 12, transform: [{ translateY: -4 }] }}><Text style={{ color: T.white, fontFamily: "RubikBlack", fontSize: 13, letterSpacing: 0.55 }}>OPEN</Text></View>
+      </View>
+    </View>
+    </View>
+  </Pressable></LobbyPopIn>;
 }
 
 function CompletedSection({
@@ -477,12 +536,11 @@ export function LobbyScreen() {
   const { profileNameVersion, user } = useAuth();
   const { error: contentError, getQuest, loading, quests } = useContent();
   const { unreadCount } = useNotifications();
-  const { engine, error: engineError, loading: engineLoading, refresh, saveActiveForLater, abandonActiveQuest, startQuest } = useQuestEngine();
+  const { engine, error: engineError, loading: engineLoading, refresh, abandonActiveQuest, startQuest } = useQuestEngine();
   const { snapshot, resume } = useActiveQuest();
   const { showFeedback } = useAppFeedback();
   const { block, clearBlock, tryStart } = useQuestStart(getQuest);
 
-  const [savedSheet, setSavedSheet] = useState(false);
   const [recoveryVisible, setRecoveryVisible] = useState(false);
   const [recoveryActionBusy, setRecoveryActionBusy] = useState(false);
   const [greetingShuffle] = useState(() => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
@@ -507,22 +565,22 @@ export function LobbyScreen() {
     return () => { active = false; };
   }, [profileNameVersion, user?.id]);
 
-  const activeQuest = engine?.activeSession ? getQuest(engine.activeSession.questId) : null;
-  const hasActiveSession = Boolean(engine?.activeSession);
-  const recoveryRequired = Boolean(engine?.activeSession?.recoveryRequiredAt);
-  const activeQuestElapsed = useElapsedDuration(engine?.activeSession?.startedAt);
+  const activeQuest = engine?.doingNowSession ? getQuest(engine.doingNowSession.questId) : null;
+  const hasActiveSession = Boolean(engine?.doingNowSession);
+  const recoveryRequired = Boolean(engine?.doingNowSession?.recoveryRequiredAt);
+  const activeQuestElapsed = useElapsedDuration(engine?.doingNowSession?.startedAt);
   const activeQuestSnapshot = snapshot?.session;
   let pauseAwareActiveQuestElapsed = activeQuestElapsed;
-  if (activeQuestSnapshot && activeQuestSnapshot.sessionId === engine?.activeSession?.id) {
+  if (activeQuestSnapshot && activeQuestSnapshot.sessionId === engine?.doingNowSession?.id) {
     pauseAwareActiveQuestElapsed = activeQuestSnapshot.activeDurationMs +
       (activeQuestSnapshot.recordingState === "recording" && activeQuestSnapshot.activeSince
         ? Math.max(0, Date.now() - new Date(activeQuestSnapshot.activeSince).getTime())
         : 0);
   }
-  const recoveryDuration = activeQuestSnapshot?.sessionId === engine?.activeSession?.id
+  const recoveryDuration = activeQuestSnapshot?.sessionId === engine?.doingNowSession?.id
     ? pauseAwareActiveQuestElapsed
     : activeQuestElapsed;
-  const recoveryStartedAt = engine?.activeSession?.recoveryStartedAt ?? null;
+  const recoveryStartedAt = engine?.doingNowSession?.recoveryStartedAt ?? null;
   const timeAwayMs = recoveryStartedAt ? Math.max(0, Date.now() - new Date(recoveryStartedAt).getTime()) : 0;
 
   useEffect(() => {
@@ -539,18 +597,12 @@ export function LobbyScreen() {
     engineError,
     hasActiveQuest: hasActiveSession,
     hasCompletions: completions.length > 0,
-    feedback: savedSheet ? "success" : "idle",
+    feedback: "idle",
   });
   const isInitialLobbyLoad = !contentError && !engineError && ((loading && !quests.length) || (engineLoading && !engine));
 
-  async function handleSaveForLater() {
-    await saveActiveForLater();
-    setSavedSheet(true);
-    await refresh();
-  }
-
   async function handleQuestRecovery(choice: "continue" | "restart" | "count-away") {
-    const session = engine?.activeSession;
+    const session = engine?.doingNowSession;
     if (!session || recoveryActionBusy) return;
     setRecoveryActionBusy(true);
     try {
@@ -607,7 +659,7 @@ export function LobbyScreen() {
         <EnergyCard dailyLimit={dailyLimit} dailyUsed={dailyUsed} reducedMotion={reducedMotion} />
 
         <View style={styles.section}>
-          <SectionHeader icon="sparkles" title={hasActiveSession ? "Active Quest" : "No Quest Is Active"} />
+          <SectionHeader icon="sparkles" title="Active Now" />
           {hasActiveSession ? activeQuest ? (
             <ActiveQuestCard
               activeQuest={activeQuest}
@@ -625,18 +677,17 @@ export function LobbyScreen() {
           )}
         </View>
 
+        {(engine?.inProgressSessions.length ?? 0) > 0 ? <View style={styles.section}>
+          <SectionHeader icon="sparkles" title="In progress" />
+          <View style={{ gap: 10 }}>{engine?.inProgressSessions.map((session) => {
+            const quest = getQuest(session.questId);
+            return quest ? <InProgressQuestRow key={session.id} quest={quest} startedAt={session.startedAt} reducedMotion={reducedMotion} onOpen={() => router.push({ pathname: "/in-progress-quest", params: { sessionId: session.id } })} /> : null;
+          })}</View>
+        </View> : null}
+
         <CompletedSection completions={completions} getQuest={getQuest} onOpenJournal={() => router.push("/journal")} onOpenCompletion={(completionId) => router.push(`/memory/${completionId}`)} reducedMotion={reducedMotion} />
         </View>
       </LobbyReveal>}
-
-      <Sheet visible={savedSheet} onClose={() => setSavedSheet(false)}>
-        <View style={styles.savedSheet}>
-          <Text style={styles.savedEmoji}>🔖</Text>
-          <Text style={styles.savedTitle}>Saved for later</Text>
-          <Text style={styles.savedBody}>Your quest is waiting in My Stuff whenever you're ready.</Text>
-          <SoftButton label="Got it" onPress={() => setSavedSheet(false)} style={styles.fullWidth} />
-        </View>
-      </Sheet>
 
       <Sheet visible={recoveryVisible && recoveryRequired} onClose={() => undefined} maxHeight="76%">
         <View style={{ paddingHorizontal: 24, paddingBottom: 24, gap: 14 }}>

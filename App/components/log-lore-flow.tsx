@@ -188,6 +188,13 @@ function QuestMoments({ photoUris, notes, questColor }: { photoUris: string[]; n
   </View>;
 }
 
+function tactileEdge(color: string) {
+  const match = /^#([\da-f]{6})$/i.exec(color);
+  if (!match) return `${color}a8`;
+  const channels = [0, 2, 4].map((offset) => Math.round(parseInt(match[1].slice(offset, offset + 2), 16) * 0.72).toString(16).padStart(2, "0"));
+  return `#${channels.join("")}`;
+}
+
 function CompletionActionButton({ label, icon, inverse = false, color, onPress, disabled }: { label: string; icon?: keyof typeof Ionicons.glyphMap; inverse?: boolean; color: string; onPress: () => void; disabled: boolean }) {
   return <Pressable
     accessibilityRole="button"
@@ -207,7 +214,7 @@ function CompletionActionButton({ label, icon, inverse = false, color, onPress, 
       borderWidth: inverse ? 2 : 0,
       borderColor: inverse ? color : "transparent",
       borderBottomWidth: pressed && !disabled ? (inverse ? 2 : 3) : (inverse ? 4 : 6),
-      borderBottomColor: inverse ? `${color}88` : `${color}a8`,
+      borderBottomColor: inverse ? `${color}88` : tactileEdge(color),
       opacity: disabled ? 0.5 : 1,
       transform: [{ scale: pressed && !disabled ? 0.985 : 1 }]
     })}
@@ -218,7 +225,7 @@ function CompletionActionButton({ label, icon, inverse = false, color, onPress, 
 }
 
 /** A completed quest is committed before this recap is shown, so this sheet is read-only. */
-export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, initialTitle, initialReflection = "", photoUris = [], duration, onSaveDraft }: { guestMode?: boolean; visible: boolean; quest: Quest | null; onFinished: (result: CompletionResult, destination: CompletionDestination, details: CompletionShareDetails) => void | Promise<void>; initialTitle?: string; initialReflection?: string; photoUris?: string[]; duration: string; onSaveDraft?: (draft: { title: string; body: string }) => Promise<void> }) {
+export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, initialTitle, initialReflection = "", photoUris = [], duration, sessionId, onSaveDraft }: { guestMode?: boolean; visible: boolean; quest: Quest | null; onFinished: (result: CompletionResult, destination: CompletionDestination, details: CompletionShareDetails) => void | Promise<void>; initialTitle?: string; initialReflection?: string; photoUris?: string[]; duration: string; sessionId?: string; onSaveDraft?: (draft: { title: string; body: string }) => Promise<void> }) {
   const insets = useSafeAreaInsets();
   const { completeQuest } = useQuestEngine();
   const { refreshNotifications } = useNotifications();
@@ -314,7 +321,7 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
       // other photos. The local capture remains available for a later retry.
       const uploadedPhotos = guestMode ? [] : await Promise.allSettled(safePhotoUris.map((uri) => uploadJournalMedia(uri)));
       const journalPhotoPaths = uploadedPhotos.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
-      const completion = guestMode ? { completionId: `guest-${Date.now()}`, xpAwarded: 0, dailyUsed: 0, dailyLimit: 5 } : await completeQuest({ questId: quest.id, logged: false, reflection: initialReflection.trim() || null, rating: null, review: null, reviewPublic: false, photoUrls: journalPhotoPaths });
+      const completion = guestMode ? { completionId: `guest-${Date.now()}`, xpAwarded: 0, dailyUsed: 0, dailyLimit: 5 } : await completeQuest({ questId: quest.id, sessionId, logged: false, reflection: initialReflection.trim() || null, rating: null, review: null, reviewPublic: false, photoUrls: journalPhotoPaths });
       completionRef.current = completion;
       if (!guestMode) await Promise.allSettled([refreshNotifications(), refreshStreaks()]);
       return completion;

@@ -60,7 +60,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
   const [liveLocation, setLiveLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [trackingMessage, setTrackingMessage] = useState<string | null>(null);
-  const activeSession = engine?.activeSession ?? guestSession;
+  const activeSession = engine?.doingNowSession ?? guestSession;
   const isGuestSession = Boolean(guestSession && activeSession?.id === guestSession.id);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
   const shortRecoveryHandledSessionRef = useRef<string | null>(null);

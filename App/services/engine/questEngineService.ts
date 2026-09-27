@@ -28,8 +28,14 @@ export function engineErrorMessage(error: unknown) {
     : typeof error === "object" && error !== null && "message" in error && typeof error.message === "string"
       ? error.message
       : String(error);
-  if (message.includes("ACTIVE_SESSION_EXISTS")) {
-    return "You already have an active quest. Complete it or save it for later first.";
+  if (message.includes("DOING_NOW_SESSION_EXISTS")) {
+    return "You already have an active quest. Finish or abandon it before starting another focused quest.";
+  }
+  if (message.includes("IN_PROGRESS_LIMIT_REACHED")) {
+    return "You can keep up to 3 quests In progress. Finish or stop one before starting another.";
+  }
+  if (message.includes("QUEST_ALREADY_IN_PROGRESS")) {
+    return "This quest is already In progress.";
   }
   if (message.includes("DAILY_LIMIT_REACHED")) {
     return "You've used all 5 quests for today. Come back after midnight for fresh energy!";
@@ -59,13 +65,15 @@ export async function fetchEngineState(): Promise<QuestEngineState> {
   assertSupabaseConfigured();
   const { data, error } = await supabase.rpc("get_quest_engine_state", { p_today: today() });
   if (error) throw error;
-  const state = data as QuestEngineState;
-  let activeSession = state.activeSession ?? null;
+  const state = data as QuestEngineState & { activeSession?: ActiveQuestSession | null };
+  // `activeSession` is the pre-migration RPC shape. Keep it readable while a
+  // mobile update and its Supabase migration are rolling out independently.
+  let doingNowSession = state.doingNowSession ?? state.activeSession ?? null;
 
   // The engine RPC is the primary read model. This direct, RLS-protected
   // fallback keeps an in-progress quest visible after authentication is
   // restored if the RPC response is served without its active-session field.
-  if (!activeSession) {
+  if (!doingNowSession) {
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData.user?.id;
     const { data: session } = userId
@@ -73,13 +81,13 @@ export async function fetchEngineState(): Promise<QuestEngineState> {
         .from("quest_sessions")
         .select("id, quest_id, source, started_at")
         .eq("user_id", userId)
-        .eq("status", "active")
+        .in("status", ["doing_now", "active"])
         .order("started_at", { ascending: false })
         .limit(1)
         .maybeSingle()
       : { data: null };
     if (session) {
-      activeSession = {
+      doingNowSession = {
         id: session.id,
         questId: session.quest_id,
         source: session.source as ActiveQuestSession["source"],
@@ -90,7 +98,8 @@ export async function fetchEngineState(): Promise<QuestEngineState> {
   return {
     dailyLimit: state.dailyLimit ?? 5,
     dailyUsed: state.dailyUsed ?? 0,
-    activeSession,
+    doingNowSession,
+    inProgressSessions: state.inProgressSessions ?? [],
     todayCompletions: state.todayCompletions ?? [],
   };
 }
@@ -135,7 +144,7 @@ export async function startQuestSession(input: {
     p_source: input.source ?? "explore",
   });
   if (error) throw error;
-  return data as { sessionId: string };
+  return data as { sessionId: string; mode: "focused" | "flexible" };
 }
 
 export async function abandonQuestSession(sessionId: string) {
@@ -161,6 +170,7 @@ export async function completeQuestV2(input: CompleteQuestInput): Promise<Comple
     p_review: input.review ?? null,
     p_review_public: input.reviewPublic ?? true,
     p_photo_urls: input.photoUrls ?? [],
+    p_session_id: input.sessionId ?? null,
   });
   if (error) throw error;
   return data as CompletionResult;

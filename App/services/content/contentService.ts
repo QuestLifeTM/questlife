@@ -20,6 +20,7 @@ type QuestRow = {
   steps: string[] | null;
   estimated_minutes: number;
   difficulty: Quest["difficulty"];
+  quest_mode: Quest["mode"];
   status: QuestStatus;
   featured: boolean;
   accent_color: string;
@@ -66,6 +67,7 @@ function mapQuest(row: QuestRow, savedDates: Map<string, string>, completedIds: 
     timeMin: row.estimated_minutes,
     timeLabel: formatTimeLabel(row.estimated_minutes),
     difficulty: row.difficulty,
+    mode: row.quest_mode ?? "focused",
     status: row.status,
     featured: row.featured,
     color: questCategoryColors[category].text,
@@ -107,14 +109,26 @@ async function fetchCompletedQuestIds(userId: string) {
 }
 
 async function fetchQuestRows(admin: boolean) {
-  let questQuery = supabase
-    .from("quests")
-    .select("id, title, category, experience_points, description, steps, estimated_minutes, difficulty, status, featured, accent_color, review_note, reviewed_at, reviewed_by, created_by, updated_by, created_at, updated_at, published_at, archived_at")
-    .order("updated_at", { ascending: false });
+  const baseColumns = "id, title, category, experience_points, description, steps, estimated_minutes, difficulty, status, featured, accent_color, review_note, reviewed_at, reviewed_by, created_by, updated_by, created_at, updated_at, published_at, archived_at";
+  const load = async (includeMode: boolean) => {
+    let query = supabase
+      .from("quests")
+      .select(includeMode ? `${baseColumns}, quest_mode` : baseColumns)
+      .order("updated_at", { ascending: false });
 
-  if (!admin) questQuery = questQuery.eq("status", "published");
+    if (!admin) query = query.eq("status", "published");
+    return query.returns<QuestRow[]>();
+  };
 
-  const { data, error } = await questQuery.returns<QuestRow[]>();
+  let { data, error } = await load(true);
+
+  // Deploying the mobile app ahead of the database migration must not blank
+  // Explore. Older projects simply treat every existing quest as focused.
+  if (error && /quest_mode|PGRST204|column .* does not exist/i.test(error.message)) {
+    ({ data, error } = await load(false));
+    data = (data ?? []).map((row) => ({ ...row, quest_mode: "focused" }));
+  }
+
   if (error) throw error;
   return data ?? [];
 }
@@ -180,6 +194,7 @@ export async function upsertQuest(input: QuestFormInput & { id?: string }) {
     steps: input.steps.map((step) => step.trim()).filter(Boolean),
     estimated_minutes: input.timeMin,
     difficulty: input.difficulty,
+    quest_mode: input.mode,
     status: input.status,
     featured: input.featured,
     accent_color: categoryColor,

@@ -6,7 +6,6 @@ import {
   motionSprings,
   motionStagger,
   springConfig,
-  timingConfig,
 } from "@/motion/tokens";
 
 /**
@@ -26,9 +25,5 @@ export const motion = {
   pressSpring: motionSprings.press,
   settleSpring: motionSprings.control,
 } as const;
-
-export function easeOutTiming(reducedMotion: boolean, duration: number = motionDurations.control) {
-  return timingConfig(reducedMotion, duration, motionEasing.enter);
-}
 
 export { springConfig };

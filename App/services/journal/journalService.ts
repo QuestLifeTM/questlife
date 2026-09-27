@@ -143,7 +143,7 @@ export async function fetchJournalData(): Promise<JournalData> {
         .from("quest_sessions")
         .select("id, quest_id, started_at, quests(title, category, experience_points, difficulty, accent_color, estimated_minutes)")
         .eq("user_id", userId)
-        .eq("status", "active")
+        .in("status", ["doing_now", "active"])
         .maybeSingle<ActiveSessionRow>(),
     ]);
 

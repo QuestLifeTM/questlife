@@ -362,14 +362,6 @@ export function Tag({ label, color, bg }: { label: string; color: string; bg: st
   );
 }
 
-export function ProgressBar({ value, color = T.blue, height = 10 }: { value: number; color?: string; height?: number }) {
-  return (
-    <View style={{ height, borderRadius: 99, backgroundColor: T.border, overflow: "hidden" }}>
-      <View style={{ height: "100%", width: `${Math.max(4, Math.min(100, value))}%`, borderRadius: 99, backgroundColor: color }} />
-    </View>
-  );
-}
-
 export function PillStat({ icon, iconElement, text, color = T.blue }: { icon?: keyof typeof Ionicons.glyphMap; iconElement?: ReactNode; text: string; color?: string }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: `${color}1f` }}>
@@ -656,11 +648,3 @@ const styles: Record<string, TextStyle> = {
     marginTop: 2
   }
 };
-
-export function sectionTitle(text: string) {
-  return <Text style={{ color: T.dark, fontSize: 18, fontWeight: "900" }}>{text}</Text>;
-}
-
-export function isAndroid() {
-  return Platform.OS === "android";
-}

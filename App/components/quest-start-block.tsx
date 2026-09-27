@@ -1,17 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 import { T } from "@/components/theme";
-import { Card, Sheet, SoftButton } from "@/components/ui";
+import { Card, SoftButton } from "@/components/ui";
 import { QuestStartBlock } from "@/hooks/useQuestStart";
-import { Quest, QuestCategory } from "@/types/content";
-
-export type ActiveQuestSummary = {
-  title: string;
-  durationLabel: string;
-  photoCount: number;
-  noteCount: number;
-  color: string;
-};
+import { QuestCategory } from "@/types/content";
 
 const repeatQuestPresentation: Record<QuestCategory, { accent: string; encouragement: string }> = {
   ADVENTURE: { accent: T.blue, encouragement: "Take a different path this time." },
@@ -94,64 +86,4 @@ export function QuestStartBlockSheet({
       <SoftButton label="OK" onPress={onClose} inverse color={T.muted} />
     </Card>
   );
-}
-
-export function QuestStartBlockModal({
-  block,
-  visible,
-  onClose,
-  onRepeatQuest,
-  onResumeActiveQuest,
-  onAbandonActiveAndRetry,
-}: {
-  block: QuestStartBlock | null;
-  visible: boolean;
-  onClose: () => void;
-  onRepeatQuest?: () => void | Promise<void>;
-  onResumeActiveQuest?: () => void;
-  onAbandonActiveAndRetry?: () => void | Promise<void>;
-}) {
-  if (!visible || !block) return null;
-  return <Sheet visible={visible} onClose={onClose} maxHeight="78%">
-    <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}>
-      <QuestStartBlockSheet block={block} onClose={onClose} onRepeatQuest={onRepeatQuest} onResumeActiveQuest={onResumeActiveQuest} onAbandonActiveAndRetry={onAbandonActiveAndRetry} />
-    </View>
-  </Sheet>;
-}
-
-export function QuestAbandonReviewModal({
-  summary,
-  visible,
-  onClose,
-  onSaveToJournal,
-  onDeleteAndStart,
-}: {
-  summary: ActiveQuestSummary | null;
-  visible: boolean;
-  onClose: () => void;
-  onSaveToJournal: () => void;
-  onDeleteAndStart: () => void | Promise<void>;
-}) {
-  if (!visible || !summary) return null;
-
-  const details = [
-    { icon: "time-outline" as const, label: "Time spent", value: summary.durationLabel },
-    ...(summary.photoCount ? [{ icon: "camera-outline" as const, label: "Photos", value: String(summary.photoCount) }] : []),
-    ...(summary.noteCount ? [{ icon: "document-text-outline" as const, label: "Notes", value: String(summary.noteCount) }] : []),
-  ];
-
-  return <Sheet visible={visible} onClose={onClose} maxHeight="78%"><View style={{ paddingHorizontal: 20, paddingBottom: 18, gap: 16 }}>
-    <View style={{ alignItems: "center", gap: 7 }}>
-      <View style={{ width: 56, height: 56, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: `${summary.color}16`, borderWidth: 1, borderColor: `${summary.color}2d` }}><Ionicons name="archive-outline" size={27} color={summary.color} /></View>
-      <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 24, lineHeight: 30, textAlign: "center" }}>Before you leave</Text>
-      <Text numberOfLines={1} style={{ color: T.muted, fontFamily: "Rubik", fontSize: 14, lineHeight: 20, fontWeight: "700", textAlign: "center" }}>Here’s what you captured on</Text>
-      <Text numberOfLines={2} style={{ maxWidth: 320, color: T.dark, fontFamily: "RubikBold", fontSize: 16, lineHeight: 21, textAlign: "center" }}>{summary.title}</Text>
-    </View>
-    <View style={{ flexDirection: "row", gap: 8 }}>{details.map((detail) => <View key={detail.label} style={{ flex: 1, minWidth: 0, minHeight: 112, paddingVertical: 14, paddingHorizontal: 8, borderRadius: 17, alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: `${summary.color}0e`, borderWidth: 1, borderColor: `${summary.color}2d` }}><Ionicons name={detail.icon} size={22} color={summary.color} /><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 19, fontVariant: ["tabular-nums"] }}>{detail.value}</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 10, letterSpacing: 0.35, textTransform: "uppercase" }}>{detail.label}</Text></View>)}</View>
-    <View style={{ gap: 9 }}>
-      <SoftButton label="Keep active quest" color={summary.color} onPress={onClose} />
-      <SoftButton label="Save to Journal" icon="book-outline" inverse color={summary.color} onPress={onSaveToJournal} />
-      <SoftButton label="Delete quest stats & start this" icon="trash-outline" inverse color={T.muted} onPress={() => void onDeleteAndStart()} />
-    </View>
-  </View></Sheet>;
 }

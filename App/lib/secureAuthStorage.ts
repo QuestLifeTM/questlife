@@ -1,9 +1,13 @@
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 const memoryStorage = new Map<string, string>();
 
 function getWebStorage() {
-  if (typeof window === "undefined") {
+  // React Native also defines `window`, so checking only for that global sends
+  // native sessions to the in-memory fallback. Use the platform to ensure
+  // Supabase's session is durably stored in SecureStore on iOS and Android.
+  if (Platform.OS !== "web" || typeof window === "undefined") {
     return null;
   }
 
@@ -21,7 +25,9 @@ export const secureAuthStorage = {
       return webStorage.getItem(key);
     }
 
-    if (typeof window !== "undefined") {
+    // Browser storage can be unavailable (for example, privacy-restricted
+    // contexts). Native apps always reach SecureStore below.
+    if (Platform.OS === "web" && typeof window !== "undefined") {
       return memoryStorage.get(key) ?? null;
     }
 
@@ -34,7 +40,7 @@ export const secureAuthStorage = {
       return;
     }
 
-    if (typeof window !== "undefined") {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
       memoryStorage.delete(key);
       return;
     }
@@ -48,7 +54,7 @@ export const secureAuthStorage = {
       return;
     }
 
-    if (typeof window !== "undefined") {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
       memoryStorage.set(key, value);
       return;
     }

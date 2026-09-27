@@ -25,8 +25,8 @@ const appResetPasswordRedirectTo = AuthSession.makeRedirectUri({
 // Email links first show a branded handoff page, then forward the one-time
 // code to the installed app. Keep OAuth app-first because it must complete in
 // the same native browser session.
-const emailAuthRedirectTo = "https://myquestlife.app/auth/callback";
-const emailResetPasswordRedirectTo = "https://myquestlife.app/auth/reset-password";
+const emailAuthRedirectTo = "https://www.myquestlife.app/auth/callback";
+const emailResetPasswordRedirectTo = "https://www.myquestlife.app/auth/reset-password";
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
