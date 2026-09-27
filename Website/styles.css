@@ -13,7 +13,7 @@ html, body { min-width: 320px; min-height: 100vh; margin: 0; background: #080808
 .desktop-nav { display: none; }
 .copy-content { display: flex; flex: 1; flex-direction: column; justify-content: flex-end; align-items: flex-start; padding-top: clamp(90px, 16vh, 160px); }
 .intro-label { margin: 0 0 18px; color: #d9fb22; font-size: .72rem; font-weight: 900; letter-spacing: .08em; }
-h1 { max-width: 8ch; margin: 0; color: #fbfbf9; font-size: clamp(3.25rem, 7.1vw, 7.75rem); font-weight: 900; letter-spacing: -.065em; line-height: .88; text-wrap: balance; }
+h1 { max-width: 8ch; margin: 0; color: #fbfbf9; font-size: clamp(3.25rem, 7.1vw, 7.75rem); font-weight: 900; letter-spacing: -.04em; line-height: .88; text-wrap: balance; }
 h1 span { color: #d9fb22; }
 .hero-description { max-width: 35ch; margin: clamp(28px, 4.1vh, 48px) 0 0; color: #c4c3c0; font-size: clamp(1rem, 1.3vw, 1.36rem); font-weight: 400; line-height: 1.48; text-wrap: pretty; }
 .download-area { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 26px; margin-top: clamp(30px, 5.1vh, 62px); }
