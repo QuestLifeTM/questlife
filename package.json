@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "app": "npm --workspace @questlife/mobile run start",
+    "app:dev": "npm --workspace @questlife/mobile run start:dev-client",
     "app:ios": "npm --workspace @questlife/mobile run ios",
     "app:android": "npm --workspace @questlife/mobile run android",
     "app:web": "npm --workspace @questlife/mobile run web",
