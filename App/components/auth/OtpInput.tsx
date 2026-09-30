@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 
 type OtpInputProps = {
   code: string;
@@ -49,7 +49,7 @@ export function OtpInput({ code, disabled, onChangeCode }: OtpInputProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   wrap: {
     flexDirection: "row",
     gap: 8,
@@ -80,4 +80,4 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textAlign: "center",
   },
-});
+}));

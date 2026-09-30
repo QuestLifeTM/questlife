@@ -6,7 +6,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { Animated, Easing, ImageBackground, StyleSheet, Text, View, type LayoutChangeEvent, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import { SoftButton, haptic } from "@/components/ui";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { ActiveQuestScreen } from "@/screens/active-quest-screen";
@@ -455,10 +455,10 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
   </View>;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   root: { flex: 1, backgroundColor: "#101510" },
   titleLayer: { position: "absolute", left: 0, right: 0, zIndex: 3, alignItems: "center", gap: 7 },
-  title: { maxWidth: 355, color: T.white, fontFamily: "RubikBlack", letterSpacing: -0.36, textAlign: "center" },
+  title: { maxWidth: 355, color: T.onAccent, fontFamily: "RubikBlack", letterSpacing: -0.36, textAlign: "center" },
   subtitle: { maxWidth: 330, color: "rgba(255,255,255,0.92)", fontFamily: "RubikBold", fontSize: 19, lineHeight: 25, textAlign: "center" },
   subtitleAccent: { color: T.blue },
   phoneArea: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center" },
@@ -468,5 +468,5 @@ const styles = StyleSheet.create({
   previewClip: { flex: 1, overflow: "hidden" },
   previewCanvas: { transformOrigin: "top left" },
   continueArea: { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 5 },
-  continueButton: { minHeight: 60, borderRadius: 20, borderBottomColor: "#258fd8" },
-});
+  continueButton: { minHeight: 60, borderRadius: 20, borderBottomColor: T.buttonEdge },
+}));

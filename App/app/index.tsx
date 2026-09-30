@@ -5,13 +5,15 @@ import { Animated, Easing, ImageBackground, Pressable, StyleSheet, Text, TextInp
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { OnboardingIntro } from "@/components/onboarding-intro";
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import { haptic, Sheet, useResponsiveScreenLayout } from "@/components/ui";
 import { getIntroEnabled } from "@/services/announcements/announcementService";
+import { useThemeKey } from "@/contexts/SettingsContext";
 
 const welcomeArtwork = require("../assets/onboarding/screen-one.png");
 
 export default function OnboardingWelcomeScreen() {
+  useThemeKey();
   const insets = useSafeAreaInsets();
   const { horizontalPadding } = useResponsiveScreenLayout();
   const [introComplete, setIntroComplete] = useState(false);
@@ -125,7 +127,7 @@ export default function OnboardingWelcomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#000000",
@@ -146,7 +148,7 @@ const styles = StyleSheet.create({
   getStartedAction: {
     minHeight: 57,
     borderRadius: 19,
-    backgroundColor: T.blue,
+    backgroundColor: T.primaryButton,
     borderWidth: 1.25,
     borderColor: "rgba(255,255,255,0.4)",
     borderBottomWidth: 4,
@@ -157,7 +159,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   getStartedActionText: {
-    color: T.white,
+    color: T.onAccent,
     fontFamily: "Rubik",
     fontSize: 16,
     lineHeight: 21,
@@ -166,10 +168,10 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     marginTop: 7,
-    backgroundColor: "rgba(255,255,255,0.42)",
+    backgroundColor: T.isDark ? "rgba(36,30,38,0.56)" : "rgba(255,255,255,0.42)",
   },
   authPrompt: {
-    color: T.white,
+    color: T.onAccent,
     fontFamily: "Rubik",
     fontSize: 15,
     lineHeight: 20,
@@ -207,21 +209,21 @@ const styles = StyleSheet.create({
     marginTop: 2,
     minHeight: 58,
     borderRadius: 20,
-    backgroundColor: T.blue,
+    backgroundColor: T.primaryButton,
     borderBottomWidth: 6,
-    borderBottomColor: "#258fd8",
+    borderBottomColor: T.primaryButtonEdge,
     alignItems: "center",
     justifyContent: "center",
   },
   nameContinueButtonDisabled: {
     backgroundColor: T.border,
-    borderBottomColor: "#d7cec2",
+    borderBottomColor: T.border,
   },
   nameContinueButtonPressed: {
     transform: [{ translateY: 3 }],
   },
   nameContinueButtonText: {
-    color: T.white,
+    color: T.onAccent,
     fontFamily: "RubikBold",
     fontSize: 15,
     fontWeight: "900",
@@ -232,4 +234,4 @@ const styles = StyleSheet.create({
     opacity: 0.78,
     transform: [{ scale: 0.98 }],
   },
-});
+}));

@@ -93,7 +93,7 @@ function CompletionTrophy({ active }: { active: boolean }) {
     <View pointerEvents="none" style={{ position: "absolute", bottom: 26, left: 13, width: 5, height: 5, borderRadius: 99, backgroundColor: "#ffc13a" }} />
     <Animated.View style={trophyStyle}><LinearGradient colors={["#fff9e7", "#fff0bc"]} start={{ x: 0.12, y: 0 }} end={{ x: 0.9, y: 1 }} style={{ width: 100, height: 100, borderRadius: 38, alignItems: "center", justifyContent: "center", overflow: "hidden", borderWidth: 4, borderColor: "#ffdc83", shadowColor: "#ffb517", shadowOpacity: 0.3, shadowRadius: 13, shadowOffset: { width: 0, height: 4 } }}>
       <Ionicons name="trophy" size={53} color="#ffa70f" />
-      <Ionicons pointerEvents="none" name="star" size={19} color={T.white} style={{ position: "absolute", top: 33 }} />
+      <Ionicons pointerEvents="none" name="star" size={19} color={T.onAccent} style={{ position: "absolute", top: 33 }} />
       {!reducedMotion ? <Animated.View pointerEvents="none" style={[{ position: "absolute", width: 142, height: 138, left: -19, top: -16 }, shineStyle]}><LinearGradient colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.06)", "rgba(255,255,255,0.55)", "rgba(255,255,255,0.06)", "rgba(255,255,255,0)"]} locations={[0, 0.32, 0.5, 0.68, 1]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }} /></Animated.View> : null}
     </LinearGradient></Animated.View>
   </View>;
@@ -168,7 +168,7 @@ function QuestMoments({ photoUris, notes, questColor }: { photoUris: string[]; n
   // Keep every moment equally weighted: a single photo should not grow into a
   // different layout, and up to three photos stay centered as one tidy row.
   const photoSize = 96;
-  return <View style={{ padding: 15, gap: 13, borderRadius: 16, backgroundColor: T.white, borderWidth: 1.5, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#e6ddd2" }}>
+  return <View style={{ padding: 15, gap: 13, borderRadius: 16, backgroundColor: T.white, borderWidth: 1.5, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: T.border }}>
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         <Ionicons name="images-outline" size={20} color={T.blue} />
@@ -219,8 +219,8 @@ function CompletionActionButton({ label, icon, inverse = false, color, onPress, 
       transform: [{ scale: pressed && !disabled ? 0.985 : 1 }]
     })}
   >
-    {icon ? <Ionicons name={icon} size={18} color={inverse ? color : T.white} /> : null}
-    <Text style={{ color: inverse ? color : T.white, fontFamily: "RubikBold", fontSize: 16, lineHeight: 22 }}>{label}</Text>
+    {icon ? <Ionicons name={icon} size={18} color={inverse ? color : T.onAccent} /> : null}
+    <Text style={{ color: inverse ? color : T.onAccent, fontFamily: "RubikBold", fontSize: 16, lineHeight: 22 }}>{label}</Text>
   </Pressable>;
 }
 
@@ -358,7 +358,7 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
           <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: 3 }}>{[1, 2, 3, 4, 5].map((value) => <RatingStar key={value} rating={value} value={rating} onPress={() => { if (busy) return; playRatingFeedback(); setRating(value); setRatingError(false); setError(null); }} />)}</View>
           {ratingError ? <Text accessibilityRole="alert" style={{ color: T.red, fontFamily: "RubikBold", fontSize: 12, lineHeight: 17 }}>Please rate this quest to continue.</Text> : null}
         </Animated.View>
-        <Animated.View entering={FadeInUp.delay(85).duration(260)} style={{ overflow: "hidden", borderRadius: 21, backgroundColor: T.white, borderWidth: 1.5, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#e6ddd2", marginTop: 8 }}>
+        <Animated.View entering={FadeInUp.delay(85).duration(260)} style={{ overflow: "hidden", borderRadius: 21, backgroundColor: T.white, borderWidth: 1.5, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: T.border, marginTop: 8 }}>
           <View style={{ flexDirection: "row", flex: 1 }}>
           <View style={{ width: 5, backgroundColor: quest.color }} />
           <View style={{ flex: 1, padding: 15, gap: 12 }}>
@@ -379,7 +379,7 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
       </ScrollView>
       <Animated.View entering={FadeInUp.delay(165).duration(260)} style={{ position: "absolute", bottom: 0, left: 0, right: 0, overflow: "hidden", paddingHorizontal: 24, paddingTop: 20, paddingBottom: Math.max(insets.bottom, 16), gap: 10 }}>
         <BlurView pointerEvents="none" tint="light" intensity={16} style={{ position: "absolute", inset: 0 }} />
-        <View pointerEvents="none" style={{ position: "absolute", inset: 0, backgroundColor: "rgba(255,252,248,0.36)" }} />
+        <View pointerEvents="none" style={{ position: "absolute", inset: 0, backgroundColor: T.isDark ? "rgba(36,30,38,0.36)" : "rgba(255,252,248,0.36)" }} />
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 }}><Ionicons name={busy ? "sync" : error ? "alert-circle" : completionRef.current ? "checkmark-circle" : "star-outline"} size={18} color={busy ? quest.color : error ? T.red : completionRef.current ? quest.color : T.dark} /><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 13, lineHeight: 18 }}>{busy ? "Saving to your Journal…" : error ? "Your Journal entry needs to be saved" : completionRef.current ? "Already saved to your Journal" : "Rate your quest to save it"}</Text></View>
           {error ? <Text accessibilityRole="alert" style={{ color: T.red, fontSize: 12, lineHeight: 17, fontWeight: "800", textAlign: "center" }}>{error}</Text> : null}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>

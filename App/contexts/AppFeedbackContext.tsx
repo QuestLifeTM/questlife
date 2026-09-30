@@ -1,8 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { PropsWithChildren, ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import Animated, { FadeInDown, FadeOutUp } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { T } from "@/components/theme";
+import { haptic } from "@/components/ui";
+import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 
 type AppFeedback = {
   message: string;
@@ -26,6 +30,8 @@ const AppFeedbackContext = createContext<AppFeedbackContextValue>({
 
 export function AppFeedbackProvider({ children }: PropsWithChildren) {
   const [feedback, setFeedback] = useState<AppFeedback | null>(null);
+  const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotionPreference();
 
   const dismissFeedback = useCallback(() => setFeedback(null), []);
   const showFeedback = useCallback((nextFeedback: AppFeedback) => setFeedback({
@@ -41,6 +47,10 @@ export function AppFeedbackProvider({ children }: PropsWithChildren) {
     return () => clearTimeout(timer);
   }, [dismissFeedback, feedback]);
 
+  useEffect(() => {
+    if (feedback) haptic();
+  }, [feedback]);
+
   const value = useMemo(() => ({ showFeedback, dismissFeedback }), [dismissFeedback, showFeedback]);
   const handleAction = () => {
     const onAction = feedback?.onAction;
@@ -51,16 +61,16 @@ export function AppFeedbackProvider({ children }: PropsWithChildren) {
   return <AppFeedbackContext.Provider value={value}>
     <View style={{ flex: 1 }}>
       {children}
-      <View pointerEvents="box-none" style={{ position: "absolute", inset: 0, justifyContent: "flex-end", paddingHorizontal: 14, paddingBottom: 24 }}>
-        {feedback ? <View accessibilityRole="alert" style={{ minHeight: 66, flexDirection: "row", alignItems: "center", gap: 11, borderRadius: 18, backgroundColor: "rgba(61,52,56,0.9)", paddingHorizontal: 10, paddingVertical: 9, boxShadow: "0px 4px 12px rgba(61,52,56,0.22)" }}>
+      <View pointerEvents="box-none" style={{ position: "absolute", inset: 0, justifyContent: "flex-start", paddingHorizontal: 14, paddingTop: Math.max(insets.top + 8, 20) }}>
+        {feedback ? <Animated.View accessibilityRole="alert" entering={reduceMotion ? undefined : FadeInDown.duration(180)} exiting={reduceMotion ? undefined : FadeOutUp.duration(140)} style={{ minHeight: 66, flexDirection: "row", alignItems: "center", gap: 11, borderRadius: 18, backgroundColor: T.toast, paddingHorizontal: 10, paddingVertical: 9, boxShadow: `0px 4px 12px ${T.shadow}` }}>
           <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: `${feedback.color}2a`, alignItems: "center", justifyContent: "center" }}>
             {feedback.iconElement ?? <Ionicons name={feedback.icon ?? "checkmark"} size={23} color={feedback.color} />}
           </View>
-          <Text style={{ flex: 1, color: T.white, fontFamily: "Rubik", fontSize: 13, lineHeight: 18 }} numberOfLines={2}>{feedback.message}</Text>
+          <Text style={{ flex: 1, color: T.onAccent, fontFamily: "Rubik", fontSize: 13, lineHeight: 18 }} numberOfLines={2}>{feedback.message}</Text>
           {feedback.actionLabel ? <Pressable accessibilityRole="button" accessibilityLabel={feedback.actionLabel} onPress={handleAction} hitSlop={8}>
-            <Text style={{ color: T.white, fontFamily: "RubikBold", fontSize: 14 }}>{feedback.actionLabel}</Text>
+            <Text style={{ color: T.onAccent, fontFamily: "RubikBold", fontSize: 14 }}>{feedback.actionLabel}</Text>
           </Pressable> : null}
-        </View> : null}
+        </Animated.View> : null}
       </View>
     </View>
   </AppFeedbackContext.Provider>;

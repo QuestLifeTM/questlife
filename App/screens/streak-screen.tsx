@@ -19,6 +19,7 @@ import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useStreaks } from "@/contexts/StreaksContext";
 import { useSocial } from "@/contexts/SocialContext";
+import { useThemeKey } from "@/contexts/SettingsContext";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { toLocalDateKey } from "@/services/journal/journalService";
 import { DuoStreak, IncomingDuoInvite, OutgoingDuoInvite, StreakFriend } from "@/types/streaks";
@@ -62,13 +63,13 @@ function colorFor(id: string) {
 function PersonAvatar({ name, avatarUrl, seed, size = 44 }: { name: string; avatarUrl: string | null; seed: string; size?: number }) { return <ProfileAvatar uri={avatarUrl} color={colorFor(seed)} size={size} label={`${name}'s profile photo`} />; }
 
 function WhitePanel({ children, style }: { children: React.ReactNode; style?: object }) {
-  return <View style={[{ backgroundColor: T.white, borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#e6ddd2", padding: 16 }, style]}>{children}</View>;
+  return <View style={[{ backgroundColor: T.raised, borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: T.border, padding: 16 }, style]}>{children}</View>;
 }
 
 function StreakActionButton({ label, icon, onPress, disabled = false, style }: { label: string; icon?: keyof typeof Ionicons.glyphMap; onPress?: () => void; disabled?: boolean; style?: object }) {
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={() => { if (!disabled) haptic(); onPress?.(); }} style={({ pressed }) => [{ minHeight: 52, paddingHorizontal: 16, borderRadius: 18, backgroundColor: disabled ? T.border : STREAK_ORANGE, borderBottomWidth: 5, borderBottomColor: disabled ? "#d7cec2" : "#d44c31", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, opacity: disabled ? 0.65 : 1, transform: [{ translateY: pressed && !disabled ? 3 : 0 }] }, style]}>
-    {icon ? <Ionicons name={icon} size={18} color={T.white} /> : null}
-    <Text style={{ color: T.white, fontSize: 14, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" }}>{label}</Text>
+    {icon ? <Ionicons name={icon} size={18} color={T.onAccent} /> : null}
+    <Text style={{ color: T.onAccent, fontSize: 14, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" }}>{label}</Text>
   </Pressable>;
 }
 
@@ -87,7 +88,7 @@ function StreakVisibilityToggle({ value, onChange, reducedMotion }: { value: boo
   const checkScale = position.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
   return <Pressable accessibilityRole="switch" accessibilityState={{ checked: value }} accessibilityLabel="Show my streak to friends" onPress={() => { haptic(); onChange(); }} style={({ pressed }) => ({ width: 58, height: 34, borderRadius: 17, padding: 3, justifyContent: "center", backgroundColor: value ? `${STREAK_ORANGE}20` : T.bg, borderWidth: 2, borderColor: value ? STREAK_ORANGE : T.border, borderBottomWidth: 4, borderBottomColor: value ? "#d44c31" : T.border, transform: [{ translateY: pressed ? 2 : 0 }] })}>
     <Animated.View style={{ width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: value ? STREAK_ORANGE : T.white, borderWidth: value ? 0 : 1, borderColor: T.border, transform: [{ translateX }] }}>
-      <Animated.View style={{ opacity: position, transform: [{ scale: checkScale }] }}><Ionicons name="checkmark" size={14} color={T.white} /></Animated.View>
+      <Animated.View style={{ opacity: position, transform: [{ scale: checkScale }] }}><Ionicons name="checkmark" size={14} color={T.onAccent} /></Animated.View>
     </Animated.View>
   </Pressable>;
 }
@@ -160,20 +161,20 @@ function StreakHero({ days, onBack, topInset }: { days: number; onBack: () => vo
           </Pressable>
         </View>
         <View style={{ alignItems: "center", paddingTop: 10, transform: [{ translateY: -10 }] }}>
-          <Text style={{ color: T.white, fontSize: 54, lineHeight: 60, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{days}</Text>
-          <Text style={{ color: T.white, fontSize: 29, lineHeight: 36, fontWeight: "900" }}>day streak</Text>
+          <Text style={{ color: T.onAccent, fontSize: 54, lineHeight: 60, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{days}</Text>
+          <Text style={{ color: T.onAccent, fontSize: 29, lineHeight: 36, fontWeight: "900" }}>day streak</Text>
         </View>
       </ImageBackground>
       <View style={{ position: "absolute", top: 246, left: 20, right: 20, backgroundColor: T.white, borderRadius: 22, padding: 16, gap: 14, borderWidth: 2, borderColor: "#f4c7ae", borderBottomWidth: 5, borderBottomColor: "#eebf9f" }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Text style={{ color: STREAK_DEEP, fontSize: 16, fontWeight: "900" }}>7 Day Challenge</Text>
-          <Text style={{ color: "#957d7c", fontSize: 13, fontWeight: "800" }}>Day {currentDay} of 7</Text>
+          <Text style={{ color: T.isDark ? "#ffb15a" : STREAK_DEEP, fontSize: 16, fontWeight: "900" }}>7 Day Challenge</Text>
+          <Text style={{ color: T.muted, fontSize: 13, fontWeight: "800" }}>Day {currentDay} of 7</Text>
         </View>
         <View style={{ flexDirection: "row" }}>
           {WEEKDAYS.map((day, index) => {
             const complete = index < currentDay - 1;
             const today = index === currentDay - 1;
-            return <View key={`${day}-${index}`} style={{ flex: 1, alignItems: "center", gap: 6 }}><Text style={{ color: today ? STREAK_ORANGE : "#957d7c", fontSize: 12, fontWeight: "900" }}>{day}</Text><View style={{ width: 31, height: 31, borderRadius: 16, backgroundColor: today ? STREAK_ORANGE : complete ? "#f5c7b0" : "#fff0e7", borderWidth: today ? 0 : 1.5, borderColor: complete ? "#edb99d" : "#f2d8c9", alignItems: "center", justifyContent: "center" }}>{today ? <Ionicons name="checkmark" size={19} color={T.white} /> : <Ionicons name="flame" size={16} color={complete ? "#d95b3d" : "#c8aaa0"} />}</View></View>;
+            return <View key={`${day}-${index}`} style={{ flex: 1, alignItems: "center", gap: 6 }}><Text style={{ color: today ? STREAK_ORANGE : "#957d7c", fontSize: 12, fontWeight: "900" }}>{day}</Text><View style={{ width: 31, height: 31, borderRadius: 16, backgroundColor: today ? STREAK_ORANGE : complete ? "#f5c7b0" : "#fff0e7", borderWidth: today ? 0 : 1.5, borderColor: complete ? "#edb99d" : "#f2d8c9", alignItems: "center", justifyContent: "center" }}>{today ? <Ionicons name="checkmark" size={19} color={T.onAccent} /> : <Ionicons name="flame" size={16} color={complete ? "#d95b3d" : "#c8aaa0"} />}</View></View>;
           })}
         </View>
       </View>
@@ -198,12 +199,12 @@ function StreakTabs({ activeTab, onChange, inviteCount, reducedMotion }: { activ
 
   return <View onLayout={(event) => setTabWidth(event.nativeEvent.layout.width)} style={{ position: "relative", flexDirection: "row", borderBottomWidth: 2, borderBottomColor: "#eadfd9" }}>
     {tabWidth ? <Animated.View pointerEvents="none" style={{ position: "absolute", bottom: -2, left: 0, width: tabWidth / labels.length, height: 4, borderRadius: 2, backgroundColor: STREAK_ORANGE, transform: [{ translateX: underlineX }] }} /> : null}
-    {labels.map(({ key, label }) => { const selected = key === activeTab; return <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => { haptic(); onChange(key); }} style={({ pressed }) => ({ flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", transform: [{ scale: pressed ? 0.97 : 1 }] })}><View style={{ flexDirection: "row", gap: 5, alignItems: "center" }}><Text numberOfLines={1} style={{ color: selected ? STREAK_ORANGE : T.muted, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>{label}</Text>{key === "friends" && inviteCount > 0 ? <View style={{ minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: STREAK_ORANGE }}><Text style={{ color: T.white, fontSize: 9, fontWeight: "900" }}>{inviteCount}</Text></View> : null}</View></Pressable>; })}
+    {labels.map(({ key, label }) => { const selected = key === activeTab; return <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => { haptic(); onChange(key); }} style={({ pressed }) => ({ flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", transform: [{ scale: pressed ? 0.97 : 1 }] })}><View style={{ flexDirection: "row", gap: 5, alignItems: "center" }}><Text numberOfLines={1} style={{ color: selected ? STREAK_ORANGE : T.muted, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>{label}</Text>{key === "friends" && inviteCount > 0 ? <View style={{ minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: STREAK_ORANGE }}><Text style={{ color: T.onAccent, fontSize: 9, fontWeight: "900" }}>{inviteCount}</Text></View> : null}</View></Pressable>; })}
   </View>;
 }
 
 function StreakSkeletonBlock({ width = "100%", height, radius = 8 }: { width?: number | `${number}%`; height: number; radius?: number }) {
-  return <View accessibilityRole="progressbar" style={{ width, height, borderRadius: radius, backgroundColor: "#eee7e2" }} />;
+  return <View accessibilityRole="progressbar" style={{ width, height, borderRadius: radius, backgroundColor: T.border }} />;
 }
 
 function StreakLoadingHero({ onBack, topInset }: { onBack: () => void; topInset: number }) {
@@ -269,7 +270,7 @@ function CalendarCard({ questDays, currentRange }: { questDays: Set<string>; cur
   const today = toLocalDateKey(now);
   const shift = (delta: number) => { const next = new Date(year, month + delta, 1); if (next <= new Date(now.getFullYear(), now.getMonth(), 1)) { haptic(); setYear(next.getFullYear()); setMonth(next.getMonth()); } };
   const nextMonthDisabled = year === now.getFullYear() && month === now.getMonth();
-  return <WhitePanel style={{ gap: 15 }}><View style={{ minHeight: 44, flexDirection: "row", alignItems: "center" }}><Pressable accessibilityLabel="Previous month" onPress={() => shift(-1)} hitSlop={10} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}><Ionicons name="chevron-back" size={22} color={T.muted} /></Pressable><View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><Text style={{ color: T.dark, fontSize: 22, lineHeight: 27, fontWeight: "900", textAlign: "center" }}>{MONTH_NAMES[month]} {year}</Text></View><Pressable accessibilityLabel="Next month" onPress={() => shift(1)} hitSlop={10} disabled={nextMonthDisabled} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}><Ionicons name="chevron-forward" size={22} color={nextMonthDisabled ? "#ded6d1" : T.muted} /></Pressable></View><View style={{ height: 1, backgroundColor: "#eee7e2" }} /><View style={{ gap: 10 }}><View style={{ flexDirection: "row" }}>{["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <Text key={`${day}-${index}`} style={{ flex: 1, textAlign: "center", color: T.muted, fontSize: 12, fontWeight: "900" }}>{day}</Text>)}</View>{rows.map((row, index) => <View key={index} style={{ flexDirection: "row" }}>{row.map((date, col) => { const key = date ? toLocalDateKey(date) : ""; const complete = Boolean(date && questDays.has(key)); const live = Boolean(currentRange && key >= currentRange.start && key <= currentRange.end); const isToday = key === today; return <View key={col} style={{ flex: 1, height: 40, alignItems: "center", justifyContent: "center" }}>{date ? <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: complete ? (live ? STREAK_ORANGE : "#f2c9b5") : "#f2f0ef", borderWidth: isToday && !complete ? 2 : 0, borderColor: STREAK_ORANGE }}><Text style={{ color: complete ? T.white : isToday ? STREAK_ORANGE : T.muted, fontSize: 13, fontWeight: "900" }}>{date.getDate()}</Text></View> : null}</View>; })}</View>)}</View><Text style={{ textAlign: "center", color: T.muted, fontSize: 11, fontWeight: "700" }}>Orange marks your current streak · dates show completed quests</Text></WhitePanel>;
+  return <WhitePanel style={{ gap: 15 }}><View style={{ minHeight: 44, flexDirection: "row", alignItems: "center" }}><Pressable accessibilityLabel="Previous month" onPress={() => shift(-1)} hitSlop={10} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}><Ionicons name="chevron-back" size={22} color={T.muted} /></Pressable><View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><Text style={{ color: T.dark, fontSize: 22, lineHeight: 27, fontWeight: "900", textAlign: "center" }}>{MONTH_NAMES[month]} {year}</Text></View><Pressable accessibilityLabel="Next month" onPress={() => shift(1)} hitSlop={10} disabled={nextMonthDisabled} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}><Ionicons name="chevron-forward" size={22} color={nextMonthDisabled ? "#ded6d1" : T.muted} /></Pressable></View><View style={{ height: 1, backgroundColor: "#eee7e2" }} /><View style={{ gap: 10 }}><View style={{ flexDirection: "row" }}>{["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <Text key={`${day}-${index}`} style={{ flex: 1, textAlign: "center", color: T.muted, fontSize: 12, fontWeight: "900" }}>{day}</Text>)}</View>{rows.map((row, index) => <View key={index} style={{ flexDirection: "row" }}>{row.map((date, col) => { const key = date ? toLocalDateKey(date) : ""; const complete = Boolean(date && questDays.has(key)); const live = Boolean(currentRange && key >= currentRange.start && key <= currentRange.end); const isToday = key === today; return <View key={col} style={{ flex: 1, height: 40, alignItems: "center", justifyContent: "center" }}>{date ? <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: complete ? (live ? STREAK_ORANGE : "#f2c9b5") : "#f2f0ef", borderWidth: isToday && !complete ? 2 : 0, borderColor: STREAK_ORANGE }}><Text style={{ color: complete ? T.onAccent : isToday ? STREAK_ORANGE : T.muted, fontSize: 13, fontWeight: "900" }}>{date.getDate()}</Text></View> : null}</View>; })}</View>)}</View><Text style={{ textAlign: "center", color: T.muted, fontSize: 11, fontWeight: "700" }}>Orange marks your current streak · dates show completed quests</Text></WhitePanel>;
 }
 
 function PersonalContent() {
@@ -314,16 +315,16 @@ function PersonalContent() {
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: T.dark, fontSize: 19, fontWeight: "900" }}>Streak leaderboard</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "800" }}>Personal streaks</Text></View>
       <WhitePanel style={{ padding: 3, gap: 0 }}>
         <View style={{ overflow: "hidden", borderRadius: 17 }}>
-          {leaderRows.map((row, index) => <Pressable key={row.id} accessibilityRole={row.self ? undefined : "button"} accessibilityLabel={row.self ? undefined : `View ${row.name}'s profile`} disabled={row.self} onPress={() => { if (!row.self) router.push(`/add-friend/${row.id}`); }} style={({ pressed }) => ({ minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderBottomWidth: index === leaderRows.length - 1 ? 0 : 1.5, borderBottomColor: "#eee7e2", backgroundColor: row.self ? "#fff7f2" : T.white, opacity: pressed && !row.self ? 0.7 : 1 })}>
+          {leaderRows.map((row, index) => <Pressable key={row.id} accessibilityRole={row.self ? undefined : "button"} accessibilityLabel={row.self ? undefined : `View ${row.name}'s profile`} disabled={row.self} onPress={() => { if (!row.self) router.push(`/add-friend/${row.id}`); }} style={({ pressed }) => ({ minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderBottomWidth: index === leaderRows.length - 1 ? 0 : 1.5, borderBottomColor: T.border, backgroundColor: row.self ? `${STREAK_ORANGE}18` : T.raised, opacity: pressed && !row.self ? 0.7 : 1 })}>
             <Text style={{ width: 22, color: index === 0 ? STREAK_ORANGE : T.muted, fontSize: 16, fontWeight: "900" }}>{index + 1}</Text>
             <PersonAvatar name={row.name} avatarUrl={row.avatarUrl} seed={row.id} size={42} />
             <Text style={{ flex: 1, color: T.dark, fontSize: 16, fontWeight: "900" }}>{row.name}</Text>
-            <View style={{ minWidth: 42, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4 }}><QuestlifeFlame size={20} /><Text style={{ color: STREAK_DEEP, fontSize: 16, fontWeight: "900" }}>{row.streak}</Text></View>
+            <View style={{ minWidth: 42, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4 }}><QuestlifeFlame size={20} /><Text style={{ color: T.dark, fontSize: 16, fontWeight: "900" }}>{row.streak}</Text></View>
           </Pressable>)}
         </View>
       </WhitePanel>
       {canRestore ? (
-        <WhitePanel style={{ gap: 10, borderColor: `${STREAK_ORANGE}66`, backgroundColor: "#fff7f2" }}>
+        <WhitePanel style={{ gap: 10, borderColor: `${STREAK_ORANGE}66`, backgroundColor: `14` }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: `${STREAK_ORANGE}18` }}>
               <Ionicons name="shield-checkmark-outline" size={21} color={STREAK_ORANGE} />
@@ -365,7 +366,7 @@ function FriendsContent() {
       <View style={{ gap: 3 }}><Text style={{ color: T.dark, fontSize: 19, fontWeight: "900" }}>Shared streaks</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>Both friends must complete a quest on the same day.</Text></View>
       {overview.duoStreaks.map((duo) => <DuoCard key={duo.id} duo={duo} busy={busyId === duo.id} onNudge={() => run(duo.id, () => nudgePartner(duo.id))} onQuest={() => router.push("/explore")} onEnd={() => setEndTarget(duo)} />)}
       {overview.outgoingInvites.map((invite: OutgoingDuoInvite) => <WhitePanel key={invite.id} style={{ minHeight: 66, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 10 }}><PersonAvatar name={invite.recipientName} avatarUrl={invite.recipientAvatarUrl} seed={invite.recipientId} size={40} /><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontWeight: "900" }}>{invite.recipientName}</Text><Text style={{ color: T.muted, fontSize: 12, fontWeight: "700" }}>Streak invite pending</Text></View><Pressable onPress={() => run(invite.id, () => cancelInvite(invite.id))}><Text style={{ color: STREAK_ORANGE, fontSize: 12, fontWeight: "900" }}>CANCEL</Text></Pressable></WhitePanel>)}
-      <Pressable accessibilityRole="button" accessibilityLabel="Invite a friend to a streak" onPress={() => router.push("/streak-invite")} style={({ pressed }) => ({ minHeight: 70, borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#e6ddd2", backgroundColor: T.white, paddingHorizontal: 15, flexDirection: "row", alignItems: "center", gap: 12, transform: [{ translateY: pressed ? 2 : 0 }] })}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Invite a friend to a streak" onPress={() => router.push("/streak-invite")} style={({ pressed }) => ({ minHeight: 70, borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: T.border, backgroundColor: T.white, paddingHorizontal: 15, flexDirection: "row", alignItems: "center", gap: 12, transform: [{ translateY: pressed ? 2 : 0 }] })}>
         <View style={{ width: 42, height: 42, borderRadius: 21, borderWidth: 2, borderStyle: "dashed", borderColor: "#b7aeac", alignItems: "center", justifyContent: "center" }}><Ionicons name="add" size={24} color="#a39a98" /></View>
         <Text style={{ color: T.muted, fontSize: 16, fontWeight: "900" }}>Invite a friend</Text>
       </Pressable>
@@ -382,6 +383,7 @@ function AchievementsContent({ currentStreak }: { currentStreak: number }) {
 }
 
 export function StreakScreen({ initialTab = "personal", onBack }: { initialTab?: StreakTab; onBack: () => void }) {
+  useThemeKey();
   const { error, loading, overview, refresh } = useStreaks();
   const [activeTab, setActiveTab] = useState<StreakTab>(initialTab);
   const insets = useSafeAreaInsets();
@@ -390,5 +392,5 @@ export function StreakScreen({ initialTab = "personal", onBack }: { initialTab?:
   const { onScroll, scrollY } = useTopScrollBlur();
   useEffect(() => { refresh(); }, [refresh]);
   const initialLoading = loading && !overview;
-  return <View style={{ flex: 1, backgroundColor: T.bg }}><StatusBar style="light" /><Reanimated.ScrollView onScroll={onScroll} scrollEventThrottle={16} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} stickyHeaderIndices={[1]} contentContainerStyle={{ paddingBottom: insets.bottom + 108 }}>{initialLoading ? <StreakLoadingHero onBack={onBack} topInset={insets.top} /> : <StreakHero days={overview?.personal.currentStreak ?? 0} onBack={onBack} topInset={insets.top} />}<View style={{ backgroundColor: T.bg, paddingHorizontal: gutter }}><StreakTabs activeTab={activeTab} onChange={setActiveTab} inviteCount={overview?.incomingInvites.length ?? 0} reducedMotion={reducedMotion} /></View><View style={{ paddingHorizontal: gutter, paddingTop: 14 }}>{error ? <WhitePanel style={{ borderColor: `${T.red}77`, gap: 10 }}><Text style={{ color: T.red, fontWeight: "900" }}>{error}</Text><SoftButton label="Try again" inverse color={STREAK_ORANGE} onPress={refresh} /></WhitePanel> : null}{initialLoading ? <StreakLoadingContent activeTab={activeTab} /> : overview ? <StreakTabContent activeTab={activeTab} reducedMotion={reducedMotion}>{activeTab === "personal" ? <PersonalContent /> : activeTab === "friends" ? <FriendsContent /> : <AchievementsContent currentStreak={overview.personal.currentStreak} />}</StreakTabContent> : !error ? <EmptyState artwork={<QuestlifeFlame size={64} />} title="Streaks are warming up" body="Sign in and complete a quest to start tracking your streak." /> : null}</View></Reanimated.ScrollView><ScrollTopBlur scrollY={scrollY} /></View>;
+  return <View style={{ flex: 1, backgroundColor: T.bg }}><StatusBar style={T.isDark ? "light" : "dark"} /><Reanimated.ScrollView onScroll={onScroll} scrollEventThrottle={16} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} stickyHeaderIndices={[1]} contentContainerStyle={{ paddingBottom: insets.bottom + 108 }}>{initialLoading ? <StreakLoadingHero onBack={onBack} topInset={insets.top} /> : <StreakHero days={overview?.personal.currentStreak ?? 0} onBack={onBack} topInset={insets.top} />}<View style={{ backgroundColor: T.bg, paddingHorizontal: gutter }}><StreakTabs activeTab={activeTab} onChange={setActiveTab} inviteCount={overview?.incomingInvites.length ?? 0} reducedMotion={reducedMotion} /></View><View style={{ paddingHorizontal: gutter, paddingTop: 14 }}>{error ? <WhitePanel style={{ borderColor: `${T.red}77`, gap: 10 }}><Text style={{ color: T.red, fontWeight: "900" }}>{error}</Text><SoftButton label="Try again" inverse color={STREAK_ORANGE} onPress={refresh} /></WhitePanel> : null}{initialLoading ? <StreakLoadingContent activeTab={activeTab} /> : overview ? <StreakTabContent activeTab={activeTab} reducedMotion={reducedMotion}>{activeTab === "personal" ? <PersonalContent /> : activeTab === "friends" ? <FriendsContent /> : <AchievementsContent currentStreak={overview.personal.currentStreak} />}</StreakTabContent> : !error ? <EmptyState artwork={<QuestlifeFlame size={64} />} title="Streaks are warming up" body="Sign in and complete a quest to start tracking your streak." /> : null}</View></Reanimated.ScrollView><ScrollTopBlur scrollY={scrollY} /></View>;
 }

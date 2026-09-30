@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { playHaptic } from "@/motion/haptics";
 
-const INTRO_FONT = "GeistPixel";
+const INTRO_FONT = "RubikBlack";
 const INTRO_MESSAGES = [
   "Life wasn't meant to be watched...",
   "It was meant to be lived",

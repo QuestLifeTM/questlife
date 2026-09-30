@@ -248,8 +248,8 @@ function QuestFeedCard({ quest, onSave }: { quest: Quest; onSave: () => void }) 
                   <MetaPill icon="flash" text={`+${quest.xp} XP`} />
                   <MetaPill icon="time" text={quest.timeLabel} color={T.dark} />
                 </View>
-                <View style={{ minWidth: 74, minHeight: 36, borderRadius: 22, backgroundColor: T.blue, borderBottomWidth: cardPressed ? 1 : 4, borderBottomColor: "#258fd8", alignItems: "center", justifyContent: "center", paddingHorizontal: 12, transform: [{ translateY: cardPressed ? 3 : 0 }] }}>
-                  <Text style={{ color: T.white, fontFamily: "RubikBlack", fontSize: 13, letterSpacing: 0.55 }}>MORE INFO</Text>
+                <View style={{ minWidth: 74, minHeight: 36, borderRadius: 22, backgroundColor: T.compactButton, borderBottomWidth: cardPressed ? 1 : 4, borderBottomColor: T.compactButtonEdge, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, transform: [{ translateY: cardPressed ? 3 : 0 }] }}>
+                  <Text style={{ color: T.onBlueButton, fontFamily: "RubikBlack", fontSize: 13, letterSpacing: 0.55 }}>MORE INFO</Text>
                 </View>
               </View>
             </View>
@@ -347,7 +347,7 @@ export function ExploreScreen({ previewQuests, previewAutoScroll = false, previe
                 {categories.map((item) => {
                   const active = category === item;
                   const tone = item === "All" ? null : categoryColor[item];
-                  return <Pressable key={item} onPress={() => { haptic(); setCategory(item); }} style={({ pressed }) => ({ borderRadius: 99, paddingVertical: 10, paddingHorizontal: 16, backgroundColor: active ? tone?.bg ?? T.dark : T.white, borderWidth: 2, borderColor: tone?.text ?? T.dark, borderBottomWidth: pressed ? 1 : 4, borderBottomColor: `${tone?.text ?? T.dark}88`, opacity: pressed ? 0.9 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>{item === "All" ? <Ionicons name="apps" size={15} color={active ? T.white : T.muted} /> : <PartyCategoryIcon category={item} size={16} color={tone?.text} />}<Text style={{ color: item === "All" && active ? T.white : tone?.text ?? T.muted, fontWeight: "900", fontSize: 13 }}>{item}</Text></View></Pressable>;
+                  return <Pressable key={item} onPress={() => { haptic(); setCategory(item); }} style={({ pressed }) => ({ borderRadius: 99, paddingVertical: 10, paddingHorizontal: 16, backgroundColor: active ? tone?.bg ?? T.selected : T.white, borderWidth: 2, borderColor: tone?.text ?? T.selected, borderBottomWidth: pressed ? 1 : 4, borderBottomColor: `${tone?.text ?? T.selected}88`, opacity: pressed ? 0.9 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>{item === "All" ? <Ionicons name="apps" size={15} color={active ? T.onAccent : T.muted} /> : <PartyCategoryIcon category={item} size={16} color={tone?.text} />}<Text style={{ color: item === "All" && active ? T.onAccent : tone?.text ?? T.muted, fontWeight: "900", fontSize: 13 }}>{item}</Text></View></Pressable>;
                 })}
               </ScrollView>
               <View style={{ width: "100%", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
@@ -429,9 +429,9 @@ export function ExploreScreen({ previewQuests, previewAutoScroll = false, previe
             </View>
           </View>
 
-          <Pressable accessibilityRole="button" accessibilityLabel="Apply sort and filters" onPress={() => { haptic(); setFilterVisible(false); }} style={({ pressed }) => ({ minHeight: 58, marginTop: 2, borderRadius: 20, backgroundColor: T.blue, borderBottomWidth: 6, borderBottomColor: "#258fd8", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, opacity: pressed ? 0.9 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}>
-            <Text style={{ color: T.white, fontFamily: "RubikBold", fontSize: 16, letterSpacing: 0.35 }}>Done</Text>
-            <Ionicons name="checkmark-circle-outline" size={20} color={T.white} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Apply sort and filters" onPress={() => { haptic(); setFilterVisible(false); }} style={({ pressed }) => ({ minHeight: 58, marginTop: 2, borderRadius: 20, backgroundColor: T.primaryButton, borderBottomWidth: 6, borderBottomColor: T.primaryButtonEdge, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, opacity: pressed ? 0.9 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}>
+            <Text style={{ color: T.onBlueButton, fontFamily: "RubikBold", fontSize: 16, letterSpacing: 0.35 }}>Done</Text>
+            <Ionicons name="checkmark-circle-outline" size={20} color={T.onBlueButton} />
           </Pressable>
         </ScrollView>
       </Sheet>

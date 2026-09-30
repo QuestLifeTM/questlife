@@ -1,14 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Pressable, StyleProp, StyleSheet, Text, TextStyle, View, useWindowDimensions } from "react-native";
+import { Alert, Animated, Easing, Pressable, StyleProp, StyleSheet, Text, TextStyle, View, useWindowDimensions } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { getLobbyLayout, lobbyDesign, resolveLobbyStates } from "@/components/lobby-design";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { QuestStartBlockSheet } from "@/components/quest-start-block";
 import { StreakPill } from "@/components/streak-pill";
-import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
+import { categoryColor, difficultyColor, radius, T, themedStyles } from "@/components/theme";
 import { Card, PillStat, Screen, Sheet, SoftButton, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { useActiveQuest } from "@/contexts/ActiveQuestContext";
@@ -19,6 +19,7 @@ import { formatElapsedCompact, useElapsedDuration } from "@/hooks/useElapsedTime
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { useQuestStart } from "@/hooks/useQuestStart";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
+import { useThemeKey } from "@/contexts/SettingsContext";
 import { Quest } from "@/types/content";
 import { fetchOwnProfileAvatar, fetchRequiredProfileName } from "@/services/profile/profileService";
 import { clearMyActiveQuestRecovery } from "@/services/engine/questEngineService";
@@ -373,7 +374,7 @@ function ActiveQuestCard({
             <View style={styles.statDivider} />
             <View style={styles.activeStatCell}><View style={styles.rewardIconWrap}><RewardIcon /></View><View style={styles.statCopy}><Text style={[styles.statLabel, styles.rewardLabel]}>Reward</Text><Text style={styles.statValue}>+{activeQuest.xp} XP</Text></View></View>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`View active quest: ${activeQuest.title}`} onPress={() => { haptic(); onView(); }} style={({ pressed }) => [styles.activePrimaryButton, pressed ? styles.pressed : null]}><Ionicons name="navigate" size={18} color={T.white} /><Text style={styles.activePrimaryText}>View Active Quest</Text><Ionicons name="arrow-forward" size={18} color={T.white} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={`View active quest: ${activeQuest.title}`} onPress={() => { haptic(); onView(); }} style={({ pressed }) => [styles.activePrimaryButton, pressed ? styles.pressed : null]}><Ionicons name="navigate" size={18} color={T.onBlueButton} /><Text style={styles.activePrimaryText}>View Active Quest</Text><Ionicons name="arrow-forward" size={18} color={T.onBlueButton} /></Pressable>
         </View>
       </View>
     </LobbyReveal>
@@ -388,7 +389,7 @@ function RestoredActiveQuestCard({ onView, reducedMotion }: { onView: () => void
         <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21, lineHeight: 27 }}>Your active quest is ready</Text>
         <Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 14, lineHeight: 20 }}>Open it to pick up where you left off.</Text>
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="View active quest" onPress={() => { haptic(); onView(); }} style={({ pressed }) => [styles.activePrimaryButton, pressed ? styles.pressed : null]}><Ionicons name="navigate" size={18} color={T.white} /><Text style={styles.activePrimaryText}>View Active Quest</Text><Ionicons name="arrow-forward" size={18} color={T.white} /></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="View active quest" onPress={() => { haptic(); onView(); }} style={({ pressed }) => [styles.activePrimaryButton, pressed ? styles.pressed : null]}><Ionicons name="navigate" size={18} color={T.onBlueButton} /><Text style={styles.activePrimaryText}>View Active Quest</Text><Ionicons name="arrow-forward" size={18} color={T.onBlueButton} /></Pressable>
     </Card>
   </LobbyReveal>;
 }
@@ -416,7 +417,7 @@ function EmptyActiveQuest({
           <Text style={styles.emptyQuestBody}>Find an adventure that fits your day.</Text>
         </View>
         <View style={styles.emptyActions}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Explore quests" onPress={() => { haptic(); onExplore(); }} style={({ pressed }) => [styles.activePrimaryButton, pressed ? styles.pressed : null]}><Ionicons name="compass" size={18} color={T.white} /><Text style={styles.activePrimaryText}>Explore quests</Text><Ionicons name="arrow-forward" size={18} color={T.white} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Explore quests" onPress={() => { haptic(); onExplore(); }} style={({ pressed }) => [styles.activePrimaryButton, pressed ? styles.pressed : null]}><Ionicons name="compass" size={18} color={T.onBlueButton} /><Text style={styles.activePrimaryText}>Explore quests</Text><Ionicons name="arrow-forward" size={18} color={T.onBlueButton} /></Pressable>
         </View>
       </Card>
     </LobbyReveal>
@@ -438,7 +439,7 @@ function InProgressQuestRow({ quest, startedAt, onOpen, reducedMotion }: { quest
       <Text numberOfLines={2} style={{ color: T.dark, fontSize: 18, lineHeight: 23, fontWeight: "900" }}>{quest.title}</Text>
       <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
         <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 7 }}><Ionicons name="calendar-outline" size={18} color={T.muted} /><Text numberOfLines={1} style={{ color: T.muted, fontSize: 15, lineHeight: 20, fontWeight: "700" }}>{label}</Text></View>
-        <View style={{ minWidth: 74, minHeight: 36, borderRadius: 22, backgroundColor: T.blue, borderBottomWidth: 4, borderBottomColor: "#258fd8", alignItems: "center", justifyContent: "center", paddingHorizontal: 12, transform: [{ translateY: -4 }] }}><Text style={{ color: T.white, fontFamily: "RubikBlack", fontSize: 13, letterSpacing: 0.55 }}>OPEN</Text></View>
+        <View style={{ minWidth: 74, minHeight: 36, borderRadius: 22, backgroundColor: T.compactButton, borderBottomWidth: 4, borderBottomColor: T.compactButtonEdge, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, transform: [{ translateY: -4 }] }}><Text style={{ color: T.onAccent, fontFamily: "RubikBlack", fontSize: 13, letterSpacing: 0.55 }}>OPEN</Text></View>
       </View>
     </View>
     </View>
@@ -530,19 +531,21 @@ function CompletedSection({
 }
 
 export function LobbyScreen() {
+  useThemeKey();
   const router = useRouter();
   const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
   const reducedMotion = useReducedMotionPreference();
   const { profileNameVersion, user } = useAuth();
   const { error: contentError, getQuest, loading, quests } = useContent();
   const { unreadCount } = useNotifications();
-  const { engine, error: engineError, loading: engineLoading, refresh, abandonActiveQuest, startQuest } = useQuestEngine();
+  const { engine, error: engineError, loading: engineLoading, refresh, abandonActiveQuest } = useQuestEngine();
   const { snapshot, resume } = useActiveQuest();
   const { showFeedback } = useAppFeedback();
   const { block, clearBlock, tryStart } = useQuestStart(getQuest);
 
   const [recoveryVisible, setRecoveryVisible] = useState(false);
   const [recoveryActionBusy, setRecoveryActionBusy] = useState(false);
+  const dismissedRecoveryRef = useRef<string | null>(null);
   const [greetingShuffle] = useState(() => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
   const [firstName, setFirstName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -569,23 +572,18 @@ export function LobbyScreen() {
   const hasActiveSession = Boolean(engine?.doingNowSession);
   const recoveryRequired = Boolean(engine?.doingNowSession?.recoveryRequiredAt);
   const activeQuestElapsed = useElapsedDuration(engine?.doingNowSession?.startedAt);
-  const activeQuestSnapshot = snapshot?.session;
-  let pauseAwareActiveQuestElapsed = activeQuestElapsed;
-  if (activeQuestSnapshot && activeQuestSnapshot.sessionId === engine?.doingNowSession?.id) {
-    pauseAwareActiveQuestElapsed = activeQuestSnapshot.activeDurationMs +
-      (activeQuestSnapshot.recordingState === "recording" && activeQuestSnapshot.activeSince
-        ? Math.max(0, Date.now() - new Date(activeQuestSnapshot.activeSince).getTime())
-        : 0);
-  }
-  const recoveryDuration = activeQuestSnapshot?.sessionId === engine?.doingNowSession?.id
-    ? pauseAwareActiveQuestElapsed
-    : activeQuestElapsed;
-  const recoveryStartedAt = engine?.doingNowSession?.recoveryStartedAt ?? null;
-  const timeAwayMs = recoveryStartedAt ? Math.max(0, Date.now() - new Date(recoveryStartedAt).getTime()) : 0;
+  const recoveryDuration = activeQuestElapsed;
+  const questStartedAt = engine?.doingNowSession?.startedAt ?? null;
+  const questStartedLabel = questStartedAt
+    ? new Date(questStartedAt).toLocaleString([], { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : null;
+  const recoveryRequiredAt = engine?.doingNowSession?.recoveryRequiredAt ?? null;
+  const inactiveSince = engine?.doingNowSession?.recoveryStartedAt ?? null;
+  const timeAwayMs = inactiveSince ? Math.max(0, Date.now() - new Date(inactiveSince).getTime()) : 0;
 
   useEffect(() => {
-    if (recoveryRequired) setRecoveryVisible(true);
-  }, [recoveryRequired]);
+    if (recoveryRequired && recoveryRequiredAt && dismissedRecoveryRef.current !== recoveryRequiredAt) setRecoveryVisible(true);
+  }, [recoveryRequired, recoveryRequiredAt]);
   const dailyUsed = engine?.dailyUsed ?? 0;
   const dailyLimit = engine?.dailyLimit ?? 5;
   const completions = engine?.todayCompletions ?? [];
@@ -601,26 +599,33 @@ export function LobbyScreen() {
   });
   const isInitialLobbyLoad = !contentError && !engineError && ((loading && !quests.length) || (engineLoading && !engine));
 
-  async function handleQuestRecovery(choice: "continue" | "restart" | "count-away") {
+  async function handleQuestRecovery(choice: "continue" | "abandon") {
     const session = engine?.doingNowSession;
     if (!session || recoveryActionBusy) return;
     setRecoveryActionBusy(true);
     try {
-      if (choice === "restart") {
+      if (choice === "abandon") {
         await abandonActiveQuest();
-        await startQuest({ questId: session.questId, source: session.source });
       } else {
         await clearMyActiveQuestRecovery();
-        await resume(choice === "count-away" ? timeAwayMs : 0);
+        await resume();
       }
       await refresh();
       setRecoveryVisible(false);
+      dismissedRecoveryRef.current = recoveryRequiredAt;
       router.push("/active-quest");
     } catch {
       showFeedback({ message: "We couldn't restore this quest yet. Please try again.", icon: "alert-circle", color: T.red });
     } finally {
       setRecoveryActionBusy(false);
     }
+  }
+
+  function confirmQuestAbandon() {
+    Alert.alert("Abandon this quest?", "Your active quest will be removed. This can’t be undone.", [
+      { text: "Keep quest", style: "cancel" },
+      { text: "Abandon quest", style: "destructive", onPress: () => void handleQuestRecovery("abandon") },
+    ]);
   }
 
   return (
@@ -663,7 +668,7 @@ export function LobbyScreen() {
           {hasActiveSession ? activeQuest ? (
             <ActiveQuestCard
               activeQuest={activeQuest}
-              elapsedLabel={formatElapsedCompact(pauseAwareActiveQuestElapsed)}
+              elapsedLabel={formatElapsedCompact(activeQuestElapsed)}
               onView={() => router.push("/active-quest")}
               reducedMotion={reducedMotion}
             />
@@ -689,21 +694,20 @@ export function LobbyScreen() {
         </View>
       </LobbyReveal>}
 
-      <Sheet visible={recoveryVisible && recoveryRequired} onClose={() => undefined} maxHeight="76%">
+      <Sheet visible={recoveryVisible && recoveryRequired} onClose={() => { dismissedRecoveryRef.current = recoveryRequiredAt; setRecoveryVisible(false); }} maxHeight="76%">
         <View style={{ paddingHorizontal: 24, paddingBottom: 24, gap: 14 }}>
           <View style={{ alignItems: "center", gap: 7 }}>
             <View style={{ width: 58, height: 58, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: `${activeQuest?.color ?? T.blue}16` }}><Ionicons name="time-outline" size={29} color={activeQuest?.color ?? T.blue} /></View>
-            <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 24, textAlign: "center" }}>Continue your quest?</Text>
-            <Text style={{ color: T.muted, fontSize: 14, lineHeight: 20, fontWeight: "700", textAlign: "center" }}>{activeQuest?.title ?? "Your active quest"} has been paused for over an hour.</Text>
+            <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 24, textAlign: "center" }}>Your quest is still waiting!</Text>
+            <Text style={{ color: T.muted, fontSize: 14, lineHeight: 20, fontWeight: "700", textAlign: "center" }}>You haven’t opened QuestLife in {formatElapsedCompact(timeAwayMs)}. You started {activeQuest?.title ?? "your active quest"}{questStartedLabel ? ` on ${questStartedLabel}` : ""}.</Text>
           </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <View style={{ flex: 1, minHeight: 82, borderRadius: 18, alignItems: "center", justifyContent: "center", gap: 3, backgroundColor: `${activeQuest?.color ?? T.blue}0e`, borderWidth: 1, borderColor: `${activeQuest?.color ?? T.blue}30` }}><Ionicons name="time-outline" size={20} color={activeQuest?.color ?? T.blue} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 16, fontVariant: ["tabular-nums"] }}>{formatElapsedCompact(recoveryDuration)}</Text><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 10, textTransform: "uppercase" }}>Time spent</Text></View>
             <View style={{ flex: 1, minHeight: 82, borderRadius: 18, alignItems: "center", justifyContent: "center", gap: 3, backgroundColor: `${activeQuest?.color ?? T.blue}0e`, borderWidth: 1, borderColor: `${activeQuest?.color ?? T.blue}30` }}><Ionicons name="camera-outline" size={20} color={activeQuest?.color ?? T.blue} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 16 }}>{snapshot?.photoCount ?? 0}</Text><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 10, textTransform: "uppercase" }}>Photos</Text></View>
             <View style={{ flex: 1, minHeight: 82, borderRadius: 18, alignItems: "center", justifyContent: "center", gap: 3, backgroundColor: `${activeQuest?.color ?? T.blue}0e`, borderWidth: 1, borderColor: `${activeQuest?.color ?? T.blue}30` }}><Ionicons name="document-text-outline" size={20} color={activeQuest?.color ?? T.blue} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 16 }}>{snapshot?.activity.filter((item) => item.kind === "note").length ?? 0}</Text><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 10, textTransform: "uppercase" }}>Notes</Text></View>
           </View>
-          <SoftButton label={recoveryActionBusy ? "Restoring..." : "Continue where I left off"} icon="play" disabled={recoveryActionBusy} color={activeQuest?.color ?? T.blue} onPress={() => void handleQuestRecovery("continue")} />
-          <SoftButton label={`Count ${formatElapsedCompact(timeAwayMs)} away`} icon="time-outline" disabled={recoveryActionBusy} inverse color={T.orange} onPress={() => void handleQuestRecovery("count-away")} />
-          <SoftButton label="Start fresh" icon="refresh" disabled={recoveryActionBusy} inverse color={T.muted} onPress={() => void handleQuestRecovery("restart")} />
+          <SoftButton label={recoveryActionBusy ? "Restoring..." : "Continue Quest"} icon="play" disabled={recoveryActionBusy} color={activeQuest?.color ?? T.blue} onPress={() => void handleQuestRecovery("continue")} />
+          <SoftButton label="Abandon Quest" icon="trash-outline" disabled={recoveryActionBusy} inverse color={T.red} onPress={confirmQuestAbandon} />
         </View>
       </Sheet>
 
@@ -727,7 +731,7 @@ export function LobbyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   screenContent: {
     alignItems: "center",
     gap: 0,
@@ -748,7 +752,7 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   greeting: {
-    color: lobbyDesign.color.mutedInk,
+    color: T.muted,
     fontFamily: "RubikBlack",
     fontSize: 20,
     lineHeight: 22,
@@ -759,7 +763,7 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   headerName: {
-    color: lobbyDesign.color.ink,
+    color: T.dark,
     fontFamily: "RubikBlack",
     fontSize: 20,
     lineHeight: 22,
@@ -983,8 +987,8 @@ const styles = StyleSheet.create({
     minHeight: 70,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: "rgba(232,223,213,0.5)",
-    backgroundColor: "rgba(252,239,246,0.5)",
+    borderColor: T.isDark ? T.borderSubtle : T.border,
+    backgroundColor: T.isDark ? T.input : "rgba(252,239,246,0.5)",
     overflow: "hidden",
   },
   activeStatCell: {
@@ -1003,7 +1007,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f2eef2",
+    backgroundColor: T.isDark ? T.raised : T.input,
   },
   rewardIconWrap: {
     width: 34,
@@ -1011,7 +1015,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: `${T.blue}14`,
+    backgroundColor: T.isDark ? T.raised : `${T.blue}14`,
   },
   statLabel: {
     fontFamily: "RubikBlack",
@@ -1035,21 +1039,22 @@ const styles = StyleSheet.create({
     width: 1,
     height: 49,
     alignSelf: "center",
-    backgroundColor: "rgba(232,223,213,0.5)",
+    backgroundColor: T.isDark ? T.border : T.border,
   },
   activePrimaryButton: {
     minHeight: 58,
     borderRadius: 20,
-    backgroundColor: T.blue,
+    backgroundColor: T.primaryButton,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 9,
     borderBottomWidth: 6,
-    borderBottomColor: "#258fd8",
+    borderBottomColor: T.primaryButtonEdge,
+    boxShadow: T.isDark ? `0px 10px 18px ${T.primaryButton}24` : undefined,
   },
   activePrimaryText: {
-    color: T.white,
+    color: T.onBlueButton,
     fontFamily: "RubikBold",
     fontWeight: "700",
     fontSize: 16,
@@ -1097,7 +1102,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 12,
-    backgroundColor: "#FF456014",
+    backgroundColor: `${T.red}14`,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1194,4 +1199,4 @@ const styles = StyleSheet.create({
   pressedSmall: {
     transform: [{ scale: 0.94 }],
   },
-});
+}));

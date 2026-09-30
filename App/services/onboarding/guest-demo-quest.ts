@@ -32,6 +32,10 @@ export async function getGuestDemoQuest(): Promise<GuestDemoQuest | null> {
   }
 }
 
+export async function clearGuestDemoQuest() {
+  await secureAuthStorage.removeItem(GUEST_DEMO_QUEST_KEY);
+}
+
 export async function saveGuestActiveQuest(session: ActiveQuestSession) {
   await secureAuthStorage.setItem(GUEST_ACTIVE_QUEST_KEY, JSON.stringify(session));
 }

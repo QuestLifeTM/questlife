@@ -16,7 +16,7 @@ const options: Location.LocationTaskOptions = {
   },
 };
 
-export async function beginQuestLocationTracking(sessionId: string) {
+export async function beginQuestLocationTracking(ownerId: string, sessionId: string) {
   try {
     const servicesEnabled = await Location.hasServicesEnabledAsync();
     if (!servicesEnabled) {
@@ -33,9 +33,11 @@ export async function beginQuestLocationTracking(sessionId: string) {
     // separate Always permission needed for recording while the phone is locked.
     const existingBackground = await Location.getBackgroundPermissionsAsync();
     const background = existingBackground.granted ? existingBackground : await Location.requestBackgroundPermissionsAsync();
-    await setTrackingSession(sessionId);
     const registered = await Location.hasStartedLocationUpdatesAsync(ACTIVE_QUEST_LOCATION_TASK);
     if (!registered) await Location.startLocationUpdatesAsync(ACTIVE_QUEST_LOCATION_TASK, options);
+    // Do not let the background task associate a route with this quest until
+    // the native location service has actually started successfully.
+    await setTrackingSession({ ownerId, sessionId });
     await updateActiveQuestSession(sessionId, { trackingStatus: "tracking" });
     return { started: true, backgroundGranted: background.granted } as const;
   } catch {
@@ -47,7 +49,15 @@ export async function beginQuestLocationTracking(sessionId: string) {
 }
 
 export async function stopQuestLocationTracking() {
-  const registered = await Location.hasStartedLocationUpdatesAsync(ACTIVE_QUEST_LOCATION_TASK);
-  if (registered) await Location.stopLocationUpdatesAsync(ACTIVE_QUEST_LOCATION_TASK);
+  // Invalidate route persistence before waiting on the native service. This
+  // covers a location callback delivered during native teardown.
   await setTrackingSession(null);
+  try {
+    const registered = await Location.hasStartedLocationUpdatesAsync(ACTIVE_QUEST_LOCATION_TASK);
+    if (registered) await Location.stopLocationUpdatesAsync(ACTIVE_QUEST_LOCATION_TASK);
+  } finally {
+    // Clearing the app-owned session is the fail-safe: a later background
+    // delivery can never be saved if native teardown reports an error.
+    await setTrackingSession(null);
+  }
 }

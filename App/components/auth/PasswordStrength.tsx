@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import { getPasswordStrength } from "@/utils/passwordStrength";
 
 export function PasswordStrength({ password }: { password: string }) {
@@ -32,7 +32,7 @@ export function PasswordStrength({ password }: { password: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   wrap: {
     gap: 10,
     paddingHorizontal: 4
@@ -74,4 +74,4 @@ const styles = StyleSheet.create({
   met: {
     color: T.dark
   }
-});
+}));

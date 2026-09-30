@@ -5,7 +5,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { isHapticFeedbackEnabled } from "@/services/settings/settingsService";
 
@@ -122,18 +122,18 @@ export function WeeklyFrequencySlider({ value, onChange }: { value: number; onCh
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   valueRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "center", gap: 7, marginBottom: 30 },
   valuePrefix: { color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22 },
   value: { color: T.blue, fontFamily: "RubikBlack", fontSize: 36, lineHeight: 40, letterSpacing: -0.8 },
   valueUnit: { color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22 },
   touchTarget: { height: 64, justifyContent: "center" },
-  track: { height: 8, borderRadius: 99, backgroundColor: "#d6d8dc" },
+  track: { height: 8, borderRadius: 99, backgroundColor: T.border },
   fill: { position: "absolute", left: 0, right: 0, height: 8, borderRadius: 99, backgroundColor: T.blue, transformOrigin: "left center" },
-  thumb: { position: "absolute", width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: THUMB_SIZE / 2, backgroundColor: T.white, borderWidth: 2, borderColor: T.blue, boxShadow: "0px 3px 0px #258fd8" },
+  thumb: { position: "absolute", width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: THUMB_SIZE / 2, backgroundColor: T.white, borderWidth: 2, borderColor: T.blue, boxShadow: `0px 3px 0px ` },
   tickRow: { position: "absolute", left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  tick: { width: 3, height: 3, borderRadius: 2, backgroundColor: "#8c939d" },
+  tick: { width: 3, height: 3, borderRadius: 2, backgroundColor: T.muted },
   labels: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
   label: { flex: 1, color: T.muted, fontFamily: "RubikBold", fontSize: 10, lineHeight: 14, textAlign: "center" },
   labelActive: { color: T.blue },
-});
+}));

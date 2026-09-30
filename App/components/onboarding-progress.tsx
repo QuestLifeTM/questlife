@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 
 const ADVENTURE_CATEGORY_BLUE = "#4D9CFF";
@@ -37,7 +37,7 @@ export function OnboardingQuestionProgress({ currentStep, totalSteps = ONBOARDIN
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   track: { height: 14, overflow: "hidden", borderRadius: 99, borderWidth: 2, borderColor: ADVENTURE_CATEGORY_BLUE, borderBottomWidth: 4, borderBottomColor: `${ADVENTURE_CATEGORY_BLUE}88`, backgroundColor: T.white },
   fill: { height: "100%", minWidth: 8, borderRadius: 99, backgroundColor: T.blue },
-});
+}));

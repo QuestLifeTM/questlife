@@ -5,12 +5,14 @@ import * as FileSystem from "expo-file-system/legacy";
 
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useGuestQuest } from "@/contexts/GuestQuestContext";
-import { clearMyActiveQuestRecovery } from "@/services/engine/questEngineService";
+import { useAuth } from "@/contexts/AuthContext";
 import { addActiveQuestActivity, deleteActiveQuestActivity, deleteActiveQuestPhoto, ensureActiveQuestSession, getActiveQuestSnapshot, getPendingCompletionSyncSessionIds, setActiveQuestRecordingState, subscribeToActiveQuestStore, updateActiveQuestActivity, updateActiveQuestSession } from "@/services/active-quest/local-store";
 import { persistQuestPhoto, retryQuestPhotoSync } from "@/services/active-quest/media";
 import { hydrateActiveQuestFromServer, syncActiveQuestRecord } from "@/services/active-quest/sync";
 import { beginQuestLocationTracking, stopQuestLocationTracking } from "@/services/active-quest/tracking";
 import { persistQuestLocation } from "@/services/active-quest/location-task";
+import { getTrackingSession } from "@/services/active-quest/tracking-session";
+import { areLocalDataWritesBlocked, getLocalDataOwner, setLocalDataOwner } from "@/services/local-data/owner";
 import { ActiveQuestSnapshot } from "@/types/active-quest";
 
 type ActiveQuestContextValue = {
@@ -23,6 +25,7 @@ type ActiveQuestContextValue = {
   resume: (additionalElapsedMs?: number) => Promise<void>;
   saveEntry: (input: { title: string; body: string }) => Promise<void>;
   enableTracking: () => Promise<void>;
+  stopTracking: () => Promise<void>;
   addActivityNote: (body: string, options?: { tutorialOnly?: boolean }) => Promise<void>;
   addPhoto: (uri: string, caption?: string, options?: { tutorialOnly?: boolean }) => Promise<void>;
   updateActivity: (id: number, value: string) => Promise<void>;
@@ -41,6 +44,7 @@ const ActiveQuestContext = createContext<ActiveQuestContextValue>({
   resume: async () => undefined,
   saveEntry: async () => undefined,
   enableTracking: async () => undefined,
+  stopTracking: async () => undefined,
   addActivityNote: async () => undefined,
   addPhoto: async () => undefined,
   updateActivity: async () => undefined,
@@ -56,6 +60,7 @@ function elapsedSince(timestamp: string | null) {
 export function ActiveQuestProvider({ children }: PropsWithChildren) {
   const { engine } = useQuestEngine();
   const { guestSession, finishGuestQuest } = useGuestQuest();
+  const { user } = useAuth();
   const [snapshot, setSnapshot] = useState<ActiveQuestSnapshot | null>(null);
   const [liveLocation, setLiveLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -63,7 +68,13 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
   const activeSession = engine?.doingNowSession ?? guestSession;
   const isGuestSession = Boolean(guestSession && activeSession?.id === guestSession.id);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
-  const shortRecoveryHandledSessionRef = useRef<string | null>(null);
+
+  // The active-quest service is deliberately owner-bound. A guest sandbox is
+  // isolated from authenticated accounts and is never reused for them.
+  useEffect(() => {
+    setLocalDataOwner(user?.id ?? (guestSession ? "guest" : null));
+    return () => { setLocalDataOwner(null); };
+  }, [guestSession, user?.id]);
 
   const stopForegroundLocationWatch = useCallback(() => {
     foregroundLocationSubscription.current?.remove();
@@ -100,12 +111,20 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     const subscription = await Location.watchPositionAsync(
       { accuracy: Location.Accuracy.Highest, distanceInterval: 1, timeInterval: 1_000 },
       (location) => {
-        setLiveLocation({ latitude: location.coords.latitude, longitude: location.coords.longitude });
-        // This gives the foreground map a prompt source while the same atomic
-        // persistence function prevents duplicates with the background task.
-        void persistQuestLocation(sessionId, location).catch(() => undefined);
+        // A queued foreground callback can arrive after the quest has ended.
+        // Verify the durable active-tracking marker before retaining anything.
+        void getTrackingSession().then((trackingSession) => {
+          if (trackingSession?.sessionId !== sessionId || trackingSession.ownerId !== getLocalDataOwner() || areLocalDataWritesBlocked(trackingSession.ownerId)) return;
+          setLiveLocation({ latitude: location.coords.latitude, longitude: location.coords.longitude });
+          void persistQuestLocation(trackingSession.ownerId, sessionId, location).catch(() => undefined);
+        }).catch(() => undefined);
       },
     );
+    const trackingSession = await getTrackingSession();
+    if (trackingSession?.sessionId !== sessionId || trackingSession.ownerId !== getLocalDataOwner()) {
+      subscription.remove();
+      return;
+    }
     foregroundLocationSubscription.current = subscription;
   }, [stopForegroundLocationWatch]);
 
@@ -136,6 +155,18 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
   useEffect(() => () => stopForegroundLocationWatch(), [stopForegroundLocationWatch]);
 
   useEffect(() => {
+    // There is exactly one native background location task. If the active
+    // Doing Now quest disappears or changes, it must not remain attached to a
+    // prior quest (including one now merely listed as In progress).
+    void getTrackingSession().then((trackingSession) => {
+      if (trackingSession && (trackingSession.sessionId !== activeSession?.id || trackingSession.ownerId !== getLocalDataOwner())) {
+        stopForegroundLocationWatch();
+        return stopQuestLocationTracking();
+      }
+    }).catch(() => undefined);
+  }, [activeSession?.id, stopForegroundLocationWatch]);
+
+  useEffect(() => {
     if (!activeSession) {
       setSnapshot(null);
       setLiveLocation(null);
@@ -158,20 +189,11 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
           try { await hydrateActiveQuestFromServer(activeSession.id); } catch { /* Local-first fallback remains available. */ }
         }
         void retryQuestPhotoSync(activeSession.id);
-        let restoredSession = await getActiveQuestSnapshot(activeSession.id);
-        if (activeSession.recoveryStartedAt && restoredSession?.session.recordingState === "recording") {
-          // A restored server record may still be marked recording because an
-          // auth expiry could not send a final pause. Freeze it at the last
-          // checkpoint so absent time is never silently added to the timer.
-          await setActiveQuestRecordingState(activeSession.id, "paused", {
-            pausedAt: activeSession.recoveryStartedAt,
-            activeSince: null,
-            activeDurationMs: restoredSession.session.activeDurationMs,
-          });
-          restoredSession = await getActiveQuestSnapshot(activeSession.id);
-        }
+        const restoredSession = await getActiveQuestSnapshot(activeSession.id);
         if (restoredSession?.session.recordingState === "recording" && restoredSession.session.trackingStatus !== "tracking") {
-          const result = await beginQuestLocationTracking(activeSession.id);
+          const ownerId = getLocalDataOwner();
+          if (!ownerId) return restoredSession;
+          const result = await beginQuestLocationTracking(ownerId, activeSession.id);
           if (result.started) await startForegroundLocationWatch(activeSession.id);
         }
         return getActiveQuestSnapshot(activeSession.id);
@@ -207,7 +229,9 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     });
     void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
     if (snapshot.session.trackingStatus !== "tracking") {
-      const result = await beginQuestLocationTracking(snapshot.session.sessionId);
+      const ownerId = getLocalDataOwner();
+      if (!ownerId) return;
+      const result = await beginQuestLocationTracking(ownerId, snapshot.session.sessionId);
       if (result.started) await startForegroundLocationWatch(snapshot.session.sessionId);
       setTrackingMessage(result.started ? (result.backgroundGranted ? "Route recording is on, even while your phone is locked." : "Route recording is on while QuestLife is open.") : result.reason);
     } else {
@@ -215,35 +239,6 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     }
     await reload();
   }, [reload, snapshot, startForegroundLocationWatch]);
-
-  useEffect(() => {
-    if (!activeSession) {
-      shortRecoveryHandledSessionRef.current = null;
-      return;
-    }
-
-    const awaySince = activeSession?.recoveryStartedAt;
-    if (
-      !snapshot ||
-      !awaySince ||
-      activeSession.recoveryRequiredAt ||
-      snapshot.session.recordingState !== "paused" ||
-      shortRecoveryHandledSessionRef.current === activeSession.id
-    ) return;
-    if (Date.now() - new Date(awaySince).getTime() >= 60 * 60 * 1_000) return;
-
-    // Short sign-outs resume from the saved elapsed time; time away is not
-    // counted unless the owner explicitly chooses it in the recovery sheet.
-    shortRecoveryHandledSessionRef.current = activeSession.id;
-    void (async () => {
-      try {
-        await clearMyActiveQuestRecovery();
-        await resume();
-      } catch {
-        // The paused checkpoint remains intact and can still be resumed later.
-      }
-    })();
-  }, [activeSession, resume, snapshot]);
 
   const saveEntry = useCallback(async (input: { title: string; body: string }) => {
     if (!snapshot) return;
@@ -254,11 +249,22 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
 
   const enableTracking = useCallback(async () => {
     if (!snapshot) return;
-    const result = await beginQuestLocationTracking(snapshot.session.sessionId);
+    const ownerId = getLocalDataOwner();
+    if (!ownerId) return;
+    const result = await beginQuestLocationTracking(ownerId, snapshot.session.sessionId);
     if (result.started) await startForegroundLocationWatch(snapshot.session.sessionId);
     setTrackingMessage(result.started ? (result.backgroundGranted ? "Route recording is on, even while your phone is locked." : "Route recording is on while QuestLife is open.") : result.reason);
     await reload();
   }, [reload, snapshot, startForegroundLocationWatch]);
+
+  const stopTracking = useCallback(async () => {
+    stopForegroundLocationWatch();
+    await stopQuestLocationTracking();
+    if (snapshot) {
+      await updateActiveQuestSession(snapshot.session.sessionId, { trackingStatus: "idle" });
+      await reload();
+    }
+  }, [reload, snapshot, stopForegroundLocationWatch]);
 
   const addActivityNote = useCallback(async (body: string, options: { tutorialOnly?: boolean } = {}) => {
     if (!snapshot || !body.trim()) return;
@@ -322,7 +328,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     setSnapshot(null);
   }, [finishGuestQuest, isGuestSession, retryCompletedRouteSync, snapshot, stopForegroundLocationWatch]);
 
-  const value = useMemo(() => ({ snapshot, liveLocation, loading, trackingMessage, reload, pause, resume, saveEntry, enableTracking, addActivityNote, addPhoto, updateActivity, deleteActivity, deletePhoto, finishLocalQuest }), [snapshot, liveLocation, loading, trackingMessage, reload, pause, resume, saveEntry, enableTracking, addActivityNote, addPhoto, updateActivity, deleteActivity, deletePhoto, finishLocalQuest]);
+  const value = useMemo(() => ({ snapshot, liveLocation, loading, trackingMessage, reload, pause, resume, saveEntry, enableTracking, stopTracking, addActivityNote, addPhoto, updateActivity, deleteActivity, deletePhoto, finishLocalQuest }), [snapshot, liveLocation, loading, trackingMessage, reload, pause, resume, saveEntry, enableTracking, stopTracking, addActivityNote, addPhoto, updateActivity, deleteActivity, deletePhoto, finishLocalQuest]);
   return <ActiveQuestContext.Provider value={value}>{children}</ActiveQuestContext.Provider>;
 }
 

@@ -4,7 +4,7 @@ import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { PropsWithChildren, useEffect, useRef, useState } from "react";
-import Reanimated, { cancelAnimation, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming } from "react-native-reanimated";
+import Reanimated, { ReduceMotion, cancelAnimation, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import {
   Keyboard,
@@ -28,6 +28,7 @@ import { BackIcon } from "@/components/back-icon";
 import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { isHapticFeedbackEnabled } from "@/services/settings/settingsService";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
+import { useThemeKey } from "@/contexts/SettingsContext";
 import { motionDurations, motionEasing, motionSprings, springConfig, timingConfig } from "@/motion/tokens";
 import {
   resolveSheetMaxHeight,
@@ -38,6 +39,9 @@ import {
 } from "@/lib/responsive";
 
 const NAVIGATION_PRESS_COOLDOWN_MS = 650;
+// Gesture callbacks run on the UI runtime, so this must remain a static
+// worklet-safe value rather than the JS-only springConfig helper.
+const SHEET_SNAP_SPRING = { stiffness: 360, damping: 32, mass: 0.85, overshootClamping: false, reduceMotion: ReduceMotion.System } as const;
 
 export { responsiveScreenGutter, useResponsiveScreenLayout } from "@/lib/responsive";
 
@@ -68,6 +72,7 @@ export function Screen({
   contentStyle,
   ambientGlow = true
 }: PropsWithChildren<{ scroll?: boolean; padded?: boolean; bottomOverlay?: "none" | "tab"; contentStyle?: StyleProp<ViewStyle>; ambientGlow?: boolean }>) {
+  const themeKey = useThemeKey();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const topPadding = Math.max(insets.top + 8, 20);
@@ -82,7 +87,7 @@ export function Screen({
         {ambientGlow ? <AmbientGlow /> : null}
         <View style={[{ flex: 1, paddingTop: topPadding }, padded && { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }, contentStyle]}>
           <View style={[{ flex: 1 }, constrainedContent]}>
-            {children}
+            <React.Fragment key={themeKey}>{children}</React.Fragment>
           </View>
         </View>
       </View>
@@ -102,7 +107,7 @@ export function Screen({
           contentStyle,
         ]}
       >
-        <View style={[padded ? { gap: 18 } : null, constrainedContent]}>{children}</View>
+        <View style={[padded ? { gap: 18 } : null, constrainedContent]}><React.Fragment key={themeKey}>{children}</React.Fragment></View>
       </Reanimated.ScrollView>
       <ScrollTopBlur scrollY={scrollY} />
     </View>
@@ -120,7 +125,7 @@ export function AmbientGlow({ right = true }: { right?: boolean }) {
         top: -70,
         [right ? "right" : "left"]: -65,
         borderRadius: 140,
-        backgroundColor: "rgba(77,168,255,0.07)",
+        backgroundColor: `${T.blue}12`,
         opacity: 0.9
       }}
     />
@@ -162,7 +167,9 @@ export function Header({
   right?: React.ReactNode;
   animated?: boolean;
 }) {
+  useThemeKey();
   const caption = subtitle ?? eyebrow;
+  const headerStyles = getHeaderStyles();
 
   const body = (
     <View
@@ -177,8 +184,8 @@ export function Header({
       ]}
     >
       <View style={{ flex: 1 }}>
-        {titleContent ?? <Text style={styles.title}>{title}</Text>}
-        {subtitleContent ?? (caption ? <Text style={styles.subtitle}>{caption}</Text> : null)}
+        {titleContent ?? <Text style={headerStyles.title}>{title}</Text>}
+        {subtitleContent ?? (caption ? <Text style={headerStyles.subtitle}>{caption}</Text> : null)}
       </View>
       {right}
     </View>
@@ -247,7 +254,9 @@ export function SoftButton({
   style?: StyleProp<ViewStyle>;
 }) {
   const guardPress = usePressGuard();
-  const baseColor = color === T.blue ? "#258fd8" : `${color}88`;
+  const isPrimaryBlue = color === T.blue;
+  const fillColor = isPrimaryBlue ? T.primaryButton : color;
+  const baseColor = isPrimaryBlue ? T.primaryButtonEdge : `${color}88`;
   return (
     <Pressable
       disabled={disabled}
@@ -268,9 +277,9 @@ export function SoftButton({
           alignItems: "center",
           justifyContent: "center",
           gap: 8,
-          backgroundColor: inverse ? T.white : color,
+          backgroundColor: inverse ? T.white : fillColor,
           borderWidth: 2,
-          borderColor: inverse ? color : color,
+          borderColor: inverse ? color : fillColor,
           borderBottomWidth: pressed && !disabled ? (inverse ? 2 : 3) : (inverse ? 4 : 6),
           borderBottomColor: inverse ? `${color}88` : baseColor,
           opacity: disabled ? 0.5 : 1,
@@ -279,8 +288,8 @@ export function SoftButton({
         style
       ]}
     >
-      {icon ? <Ionicons name={icon} size={19} color={inverse ? color : T.white} /> : null}
-      <Text style={{ fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.55, textTransform: "uppercase", color: inverse ? color : T.white }}>{label}</Text>
+      {icon ? <Ionicons name={icon} size={19} color={inverse ? color : isPrimaryBlue ? T.onBlueButton : T.onAccent} /> : null}
+      <Text style={{ fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.55, textTransform: "uppercase", color: inverse ? color : isPrimaryBlue ? T.onBlueButton : T.onAccent }}>{label}</Text>
     </Pressable>
   );
 }
@@ -310,7 +319,7 @@ export function IconButton({
   const isFilled = bg !== T.white;
   const accent = isFilled ? bg : (isBackButton ? backAccent ?? T.blue : color);
   const innerSize = Math.round(size * 0.625);
-  const iconColor = isFilled ? T.white : accent;
+  const iconColor = isFilled ? T.onAccent : accent;
   const guardPress = usePressGuard();
   return (
     <Pressable
@@ -346,7 +355,7 @@ export function IconButton({
         </View>
         {badge !== undefined ? (
           <View style={{ position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: T.cyan, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
-            <Text style={{ color: T.white, fontWeight: "900", fontSize: 10 }}>{badge}</Text>
+            <Text style={{ color: T.onAccent, fontWeight: "900", fontSize: 10 }}>{badge}</Text>
           </View>
         ) : null}
       </>}
@@ -409,10 +418,10 @@ export function Sheet({
         });
         return;
       }
-      dragY.value = reducedMotion ? 0 : withSpring(0, springConfig(false, motionSprings.control));
+      dragY.value = reducedMotion ? 0 : withSpring(0, SHEET_SNAP_SPRING);
     })
     .onFinalize((_event, success) => {
-      if (!success) dragY.value = reducedMotion ? 0 : withSpring(0, springConfig(false, motionSprings.control));
+      if (!success) dragY.value = reducedMotion ? 0 : withSpring(0, SHEET_SNAP_SPRING);
     });
 
   useEffect(() => {
@@ -467,7 +476,7 @@ export function Sheet({
     <Modal visible={visible} transparent={!fullScreen} animationType="fade" onRequestClose={() => { if (dismissible) onClose(); }}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <KeyboardAvoidingView enabled={keyboardAvoiding && !expandOnKeyboard} behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
-          <View style={{ flex: 1, backgroundColor: fullScreen ? T.white : glass ? "rgba(61,52,56,0.28)" : "rgba(61,52,56,0.42)", justifyContent: "flex-end" }}>
+          <View style={{ flex: 1, backgroundColor: fullScreen ? T.white : T.overlay, justifyContent: "flex-end" }}>
             {dismissible ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={onClose} style={{ flex: 1 }} /> : <View pointerEvents="none" style={{ flex: 1 }} />}
             <Reanimated.View
               accessibilityViewIsModal
@@ -477,17 +486,17 @@ export function Sheet({
               style={[{
                 maxHeight: fullScreen ? "100%" : expandedHeight ?? resolvedMaxHeight,
                 ...(fullScreen ? { height: "100%", borderRadius: 0, borderWidth: 0, paddingBottom: insets.bottom } : fillHeight || expandedHeight !== undefined ? { height: expandedHeight ?? resolvedMaxHeight } : null),
-                backgroundColor: glass ? "rgba(255,255,255,0.72)" : T.white,
+                backgroundColor: glass ? T.raised : T.white,
                 borderTopLeftRadius: fullScreen ? 0 : radius.sheet,
                 borderTopRightRadius: fullScreen ? 0 : radius.sheet,
                 borderWidth: fullScreen ? 0 : 2,
-                borderColor: glass ? "rgba(255,255,255,0.88)" : T.border,
+                borderColor: T.border,
                 borderBottomWidth: 0,
                 paddingBottom: fullScreen ? insets.bottom : insets.bottom + 8,
                 overflow: "hidden",
               }, sheetMotionStyle]}
             >
-              {glass ? <BlurView pointerEvents="none" intensity={18} tint="light" style={{ position: "absolute", inset: 0 }} /> : null}
+              {glass ? <BlurView pointerEvents="none" intensity={18} tint={T.isDark ? "dark" : "light"} style={{ position: "absolute", inset: 0 }} /> : null}
               {dismissible && !fullScreen ? <GestureDetector gesture={dragGesture}>
                 <View accessibilityLabel="Drag down to dismiss" style={{ alignItems: "center", paddingTop: 12, paddingBottom: 12 }}>
                   <View style={{ width: 36, height: 4, borderRadius: 99, backgroundColor: T.border }} />
@@ -614,7 +623,7 @@ function EmptyStateIcon({ emoji }: { emoji?: string }) {
 
 export function EmptyState({ emoji, artwork, title, body, action, fill = false, framed = fill }: { emoji?: string; artwork?: React.ReactNode; title: string; body: string; action?: React.ReactNode; fill?: boolean; /** Wrap the state in a QuestLife tactile surface. */ framed?: boolean }) {
   return (
-    <View accessibilityRole="summary" style={{ flex: fill ? 1 : undefined, minHeight: fill ? 292 : undefined, width: framed ? "100%" : undefined, alignSelf: framed ? "stretch" : undefined, justifyContent: "center", alignItems: "center", paddingVertical: fill ? 48 : 30, paddingHorizontal: 24, ...(framed ? { borderRadius: radius.xl, borderWidth: 2, borderColor: T.border, borderBottomWidth: 6, borderBottomColor: "#dfd6cc", backgroundColor: T.white, boxShadow: `4px 4px 0px ${T.border}` } : {}) }}>
+    <View accessibilityRole="summary" style={{ flex: fill ? 1 : undefined, minHeight: fill ? 292 : undefined, width: framed ? "100%" : undefined, alignSelf: framed ? "stretch" : undefined, justifyContent: "center", alignItems: "center", paddingVertical: fill ? 48 : 30, paddingHorizontal: 24, ...(framed ? { borderRadius: radius.xl, borderWidth: 2, borderColor: T.border, borderBottomWidth: 6, borderBottomColor: T.border, backgroundColor: T.white, boxShadow: `4px 4px 0px ${T.border}` } : {}) }}>
       {artwork ? <View style={{ marginBottom: 18 }}>{artwork}</View> : <View style={{ marginBottom: 18 }}><EmptyStateIcon emoji={emoji} /></View>}
       <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21, lineHeight: 27, letterSpacing: -0.35, textAlign: "center", marginBottom: 8 }}>{title}</Text>
       <Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 15, lineHeight: 22, textAlign: "center", maxWidth: 325, marginBottom: action ? 22 : 0 }}>{body}</Text>
@@ -623,7 +632,8 @@ export function EmptyState({ emoji, artwork, title, body, action, fill = false, 
   );
 }
 
-const styles: Record<string, TextStyle> = {
+function getHeaderStyles(): Record<string, TextStyle> {
+  return {
   eyebrow: {
     color: T.muted,
     fontSize: 12,
@@ -647,4 +657,5 @@ const styles: Record<string, TextStyle> = {
     textTransform: "uppercase",
     marginTop: 2
   }
-};
+  };
+}

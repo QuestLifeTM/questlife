@@ -14,6 +14,7 @@ export function StreakPill({ compact = false }: { compact?: boolean }) {
   const { overview } = useStreaks();
   const count = overview?.personal.currentStreak ?? 0;
   const lit = count > 0;
+  const numberColor = T.isDark ? "#ffd5b5" : "#5a3027";
 
   return (
     <Pressable
@@ -26,7 +27,7 @@ export function StreakPill({ compact = false }: { compact?: boolean }) {
         borderColor: "#ffb785",
         borderBottomWidth: pressed ? 2 : 4,
         borderBottomColor: "#e79766",
-        backgroundColor: "#fff0e7",
+        backgroundColor: T.isDark ? `${T.orange}20` : "#fff0e8",
         paddingHorizontal: 12,
         flexDirection: "row",
         alignItems: "center",
@@ -36,7 +37,7 @@ export function StreakPill({ compact = false }: { compact?: boolean }) {
       })}
     >
       <QuestlifeFlame size={lit ? 21 : 19} style={{ opacity: lit ? 1 : 0.45 }} />
-      <Text style={{ color: "#5a3027", fontSize: 14, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{count}</Text>
+      <Text style={{ color: numberColor, fontSize: 14, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{count}</Text>
     </Pressable>
   );
 }

@@ -9,7 +9,7 @@ import {
   TextInputProps,
   View
 } from "react-native";
-import { radius, shadow, T } from "@/components/theme";
+import { radius, shadow, T, themedStyles } from "@/components/theme";
 import { haptic, IconButton } from "@/components/ui";
 
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
@@ -64,7 +64,7 @@ export function PrimaryButton({ title, onPress, disabled, loading }: PrimaryButt
         disabled || loading ? styles.disabled : null
       ]}
     >
-      {loading ? <ActivityIndicator color={T.white} /> : null}
+      {loading ? <ActivityIndicator color={T.onBlueButton} /> : null}
       <Text style={styles.primaryLabel}>{title}</Text>
     </Pressable>
   );
@@ -140,7 +140,7 @@ export function AppleIcon() {
   return <Ionicons color={T.dark} name="logo-apple" size={20} />;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   inputWrap: {
     gap: 6
   },
@@ -180,9 +180,9 @@ const styles = StyleSheet.create({
   primaryButton: {
     minHeight: 54,
     borderRadius: radius.md,
-    backgroundColor: T.blue,
+    backgroundColor: T.primaryButton,
     borderBottomWidth: 5,
-    borderBottomColor: "#258fd8",
+    borderBottomColor: T.primaryButtonEdge,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4
   },
   primaryLabel: {
-    color: T.white,
+    color: T.onBlueButton,
     fontSize: 15,
     fontWeight: "900",
     letterSpacing: 0
@@ -260,4 +260,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "900"
   }
-});
+}));

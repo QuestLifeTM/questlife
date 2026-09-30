@@ -18,3 +18,7 @@ export async function rememberEmail(email: string) {
   if (!EMAIL_PATTERN.test(normalizedEmail)) return;
   await secureAuthStorage.setItem(REMEMBERED_EMAIL_KEY, normalizedEmail);
 }
+
+export async function clearRememberedEmail() {
+  await secureAuthStorage.removeItem(REMEMBERED_EMAIL_KEY);
+}

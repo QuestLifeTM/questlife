@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { ImageBackground, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 
 const stoneArchBackground = require("../../assets/onboarding/stone-arch-background.png");
@@ -44,14 +44,14 @@ export default function QuestionsPathScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   root: { flex: 1, backgroundColor: "#101510" },
   content: { flex: 1, justifyContent: "space-between", gap: 32 },
   copy: { gap: 20 },
-  title: { maxWidth: 400, color: T.white, fontFamily: "RubikBlack", fontSize: 32, lineHeight: 39, letterSpacing: -0.5 },
+  title: { maxWidth: 400, color: T.onAccent, fontFamily: "RubikBlack", fontSize: 32, lineHeight: 39, letterSpacing: -0.5 },
   questLifeAccent: { color: T.blue },
   body: { maxWidth: 350, color: "rgba(255,255,255,0.92)", fontFamily: "Rubik", fontSize: 17, lineHeight: 26 },
-  primaryButton: { minHeight: 66, paddingHorizontal: 18, borderRadius: 20, backgroundColor: T.blue, borderBottomWidth: 6, borderBottomColor: "#258fd8", alignItems: "center", justifyContent: "center" },
-  primaryButtonText: { color: T.white, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.15, textAlign: "center" },
+  primaryButton: { minHeight: 66, paddingHorizontal: 18, borderRadius: 20, backgroundColor: T.primaryButton, borderBottomWidth: 6, borderBottomColor: T.primaryButtonEdge, alignItems: "center", justifyContent: "center" },
+  primaryButtonText: { color: T.onBlueButton, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.15, textAlign: "center" },
   buttonPressed: { opacity: 0.82, transform: [{ translateY: 2 }] },
-});
+}));

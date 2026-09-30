@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { OnboardingScaffold } from "@/components/onboarding-scaffold";
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
 import { ONBOARDING_PERSONALIZATION_TOTAL } from "@/components/onboarding-progress";
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import { haptic } from "@/components/ui";
 import { WeeklyFrequencySlider } from "@/components/weekly-frequency-slider";
 
@@ -36,7 +36,7 @@ export default function FrequencyOnboardingScreen() {
         scroll
         contentStyle={styles.content}
         footer={<Pressable accessibilityRole="button" accessibilityLabel="Continue" onPress={continueOnboarding} style={({ pressed }) => [styles.continueButton, pressed && styles.continueButtonPressed]}>
-          <Ionicons name="arrow-forward" size={19} color={T.white} />
+          <Ionicons name="arrow-forward" size={19} color={T.onBlueButton} />
           <Text style={styles.continueText}>Continue</Text>
         </Pressable>}
       >
@@ -52,7 +52,7 @@ export default function FrequencyOnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
   content: { flex: 1 },
   progressSection: { paddingTop: 2 },
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   titleAccent: { color: T.blue },
   sliderSection: { flex: 1, justifyContent: "center", paddingHorizontal: 4, paddingBottom: 60 },
   footer: { backgroundColor: T.bg, paddingTop: 10 },
-  continueButton: { minHeight: 58, paddingHorizontal: 18, borderRadius: 20, backgroundColor: T.blue, borderBottomWidth: 6, borderBottomColor: "#258fd8", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  continueButton: { minHeight: 58, paddingHorizontal: 18, borderRadius: 20, backgroundColor: T.primaryButton, borderBottomWidth: 6, borderBottomColor: T.primaryButtonEdge, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   continueButtonPressed: { transform: [{ translateY: 3 }], borderBottomWidth: 3 },
-  continueText: { color: T.white, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.55, textTransform: "uppercase" },
-});
+  continueText: { color: T.onBlueButton, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.55, textTransform: "uppercase" },
+}));

@@ -11,7 +11,7 @@ import {
 } from "@/components/auth/AuthControls";
 import { AuthTitle } from "@/components/auth/AuthText";
 import { AuthScaffold } from "@/components/auth/AuthScaffold";
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import {
   EmailNotVerifiedError,
   signInWithEmail,
@@ -156,7 +156,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   form: {
     gap: 14,
     marginBottom: 12,
@@ -180,4 +180,4 @@ const styles = StyleSheet.create({
     color: T.blue,
     fontWeight: "900",
   },
-});
+}));

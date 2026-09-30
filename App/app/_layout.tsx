@@ -3,6 +3,7 @@ import { initializeSentry, Sentry } from "@/lib/sentry";
 import "@/services/active-quest/location-task";
 import { Redirect, Stack, useSegments } from "expo-router";
 import { PropsWithChildren } from "react";
+import { useColorScheme } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { T } from "@/components/theme";
@@ -18,18 +19,16 @@ import { QuestEngineProvider } from "@/contexts/QuestEngineContext";
 import { QuestSaveProvider } from "@/contexts/QuestSaveContext";
 import { SocialProvider } from "@/contexts/SocialContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import { StreaksProvider } from "@/contexts/StreaksContext";
 
 initializeSentry("mobile");
 
 function RootLayout() {
   const [fontsLoaded] = useFonts({
-    GeistPixel: require("../assets/fonts/GeistPixel-Regular-Variable.ttf"),
     Rubik: require("../assets/fonts/Rubik-Regular.ttf"),
     RubikBold: require("../assets/fonts/Rubik-Bold.ttf"),
     RubikBlack: require("../assets/fonts/Rubik-Black.ttf"),
-    "NunitoSans12pt-SemiBold": require("../assets/fonts/NunitoSans12pt-SemiBold.ttf"),
-    "NunitoSans12pt-ExtraBold": require("../assets/fonts/NunitoSans12pt-ExtraBold.ttf")
   });
 
   if (!fontsLoaded) {
@@ -38,11 +37,9 @@ function RootLayout() {
 
   return (
     <AuthProvider>
-      <AppFeedbackProvider>
-        <SessionDataProviders>
-          <AppLayout />
-        </SessionDataProviders>
-      </AppFeedbackProvider>
+      <SessionDataProviders>
+        <AppLayout />
+      </SessionDataProviders>
     </AuthProvider>
   );
 }
@@ -63,6 +60,7 @@ function SessionDataProviders({ children }: PropsWithChildren) {
   // account changes so a signed-out user (or the next user) never sees stale
   // data while the new session is loading.
   return <SettingsProvider key={session?.user.id ?? "signed-out"}>
+    <AppFeedbackProvider>
     <ContentProvider key={session?.user.id ?? "signed-out"}>
       <QuestEngineProvider>
         <GuestQuestProvider>
@@ -80,12 +78,16 @@ function SessionDataProviders({ children }: PropsWithChildren) {
       <GlobalAnnouncement />
       <RequiredProfileName />
     </ContentProvider>
+    </AppFeedbackProvider>
   </SettingsProvider>;
 }
 
 function AppLayout() {
   const segments = useSegments();
   const { initializing, isEmailVerified, session, user } = useAuth();
+  const { settings } = useSettings();
+  const systemAppearance = useColorScheme() === "dark" ? "dark" : "light";
+  const resolvedAppearance = settings.appearance === "system" ? systemAppearance : settings.appearance;
   const firstSegment = segments[0];
   const isOnboardingRoute = !firstSegment || firstSegment === "index" || firstSegment === "onboarding";
   const isAuthRoute = firstSegment === "(auth)";
@@ -117,7 +119,7 @@ function AppLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: T.bg }}>
-      <StatusBar style="dark" />
+      <StatusBar style={resolvedAppearance === "dark" ? "light" : "dark"} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: T.bg } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />

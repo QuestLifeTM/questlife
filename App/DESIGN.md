@@ -18,17 +18,17 @@ colors:
   social-teal: "#00cec9"
 typography:
   display:
-    fontFamily: "GeistPixel"
+    fontFamily: "RubikBlack"
     fontSize: "30px"
     fontWeight: 900
     lineHeight: "36px"
   headline:
-    fontFamily: "GeistPixel"
+    fontFamily: "RubikBlack"
     fontSize: "21px"
     fontWeight: 900
     lineHeight: "28px"
   title:
-    fontFamily: "GeistPixel"
+    fontFamily: "RubikBlack"
     fontSize: "18px"
     fontWeight: 900
     lineHeight: "24px"
@@ -134,11 +134,11 @@ The palette is a light, warm-neutral foundation with one familiar sky-blue actio
 
 ## Typography
 
-**Display Font:** GeistPixel
-**Body Font:** Rubik
-**Label/Mono Font:** Rubik with tabular figures for timers, counts, and changing values.
+**Display Font:** Rubik Black
+**Body Font:** Rubik Regular
+**Label/Mono Font:** Rubik Bold with tabular figures for timers, counts, and changing values.
 
-**Character:** GeistPixel gives quests a crisp, game-like title voice; Rubik keeps descriptions, controls, and metadata friendly and legible. The pairing should feel encouraging, not cartoonish.
+**Character:** Rubik keeps quest titles, controls, descriptions, and metadata clear, tactile, and friendly across every appearance mode.
 
 ### Hierarchy
 - **Display:** Heavy page titles establish the screen’s purpose and are kept to one or two lines.

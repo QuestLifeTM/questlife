@@ -1,19 +1,20 @@
 import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { AppState } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
 import {
   abandonQuestSession,
-  cleanupStaleQuestSessions,
   completeQuestV2,
   deleteUserPack,
   fetchEngineState,
   fetchUserPacks,
-  markMyActiveQuestAway,
+  recordActiveQuestAppOpen,
   resetTodaySoloQuestCompletions,
   startQuestSession,
   upsertUserPack,
 } from "@/services/engine/questEngineService";
 import { CompleteQuestInput, CompletionResult, QuestEngineState, UserPack } from "@/types/engine";
+import { stopQuestLocationTracking } from "@/services/active-quest/tracking";
 
 type QuestEngineContextValue = {
   engine: QuestEngineState | null;
@@ -50,7 +51,6 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refreshVersion = useRef(0);
-  const recoveryInitializedForUser = useRef<string | null>(null);
   const userId = session?.user.id ?? null;
 
   const refresh = useCallback(async () => {
@@ -58,7 +58,6 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     if (!isConfigured || !userId) {
       setEngine(null);
       setUserPacks([]);
-      recoveryInitializedForUser.current = null;
       return;
     }
 
@@ -66,16 +65,6 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     setError(null);
 
     try {
-      // On a fresh authenticated restore (including an expired auth session),
-      // use the last durable checkpoint as the beginning of time away before
-      // deciding whether this quest needs an owner-led recovery choice.
-      if (recoveryInitializedForUser.current !== userId) {
-        await markMyActiveQuestAway().catch(() => undefined);
-        recoveryInitializedForUser.current = userId;
-      }
-      // A crash should preserve a recent quest for recovery, but a session
-      // untouched for an hour requires an explicit owner decision.
-      await cleanupStaleQuestSessions().catch(() => undefined);
       const [engineResult, packsResult] = await Promise.allSettled([
         fetchEngineState(),
         fetchUserPacks(),
@@ -97,13 +86,26 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     }
   }, [isConfigured, userId]);
 
+  const restoreAppSession = useCallback(async () => {
+    if (isConfigured && userId) await recordActiveQuestAppOpen().catch(() => undefined);
+    await refresh();
+  }, [isConfigured, refresh, userId]);
+
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    void restoreAppSession();
+  }, [restoreAppSession]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") void restoreAppSession();
+    });
+    return () => subscription.remove();
+  }, [restoreAppSession]);
 
   const startQuest = useCallback(
     async (input: { questId: string; source?: "explore" | "saved" | "social" }) => {
       const session = await startQuestSession(input);
+      if (session.mode === "focused") await recordActiveQuestAppOpen().catch(() => undefined);
       try {
         setEngine(await fetchEngineState());
       } catch {
@@ -124,6 +126,9 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
 
   const abandonActiveQuest = useCallback(async (sessionId = engine?.doingNowSession?.id) => {
     if (!sessionId) return;
+    // Ending a live quest is the boundary for location collection. Stop first
+    // so a slow network request cannot extend the tracking window.
+    if (sessionId === engine?.doingNowSession?.id) await stopQuestLocationTracking();
     await abandonQuestSession(sessionId);
     try {
       setEngine(await fetchEngineState());
@@ -133,6 +138,9 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
   }, [engine?.doingNowSession?.id]);
 
   const completeQuest = useCallback(async (input: CompleteQuestInput) => {
+    // Only the current Doing Now session can own location tracking. Completing
+    // another quest kept In progress must not affect that live route.
+    if (input.sessionId === engine?.doingNowSession?.id) await stopQuestLocationTracking();
     const result = await completeQuestV2(input);
     // Completion has already committed at this point. A follow-up refresh is
     // useful, but must never turn a completed quest into an apparent failure.
@@ -142,7 +150,7 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
       setEngine((current) => current ? { ...current, doingNowSession: null } : current);
     }
     return result;
-  }, []);
+  }, [engine?.doingNowSession?.id]);
 
   const resetTodaySoloCompletions = useCallback(async () => {
     const removedCount = await resetTodaySoloQuestCompletions();

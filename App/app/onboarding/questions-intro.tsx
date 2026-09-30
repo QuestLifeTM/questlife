@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInRight } from "react-native-reanimated";
 
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
@@ -209,7 +209,7 @@ export default function QuestionsIntroScreen() {
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 12, 20), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Continue" accessibilityState={{ disabled: !hasRequiredSelections }} disabled={!hasRequiredSelections} onPress={continueOnboarding} style={({ pressed }) => [styles.continueButton, !hasRequiredSelections && styles.continueButtonDisabled, pressed && hasRequiredSelections && styles.continueButtonPressed]}>
-          <Ionicons name="arrow-forward" size={19} color={T.white} />
+          <Ionicons name="arrow-forward" size={19} color={T.onBlueButton} />
           <Text style={styles.continueText}>Continue</Text>
         </Pressable>
       </View>
@@ -217,7 +217,7 @@ export default function QuestionsIntroScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
   content: { flex: 1 },
   progressSection: { paddingTop: 2 },
@@ -239,8 +239,8 @@ const styles = StyleSheet.create({
   optionIcon: { width: 28, height: 28 },
   optionLabel: { flex: 1, color: T.dark, fontFamily: "Rubik", fontWeight: "600", fontSize: 15.5, lineHeight: 20, letterSpacing: -0.1 },
   footer: { backgroundColor: T.bg, paddingTop: 10 },
-  continueButton: { minHeight: 58, paddingHorizontal: 18, borderRadius: 20, backgroundColor: T.blue, borderBottomWidth: 6, borderBottomColor: "#258fd8", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  continueButtonDisabled: { backgroundColor: T.border, borderBottomColor: "#d7cec2" },
+  continueButton: { minHeight: 58, paddingHorizontal: 18, borderRadius: 20, backgroundColor: T.primaryButton, borderBottomWidth: 6, borderBottomColor: T.primaryButtonEdge, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  continueButtonDisabled: { backgroundColor: T.border, borderBottomColor: T.border },
   continueButtonPressed: { transform: [{ translateY: 3 }], borderBottomWidth: 3 },
-  continueText: { color: T.white, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.55, textTransform: "uppercase" },
-});
+  continueText: { color: T.onBlueButton, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.55, textTransform: "uppercase" },
+}));

@@ -6,8 +6,7 @@ import * as Sharing from "expo-sharing";
 import { useRouter } from "expo-router";
 import QRCode from "react-native-qrcode-svg";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, Share, Text, TextInput, useWindowDimensions, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Alert, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { Card, EmptyState, haptic, Header, IconButton, Screen, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { T } from "@/components/theme";
@@ -26,7 +25,7 @@ function DiscoveryTabButton({ tab, active, icon, label, onPress }: { tab: Discov
 }
 
 function LoadingBlock({ width, height, radius = 8 }: { width: number | `${number}%`; height: number; radius?: number }) {
-  return <MotionPulse accessibilityRole="progressbar" maximumOpacity={0.8} style={{ width, height, borderRadius: radius, backgroundColor: "#dfe7ed" }} />;
+  return <MotionPulse accessibilityRole="progressbar" maximumOpacity={0.8} style={{ width, height, borderRadius: radius, backgroundColor: T.border }} />;
 }
 
 function PeopleLoadingSkeleton({ rows = 3 }: { rows?: number }) {
@@ -57,8 +56,8 @@ function FriendActionButton({ label, icon, color = T.blue, onPress, style }: { l
   const compact = width < 390;
   const lowerEdge = color === T.blue ? "#258fd8" : color === T.purple ? "#7973c7" : color === T.green ? "#20894d" : color;
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={() => { haptic(); onPress(); }} style={({ pressed }) => [{ minHeight: compact ? 50 : 52, paddingHorizontal: compact ? 14 : 16, borderRadius: 18, backgroundColor: color, borderBottomWidth: 5, borderBottomColor: lowerEdge, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, transform: [{ translateY: pressed ? 3 : 0 }] }, style]}>
-    <Ionicons name={icon} size={18} color={T.white} />
-    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={{ color: T.white, fontSize: compact ? 13 : 14, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" }}>{label}</Text>
+    <Ionicons name={icon} size={18} color={T.onAccent} />
+    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={{ color: T.onAccent, fontSize: compact ? 13 : 14, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" }}>{label}</Text>
   </Pressable>;
 }
 
@@ -70,14 +69,13 @@ function PersonRow({ person, onAdd, onOpenProfile }: { person: ProfileSearchResu
       <Text selectable style={{ color: T.dark, fontSize: 15, fontWeight: "900" }} numberOfLines={1}>{person.displayName}</Text>
       <Text selectable style={{ color: T.muted, fontSize: 12, fontWeight: "700" }} numberOfLines={1}>{person.username ? `@${person.username}` : "QuestLife adventurer"}</Text>
     </Pressable>
-    {status ? <View style={{ minHeight: 34, paddingHorizontal: 11, borderRadius: 13, backgroundColor: person.isFriend ? `${T.green}16` : `${T.blue}16`, alignItems: "center", justifyContent: "center" }}><Text style={{ color: person.isFriend ? T.green : T.blue, fontSize: 11, fontWeight: "900" }}>{status}</Text></View> : <Pressable accessibilityRole="button" accessibilityLabel={`Add ${person.displayName} as a friend`} onPress={() => onAdd(person)} style={({ pressed }) => ({ minHeight: 42, paddingHorizontal: 14, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: T.blue, borderBottomWidth: 4, borderBottomColor: "#258fd8", transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.white, fontSize: 12, fontWeight: "900", letterSpacing: 0.45 }}>ADD FRIEND</Text></Pressable>}
+    {status ? <View style={{ minHeight: 34, paddingHorizontal: 11, borderRadius: 13, backgroundColor: person.isFriend ? `${T.green}16` : `${T.blue}16`, alignItems: "center", justifyContent: "center" }}><Text style={{ color: person.isFriend ? T.green : T.blue, fontSize: 11, fontWeight: "900" }}>{status}</Text></View> : <Pressable accessibilityRole="button" accessibilityLabel={`Add ${person.displayName} as a friend`} onPress={() => onAdd(person)} style={({ pressed }) => ({ minHeight: 42, paddingHorizontal: 14, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: T.compactButton, borderBottomWidth: 4, borderBottomColor: T.compactButtonEdge, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.onBlueButton, fontSize: 12, fontWeight: "900", letterSpacing: 0.45 }}>ADD FRIEND</Text></Pressable>}
   </View>;
 }
 
 export function AddFriendsScreen() {
   const router = useRouter();
   const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
-  const insets = useSafeAreaInsets();
   const { overview, loading: socialLoading, searchUsers, addFriend } = useSocial();
   const [activeTab, setActiveTab] = useState<DiscoveryTab>("suggested");
   const [query, setQuery] = useState("");
@@ -158,14 +156,6 @@ export function AddFriendsScreen() {
     }
   }
 
-  async function inviteFriends() {
-    try {
-      await Share.share({ message: `Add me on QuestLife so we can take on quests together: ${profileUrl}`, url: profileUrl });
-    } catch {
-      // Dismissing the native share sheet is not an error the user needs to see.
-    }
-  }
-
   async function shareQrCode() {
     if (sharingQr || !qrCodeRef.current) return;
     setSharingQr(true);
@@ -217,8 +207,5 @@ export function AddFriendsScreen() {
       </View> : null}
       </View>
     </ScrollView>
-    <View style={{ alignItems: "center", borderTopWidth: 2, borderTopColor: T.border, backgroundColor: T.bg, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 12), paddingHorizontal: horizontalPadding }}>
-      <View style={{ width: "100%", maxWidth: contentWidth, transform: [{ translateX: safeAreaOffset }] }}><FriendActionButton label="Invite friends" icon="share-social-outline" color={T.blue} onPress={inviteFriends} /></View>
-    </View>
   </Screen>;
 }

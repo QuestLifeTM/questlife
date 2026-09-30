@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Scroll
 import { useResponsiveScreenLayout } from "@/lib/responsive";
 
 import { PrimaryButton } from "@/components/auth/AuthControls";
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchRequiredProfileName, saveRequiredProfileName } from "@/services/profile/profileService";
 
@@ -116,12 +116,12 @@ export function RequiredProfileName() {
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: { alignItems: "center", backgroundColor: "rgba(23, 35, 49, 0.58)", flexGrow: 1, justifyContent: "center" },
+const styles = themedStyles(() => StyleSheet.create({
+  backdrop: { alignItems: "center", backgroundColor: T.overlay, flexGrow: 1, justifyContent: "center" },
   body: { color: T.muted, fontSize: 14, fontWeight: "600", lineHeight: 21, marginBottom: 22 },
   card: { backgroundColor: T.white, borderRadius: 28, maxWidth: 440, padding: 24, width: "100%" },
   eyebrow: { color: T.blue, fontSize: 11, fontWeight: "900", letterSpacing: 1.1, marginBottom: 8 },
   input: { backgroundColor: T.bg, borderColor: `${T.blue}28`, borderRadius: 15, borderWidth: 1, color: T.dark, fontSize: 16, fontWeight: "700", marginBottom: 12, minHeight: 54, paddingHorizontal: 16 },
   title: { color: T.dark, fontFamily: "RubikBold", fontSize: 25, marginBottom: 8 },
   keyboard: { flex: 1 },
-});
+}));

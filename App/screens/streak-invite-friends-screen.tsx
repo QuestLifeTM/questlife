@@ -16,7 +16,7 @@ const STREAK_ORANGE = "#ff6d45";
 function FriendAvatar({ friend }: { friend: SocialFriend }) { return <ProfileAvatar uri={friend.avatarUrl} color={friend.avatarColor} size={48} label={`${friend.displayName}'s profile photo`} />; }
 
 function InviteButton({ label, disabled, onPress }: { label: string; disabled?: boolean; onPress?: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ minHeight: 42, paddingHorizontal: 14, borderRadius: 15, backgroundColor: disabled ? "#f1eae5" : STREAK_ORANGE, borderBottomWidth: 4, borderBottomColor: disabled ? "#ddd4ce" : "#d44c31", alignItems: "center", justifyContent: "center", transform: [{ translateY: pressed && !disabled ? 2 : 0 }] })}><Text style={{ color: disabled ? T.muted : T.white, fontSize: 12, fontWeight: "900", letterSpacing: 0.35, textTransform: "uppercase" }}>{label}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ minHeight: 42, paddingHorizontal: 14, borderRadius: 15, backgroundColor: disabled ? "#f1eae5" : STREAK_ORANGE, borderBottomWidth: 4, borderBottomColor: disabled ? "#ddd4ce" : "#d44c31", alignItems: "center", justifyContent: "center", transform: [{ translateY: pressed && !disabled ? 2 : 0 }] })}><Text style={{ color: disabled ? T.muted : T.onAccent, fontSize: 12, fontWeight: "900", letterSpacing: 0.35, textTransform: "uppercase" }}>{label}</Text></Pressable>;
 }
 
 export function StreakInviteFriendsScreen() {
@@ -60,7 +60,7 @@ export function StreakInviteFriendsScreen() {
     </View>
 
     <ScrollView contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ width: contentWidth, paddingHorizontal: horizontalPadding, paddingBottom: 32, gap: 10, transform: [{ translateX: safeAreaOffset }] }}>
-      {socialLoading ? <View style={{ paddingVertical: 44, alignItems: "center", gap: 12 }}><ActivityIndicator color={STREAK_ORANGE} /><Text style={{ color: T.muted, fontWeight: "800" }}>Finding your friends…</Text></View> : friends.length ? <View style={{ backgroundColor: T.white, borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#e6ddd2", overflow: "hidden" }}>{friends.map((friend, index) => {
+      {socialLoading ? <View style={{ paddingVertical: 44, alignItems: "center", gap: 12 }}><ActivityIndicator color={STREAK_ORANGE} /><Text style={{ color: T.muted, fontWeight: "800" }}>Finding your friends…</Text></View> : friends.length ? <View style={{ backgroundColor: T.white, borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: T.border, overflow: "hidden" }}>{friends.map((friend, index) => {
         const status = streakStatusByFriend.get(friend.userId);
         const unavailable = status === "active" || status === "pending" || status === "cooldown";
         const label = busyId === friend.userId ? "Sending…" : status === "active" ? "Streaking" : status === "pending" ? "Pending" : status === "cooldown" ? "Soon" : "Invite";

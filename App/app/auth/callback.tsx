@@ -3,7 +3,7 @@ import { Redirect, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import { exchangeAuthCodeForSession } from "@/services/auth/authService";
 
 export default function AuthCallback() {
@@ -58,11 +58,11 @@ export default function AuthCallback() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   root: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: T.bg,
   },
-});
+}));

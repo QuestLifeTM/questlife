@@ -7,7 +7,7 @@ import Animated, { cancelAnimation, Easing, type SharedValue, useAnimatedStyle, 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GoogleIcon, OutlineButton } from "@/components/auth/AuthControls";
-import { radius, shadow, T } from "@/components/theme";
+import { radius, shadow, T, themedStyles } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 
@@ -121,11 +121,11 @@ function QuestPhonePreview() {
               </View>
               <View style={styles.phoneBody}>
                 <View style={styles.phoneQuest}>
-                  <View style={styles.phoneQuestIcon}><Ionicons color={T.white} name="compass" size={13} /></View>
+                  <View style={styles.phoneQuestIcon}><Ionicons color={T.onAccent} name="compass" size={13} /></View>
                   <View style={styles.phoneQuestCopy}><View style={styles.phoneLineLong} /><View style={styles.phoneLineShort} /></View>
                 </View>
                 <View style={styles.phoneQuest}>
-                  <View style={[styles.phoneQuestIcon, styles.phoneQuestIconGreen]}><Ionicons color={T.white} name="leaf" size={13} /></View>
+                  <View style={[styles.phoneQuestIcon, styles.phoneQuestIconGreen]}><Ionicons color={T.onAccent} name="leaf" size={13} /></View>
                   <View style={styles.phoneQuestCopy}><View style={styles.phoneLineLong} /><View style={styles.phoneLineShort} /></View>
                 </View>
               </View>
@@ -172,7 +172,7 @@ export default function AuthOptionsScreen() {
       <QuestPhonePreview />
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" onPress={() => { haptic(); showOAuthSetup(); }} style={({ pressed }) => [styles.appleButton, pressed && styles.pressed]}>
-          <Ionicons color={T.white} name="logo-apple" size={21} />
+          <Ionicons color={T.onAccent} name="logo-apple" size={21} />
           <Text style={styles.appleLabel}>Continue with Apple</Text>
         </Pressable>
         <OutlineButton title="Continue with Google" onPress={showOAuthSetup}><GoogleIcon /></OutlineButton>
@@ -185,7 +185,7 @@ export default function AuthOptionsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
   scrollContent: { flexGrow: 1 },
   content: { flexGrow: 1 },
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   phoneNotch: { position: "absolute", zIndex: 2, width: 48, height: 9, top: 5, left: 35, borderRadius: 999, backgroundColor: T.dark },
   phoneHero: { height: 78, paddingHorizontal: 13, paddingTop: 24, backgroundColor: T.blue },
   phoneGreeting: { color: "#dff1ff", fontFamily: "Rubik", fontSize: 7, fontWeight: "800" },
-  phoneTitle: { marginTop: 3, color: T.white, fontFamily: "RubikBlack", fontSize: 16, lineHeight: 18, letterSpacing: -0.2 },
+  phoneTitle: { marginTop: 3, color: T.onAccent, fontFamily: "RubikBlack", fontSize: 16, lineHeight: 18, letterSpacing: -0.2 },
   phoneBody: { flex: 1, gap: 7, padding: 9, backgroundColor: T.white },
   phoneQuest: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: T.border, borderRadius: 8, padding: 6 },
   phoneQuestIcon: { width: 20, height: 20, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: T.blue },
@@ -217,8 +217,8 @@ const styles = StyleSheet.create({
   phoneLineShort: { width: "56%", height: 3, borderRadius: 999, backgroundColor: T.border },
   actions: { gap: 10 },
   appleButton: { minHeight: 52, borderRadius: radius.md, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 10, backgroundColor: T.dark },
-  appleLabel: { color: T.white, fontSize: 16, fontWeight: "900" },
+  appleLabel: { color: T.onAccent, fontSize: 16, fontWeight: "900" },
   legal: { color: T.muted, fontFamily: "Rubik", fontSize: 11, lineHeight: 15, fontWeight: "500", textAlign: "center" },
   legalLink: { color: T.muted, fontFamily: "RubikBold", textDecorationLine: "underline" },
   pressed: { transform: [{ scale: 0.97 }] },
-});
+}));

@@ -4,6 +4,7 @@ import { type ColorValue, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { T } from "@/components/theme";
 import { useNotifications } from "@/contexts/NotificationsContext";
+import { useThemeKey } from "@/contexts/SettingsContext";
 import { responsiveLayout, tabBarHeight } from "@/lib/responsive";
 
 const tabIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -37,6 +38,7 @@ function TabIcon({ routeName, focused, color }: { routeName: string; focused: bo
 }
 
 export default function TabLayout() {
+  useThemeKey();
   const insets = useSafeAreaInsets();
   const height = tabBarHeight(insets.bottom);
   return (

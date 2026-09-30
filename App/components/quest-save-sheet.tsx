@@ -8,6 +8,7 @@ import { CollectionPickerSkeleton } from "@/components/collection-loading-skelet
 import { T } from "@/components/theme";
 import { Sheet } from "@/components/ui";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
+import type { SaveToggleResult } from "@/contexts/ContentContext";
 import { uploadCollectionCover } from "@/services/engine/questEngineService";
 import { Quest } from "@/types/content";
 import { UserPack } from "@/types/engine";
@@ -17,7 +18,7 @@ type QuestSaveSheetProps = {
   visible: boolean;
   onClose: () => void;
   onSaveSelections: (quest: Quest, destinations: string[], changed: boolean) => void;
-  onToggleSaved: (questId: string) => Promise<boolean>;
+  onToggleSaved: (questId: string) => Promise<SaveToggleResult>;
 };
 
 function BookmarkBurst() {
@@ -43,17 +44,17 @@ function RaisedCollectionButton({ onPress }: { onPress: () => void }) {
       style={({ pressed }) => ({
         minHeight: 54,
         borderRadius: 18,
-        backgroundColor: T.blue,
+        backgroundColor: T.primaryButton,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
-        boxShadow: pressed ? "0px 2px 0px #2588D8" : "0px 6px 0px #2588D8",
+        boxShadow: pressed ? `0px 2px 0px ${T.primaryButtonEdge}` : `0px 6px 0px ${T.primaryButtonEdge}`,
         transform: [{ translateY: pressed ? 4 : 0 }],
       })}
     >
-      <Ionicons name="add" size={20} color={T.white} />
-      <Text style={{ color: T.white, fontFamily: "RubikBold", fontSize: 15, letterSpacing: 0.5 }}>START A COLLECTION</Text>
+      <Ionicons name="add" size={20} color={T.onAccent} />
+      <Text style={{ color: T.onAccent, fontFamily: "RubikBold", fontSize: 15, letterSpacing: 0.5 }}>START A COLLECTION</Text>
     </Pressable>
   );
 }
@@ -127,8 +128,9 @@ export function QuestSaveSheet({ quest, visible, onClose, onSaveSelections, onTo
     setCreating(true);
     setError(null);
     try {
-      if (!quest.saved && !(await onToggleSaved(quest.id))) {
-        throw new Error("Unable to save this quest to My Stuff.");
+      if (!quest.saved) {
+        const saveResult = await onToggleSaved(quest.id);
+        if (!saveResult.ok) throw new Error(saveResult.error);
       }
       const coverImageUrl = coverUri ? await uploadCollectionCover(coverUri) : null;
       await saveUserPack({
@@ -169,8 +171,9 @@ export function QuestSaveSheet({ quest, visible, onClose, onSaveSelections, onTo
         return;
       }
 
-      if (savedToMyStuff !== quest.saved && !(await onToggleSaved(quest.id))) {
-        throw new Error(savedToMyStuff ? "Unable to save this quest to My Stuff." : "Unable to remove this quest from My Stuff.");
+      if (savedToMyStuff !== quest.saved) {
+        const saveResult = await onToggleSaved(quest.id);
+        if (!saveResult.ok) throw new Error(saveResult.error);
       }
 
       await Promise.all(collections.map((pack) => {
@@ -312,7 +315,7 @@ export function QuestSaveSheet({ quest, visible, onClose, onSaveSelections, onTo
           <View style={{ alignItems: "center", gap: 12 }}>
             <Pressable accessibilityRole="button" accessibilityLabel={coverUri ? "Change collection cover photo" : "Add collection cover photo"} onPress={chooseCover} style={({ pressed }) => ({ width: 92, height: 92, borderRadius: 26, overflow: "hidden", backgroundColor: `${quest.color}18`, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: `${quest.color}35`, opacity: pressed ? 0.8 : 1 })}>
               {coverUri ? <Image source={{ uri: coverUri }} style={{ width: "100%", height: "100%" }} /> : <PartyCategoryIcon category={quest.category} size={42} color={quest.color} />}
-              <View style={{ position: "absolute", right: 5, bottom: 5, width: 26, height: 26, borderRadius: 13, backgroundColor: T.blue, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: T.white }}><Ionicons name="camera" size={13} color={T.white} /></View>
+              <View style={{ position: "absolute", right: 5, bottom: 5, width: 26, height: 26, borderRadius: 13, backgroundColor: T.blue, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: T.white }}><Ionicons name="camera" size={13} color={T.onAccent} /></View>
             </Pressable>
             <Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12 }} numberOfLines={1}>Adding “{quest.title}”</Text>
             <Pressable accessibilityRole="button" onPress={chooseCover} hitSlop={7}><Text style={{ color: T.blue, fontFamily: "RubikBold", fontSize: 13 }}>{coverUri ? "Change cover photo" : "Add an optional cover photo"}</Text></Pressable>

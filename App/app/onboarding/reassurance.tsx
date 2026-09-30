@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 
 type Goal = {
@@ -151,7 +151,7 @@ export default function ReassuranceOnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   root: { flex: 1, backgroundColor: T.blue },
   content: { paddingHorizontal: 12 },
   cards: { gap: 23, marginBottom: 26 },
@@ -170,9 +170,9 @@ const styles = StyleSheet.create({
   destinationIcon: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
   destinationTitle: { color: T.dark, fontFamily: "RubikBold", fontSize: 17, lineHeight: 22, textAlign: "center" },
   reassuranceCopy: { gap: 5, marginBottom: 22 },
-  reassuranceTitle: { color: T.white, fontFamily: "RubikBlack", fontSize: 26, lineHeight: 31, letterSpacing: -0.45 },
-  reassuranceBody: { color: T.white, fontFamily: "Rubik", fontSize: 16.5, lineHeight: 22 },
+  reassuranceTitle: { color: T.onAccent, fontFamily: "RubikBlack", fontSize: 26, lineHeight: 31, letterSpacing: -0.45 },
+  reassuranceBody: { color: T.onAccent, fontFamily: "Rubik", fontSize: 16.5, lineHeight: 22 },
   continueButton: { minHeight: 58, borderRadius: 20, borderWidth: 2, borderColor: T.blue, borderBottomWidth: 4, borderBottomColor: `${T.blue}88`, backgroundColor: T.white, alignItems: "center", justifyContent: "center" },
   continueButtonPressed: { transform: [{ translateY: 2 }], borderBottomWidth: 2 },
   continueText: { color: T.blue, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.55, textTransform: "uppercase" },
-});
+}));

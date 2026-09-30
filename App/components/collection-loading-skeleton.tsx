@@ -3,7 +3,7 @@ import { Card } from "@/components/ui";
 import { T } from "@/components/theme";
 
 export function CollectionSkeletonBlock({ width = "100%", height, radius = 8 }: { width?: number | `${number}%`; height: number; radius?: number }) {
-  return <View accessibilityRole="progressbar" style={{ width, height, borderRadius: radius, backgroundColor: "#eee7e2" }} />;
+  return <View accessibilityRole="progressbar" style={{ width, height, borderRadius: radius, backgroundColor: T.border }} />;
 }
 
 export function SavedQuestListSkeleton() {

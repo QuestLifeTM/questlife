@@ -66,20 +66,20 @@ export function GlobalAnnouncement() {
   return (
     <Modal animationType="fade" onRequestClose={dismiss} transparent visible={Boolean(announcement)}>
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, backgroundColor: "rgba(5, 10, 18, 0.62)" }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, backgroundColor: T.overlay }}
         showsVerticalScrollIndicator={false}
       >
-        <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 440, alignSelf: "center", borderRadius: 24, borderWidth: 1, borderColor: "rgba(77,168,255,0.38)", backgroundColor: T.white, padding: 24, gap: 16, shadowColor: "#000000", shadowOpacity: 0.3, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 12 }}>
-          <View style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "#eaf4ff" }}>
+        <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 440, alignSelf: "center", borderRadius: 24, borderWidth: 1, borderColor: `${T.blue}61`, backgroundColor: T.white, padding: 24, gap: 16, shadowColor: T.shadow, shadowOpacity: 0.3, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 12 }}>
+          <View style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: `${T.blue}20` }}>
             <Text style={{ fontSize: 20 }}>✦</Text>
           </View>
           <View style={{ gap: 7 }}>
             <Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>{announcement?.title}</Text>
             <Text style={{ color: T.muted, fontSize: 16, fontWeight: "600", lineHeight: 23 }}>{announcement?.body}</Text>
           </View>
-          {error ? <Text style={{ color: "#dc2626", fontWeight: "800" }}>{error}</Text> : null}
-          <Pressable accessibilityRole="button" accessibilityLabel="Dismiss announcement" disabled={dismissing} onPress={dismiss} style={({ pressed }) => ({ minHeight: 50, borderRadius: 25, backgroundColor: T.blue, alignItems: "center", justifyContent: "center", opacity: dismissing ? 0.7 : pressed ? 0.88 : 1 })}>
-            {dismissing ? <ActivityIndicator color={T.white} /> : <Text style={{ color: T.white, fontSize: 16, fontWeight: "900" }}>Got it</Text>}
+          {error ? <Text style={{ color: T.red, fontWeight: "800" }}>{error}</Text> : null}
+          <Pressable accessibilityRole="button" accessibilityLabel="Dismiss announcement" disabled={dismissing} onPress={dismiss} style={({ pressed }) => ({ minHeight: 50, borderRadius: 25, backgroundColor: T.primaryButton, alignItems: "center", justifyContent: "center", opacity: dismissing ? 0.7 : pressed ? 0.88 : 1 })}>
+            {dismissing ? <ActivityIndicator color={T.onBlueButton} /> : <Text style={{ color: T.onBlueButton, fontSize: 16, fontWeight: "900" }}>Got it</Text>}
           </Pressable>
         </View>
       </ScrollView>

@@ -15,8 +15,20 @@ type ContentContextValue = {
   loading: boolean;
   quests: Quest[];
   refresh: () => Promise<void>;
-  toggleSave: (questId: string) => Promise<boolean>;
+  toggleSave: (questId: string) => Promise<SaveToggleResult>;
 };
+
+export type SaveToggleResult =
+  | { ok: true }
+  | { error: string; ok: false };
+
+function saveErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+  return "Unable to update saved quest.";
+}
 
 const ContentContext = createContext<ContentContextValue>({
   error: null,
@@ -24,7 +36,7 @@ const ContentContext = createContext<ContentContextValue>({
   loading: false,
   quests: [],
   refresh: async () => undefined,
-  toggleSave: async () => false,
+  toggleSave: async () => ({ ok: false, error: "The quest is no longer available. Refresh and try again." }),
 });
 
 export function ContentProvider({ children }: PropsWithChildren) {
@@ -118,9 +130,9 @@ export function ContentProvider({ children }: PropsWithChildren) {
   );
 
   const toggleSave = useCallback(
-    async (questId: string) => {
+    async (questId: string): Promise<SaveToggleResult> => {
       const quest = quests.find((item) => item.id === questId);
-      if (!quest) return false;
+      if (!quest) return { ok: false, error: "The quest is no longer available. Refresh and try again." };
 
       const nextSavedAt = quest.saved ? null : new Date().toISOString();
       setQuests((prev) =>
@@ -129,13 +141,14 @@ export function ContentProvider({ children }: PropsWithChildren) {
 
       try {
         await toggleSavedQuest(questId, quest.saved);
-        return true;
+        return { ok: true };
       } catch (nextError) {
         setQuests((prev) =>
           prev.map((item) => (item.id === questId ? { ...item, saved: quest.saved, savedAt: quest.savedAt } : item)),
         );
-        setError(nextError instanceof Error ? nextError.message : "Unable to update saved quest.");
-        return false;
+        const message = saveErrorMessage(nextError);
+        setError(message);
+        return { ok: false, error: message };
       }
     },
     [quests],

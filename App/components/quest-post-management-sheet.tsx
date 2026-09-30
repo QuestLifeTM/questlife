@@ -31,7 +31,7 @@ function PhotoSlot({ photo, onRemove }: { photo?: PostPhoto; onRemove?: () => vo
   if (!photo) return <View style={{ flex: 1, minWidth: 0, aspectRatio: 1, borderRadius: 14, borderWidth: 1.5, borderStyle: "dashed", borderColor: T.border, backgroundColor: T.bg }} />;
   return <View style={{ flex: 1, minWidth: 0, aspectRatio: 1, borderRadius: 14, overflow: "hidden", backgroundColor: T.border }}>
     <Image source={{ uri: photo.uri }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
-    <Pressable accessibilityRole="button" accessibilityLabel="Remove photo from post" onPress={onRemove} style={({ pressed }) => ({ position: "absolute", top: 5, right: 5, width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.94)", opacity: pressed ? 0.7 : 1 })}><Ionicons name="close" size={18} color={T.dark} /></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Remove photo from post" onPress={onRemove} style={({ pressed }) => ({ position: "absolute", top: 5, right: 5, width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: T.raised, opacity: pressed ? 0.7 : 1 })}><Ionicons name="close" size={18} color={T.dark} /></Pressable>
   </View>;
 }
 

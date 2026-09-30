@@ -10,6 +10,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { useMotionPreferences } from "@/hooks/useReducedMotionPreference";
+import { T } from "@/components/theme";
 import {
   motionDurations,
   motionEasing,
@@ -156,7 +157,7 @@ export function MotionToggle({
         opacity: pressed ? 0.78 : 1,
       })}
     >
-      <Animated.View style={[{ width: 22, height: 22, borderRadius: 11, backgroundColor: "#ffffff", boxShadow: "0px 1px 2px rgba(61,52,56,0.22)" }, thumbStyle]} />
+      <Animated.View style={[{ width: 22, height: 22, borderRadius: 11, backgroundColor: T.raised, boxShadow: "0px 1px 2px rgba(61,52,56,0.22)" }, thumbStyle]} />
     </Pressable>
   );
 }

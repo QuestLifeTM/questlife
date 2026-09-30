@@ -7,11 +7,14 @@ export type NotificationPreferenceKey =
   | "dailyMotivation"
   | "weeklyRecap";
 
+export type AppearancePreference = "system" | "light" | "dark";
+
 export type UserSettings = {
   notifications: Record<NotificationPreferenceKey, boolean>;
   hapticFeedback: boolean;
   reduceMotion: boolean;
   highContrast: boolean;
+  appearance: AppearancePreference;
 };
 
 export const defaultUserSettings: UserSettings = {
@@ -27,4 +30,5 @@ export const defaultUserSettings: UserSettings = {
   hapticFeedback: true,
   reduceMotion: false,
   highContrast: false,
+  appearance: "system",
 };

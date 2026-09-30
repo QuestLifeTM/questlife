@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 
 type AuthTitleProps = {
   children: string;
@@ -16,7 +16,7 @@ export function AuthTitle({ children, subtitle }: AuthTitleProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   wrap: {
     marginBottom: 30,
     gap: 10
@@ -41,4 +41,4 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: "700"
   }
-});
+}));

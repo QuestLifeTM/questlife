@@ -23,6 +23,7 @@ import { fetchJournalData, resolveJournalMedia, toLocalDateKey, upsertJournalEnt
 import { useActiveQuest } from "@/contexts/ActiveQuestContext";
 import { useNotifications } from "@/contexts/NotificationsContext";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
+import { useThemeKey } from "@/contexts/SettingsContext";
 import { MotionPulse } from "@/motion/primitives";
 import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMood } from "@/types/journal";
 import { fetchProfileOverview, fetchProfileQuestInsights, fetchWeeklyCompletedQuestActivity, ProfileQuestInsights, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
@@ -128,11 +129,11 @@ function JournalTabs({ activeTab, onChange }: { activeTab: JournalTab; onChange:
               borderRadius: 20,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: isActive ? T.dark : "transparent",
+              backgroundColor: isActive ? T.selected : "transparent",
               transform: [{ scale: pressed ? 0.98 : 1 }]
             })}
           >
-            <Text style={{ width: "100%", color: isActive ? T.white : T.muted, fontSize: 13, fontWeight: "900", letterSpacing: 0.6, textAlign: "center", textAlignVertical: "center", includeFontPadding: false }}>
+            <Text style={{ width: "100%", color: isActive ? T.onAccent : T.muted, fontSize: 13, fontWeight: "900", letterSpacing: 0.6, textAlign: "center", textAlignVertical: "center", includeFontPadding: false }}>
               {tab === "journal" ? "My Journal" : tab === "album" ? "My Album" : "Your Stats"}
             </Text>
           </Pressable>
@@ -143,7 +144,7 @@ function JournalTabs({ activeTab, onChange }: { activeTab: JournalTab; onChange:
 }
 
 function JournalLoadingSkeleton() {
-  const block = (width: number | `${number}%`, height: number, radiusValue = 9) => <MotionPulse style={{ width, height, borderRadius: radiusValue, backgroundColor: "#dfe7ed" }} />;
+  const block = (width: number | `${number}%`, height: number, radiusValue = 9) => <MotionPulse style={{ width, height, borderRadius: radiusValue, backgroundColor: T.border }} />;
 
   return <View accessibilityRole="progressbar" accessibilityLabel="Loading your journal" style={{ gap: 18, paddingTop: 18 }}>
     <View style={{ gap: 10 }}><View style={{ flexDirection: "row", justifyContent: "space-between" }}>{block("42%", 24)}{block("25%", 16)}</View>{block("100%", 64, 20)}</View>
@@ -157,6 +158,7 @@ const DOW_ROW_HEIGHT = 20;
 const WEEK_CELL_HEIGHT = 52;
 const MONTH_CELL_HEIGHT = 44;
 const INDICATOR_SIZE = 38;
+const CALENDAR_HEADER_HEIGHT = 54;
 
 function getMonthGrid(anchor: Date): (Date | null)[] {
   const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
@@ -204,6 +206,8 @@ function CalendarNavButton({ icon, label, disabled, onPress }: { icon: keyof typ
 function JournalCalendar({
   mode,
   onToggleMode,
+  collapsed,
+  onToggleCollapsed,
   activeKey,
   todayKey,
   joinKey,
@@ -211,6 +215,8 @@ function JournalCalendar({
 }: {
   mode: CalendarMode;
   onToggleMode: () => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
   activeKey: string;
   todayKey: string;
   joinKey: string;
@@ -227,18 +233,28 @@ function JournalCalendar({
   const monthRows = monthGrid.length / 7;
 
   const modeAnim = useSharedValue(mode === "week" ? 0 : 1);
+  const collapseAnim = useSharedValue(collapsed ? 1 : 0);
   const indicator = useRef(new RNAnimated.ValueXY({ x: 0, y: 0 })).current;
   const indicatorOpacity = useRef(new RNAnimated.Value(0)).current;
 
   const weekBodyHeight = DOW_ROW_HEIGHT + WEEK_CELL_HEIGHT;
   const monthBodyHeight = DOW_ROW_HEIGHT + monthRows * MONTH_CELL_HEIGHT;
+  const expandedCalendarHeight = CALENDAR_HEADER_HEIGHT + (mode === "week" ? weekBodyHeight : monthBodyHeight);
 
   useEffect(() => {
     modeAnim.value = reduceMotion ? (mode === "week" ? 0 : 1) : withTiming(mode === "week" ? 0 : 1, { duration: 260 });
   }, [mode, modeAnim, reduceMotion]);
 
+  useEffect(() => {
+    collapseAnim.value = reduceMotion ? (collapsed ? 1 : 0) : withTiming(collapsed ? 1 : 0, { duration: 180 });
+  }, [collapseAnim, collapsed, reduceMotion]);
+
   const calendarStyle = useAnimatedStyle(() => ({
     height: interpolate(modeAnim.value, [0, 1], [weekBodyHeight, monthBodyHeight]),
+  }));
+  const calendarContentStyle = useAnimatedStyle(() => ({
+    height: interpolate(collapseAnim.value, [0, 1], [expandedCalendarHeight, 0]),
+    opacity: interpolate(collapseAnim.value, [0, 0.72, 1], [1, 0, 0]),
   }));
   const weekStyle = useAnimatedStyle(() => ({
     opacity: interpolate(modeAnim.value, [0, 0.4], [1, 0], Extrapolation.CLAMP),
@@ -350,7 +366,7 @@ function JournalCalendar({
             style={{
               fontSize: 14,
               fontWeight: isActive || isToday ? "900" : "700",
-              color: isActive ? T.white : !inRange ? "#cfc6bc" : isToday ? T.cyan : T.dark,
+              color: isActive ? T.onAccent : !inRange ? "#cfc6bc" : isToday ? T.cyan : T.dark,
               fontVariant: ["tabular-nums"]
             }}
           >
@@ -363,6 +379,7 @@ function JournalCalendar({
 
   return (
     <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+      <Animated.View pointerEvents={collapsed ? "none" : "auto"} style={[{ overflow: "hidden" }, calendarContentStyle]}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <CalendarNavButton icon="chevron-back" label={mode === "week" ? "Previous week" : "Previous month"} disabled={!canGoBack} onPress={() => shift(-1)} />
         <Text numberOfLines={1} style={{ flex: 1, marginHorizontal: 8, color: T.dark, fontSize: 14, fontWeight: "900", textAlign: "center" }}>{label}</Text>
@@ -445,6 +462,20 @@ function JournalCalendar({
           ))}
         </Animated.View>
       </Animated.View>
+      </Animated.View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={collapsed ? "Expand calendar" : "Collapse calendar"}
+        accessibilityState={{ expanded: !collapsed }}
+        hitSlop={8}
+        onPress={() => {
+          haptic();
+          onToggleCollapsed();
+        }}
+        style={({ pressed }) => ({ alignSelf: "center", width: 44, height: 28, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.65 : 1 })}
+      >
+        <Ionicons name={collapsed ? "chevron-down" : "chevron-up"} size={20} color={T.muted} />
+      </Pressable>
     </View>
   );
 }
@@ -472,7 +503,7 @@ function MoodSelector({ mood, editable, saving = false, onSelect }: { mood: Jour
         borderRadius: radius.lg,
         borderWidth: 1.5,
         borderColor: selectedMood ? `${selectedMood.color}55` : T.border,
-        backgroundColor: selectedMood ? `${selectedMood.color}0e` : "#fffaff"
+        backgroundColor: selectedMood ? `${selectedMood.color}0e` : T.raised
       }}
     >
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -511,7 +542,7 @@ function MoodSelector({ mood, editable, saving = false, onSelect }: { mood: Jour
                 transform: [{ scale: pressed ? 0.96 : selected ? 1.03 : 1 }]
               })}
             >
-              <View style={{ width: selected ? 50 : 38, height: selected ? 50 : 38, borderRadius: 99, alignItems: "center", justifyContent: "center", backgroundColor: selected ? `${option.color}35` : "#f1efec" }}>
+              <View style={{ width: selected ? 50 : 38, height: selected ? 50 : 38, borderRadius: 99, alignItems: "center", justifyContent: "center", backgroundColor: selected ? `${option.color}35` : T.input }}>
                 <Text style={{ fontSize: selected ? 30 : 20 }}>{option.emoji}</Text>
               </View>
               <Text style={{ color: selected ? T.dark : T.muted, fontSize: 11, fontWeight: "900" }}>{option.label}</Text>
@@ -581,8 +612,8 @@ function TodayMediaSection({ items, onOpenAlbum, mediaRefreshToken }: { items: J
       <Pressable accessibilityRole="button" accessibilityLabel="Open today's photos in your album" onPress={activeItem ? onOpenAlbum : failed ? retry : undefined} style={({ pressed }) => ({ height: 156, overflow: "hidden", borderRadius: radius.lg, borderWidth: 1.5, borderColor: T.border, backgroundColor: T.bg, transform: [{ scale: pressed ? 0.985 : 1 }] })}>
         {activeItem ? <CachedImage uri={activeItem.uri} accessibilityLabel={`Photo from ${activeItem.questTitle}`} style={{ width: "100%", height: "100%" }} /> : <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 20 }}><Ionicons name={failed ? "cloud-offline-outline" : "images-outline"} size={24} color={T.muted} /><Text style={{ color: T.dark, fontSize: 12, fontWeight: "800", textAlign: "center" }}>{failed ? "Couldn't load today's photos. Tap to retry." : loading ? "Preparing today's photo…" : "No photos are ready yet."}</Text></View>}
         {activeItem ? <View pointerEvents="none" style={{ position: "absolute", left: 10, right: 10, bottom: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <View style={{ flex: 1, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "rgba(39,34,35,0.66)" }}><Text numberOfLines={1} style={{ color: T.white, fontSize: 11, fontWeight: "900" }}>{activeItem.questTitle}</Text></View>
-          <View style={{ width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.92)" }}><Ionicons name="grid-outline" size={16} color={T.dark} /></View>
+          <View style={{ flex: 1, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "rgba(39,34,35,0.66)" }}><Text numberOfLines={1} style={{ color: T.onAccent, fontSize: 11, fontWeight: "900" }}>{activeItem.questTitle}</Text></View>
+          <View style={{ width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: T.raised }}><Ionicons name="grid-outline" size={16} color={T.dark} /></View>
         </View> : null}
       </Pressable>
       {resolvedItems.length > 1 ? <Text style={{ color: T.dark, fontSize: 11, fontWeight: "800", textAlign: "center" }}>{resolvedItems.length} photos in today’s album</Text> : null}
@@ -599,7 +630,7 @@ function AlbumQuestGroupCard({ quest, onManageItem, mediaRefreshToken }: { quest
   const displayDate = quest.dateKey === todayKey ? "Today" : quest.dateKey === yesterdayKey ? "Yesterday" : parseKey(quest.dateKey).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   return <View style={{ gap: 10 }}>
     <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}><Text numberOfLines={1} style={{ flexShrink: 1, color: T.dark, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>{quest.questTitle}</Text><Text numberOfLines={1} style={{ color: T.dark, fontSize: 11, lineHeight: 16, fontWeight: "700" }}>· {displayDate}</Text></View>
-    {resolvedItems.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{resolvedItems.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Manage photo from ${item.questTitle}`} onPress={() => onManageItem(item)} style={({ pressed }) => ({ width: "23.2%", aspectRatio: 1, overflow: "hidden", borderRadius: 13, backgroundColor: T.border, opacity: pressed ? 0.78 : 1 })}><CachedImage uri={item.uri} accessibilityLabel={`Photo from ${item.questTitle}`} style={{ width: "100%", height: "100%" }} /><View pointerEvents="none" style={{ position: "absolute", top: 5, right: 5, width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.9)" }}><Ionicons name="ellipsis-horizontal" size={15} color={T.dark} /></View></Pressable>)}</View> : <Pressable accessibilityRole="button" accessibilityLabel={failed ? `Retry photos from ${quest.questTitle}` : `Loading photos from ${quest.questTitle}`} disabled={!failed} onPress={retry} style={{ minHeight: 74, borderRadius: 16, borderWidth: 1.5, borderColor: T.border, backgroundColor: T.white, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 }}><Text style={{ color: T.dark, fontSize: 12, fontWeight: "800", textAlign: "center" }}>{failed ? "Photos unavailable — tap to retry" : loading ? "Loading photos…" : "No photos available"}</Text></Pressable>}
+    {resolvedItems.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{resolvedItems.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Manage photo from ${item.questTitle}`} onPress={() => onManageItem(item)} style={({ pressed }) => ({ width: "23.2%", aspectRatio: 1, overflow: "hidden", borderRadius: 13, backgroundColor: T.border, opacity: pressed ? 0.78 : 1 })}><CachedImage uri={item.uri} accessibilityLabel={`Photo from ${item.questTitle}`} style={{ width: "100%", height: "100%" }} /><View pointerEvents="none" style={{ position: "absolute", top: 5, right: 5, width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: T.raised }}><Ionicons name="ellipsis-horizontal" size={15} color={T.dark} /></View></Pressable>)}</View> : <Pressable accessibilityRole="button" accessibilityLabel={failed ? `Retry photos from ${quest.questTitle}` : `Loading photos from ${quest.questTitle}`} disabled={!failed} onPress={retry} style={{ minHeight: 74, borderRadius: 16, borderWidth: 1.5, borderColor: T.border, backgroundColor: T.white, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 }}><Text style={{ color: T.dark, fontSize: 12, fontWeight: "800", textAlign: "center" }}>{failed ? "Photos unavailable — tap to retry" : loading ? "Loading photos…" : "No photos available"}</Text></Pressable>}
   </View>;
 }
 
@@ -875,6 +906,7 @@ function BeforeJoinMarker({ joinDate }: { joinDate: Date }) {
 export type JournalScreenPreview = { data: JournalData; todayKey: string };
 
 export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = {}) {
+  useThemeKey();
   const router = useRouter();
   const { completionId } = useLocalSearchParams<{ completionId?: string }>();
   const insets = useSafeAreaInsets();
@@ -884,6 +916,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
 
   const [tab, setTab] = useState<JournalTab>("journal");
   const [mode, setMode] = useState<CalendarMode>("week");
+  const [calendarCollapsed, setCalendarCollapsed] = useState(false);
   const [data, setData] = useState<JournalData | null>(preview?.data ?? null);
   const [entries, setEntries] = useState<Record<string, JournalEntry>>(preview?.data.entriesByDate ?? {});
   const [loading, setLoading] = useState(!preview);
@@ -1146,7 +1179,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
   const journalViewabilityConfig = useRef({ itemVisiblePercentThreshold: 55 }).current;
 
   return (
-    <Screen scroll={false} padded={false} contentStyle={{ paddingTop: Math.max(insets.top - 12, 12) }}>
+    <Screen scroll={false} padded={false} ambientGlow={!T.isDark} contentStyle={{ paddingTop: Math.max(insets.top - 12, 12) }}>
       <View style={{ flex: 1 }}>
         <View style={{ alignItems: "center" }}>
           <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 8, paddingBottom: 8, transform: [{ translateX: safeAreaOffset }] }}>
@@ -1158,7 +1191,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
         {tab === "journal" ? <>
           <View style={{ backgroundColor: T.bg, alignItems: "center", borderBottomWidth: 1, borderBottomColor: T.border, paddingBottom: 8 }}>
             <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>
-              <JournalCalendar mode={mode} onToggleMode={() => setMode((value) => (value === "week" ? "month" : "week"))} activeKey={activeKey} todayKey={todayKey} joinKey={joinKey} onSelectDate={handleSelectDate} />
+              <JournalCalendar mode={mode} onToggleMode={() => setMode((value) => (value === "week" ? "month" : "week"))} collapsed={calendarCollapsed} onToggleCollapsed={() => setCalendarCollapsed((value) => !value)} activeKey={activeKey} todayKey={todayKey} joinKey={joinKey} onSelectDate={handleSelectDate} />
             </View>
           </View>
           <FlatList
@@ -1244,8 +1277,8 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
               transform: [{ translateY: pressed && !savingEntryDates.has(todayKey) ? 3 : 0 }]
             })}
           >
-            <Ionicons name="checkmark" size={19} color={T.white} />
-            <Text style={{ color: T.white, fontSize: 15, fontWeight: "900", letterSpacing: 0.55, textTransform: "uppercase" }}>
+            <Ionicons name="checkmark" size={19} color={T.onAccent} />
+            <Text style={{ color: T.onAccent, fontSize: 15, fontWeight: "900", letterSpacing: 0.55, textTransform: "uppercase" }}>
               {savingEntryDates.has(todayKey) ? "Saving…" : "Save title"}
             </Text>
           </Pressable>

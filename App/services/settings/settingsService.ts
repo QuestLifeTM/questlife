@@ -1,9 +1,10 @@
 import * as SecureStore from "expo-secure-store";
 
-import { defaultUserSettings, UserSettings } from "@/types/settings";
+import { AppearancePreference, defaultUserSettings, UserSettings } from "@/types/settings";
 
 const memoryStorage = new Map<string, string>();
 let hapticsEnabled = true;
+const LAST_APPEARANCE_KEY = "questlife.appearance.v1";
 
 function keyFor(userId: string) {
   return `questlife.settings.v1.${userId}`;
@@ -36,6 +37,15 @@ export function setHapticFeedbackEnabled(enabled: boolean) {
   hapticsEnabled = enabled;
 }
 
+export async function loadLastAppearancePreference(): Promise<AppearancePreference> {
+  const saved = await read(LAST_APPEARANCE_KEY);
+  return saved === "light" || saved === "dark" || saved === "system" ? saved : defaultUserSettings.appearance;
+}
+
+export async function saveLastAppearancePreference(appearance: AppearancePreference) {
+  await write(LAST_APPEARANCE_KEY, appearance);
+}
+
 export async function loadUserSettings(userId: string): Promise<UserSettings> {
   const raw = await read(keyFor(userId));
   if (!raw) return defaultUserSettings;
@@ -46,6 +56,7 @@ export async function loadUserSettings(userId: string): Promise<UserSettings> {
       hapticFeedback: parsed.hapticFeedback ?? defaultUserSettings.hapticFeedback,
       reduceMotion: parsed.reduceMotion ?? defaultUserSettings.reduceMotion,
       highContrast: parsed.highContrast ?? defaultUserSettings.highContrast,
+      appearance: parsed.appearance ?? defaultUserSettings.appearance,
     };
   } catch {
     return defaultUserSettings;

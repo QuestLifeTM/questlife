@@ -1,10 +1,12 @@
-import { PropsWithChildren } from "react";
+import { Fragment, PropsWithChildren } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { radius, shadow, T } from "@/components/theme";
+import { radius, shadow, T, themedStyles } from "@/components/theme";
 import { AmbientGlow, useResponsiveScreenLayout } from "@/components/ui";
+import { useThemeKey } from "@/contexts/SettingsContext";
 
 export function AuthScaffold({ children }: PropsWithChildren) {
+  const themeKey = useThemeKey();
   const insets = useSafeAreaInsets();
   const { horizontalPadding } = useResponsiveScreenLayout();
 
@@ -28,14 +30,14 @@ export function AuthScaffold({ children }: PropsWithChildren) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.card}>{children}</View>
+          <View style={styles.card}><Fragment key={themeKey}>{children}</Fragment></View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: T.bg
@@ -54,7 +56,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: T.border,
     borderRadius: radius.xl,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    backgroundColor: T.raised,
     paddingHorizontal: 24,
     paddingVertical: 28,
     ...shadow
@@ -68,4 +70,4 @@ const styles = StyleSheet.create({
     borderRadius: 120,
     backgroundColor: "rgba(253,121,168,0.10)"
   }
-});
+}));

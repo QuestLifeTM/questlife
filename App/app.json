@@ -6,7 +6,7 @@
     "scheme": "questlife",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "plugins": [
       "expo-router",
       "expo-font",

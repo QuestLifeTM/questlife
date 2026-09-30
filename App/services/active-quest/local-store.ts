@@ -5,8 +5,10 @@ import { distanceBetweenMeters, simplifyRouteForRendering } from "@/services/act
 import { isAcceptedQuestLocation, RawQuestLocation } from "@/services/active-quest/location-quality-filter";
 import { smoothQuestLocation } from "@/services/active-quest/location-smoothing";
 import { buildRenderableSegments } from "@/services/active-quest/route-segments";
+import { getLocalDataOwner, requireLocalDataOwner } from "@/services/local-data/owner";
 
 type ActiveQuestStore = {
+  ownerId: string;
   sessions: Record<string, ActiveQuestLocalSession>;
   route: ActiveQuestRoutePoint[];
   renderRoutes: Record<string, ActiveQuestRoutePoint[]>;
@@ -18,9 +20,13 @@ type ActiveQuestStore = {
   nextActivityId: number;
 };
 
-const STORE_URI = `${FileSystem.documentDirectory}active-quests/store.json`;
-const BACKUP_STORE_URI = `${FileSystem.documentDirectory}active-quests/store.backup.json`;
-const EMPTY_STORE: ActiveQuestStore = {
+function activeQuestRoot(ownerId: string) { return `${FileSystem.documentDirectory}questlife/v2/users/${encodeURIComponent(ownerId)}/active-quests`; }
+function storeUri(ownerId: string) { return `${activeQuestRoot(ownerId)}/store.json`; }
+function backupStoreUri(ownerId: string) { return `${activeQuestRoot(ownerId)}/store.backup.json`; }
+
+function emptyStore(ownerId: string): ActiveQuestStore {
+  return {
+  ownerId,
   sessions: {},
   route: [],
   renderRoutes: {},
@@ -30,23 +36,28 @@ const EMPTY_STORE: ActiveQuestStore = {
   nextPointId: 1,
   nextPhotoId: 1,
   nextActivityId: 1,
-};
+  };
+}
 
 let cache: ActiveQuestStore | null = null;
 let mutationQueue: Promise<void> = Promise.resolve();
 const listeners = new Set<() => void>();
 
-function freshStore(): ActiveQuestStore {
-  return { ...EMPTY_STORE, sessions: {}, route: [], renderRoutes: {}, photos: [], activity: [] };
+function freshStore(ownerId: string): ActiveQuestStore {
+  return { ...emptyStore(ownerId), sessions: {}, route: [], renderRoutes: {}, photos: [], activity: [] };
 }
 
-async function loadStore() {
-  if (cache) return cache;
+async function loadStore(ownerId: string) {
+  if (cache?.ownerId === ownerId) return cache;
   try {
-    const raw = await FileSystem.readAsStringAsync(STORE_URI);
+    const raw = await FileSystem.readAsStringAsync(storeUri(ownerId));
     const parsed = JSON.parse(raw) as Partial<ActiveQuestStore>;
+    if (parsed.ownerId !== ownerId) {
+      await FileSystem.deleteAsync(storeUri(ownerId), { idempotent: true });
+      throw new Error("Store owner mismatch");
+    }
     cache = {
-      ...freshStore(),
+      ...freshStore(ownerId),
       ...parsed,
       sessions: Object.fromEntries(Object.entries(parsed.sessions ?? {}).map(([id, session]) => [id, {
         ...session,
@@ -60,10 +71,14 @@ async function loadStore() {
     };
   } catch {
     try {
-      const backup = await FileSystem.readAsStringAsync(BACKUP_STORE_URI);
+      const backup = await FileSystem.readAsStringAsync(backupStoreUri(ownerId));
       const parsed = JSON.parse(backup) as Partial<ActiveQuestStore>;
+      if (parsed.ownerId !== ownerId) {
+        await FileSystem.deleteAsync(backupStoreUri(ownerId), { idempotent: true });
+        throw new Error("Backup owner mismatch");
+      }
       cache = {
-        ...freshStore(),
+        ...freshStore(ownerId),
         ...parsed,
         sessions: Object.fromEntries(Object.entries(parsed.sessions ?? {}).map(([id, session]) => [id, {
           ...session,
@@ -76,28 +91,32 @@ async function loadStore() {
         activity: (parsed.activity ?? []).map((item) => ({ ...item, isTutorialMock: item.isTutorialMock ?? false })),
       };
     } catch {
-      cache = freshStore();
+      cache = freshStore(ownerId);
     }
   }
   return cache;
 }
 
-async function persistStore(store: ActiveQuestStore) {
-  await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}active-quests`, { intermediates: true });
-  const existingStore = await FileSystem.getInfoAsync(STORE_URI);
+async function persistStore(ownerId: string, store: ActiveQuestStore) {
+  if (store.ownerId !== ownerId) throw new Error("Refusing to persist data for a different owner.");
+  await FileSystem.makeDirectoryAsync(activeQuestRoot(ownerId), { intermediates: true });
+  const currentStoreUri = storeUri(ownerId);
+  const currentBackupUri = backupStoreUri(ownerId);
+  const existingStore = await FileSystem.getInfoAsync(currentStoreUri);
   if (existingStore.exists) {
-    const existingBackup = await FileSystem.getInfoAsync(BACKUP_STORE_URI);
-    if (existingBackup.exists) await FileSystem.deleteAsync(BACKUP_STORE_URI, { idempotent: true });
-    await FileSystem.copyAsync({ from: STORE_URI, to: BACKUP_STORE_URI });
+    const existingBackup = await FileSystem.getInfoAsync(currentBackupUri);
+    if (existingBackup.exists) await FileSystem.deleteAsync(currentBackupUri, { idempotent: true });
+    await FileSystem.copyAsync({ from: currentStoreUri, to: currentBackupUri });
   }
-  await FileSystem.writeAsStringAsync(STORE_URI, JSON.stringify(store));
+  await FileSystem.writeAsStringAsync(currentStoreUri, JSON.stringify(store));
 }
 
 function mutate<T>(operation: (store: ActiveQuestStore) => T | Promise<T>) {
+  const ownerId = requireLocalDataOwner();
   const result = mutationQueue.then(async () => {
-    const store = await loadStore();
+    const store = await loadStore(ownerId);
     const value = await operation(store);
-    await persistStore(store);
+    await persistStore(ownerId, store);
     return value;
   });
   mutationQueue = result.then(() => undefined, () => undefined);
@@ -119,8 +138,9 @@ export async function ensureActiveQuestSession(input: { sessionId: string; quest
         sessionId: input.sessionId,
         questId: input.questId,
         startedAt: input.startedAt,
-        // A new session waits for the 3-2-1-GO start sequence. A session
-        // restored on another device resumes as active instead of resetting.
+        // The quest clock is wall-clock based. Restoring its shell must keep
+        // the original start timestamp so backgrounded and terminated time is
+        // included when the UI recalculates elapsed time.
         recordingState: input.resumeExistingSession ? "recording" : "paused",
         pausedAt: input.resumeExistingSession ? null : input.startedAt,
         activeSince: input.resumeExistingSession ? input.startedAt : null,
@@ -211,8 +231,9 @@ export async function hydrateActiveQuestRecord(record: RemoteActiveQuestRecord) 
 }
 
 export async function getActiveQuestSession(sessionId: string) {
+  const ownerId = requireLocalDataOwner();
   await mutationQueue;
-  const store = await loadStore();
+  const store = await loadStore(ownerId);
   const session = store.sessions[sessionId];
   return session ? { ...session } : null;
 }
@@ -221,7 +242,7 @@ export async function getActiveQuestSnapshot(sessionId: string): Promise<ActiveQ
   const session = await getActiveQuestSession(sessionId);
   if (!session) return null;
   await mutationQueue;
-  const store = await loadStore();
+  const store = await loadStore(requireLocalDataOwner());
   const route = store.route.filter((point) => point.sessionId === sessionId).sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
   const photos = store.photos.filter((photo) => photo.sessionId === sessionId).sort((a, b) => b.capturedAt.localeCompare(a.capturedAt));
   // Activity reads like a story: the quest begins at the top and each new
@@ -306,16 +327,27 @@ export async function addAcceptedRoutePoint(sessionId: string, point: RawQuestLo
 }
 
 export async function getLatestRoutePoint(sessionId: string) {
+  const ownerId = requireLocalDataOwner();
   await mutationQueue;
-  const store = await loadStore();
+  const store = await loadStore(ownerId);
   const points = store.route.filter((point) => point.sessionId === sessionId).sort((a, b) => b.capturedAt.localeCompare(a.capturedAt));
   return points[0] ? { ...points[0] } : null;
 }
 
 export async function getPendingCompletionSyncSessionIds() {
+  const ownerId = requireLocalDataOwner();
   await mutationQueue;
-  const store = await loadStore();
+  const store = await loadStore(ownerId);
   return Object.values(store.sessions).filter((session) => session.completionSyncState === "pending").map((session) => session.sessionId);
+}
+
+/** Returns all local records for the current owner, for encrypted handoff only. */
+export async function getAllActiveQuestSnapshots() {
+  const ownerId = requireLocalDataOwner();
+  await mutationQueue;
+  const store = await loadStore(ownerId);
+  const sessionIds = Object.keys(store.sessions);
+  return Promise.all(sessionIds.map((sessionId) => getActiveQuestSnapshot(sessionId)));
 }
 
 export async function addActiveQuestPhoto(sessionId: string, uri: string, capturedAt = new Date().toISOString(), isTutorialMock = false) {
@@ -377,8 +409,9 @@ export async function deleteActiveQuestActivity(id: number) {
 }
 
 export async function getActiveQuestPhotos(sessionId: string) {
+  const ownerId = requireLocalDataOwner();
   await mutationQueue;
-  const store = await loadStore();
+  const store = await loadStore(ownerId);
   return store.photos.filter((photo) => photo.sessionId === sessionId).sort((a, b) => b.capturedAt.localeCompare(a.capturedAt)).map((photo) => ({ ...photo }));
 }
 
@@ -407,8 +440,9 @@ export async function setActiveQuestTrackingSession(sessionId: string | null) {
 }
 
 export async function getActiveQuestTrackingSession() {
+  const ownerId = requireLocalDataOwner();
   await mutationQueue;
-  const store = await loadStore();
+  const store = await loadStore(ownerId);
   return store.trackingSessionId ? { sessionId: store.trackingSessionId } : null;
 }
 
@@ -421,4 +455,15 @@ export async function clearActiveQuestSession(sessionId: string) {
     store.activity = store.activity.filter((item) => item.sessionId !== sessionId);
     if (store.trackingSessionId === sessionId) store.trackingSessionId = null;
   });
+}
+
+/** Deletes every plaintext active-quest record for one account. */
+export async function clearActiveQuestDataForOwner(ownerId: string) {
+  await FileSystem.deleteAsync(activeQuestRoot(ownerId), { idempotent: true });
+  if (cache?.ownerId === ownerId) cache = null;
+}
+
+/** Exposed for lifecycle services and background tasks that need owner verification. */
+export function getActiveQuestStoreOwner() {
+  return getLocalDataOwner();
 }

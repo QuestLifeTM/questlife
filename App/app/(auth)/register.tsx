@@ -10,7 +10,7 @@ import {
 } from "@/components/auth/AuthControls";
 import { PasswordStrength } from "@/components/auth/PasswordStrength";
 import { AuthScaffold } from "@/components/auth/AuthScaffold";
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import {
   AccountAlreadyExistsError,
   EmailNotVerifiedError,
@@ -248,7 +248,7 @@ function AppButton({ disabled, loading, onPress, title }: { disabled: boolean; l
   ><Text style={[styles.submitButtonLabel, disabled && styles.submitButtonLabelDisabled]}>{title}</Text></Pressable>;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   header: {
     alignItems: "flex-start",
     flexDirection: "row",
@@ -280,10 +280,10 @@ const styles = StyleSheet.create({
   passwordGroup: {
     gap: 10,
   },
-  submitButton: { minHeight: 54, borderRadius: 20, borderBottomWidth: 5, borderBottomColor: "#258fd8", backgroundColor: T.blue, alignItems: "center", justifyContent: "center" },
-  submitButtonDisabled: { borderBottomColor: "#d7cec2", backgroundColor: T.border },
+  submitButton: { minHeight: 54, borderRadius: 20, borderBottomWidth: 5, borderBottomColor: T.primaryButtonEdge, backgroundColor: T.primaryButton, alignItems: "center", justifyContent: "center" },
+  submitButtonDisabled: { borderBottomColor: T.border, backgroundColor: T.border },
   submitButtonPressed: { borderBottomWidth: 2, transform: [{ translateY: 3 }] },
-  submitButtonLabel: { color: T.white, fontFamily: "RubikBold", fontSize: 16, lineHeight: 20 },
+  submitButtonLabel: { color: T.onBlueButton, fontFamily: "RubikBold", fontSize: 16, lineHeight: 20 },
   submitButtonLabelDisabled: { color: T.muted },
   footer: {
     color: T.muted,
@@ -297,4 +297,4 @@ const styles = StyleSheet.create({
   },
   legal: { marginTop: 12, color: T.muted, fontFamily: "Rubik", fontSize: 11, lineHeight: 15, fontWeight: "500", textAlign: "center" },
   legalLink: { color: T.muted, fontFamily: "RubikBold", textDecorationLine: "underline" },
-});
+}));

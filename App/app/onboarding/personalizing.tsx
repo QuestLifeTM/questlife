@@ -6,7 +6,7 @@ import Animated, { cancelAnimation, Easing, Extrapolation, FadeInRight, interpol
 
 import { OnboardingCompassRoute } from "@/components/onboarding-compass-route";
 import { OnboardingQuestionProgress } from "@/components/onboarding-progress";
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import { useResponsiveScreenLayout } from "@/components/ui";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 
@@ -237,12 +237,12 @@ function ProfileCompletion({ celebration, floatY, floatRotate }: { celebration: 
   });
   const floatingStyle = useAnimatedStyle(() => ({ transform: [{ translateY: floatY.get() }, { rotate: `${floatRotate.get()}deg` }] }));
   return <Animated.View pointerEvents="none" style={[styles.profileCompletion, floatingStyle]}>
-    <Animated.View style={[styles.profileCheck, badgeStyle]}><Ionicons color={T.white} name="checkmark" size={47} /></Animated.View>
+    <Animated.View style={[styles.profileCheck, badgeStyle]}><Ionicons color={T.onAccent} name="checkmark" size={47} /></Animated.View>
     <Animated.View style={copyStyle}><Text accessibilityRole="header" style={styles.profileCompletionTitle}>Your Quest Profile{`\n`}has been made!</Text></Animated.View>
   </Animated.View>;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
   compass: { position: "absolute", left: 0, right: 0, alignItems: "center" },
   content: { flex: 1, width: "100%", maxWidth: 320, alignSelf: "center", justifyContent: "center" },
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   completionRow: { width: 272, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   completionCircle: { width: 26, height: 26, borderRadius: 99, borderWidth: 2, borderColor: T.dark, backgroundColor: T.white, alignItems: "center", justifyContent: "center" },
   completionCircleComplete: { borderColor: T.blue, backgroundColor: T.blue },
-  completionCheck: { color: T.white, fontFamily: "RubikBlack", fontSize: 15, lineHeight: 17 },
+  completionCheck: { color: T.onAccent, fontFamily: "RubikBlack", fontSize: 15, lineHeight: 17 },
   statusRow: { width: "100%", minHeight: 24, alignItems: "center", justifyContent: "center" },
   status: { maxWidth: "100%", color: T.blue, fontFamily: "RubikBlack", fontSize: 17, lineHeight: 24, letterSpacing: -0.15, textAlign: "center" },
   rainbowDots: { position: "absolute", right: 0, flexDirection: "row" },
@@ -263,4 +263,4 @@ const styles = StyleSheet.create({
   profileCompletion: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center", gap: 18 },
   profileCheck: { width: 94, height: 94, borderRadius: 47, alignItems: "center", justifyContent: "center", backgroundColor: T.green, borderWidth: 4, borderColor: T.white, boxShadow: `4px 4px 0px ${T.border}` },
   profileCompletionTitle: { color: T.dark, fontFamily: "RubikBlack", fontSize: 24, lineHeight: 29, letterSpacing: -0.42, textAlign: "center" },
-});
+}));

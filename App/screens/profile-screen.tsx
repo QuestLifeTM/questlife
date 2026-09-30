@@ -21,6 +21,7 @@ import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { formatElapsedCompact } from "@/hooks/useElapsedTime";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
+import { useThemeKey } from "@/contexts/SettingsContext";
 import { DEFAULT_PROFILE_PRIVACY, DEFAULT_PROFILE_STAT_VISIBILITY, fetchProfileOverview, fetchRequiredProfileName, ProfileQuestInsights, updateProfile, uploadProfileAvatar, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
 import { fetchFollowers, removeFollower } from "@/services/social/socialService";
 import { levelForXp, ProfileAudience, ProfileOverview, ProfilePrivacy, ProfileStatId, ProfileStatVisibility, QuestFeedPost } from "@/types/profile";
@@ -141,10 +142,10 @@ export function ProfileStatMarquee({ overview, visibility }: { overview: Profile
 
   const normaliseOffset = useCallback((value: number) => {
     if (!marqueeDistance) return 0;
-    // Keep the content in the middle copy. This lets either direction of a
-    // manual drag wrap cleanly without ever revealing an empty edge.
-    const travelled = ((-value % marqueeDistance) + marqueeDistance) % marqueeDistance;
-    return -marqueeDistance - travelled;
+    // Keep the content in the middle copy while the marquee travels right.
+    // This lets a manual drag wrap without ever revealing an empty edge.
+    const travelled = ((value % marqueeDistance) + marqueeDistance) % marqueeDistance;
+    return -marqueeDistance * 2 + travelled;
   }, [marqueeDistance]);
 
   const pauseAutoScroll = useCallback(() => {
@@ -184,22 +185,22 @@ export function ProfileStatMarquee({ overview, visibility }: { overview: Profile
 
     let active = true;
     const fullDuration = Math.max(9_000, metrics.length * 5_000);
-    translateX.setValue(-marqueeDistance);
-    dragStartRef.current = -marqueeDistance;
-    dragOriginRef.current = -marqueeDistance;
+    translateX.setValue(-marqueeDistance * 2);
+    dragStartRef.current = -marqueeDistance * 2;
+    dragOriginRef.current = -marqueeDistance * 2;
 
     const startAnimation = () => {
       if (!active || pausedRef.current || animationRunningRef.current) return;
       // dragStartRef is updated while the user is moving, so starting from it
       // avoids waiting on a native stop callback after the finger is released.
       const start = normaliseOffset(dragStartRef.current);
-      const travelled = Math.abs(start + marqueeDistance);
+      const travelled = start + marqueeDistance * 2;
       const remaining = Math.max(0.04, 1 - travelled / marqueeDistance);
       dragStartRef.current = start;
       dragOriginRef.current = start;
       translateX.setValue(start);
       const animation = Animated.timing(translateX, {
-        toValue: -marqueeDistance * 2,
+        toValue: -marqueeDistance,
         duration: Math.max(180, Math.round(fullDuration * remaining)),
         easing: Easing.linear,
         useNativeDriver: true,
@@ -209,9 +210,9 @@ export function ProfileStatMarquee({ overview, visibility }: { overview: Profile
       animation.start(({ finished }) => {
         if (animationRef.current === animation) animationRunningRef.current = false;
         if (!active || !finished || pausedRef.current) return;
-        translateX.setValue(-marqueeDistance);
-        dragStartRef.current = -marqueeDistance;
-        dragOriginRef.current = -marqueeDistance;
+        translateX.setValue(-marqueeDistance * 2);
+        dragStartRef.current = -marqueeDistance * 2;
+        dragOriginRef.current = -marqueeDistance * 2;
         startAnimation();
       });
     };
@@ -243,7 +244,7 @@ export function ProfileStatMarquee({ overview, visibility }: { overview: Profile
   }), [normaliseOffset, pauseAutoScroll, resumeAutoScroll, translateX]);
 
   const pill = (metric: typeof metrics[number], index: number) => <View key={`${metric.label}-${index}`} style={{ width: PROFILE_STAT_PILL_WIDTH, minHeight: 48, paddingHorizontal: 12, borderRadius: 24, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: T.white, borderWidth: 2, borderColor: metric.color, borderBottomWidth: 4, borderBottomColor: `${metric.color}88` }}>
-    <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: metric.background, borderWidth: 1, borderColor: `${metric.color}24` }}><Ionicons name={metric.icon} size={16} color={metric.color} /></View>
+    <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: T.isDark ? `${metric.color}10` : metric.background, borderWidth: 1, borderColor: `${metric.color}24`, ...(T.isDark ? { boxShadow: `0px 0px 10px ${metric.color}55` } : {}) }}><Ionicons name={metric.icon} size={16} color={metric.color} /></View>
     <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={{ color: metric.color, fontFamily: "RubikBold", fontSize: 13, lineHeight: 16 }}>{metric.value}</Text><Text numberOfLines={1} style={{ color: T.muted, marginTop: 1, fontFamily: "RubikBold", fontSize: 9, lineHeight: 12, letterSpacing: 0.45, textTransform: "uppercase" }}>{metric.label}</Text></View>
   </View>;
 
@@ -274,10 +275,10 @@ function ProfileStatVisibilityBento({ overview, visibility, onToggle }: { overvi
       {profileCarouselMetrics(overview).map((metric) => {
         const visible = visibility[metric.id];
         const mustStayVisible = visible && shownCount <= 3;
-        return <View key={metric.id} style={{ width: "48.7%", minHeight: 68, padding: 10, borderRadius: 18, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: visible ? metric.background : T.white, borderWidth: 1.5, borderColor: visible ? `${metric.color}55` : T.border, opacity: visible ? 1 : 0.64 }}>
+        return <View key={metric.id} style={{ width: "48.7%", minHeight: 68, padding: 10, borderRadius: 18, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: visible ? (T.isDark ? `${metric.color}14` : metric.background) : T.white, borderWidth: 1.5, borderColor: visible ? `${metric.color}55` : T.border, opacity: visible ? 1 : 0.64 }}>
           <View style={{ width: 27, height: 27, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${metric.color}1c` }}><Ionicons name={metric.icon} size={15} color={metric.color} /></View>
           <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 11, lineHeight: 14 }}>{metric.label}</Text><Text numberOfLines={1} style={{ color: metric.color, marginTop: 1, fontFamily: "RubikBold", fontSize: 12, lineHeight: 15 }}>{metric.value}</Text></View>
-          <Pressable accessibilityRole="switch" accessibilityState={{ checked: visible, disabled: mustStayVisible }} accessibilityLabel={mustStayVisible ? `${metric.label} must remain visible because at least three stats are required` : `${visible ? "Hide" : "Show"} ${metric.label} from friends`} disabled={mustStayVisible} onPress={() => onToggle(metric.id)} hitSlop={6} style={({ pressed }) => ({ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: visible ? metric.color : T.bg, borderWidth: 1.5, borderColor: visible ? metric.color : T.border, opacity: mustStayVisible ? 0.5 : pressed ? 0.7 : 1 })}><Ionicons name={visible ? "eye" : "eye-off"} size={15} color={visible ? T.white : T.muted} /></Pressable>
+          <Pressable accessibilityRole="switch" accessibilityState={{ checked: visible, disabled: mustStayVisible }} accessibilityLabel={mustStayVisible ? `${metric.label} must remain visible because at least three stats are required` : `${visible ? "Hide" : "Show"} ${metric.label} from friends`} disabled={mustStayVisible} onPress={() => onToggle(metric.id)} hitSlop={6} style={({ pressed }) => ({ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: visible ? metric.color : T.bg, borderWidth: 1.5, borderColor: visible ? metric.color : T.border, opacity: mustStayVisible ? 0.5 : pressed ? 0.7 : 1 })}><Ionicons name={visible ? "eye" : "eye-off"} size={15} color={visible ? T.onAccent : T.muted} /></Pressable>
         </View>;
       })}
     </View>
@@ -293,7 +294,7 @@ function ProfilePrivacyControls({ privacy, onChange }: { privacy: ProfilePrivacy
   ];
   return <View style={{ width: "100%", marginTop: 16, gap: 9 }}>
     <View><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20 }}>Profile visibility</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 11, lineHeight: 15 }}>Your name and @username are always visible.</Text></View>
-    {rows.map((row) => <View key={row.key} style={{ minHeight: 80, padding: 11, borderRadius: 18, gap: 8, backgroundColor: T.white, borderWidth: 1.5, borderColor: T.border }}><View><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{row.label}</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 10, lineHeight: 14 }}>{row.detail}</Text></View><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{row.options.map((option) => { const active = privacy[row.key] === option; return <Pressable key={option} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => onChange({ ...privacy, [row.key]: option } as ProfilePrivacy)} style={({ pressed }) => ({ minHeight: 30, paddingHorizontal: 9, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: active ? T.blue : T.bg, borderWidth: 1.5, borderColor: active ? T.blue : T.border, opacity: pressed ? 0.72 : 1 })}><Text style={{ color: active ? T.white : T.muted, fontFamily: "RubikBold", fontSize: 10 }}>{audienceLabels[option]}</Text></Pressable>; })}</View></View>)}
+    {rows.map((row) => <View key={row.key} style={{ minHeight: 80, padding: 11, borderRadius: 18, gap: 8, backgroundColor: T.white, borderWidth: 1.5, borderColor: T.border }}><View><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>{row.label}</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 10, lineHeight: 14 }}>{row.detail}</Text></View><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{row.options.map((option) => { const active = privacy[row.key] === option; return <Pressable key={option} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => onChange({ ...privacy, [row.key]: option } as ProfilePrivacy)} style={({ pressed }) => ({ minHeight: 30, paddingHorizontal: 9, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: active ? T.blue : T.bg, borderWidth: 1.5, borderColor: active ? T.blue : T.border, opacity: pressed ? 0.72 : 1 })}><Text style={{ color: active ? T.onAccent : T.muted, fontFamily: "RubikBold", fontSize: 10 }}>{audienceLabels[option]}</Text></Pressable>; })}</View></View>)}
   </View>;
 }
 
@@ -339,7 +340,7 @@ function QuestTrail({ categories }: { categories: ProfileOverview["stats"]["topC
   const topCategories = categories.slice(0, 3);
   const leadingCount = topCategories[0]?.completedQuests ?? 0;
 
-  return <View style={{ borderRadius: 20, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#dfd6cc", backgroundColor: T.white, padding: 16, gap: 14 }}>
+  return <View style={{ borderRadius: 20, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: T.border, backgroundColor: T.white, padding: 16, gap: 14 }}>
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
       <View style={{ width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${T.purple}16` }}><Ionicons name="trail-sign" size={22} color={T.purple} /></View>
       <View style={{ flex: 1, gap: 2 }}>
@@ -380,7 +381,7 @@ export function YourStatsDashboard({ overview, weeklyActivity, insights, scrollY
   ];
 
   return <View style={{ gap: 12 }}>
-    <View style={{ borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 6, borderBottomColor: "#dfd6cc", backgroundColor: T.white, padding: 16, gap: 13 }}>
+    <View style={{ borderRadius: 22, borderWidth: 2, borderColor: T.border, borderBottomWidth: 6, borderBottomColor: T.border, backgroundColor: T.white, padding: 16, gap: 13 }}>
       <View style={{ gap: 1 }}>
         <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 23, lineHeight: 28 }}>Level {level}</Text>
         <Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 17, fontWeight: "700" }}>{xpRemaining.toLocaleString()} XP to level {nextLevel}</Text>
@@ -394,7 +395,7 @@ export function YourStatsDashboard({ overview, weeklyActivity, insights, scrollY
     <View style={{ gap: 10 }}>
       <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 19, lineHeight: 24 }}>Overview</Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-        {overviewMetrics.map((metric) => <View key={metric.label} style={{ width: "48.5%", minHeight: 104, borderRadius: 20, borderWidth: 2, borderColor: T.border, borderBottomWidth: 4, borderBottomColor: "#dfd6cc", backgroundColor: T.white, paddingHorizontal: 10, paddingVertical: 14, alignItems: "center", justifyContent: "center", gap: 7 }}>
+        {overviewMetrics.map((metric) => <View key={metric.label} style={{ width: "48.5%", minHeight: 104, borderRadius: 20, borderWidth: 2, borderColor: T.border, borderBottomWidth: 4, borderBottomColor: T.border, backgroundColor: T.white, paddingHorizontal: 10, paddingVertical: 14, alignItems: "center", justifyContent: "center", gap: 7 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 29 }}>
             <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${metric.accent}18` }}>{metric.icon}</View>
             <Text adjustsFontSizeToFit minimumFontScale={0.74} numberOfLines={1} style={{ flexShrink: 1, color: T.dark, fontFamily: "RubikBold", fontSize: 23, lineHeight: 28, fontVariant: ["tabular-nums"] }}>{metric.value}</Text>
@@ -409,6 +410,7 @@ export function YourStatsDashboard({ overview, weeklyActivity, insights, scrollY
 }
 
 export function ProfileScreen() {
+  useThemeKey();
   const router = useRouter();
   const { user, refreshProfileName } = useAuth();
   const { showFeedback } = useAppFeedback();
@@ -565,11 +567,11 @@ export function ProfileScreen() {
               {editing ? <ImageControl label="Change profile picture" onPress={() => void chooseImage()} style={{ width: 34, height: 34, borderRadius: 11, position: "absolute", right: -10, bottom: -7, zIndex: 3, elevation: 3 }} /> : null}
             </View>
 
-            {editing ? <View style={{ width: "100%", maxWidth: 276, marginTop: 9, gap: 8 }}><View style={{ minHeight: 40, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12 }}><TextInput value={draftFirstName} onChangeText={setDraftFirstName} accessibilityLabel="First name" autoCapitalize="words" placeholder="First name" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center", paddingVertical: 6 }} /></View><View style={{ minHeight: 40, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12 }}><TextInput value={draftLastName} onChangeText={setDraftLastName} accessibilityLabel="Last name" autoCapitalize="words" placeholder="Last name (optional)" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center", paddingVertical: 6 }} /></View></View> : <Text style={{ marginTop: 10, color: T.dark, fontFamily: "RubikBlack", fontSize: 22, lineHeight: 28, textAlign: "center" }}>{displayName}</Text>}
+            {editing ? <View style={{ width: "100%", maxWidth: 276, marginTop: 9, gap: 8 }}><View style={{ minHeight: 40, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: T.raised, paddingHorizontal: 12 }}><TextInput value={draftFirstName} onChangeText={setDraftFirstName} accessibilityLabel="First name" autoCapitalize="words" placeholder="First name" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center", paddingVertical: 6 }} /></View><View style={{ minHeight: 40, justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: T.raised, paddingHorizontal: 12 }}><TextInput value={draftLastName} onChangeText={setDraftLastName} accessibilityLabel="Last name" autoCapitalize="words" placeholder="Last name (optional)" placeholderTextColor={T.muted} style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, textAlign: "center", paddingVertical: 6 }} /></View></View> : <Text style={{ marginTop: 10, color: T.dark, fontFamily: "RubikBlack", fontSize: 22, lineHeight: 28, textAlign: "center" }}>{displayName}</Text>}
             <Text style={{ marginTop: editing ? 9 : 3, color: T.muted, fontFamily: "RubikBold", fontSize: 13, lineHeight: 18, textAlign: "center" }}>@{username}</Text>
             {!editing ? <ProfileTitleBadge title={profile.title} /> : null}
 
-            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 52, marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: "rgba(255,255,255,0.88)", paddingHorizontal: 12, paddingVertical: 6 }}><TextInput value={draftBio} onChangeText={setDraftBio} accessibilityLabel="Bio" placeholder="Write a bio…" placeholderTextColor={T.muted} multiline maxLength={180} textAlignVertical="top" style={{ minHeight: 32, color: T.dark, fontFamily: "Rubik", fontSize: 15, lineHeight: 20 }} /></View> : <Text style={{ maxWidth: 286, marginTop: 8, color: profile.bio ? T.dark : T.muted, fontFamily: "Rubik", fontSize: 15, lineHeight: 20, textAlign: "center" }}>{profile.bio || "Tap the pencil icon to add a bio."}</Text>}
+            {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 52, marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: T.raised, paddingHorizontal: 12, paddingVertical: 6 }}><TextInput value={draftBio} onChangeText={setDraftBio} accessibilityLabel="Bio" placeholder="Write a bio…" placeholderTextColor={T.muted} multiline maxLength={180} textAlignVertical="top" style={{ minHeight: 32, color: T.dark, fontFamily: "Rubik", fontSize: 15, lineHeight: 20, textAlign: "center" }} /></View> : <Text style={{ maxWidth: 286, marginTop: 8, color: profile.bio ? T.dark : T.muted, fontFamily: "Rubik", fontSize: 15, lineHeight: 20, textAlign: "center" }}>{profile.bio || "Tap the pencil icon to add a bio."}</Text>}
             <View style={{ width: contentWidth, alignSelf: "stretch", marginHorizontal: -horizontalPadding, marginTop: 15 }}><ProfileStatMarquee overview={overview} visibility={carouselVisibility} /></View>
             {editing ? <><ProfileStatVisibilityBento overview={overview} visibility={draftStatVisibility} onToggle={(id) => setDraftStatVisibility((current) => ({ ...current, [id]: !current[id] }))} /><SoftButton label="Privacy settings" icon="lock-closed-outline" inverse color={T.purple} onPress={() => setPrivacyOpen(true)} style={{ width: "100%", marginTop: 14, minHeight: 48 }} /></> : null}
             {error ? <Text accessibilityRole="alert" style={{ marginTop: 7, color: T.red, fontFamily: "RubikBold", fontSize: 12, textAlign: "center" }}>{error}</Text> : null}
@@ -593,8 +595,8 @@ export function ProfileScreen() {
     <ScrollTopBlur scrollY={scrollY} />
 
     {editing && readOnlyContentTop !== null ? <View pointerEvents="none" style={{ position: "absolute", top: readOnlyContentTop, right: 0, bottom: 0, left: 0, overflow: "hidden" }}>
-      <BlurView tint="light" intensity={16} style={{ position: "absolute", inset: 0 }} />
-      <View style={{ flex: 1, backgroundColor: "rgba(255,252,245,0.48)" }} />
+      <BlurView tint={T.isDark ? "dark" : "light"} intensity={16} style={{ position: "absolute", inset: 0 }} />
+      <View style={{ flex: 1, backgroundColor: T.isDark ? "rgba(17,21,30,0.58)" : "rgba(255,252,245,0.48)" }} />
     </View> : null}
 
     <QuestPostManagementSheet post={managedPost} visible={Boolean(managedPost)} onClose={() => setManagedPost(null)} onUpdated={() => { setManagedPost(null); void load(); }} onDeleted={() => { setManagedPost(null); void load(); }} />

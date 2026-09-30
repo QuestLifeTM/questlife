@@ -235,10 +235,21 @@ export async function toggleSavedQuest(questId: string, saved: boolean) {
     return false;
   }
 
-  const { error } = await supabase.from("saved_quests").upsert({
-    quest_id: questId,
-    user_id: userData.user.id,
-  });
+  // A saved quest is immutable membership, so this must be an idempotent
+  // INSERT rather than an UPSERT. Supabase's default UPSERT emits
+  // `ON CONFLICT DO UPDATE`, which requires UPDATE permission even when the
+  // row does not yet exist. Users deliberately have only select/insert/delete
+  // access to this RLS-protected table.
+  const { error } = await supabase.from("saved_quests").upsert(
+    {
+      quest_id: questId,
+      user_id: userData.user.id,
+    },
+    {
+      ignoreDuplicates: true,
+      onConflict: "user_id,quest_id",
+    },
+  );
   if (error) throw error;
   return true;
 }

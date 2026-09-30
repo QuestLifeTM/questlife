@@ -13,7 +13,7 @@ import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useStreaks } from "@/contexts/StreaksContext";
-import { NotificationPreferenceKey } from "@/types/settings";
+import { AppearancePreference, NotificationPreferenceKey } from "@/types/settings";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type SettingsIcon = IconName | "streak-flame";
@@ -42,7 +42,7 @@ function SettingsPage({ eyebrow = "Your account", title, children }: { eyebrow?:
 }
 
 function SettingGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return <View style={{ gap: 8 }}><Text style={{ paddingLeft: 2, color: T.muted, fontFamily: "RubikBold", fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase" }}>{title}</Text><View style={{ borderRadius: 23, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#dfd6cc", backgroundColor: T.white, overflow: "hidden" }}>{children}</View></View>;
+  return <View style={{ gap: 8 }}><Text style={{ paddingLeft: 2, color: T.muted, fontFamily: "RubikBold", fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase" }}>{title}</Text><View style={{ borderRadius: 23, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: T.border, backgroundColor: T.white, overflow: "hidden" }}>{children}</View></View>;
 }
 
 function SettingRow({ icon, color, title, detail, value, destructive = false, onPress, children }: { icon: SettingsIcon; color: string; title: string; detail?: string; value?: string; destructive?: boolean; onPress?: () => void; children?: React.ReactNode }) {
@@ -53,7 +53,21 @@ function SettingRow({ icon, color, title, detail, value, destructive = false, on
 function Divider() { return <View style={{ height: 1, marginLeft: 61, backgroundColor: T.border }} />; }
 
 function Toggle({ value, onChange, label }: { value: boolean; onChange: () => void; label: string }) {
-  return <Pressable accessibilityRole="switch" accessibilityState={{ checked: value }} accessibilityLabel={label} onPress={onChange} style={({ pressed }) => ({ width: 45, height: 28, padding: 3, borderRadius: 14, alignItems: value ? "flex-end" : "flex-start", justifyContent: "center", backgroundColor: value ? T.blue : "#e5ddd3", opacity: pressed ? 0.72 : 1 })}><View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: T.white, boxShadow: "0px 1px 2px rgba(61,52,56,0.22)" }} /></Pressable>;
+  return <Pressable accessibilityRole="switch" accessibilityState={{ checked: value }} accessibilityLabel={label} onPress={onChange} style={({ pressed }) => ({ width: 45, height: 28, padding: 3, borderRadius: 14, alignItems: value ? "flex-end" : "flex-start", justifyContent: "center", backgroundColor: value ? T.blue : T.toggleOff, opacity: pressed ? 0.72 : 1 })}><View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: T.raised, boxShadow: "0px 1px 2px rgba(0,0,0,0.22)" }} /></Pressable>;
+}
+
+function AppearanceSelector({ value, onChange }: { value: AppearancePreference; onChange: (appearance: AppearancePreference) => void }) {
+  const choices: ReadonlyArray<{ value: AppearancePreference; label: string; icon: SettingsIcon }> = [
+    { value: "system", label: "System", icon: "phone-portrait-outline" },
+    { value: "light", label: "Light", icon: "sunny-outline" },
+    { value: "dark", label: "Dark", icon: "moon-outline" },
+  ];
+  return <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: 8 }}>
+    {choices.map((choice) => {
+      const selected = choice.value === value;
+      return <Pressable key={choice.value} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={`${choice.label} appearance`} onPress={() => onChange(choice.value)} style={({ pressed }) => ({ flex: 1, minHeight: 58, borderRadius: 16, borderWidth: 2, borderColor: selected ? T.blue : T.border, backgroundColor: selected ? `${T.blue}18` : T.input, alignItems: "center", justifyContent: "center", gap: 4, opacity: pressed ? 0.72 : 1 })}><Ionicons name={choice.icon as keyof typeof Ionicons.glyphMap} size={18} color={selected ? T.blue : T.muted} /><Text style={{ color: selected ? T.blue : T.muted, fontFamily: "RubikBold", fontSize: 12 }}>{choice.label}</Text></Pressable>;
+    })}
+  </View>;
 }
 
 function ConfirmationDialog({ action, onClose }: { action: AccountAction; onClose: () => void }) {
@@ -70,23 +84,23 @@ function ConfirmationDialog({ action, onClose }: { action: AccountAction; onClos
     setError(null);
     try {
       if (isDelete) await deleteOwnAccount();
-      await signOut();
+      await signOut({ accountDeleted: isDelete });
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "We couldn't complete that account action. Please try again.");
       setBusy(false);
     }
   };
   const actionReady = !isDelete || confirmation.trim().toUpperCase() === "DELETE";
-  const color = isDelete ? T.red : "#e17055";
+  const color = T.red;
   return (
     <Modal transparent animationType="fade" visible onRequestClose={busy ? undefined : onClose}>
       <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, backgroundColor: "rgba(30,25,28,0.48)" }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, backgroundColor: T.overlay }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 440, alignSelf: "center", borderRadius: 28, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, padding: 24, gap: 14, boxShadow: "5px 6px 0px rgba(61,52,56,0.18)" }}>
+          <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 440, alignSelf: "center", borderRadius: 28, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, padding: 24, gap: 14, boxShadow: `5px 6px 0px ${T.shadow}` }}>
             <View style={{ alignItems: "center", gap: 8 }}>
               <View style={{ width: 58, height: 58, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: iconTint(color) }}>
                 <Ionicons name={isDelete ? "trash-outline" : "log-out-outline"} size={28} color={color} />
@@ -157,12 +171,12 @@ export function PrivacySettingsScreen() {
 }
 
 export function AppPreferencesScreen() {
-  const { settings, setHapticFeedback, setHighContrast, setReduceMotion } = useSettings();
+  const { settings, setAppearance, setHapticFeedback, setHighContrast, setReduceMotion } = useSettings();
   const { showFeedback } = useAppFeedback();
   const updateHaptics = async () => { const enabled = !settings.hapticFeedback; await setHapticFeedback(enabled); showFeedback({ message: enabled ? "Haptic feedback is on." : "Haptic feedback is off.", icon: "phone-portrait-outline", color: T.pink }); };
   const updateReduceMotion = async () => { const enabled = !settings.reduceMotion; await setReduceMotion(enabled); showFeedback({ message: enabled ? "Motion is reduced in animated screens." : "Animations follow your device setting.", icon: "sparkles", color: T.purple }); };
   const updateHighContrast = async () => { const enabled = !settings.highContrast; await setHighContrast(enabled); showFeedback({ message: enabled ? "High contrast is on." : "High contrast is off.", icon: "contrast", color: T.blue }); };
-  return <SettingsPage eyebrow="Account" title="Preferences"><SettingGroup title="App feel"><SettingRow icon="phone-portrait-outline" color={T.pink} title="Haptic Feedback" detail="Vibration on supported interactions"><Toggle value={settings.hapticFeedback} label="Haptic feedback" onChange={() => void updateHaptics()} /></SettingRow><Divider /><SettingRow icon="sparkles-outline" color={T.purple} title="Reduce Motion" detail="Minimize movement in animated screens"><Toggle value={settings.reduceMotion} label="Reduce motion" onChange={() => void updateReduceMotion()} /></SettingRow><Divider /><SettingRow icon="contrast-outline" color={T.blue} title="High Contrast" detail="Increase contrast across QuestLife"><Toggle value={settings.highContrast} label="High contrast" onChange={() => void updateHighContrast()} /></SettingRow><Divider /><SettingRow icon="text-outline" color={T.blue} title="Text size" detail="Use your device’s preferred text size" onPress={() => { void Linking.openSettings().catch(() => undefined); }} /><Divider /><SettingRow icon="settings-outline" color={T.blue} title="Device permissions" detail="Manage notification, location, and photo access" onPress={() => { void Linking.openSettings().catch(() => undefined); }} /></SettingGroup></SettingsPage>;
+  return <SettingsPage eyebrow="Account" title="Preferences"><SettingGroup title="Appearance"><View style={{ padding: 14, gap: 10 }}><View style={{ flexDirection: "row", gap: 9, alignItems: "center" }}><View style={{ width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: `${T.purple}18` }}><Ionicons name="color-palette-outline" size={19} color={T.purple} /></View><View style={{ flex: 1 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15 }}>Appearance</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 16 }}>Choose how QuestLife looks on this device</Text></View></View><AppearanceSelector value={settings.appearance} onChange={(appearance) => void setAppearance(appearance)} /></View></SettingGroup><SettingGroup title="App feel"><SettingRow icon="phone-portrait-outline" color={T.pink} title="Haptic Feedback" detail="Vibration on supported interactions"><Toggle value={settings.hapticFeedback} label="Haptic feedback" onChange={() => void updateHaptics()} /></SettingRow><Divider /><SettingRow icon="sparkles-outline" color={T.purple} title="Reduce Motion" detail="Minimize movement in animated screens"><Toggle value={settings.reduceMotion} label="Reduce motion" onChange={() => void updateReduceMotion()} /></SettingRow><Divider /><SettingRow icon="contrast-outline" color={T.blue} title="High Contrast" detail="Increase contrast across QuestLife"><Toggle value={settings.highContrast} label="High contrast" onChange={() => void updateHighContrast()} /></SettingRow><Divider /><SettingRow icon="text-outline" color={T.blue} title="Text size" detail="Use your device’s preferred text size" onPress={() => { void Linking.openSettings().catch(() => undefined); }} /><Divider /><SettingRow icon="settings-outline" color={T.blue} title="Device permissions" detail="Manage notification, location, and photo access" onPress={() => { void Linking.openSettings().catch(() => undefined); }} /></SettingGroup></SettingsPage>;
 }
 
 function FaqRow({ question, answer }: { question: string; answer: string }) {
@@ -177,5 +191,5 @@ export function HelpSupportScreen() {
 
 export function AboutQuestLifeScreen() {
   const open = (url: string) => { void Linking.openURL(url).catch(() => undefined); };
-  return <SettingsPage eyebrow="Support" title="About QuestLife"><View style={{ borderRadius: 24, padding: 24, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: "#dfd6cc", backgroundColor: T.white, alignItems: "center", gap: 9 }}><View style={{ width: 66, height: 66, borderRadius: 23, backgroundColor: `${T.blue}15`, alignItems: "center", justifyContent: "center" }}><Ionicons name="map-outline" size={34} color={T.blue} /></View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 25 }}>QuestLife</Text><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12 }}>Version 1.0.0</Text><Text style={{ marginTop: 7, color: T.muted, fontFamily: "Rubik", fontSize: 13, lineHeight: 20, textAlign: "center" }}>QuestLife helps you turn everyday moments into real-world adventures. Build streaks, collect memories, and grow with the people around you.</Text></View><SettingGroup title="Legal & credits"><SettingRow icon="open-outline" color={T.muted} title="Terms of Service" onPress={() => open("https://www.myquestlife.app/terms")} /><Divider /><SettingRow icon="open-outline" color={T.muted} title="Privacy Policy" onPress={() => open("https://www.myquestlife.app/privacy")} /><Divider /><SettingRow icon="open-outline" color={T.muted} title="Open Source Licenses" onPress={() => open("https://www.myquestlife.app/licenses")} /></SettingGroup><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, textAlign: "center" }}>Made with care for people who want to live a bigger life.</Text></SettingsPage>;
+  return <SettingsPage eyebrow="Support" title="About QuestLife"><View style={{ borderRadius: 24, padding: 24, borderWidth: 2, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: T.border, backgroundColor: T.white, alignItems: "center", gap: 9 }}><View style={{ width: 66, height: 66, borderRadius: 23, backgroundColor: `${T.blue}15`, alignItems: "center", justifyContent: "center" }}><Ionicons name="map-outline" size={34} color={T.blue} /></View><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 25 }}>QuestLife</Text><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12 }}>Version 1.0.0</Text><Text style={{ marginTop: 7, color: T.muted, fontFamily: "Rubik", fontSize: 13, lineHeight: 20, textAlign: "center" }}>QuestLife helps you turn everyday moments into real-world adventures. Build streaks, collect memories, and grow with the people around you.</Text></View><SettingGroup title="Legal & credits"><SettingRow icon="open-outline" color={T.muted} title="Terms of Service" onPress={() => open("https://www.myquestlife.app/terms")} /><Divider /><SettingRow icon="open-outline" color={T.muted} title="Privacy Policy" onPress={() => open("https://www.myquestlife.app/privacy")} /><Divider /><SettingRow icon="open-outline" color={T.muted} title="Open Source Licenses" onPress={() => open("https://www.myquestlife.app/licenses")} /></SettingGroup><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, textAlign: "center" }}>Made with care for people who want to live a bigger life.</Text></SettingsPage>;
 }

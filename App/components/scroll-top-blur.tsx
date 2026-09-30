@@ -11,6 +11,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { T } from "@/components/theme";
+import { useThemeKey } from "@/contexts/SettingsContext";
 
 /**
  * A scroll-linked veil for full-page content. The blur is intentionally light
@@ -28,6 +30,7 @@ export function useTopScrollBlur() {
 }
 
 export function ScrollTopBlur({ scrollY }: { scrollY: SharedValue<number> }) {
+  useThemeKey();
   const insets = useSafeAreaInsets();
   const animatedStyle = useAnimatedStyle(() => ({
     // The effect begins as soon as content moves and reaches its calm resting
@@ -48,7 +51,7 @@ export function ScrollTopBlur({ scrollY }: { scrollY: SharedValue<number> }) {
           />
         }
       >
-        <BlurView tint="light" intensity={18} style={StyleSheet.absoluteFill} />
+        <BlurView tint={T.isDark ? "dark" : "light"} intensity={18} style={StyleSheet.absoluteFill} />
       </MaskedView>
     </Animated.View>
   );

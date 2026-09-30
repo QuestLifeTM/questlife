@@ -5,7 +5,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { BackButton, PrimaryButton } from "@/components/auth/AuthControls";
 import { AuthTitle } from "@/components/auth/AuthText";
 import { AuthScaffold } from "@/components/auth/AuthScaffold";
-import { T } from "@/components/theme";
+import { T, themedStyles } from "@/components/theme";
 import {
   getRegistrationAccountState,
   resendSignupConfirmationLink,
@@ -131,7 +131,7 @@ export default function VerifyEmailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => StyleSheet.create({
   form: {
     gap: 10,
     marginBottom: 26,
@@ -155,4 +155,4 @@ const styles = StyleSheet.create({
   resendDisabled: {
     color: T.muted,
   },
-});
+}));

@@ -106,7 +106,7 @@ export function QuestCommentsSheet({ postId, visible, onClose, onCountChange }: 
         <Text style={{ color: T.muted, fontSize: 11, fontWeight: "800" }}>{replyTo ? `Replying to @${replyTo.username ?? replyTo.displayName}` : "Add a comment"}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <TextInput value={draft} onChangeText={setDraft} placeholder="Write a comment…" placeholderTextColor={T.muted} multiline style={{ flex: 1, minHeight: 46, maxHeight: 90, borderRadius: 20, borderWidth: 1.5, borderColor: T.border, paddingHorizontal: 13, paddingVertical: 10, color: T.dark, fontWeight: "600" }} />
-          <Pressable disabled={!draft.trim() || sending} onPress={() => void submit()} style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: draft.trim() ? T.blue : T.border, alignItems: "center", justifyContent: "center" }}><Ionicons name="paper-plane" size={19} color={T.white} /></Pressable>
+          <Pressable disabled={!draft.trim() || sending} onPress={() => void submit()} style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: draft.trim() ? T.blue : T.border, alignItems: "center", justifyContent: "center" }}><Ionicons name="paper-plane" size={19} color={T.onAccent} /></Pressable>
         </View>
       </View>
     </View>

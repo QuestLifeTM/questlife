@@ -29,7 +29,7 @@ function MemoryStat({ label, value, icon, color, bordered }: { label: string; va
 }
 
 function MemoryAction({ label, icon, color, onPress, inverse = false, fullWidth = false }: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; inverse?: boolean; fullWidth?: boolean }) {
-  const textColor = inverse ? color : T.white;
+  const textColor = inverse ? color : T.onAccent;
   return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => ({ flex: fullWidth ? undefined : 1, minHeight: 54, borderRadius: 19, borderWidth: inverse ? 2 : 0, borderColor: inverse ? color : "transparent", borderBottomWidth: inverse ? 4 : 5, borderBottomColor: inverse ? `${color}99` : "rgba(61,52,56,0.22)", backgroundColor: inverse ? T.white : color, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7, paddingHorizontal: 10, opacity: pressed ? 0.86 : 1, transform: [{ translateY: pressed ? 2 : 0 }] })}><Ionicons name={icon} size={18} color={textColor} /><Text numberOfLines={1} style={{ color: textColor, fontFamily: "RubikBold", fontSize: 14, textAlign: "center" }}>{label}</Text></Pressable>;
 }
 
@@ -64,8 +64,8 @@ function MemorySheetButton({ label, icon, color, onPress, disabled = false, vari
         transform: [{ translateY: pressed && !disabled ? 3 : 0 }]
       })}
     >
-      {icon ? <Ionicons name={icon} size={19} color={filled ? T.white : color} /> : null}
-      <Text style={{ color: filled ? T.white : color, fontFamily: "RubikBold", fontSize: 15, letterSpacing: 0.15 }}>{label}</Text>
+      {icon ? <Ionicons name={icon} size={19} color={filled ? T.onAccent : color} /> : null}
+      <Text style={{ color: filled ? T.onAccent : color, fontFamily: "RubikBold", fontSize: 15, letterSpacing: 0.15 }}>{label}</Text>
     </Pressable>
   );
 }
@@ -273,7 +273,7 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
 
           <View style={{ gap: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Photos from this quest</Text>{memory.photoPaths.length < 5 ? <Pressable accessibilityRole="button" accessibilityLabel="Add a photo to this memory" disabled={savingPhoto} onPress={() => void addPhoto()} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: savingPhoto ? 0.45 : pressed ? 0.68 : 1 })}><Ionicons name="add-circle-outline" size={17} color={actionColor} /><Text style={{ color: actionColor, fontFamily: "RubikBold", fontSize: 12 }}>Add photo</Text></Pressable> : null}</View>
-            {photoUrls.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{photoUrls.map((uri, index) => <View key={uri} style={{ width: 180, height: 132, overflow: "hidden", borderRadius: radius.lg, backgroundColor: T.border }}><Image accessibilityLabel={`Quest photo ${index + 1} of ${photoUrls.length}`} source={{ uri }} style={{ width: "100%", height: "100%" }} /><Pressable accessibilityRole="button" accessibilityLabel={`Manage photo ${index + 1}`} onPress={() => setManagedPhotoIndex(index)} hitSlop={7} style={({ pressed }) => ({ position: "absolute", top: 8, right: 8, width: 31, height: 31, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.94)", opacity: pressed ? 0.7 : 1 })}><Ionicons name="ellipsis-horizontal" size={18} color={T.dark} /></Pressable></View>)}</ScrollView> : <View style={{ minHeight: 108, borderRadius: radius.lg, borderWidth: 1.5, borderStyle: "dashed", borderColor: `${actionColor}65`, backgroundColor: `${actionColor}0a`, alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 22 }}><Ionicons name="images-outline" size={25} color={actionColor} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 13 }}>No photos saved yet</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700", textAlign: "center" }}>Add a photo to keep this moment in your Journal.</Text></View>}
+            {photoUrls.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{photoUrls.map((uri, index) => <View key={uri} style={{ width: 180, height: 132, overflow: "hidden", borderRadius: radius.lg, backgroundColor: T.border }}><Image accessibilityLabel={`Quest photo ${index + 1} of ${photoUrls.length}`} source={{ uri }} style={{ width: "100%", height: "100%" }} /><Pressable accessibilityRole="button" accessibilityLabel={`Manage photo ${index + 1}`} onPress={() => setManagedPhotoIndex(index)} hitSlop={7} style={({ pressed }) => ({ position: "absolute", top: 8, right: 8, width: 31, height: 31, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: T.raised, opacity: pressed ? 0.7 : 1 })}><Ionicons name="ellipsis-horizontal" size={18} color={T.dark} /></Pressable></View>)}</ScrollView> : <View style={{ minHeight: 108, borderRadius: radius.lg, borderWidth: 1.5, borderStyle: "dashed", borderColor: `${actionColor}65`, backgroundColor: `${actionColor}0a`, alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 22 }}><Ionicons name="images-outline" size={25} color={actionColor} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 13 }}>No photos saved yet</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700", textAlign: "center" }}>Add a photo to keep this moment in your Journal.</Text></View>}
           </View>
 
           <View style={{ gap: 10 }}>

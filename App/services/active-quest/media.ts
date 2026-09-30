@@ -4,8 +4,11 @@ import Constants, { ExecutionEnvironment } from "expo-constants";
 import { uploadQuestPhoto } from "@/services/engine/questEngineService";
 import { addActiveQuestPhoto, getActiveQuestPhotos, updateActiveQuestPhoto } from "@/services/active-quest/local-store";
 import { compressFeedImage } from "@/services/media/feed-image";
+import { localUserRoot } from "@/services/local-data/lifecycle";
+import { requireLocalDataOwner } from "@/services/local-data/owner";
 
 export async function persistQuestPhoto(sessionId: string, temporaryUri: string, options: { tutorialOnly?: boolean } = {}) {
+  const ownerId = requireLocalDataOwner();
   // The system camera returns a temporary URI on some Android devices. Save it
   // to the user's library first, then preserve a stable private copy for the
   // quest album and eventual upload.
@@ -30,7 +33,7 @@ export async function persistQuestPhoto(sessionId: string, temporaryUri: string,
   } catch {
     // Preserve the moment even if a device cannot transform this camera file.
   }
-  const root = `${FileSystem.documentDirectory}active-quests/${sessionId}`;
+  const root = `${localUserRoot(ownerId)}/active-quests/${sessionId}`;
   await FileSystem.makeDirectoryAsync(root, { intermediates: true });
   const uri = `${root}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
   await FileSystem.copyAsync({ from: compressedUri, to: uri });

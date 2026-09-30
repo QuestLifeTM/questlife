@@ -43,7 +43,7 @@ function periodFor(value: string): NotificationPeriod {
 
 function CategoryChip({ category, active, onPress }: { category: NotificationFilter; active: boolean; onPress: () => void }) {
   const color = categoryTint(category);
-  return <Pressable onPress={onPress} style={({ pressed }) => ({ minHeight: 42, borderRadius: 24, paddingHorizontal: 17, alignItems: "center", justifyContent: "center", backgroundColor: active ? color : T.white, borderWidth: 2, borderColor: color, borderBottomWidth: pressed ? 2 : 4, borderBottomColor: `${color}88`, transform: [{ scale: pressed ? 0.96 : 1 }, { translateY: pressed ? 2 : 0 }] })}><Text style={{ color: active ? T.white : color, fontFamily: "RubikBold", fontSize: 12 }}>{category}</Text></Pressable>;
+  return <Pressable onPress={onPress} style={({ pressed }) => ({ minHeight: 42, borderRadius: 24, paddingHorizontal: 17, alignItems: "center", justifyContent: "center", backgroundColor: active ? color : T.white, borderWidth: 2, borderColor: color, borderBottomWidth: pressed ? 2 : 4, borderBottomColor: `${color}88`, transform: [{ scale: pressed ? 0.96 : 1 }, { translateY: pressed ? 2 : 0 }] })}><Text style={{ color: active ? T.onAccent : color, fontFamily: "RubikBold", fontSize: 12 }}>{category}</Text></Pressable>;
 }
 
 function NotificationRow({ item, onPress }: { item: AppNotification; onPress: () => void }) {
