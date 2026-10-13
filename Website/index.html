@@ -1,7 +1,15 @@
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#fbfaf6"><title>QuestLife — Make more room for life</title><meta name="description" content="QuestLife makes space for the plans and people worth remembering."><link rel="stylesheet" href="/styles.css"></head>
-<body>
+<body class="is-loading">
+  <div class="photo-intro" aria-hidden="true">
+    <div class="photo-intro__grid">
+      <img src="/assets/moments/city-sunset.jpg" alt=""><img src="/assets/moments/trail-marker.jpg" alt=""><img src="/assets/moments/how-did-we-get-here.jpg" alt=""><img src="/assets/moments/moon-lines.jpg" alt="">
+      <img src="/assets/moments/coffee-cake.jpg" alt=""><img src="/assets/moments/pool-night.jpg" alt=""><img src="/assets/moments/cafe.jpg" alt=""><img src="/assets/moments/cafe-window.jpg" alt="">
+      <img src="/assets/moments/trail-marker.jpg" alt=""><img src="/assets/moments/city-sunset.jpg" alt=""><img src="/assets/moments/pool-night.jpg" alt=""><img src="/assets/moments/coffee-cake.jpg" alt="">
+    </div>
+    <div class="photo-intro__core"><img src="/assets/moments/city-sunset.jpg" alt=""></div>
+  </div>
   <main class="landing" aria-labelledby="hero-title">
     <div class="mark" aria-hidden="true"><img src="/assets/app/questlife-icon.png" width="56" height="56" alt=""></div>
     <h1 id="hero-title">Your life,<br>out in the <em>world.</em></h1>
@@ -18,4 +26,9 @@
     <a class="app-link" href="#download"><span class="apple" aria-hidden="true">●</span><span><small>DOWNLOAD ON THE</small><b>App Store</b></span></a>
     <a class="app-link google" href="#download"><span aria-hidden="true">▶</span><span><small>GET IT ON</small><b>Google Play</b></span></a>
   </nav>
+  <script>
+    window.addEventListener('load', () => {
+      window.setTimeout(() => document.body.classList.replace('is-loading', 'is-ready'), 1050);
+    });
+  </script>
 </body></html>
