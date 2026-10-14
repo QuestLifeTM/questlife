@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#fbfaf6"><title>QuestLife — Make more room for life</title><meta name="description" content="QuestLife makes space for the plans and people worth remembering."><link rel="stylesheet" href="/styles.css"></head>
-<body class="is-loading">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#fbfaf6"><title>QuestLife — Make more room for life</title><meta name="description" content="QuestLife makes space for the plans and people worth remembering."><script src="/assets/landing-intro.js"></script><link rel="stylesheet" href="/styles.css"></head>
+<body>
   <div class="photo-intro" aria-hidden="true">
     <div class="photo-intro__door photo-intro__door--left"><div class="photo-intro__grid">
       <div class="photo-intro__lane photo-intro__lane--up"><div class="photo-intro__track"><img src="/assets/moments/city-sunset.jpg" alt=""><img src="/assets/moments/cafe-window.jpg" alt=""><img src="/assets/moments/city-sunset.jpg" alt=""></div></div>
@@ -34,12 +34,4 @@
   <nav class="bottom-nav" aria-label="QuestLife navigation">
     <div class="legal"><div><a href="/">Terms</a><span>&amp;</span><a href="/">Privacy</a></div><small>© 2026 QuestLife</small></div>
   </nav>
-  <script>
-    window.addEventListener('load', () => {
-      // Start the photo lanes on the next frame so their movement is visible
-      // before the doors begin opening.
-      window.requestAnimationFrame(() => document.body.classList.add('is-rotating'));
-      window.setTimeout(() => document.body.classList.replace('is-loading', 'is-ready'), 2800);
-    });
-  </script>
 </body></html>
