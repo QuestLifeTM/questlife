@@ -11,6 +11,7 @@
       <div class="photo-intro__lane photo-intro__lane--up"><div class="photo-intro__track"><img src="/assets/moments/how-did-we-get-here.jpg" alt=""><img src="/assets/moments/coffee-cake.jpg" alt=""><img src="/assets/moments/how-did-we-get-here.jpg" alt=""></div></div>
       <div class="photo-intro__lane photo-intro__lane--down"><div class="photo-intro__track"><img src="/assets/moments/moon-lines.jpg" alt=""><img src="/assets/moments/pool-night.jpg" alt=""><img src="/assets/moments/moon-lines.jpg" alt=""></div></div>
     </div></div>
+    <img class="photo-intro__compass" src="/assets/compass-loader.png" alt="">
   </div>
   <main class="landing" aria-labelledby="hero-title">
     <div class="mark" aria-hidden="true"><img src="/assets/app/questlife-icon.png" width="56" height="56" alt=""></div>
@@ -30,7 +31,8 @@
   </nav>
   <script>
     window.addEventListener('load', () => {
-      window.setTimeout(() => document.body.classList.replace('is-loading', 'is-ready'), 4800);
+      window.setTimeout(() => document.body.classList.add('is-rotating'), 1000);
+      window.setTimeout(() => document.body.classList.replace('is-loading', 'is-ready'), 2000);
     });
   </script>
 </body></html>
