@@ -10,8 +10,8 @@
 
   const setUpMemoryCard = () => {
     const card = document.querySelector('[data-memory-card]');
-    const photos = [...document.querySelectorAll('[data-memory-photo]')];
-    const dates = [...document.querySelectorAll('[data-memory-date]')];
+    const front = card?.querySelector('.memory-card__face--front');
+    const back = card?.querySelector('.memory-card__face--back');
     const memories = [
       ['coffee-cake.jpg', 'October 14'],
       ['city-sunset.jpg', 'September 28'],
@@ -21,20 +21,29 @@
       ['moon-lines.jpg', 'May 10'],
     ];
     let memoryIndex = 0;
+    let showingBack = false;
 
-    if (!card || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!card || !front || !back || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-    card.addEventListener('animationiteration', () => {
-      memoryIndex = (memoryIndex + 1) % memories.length;
-      const [fileName, date] = memories[memoryIndex];
+    const updateFace = (face, index) => {
+      const [fileName, date] = memories[index];
+      face.querySelector('[data-memory-photo]').src = `/assets/moments/${fileName}`;
+      face.querySelector('[data-memory-date]').textContent = date;
+    };
 
-      photos.forEach((photo) => {
-        photo.src = `/assets/moments/${fileName}`;
-      });
-      dates.forEach((dateLabel) => {
-        dateLabel.textContent = date;
-      });
-    });
+    const flipToNextMemory = () => {
+      const nextIndex = (memoryIndex + 1) % memories.length;
+      const hiddenFace = showingBack ? front : back;
+
+      updateFace(hiddenFace, nextIndex);
+      card.classList.toggle('is-flipped');
+      showingBack = !showingBack;
+      memoryIndex = nextIndex;
+
+      window.setTimeout(flipToNextMemory, 5000);
+    };
+
+    window.setTimeout(flipToNextMemory, 3400);
   };
 
   if (document.readyState === 'loading') {
