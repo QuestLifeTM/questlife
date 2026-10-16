@@ -1,5 +1,11 @@
 {
   "cleanUrls": true,
+  "redirects": [
+    { "source": "/about", "destination": "/", "permanent": false },
+    { "source": "/about/:path*", "destination": "/", "permanent": false },
+    { "source": "/memories", "destination": "/", "permanent": false },
+    { "source": "/memories/:path*", "destination": "/", "permanent": false }
+  ],
   "headers": [
     {
       "source": "/(.*)",
