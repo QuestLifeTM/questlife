@@ -13,12 +13,12 @@
     const front = card?.querySelector('.memory-card__face--front');
     const back = card?.querySelector('.memory-card__face--back');
     const memories = [
-      ['coffee-cake.jpg', 'October 14'],
-      ['city-sunset.jpg', 'September 28'],
-      ['cafe-window.jpg', 'August 17'],
-      ['trail-marker.jpg', 'July 06'],
-      ['pool-night.jpg', 'June 22'],
-      ['moon-lines.jpg', 'May 10'],
+      ['coffee-cake.jpg', 'October 14, 2026', 'St. Augustine, FL'],
+      ['city-sunset.jpg', 'September 28, 2026', 'New York, NY'],
+      ['cafe-window.jpg', 'August 17, 2026', 'Winter Park, FL'],
+      ['trail-marker.jpg', 'July 06, 2026', 'Blue Ridge, GA'],
+      ['pool-night.jpg', 'June 22, 2026', 'Naples, FL'],
+      ['moon-lines.jpg', 'May 10, 2026', 'Miami, FL'],
     ];
     let memoryIndex = 0;
     let showingBack = false;
@@ -26,9 +26,10 @@
     if (!card || !front || !back || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     const updateFace = (face, index) => {
-      const [fileName, date] = memories[index];
+      const [fileName, date, location] = memories[index];
       face.querySelector('[data-memory-photo]').src = `/assets/moments/${fileName}`;
       face.querySelector('[data-memory-date]').textContent = date;
+      face.querySelector('[data-memory-location]').textContent = location;
     };
 
     const flipToNextMemory = () => {

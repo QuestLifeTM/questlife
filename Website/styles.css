@@ -20,3 +20,6 @@
 
 /* One face-to-face memory turn, followed by a pause. */
 .memory-orbit::after{display:none}.memory-card{animation:none;transform:rotateY(0deg) rotateZ(-3deg);transition:transform 1.6s cubic-bezier(.65,0,.35,1)}.memory-card.is-flipped{transform:rotateY(180deg) rotateZ(3deg)}.hero-cta{display:none}
+
+/* The memory metadata reads as a dated place, rather than a split label. */
+.memory-card__caption{display:grid;justify-content:start;gap:7px;padding:clamp(15px,1.8vw,22px) clamp(7px,1vw,12px) clamp(6px,.8vw,10px)}.memory-card__caption strong{font-family:Georgia,serif;font-size:clamp(1.9rem,3.3vw,3.55rem);line-height:.95;letter-spacing:-.045em}.memory-card__location{display:flex;align-items:center;gap:7px;color:oklch(48% .015 250);font-size:clamp(.8rem,1.1vw,1.08rem);font-weight:500}.memory-card__location svg{width:1.1em;height:1.1em;fill:currentColor}.memory-card__location svg circle{fill:#fff}
