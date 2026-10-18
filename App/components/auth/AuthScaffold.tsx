@@ -1,11 +1,11 @@
-import { Fragment, PropsWithChildren } from "react";
+import { Fragment, PropsWithChildren, ReactNode } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { radius, shadow, T, themedStyles } from "@/components/theme";
 import { AmbientGlow, useResponsiveScreenLayout } from "@/components/ui";
 import { useThemeKey } from "@/contexts/SettingsContext";
 
-export function AuthScaffold({ children }: PropsWithChildren) {
+export function AuthScaffold({ children, topAccessory }: PropsWithChildren<{ topAccessory?: ReactNode }>) {
   const themeKey = useThemeKey();
   const insets = useSafeAreaInsets();
   const { horizontalPadding } = useResponsiveScreenLayout();
@@ -30,7 +30,10 @@ export function AuthScaffold({ children }: PropsWithChildren) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.card}><Fragment key={themeKey}>{children}</Fragment></View>
+          <View style={styles.contentFrame}>
+            {topAccessory ? <View style={styles.topAccessory}>{topAccessory}</View> : null}
+            <View style={styles.card}><Fragment key={themeKey}>{children}</Fragment></View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -49,10 +52,16 @@ const styles = themedStyles(() => StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center"
   },
-  card: {
+  contentFrame: {
     width: "100%",
     maxWidth: 390,
-    alignSelf: "center",
+    alignSelf: "center"
+  },
+  topAccessory: {
+    width: "100%"
+  },
+  card: {
+    width: "100%",
     borderWidth: 2,
     borderColor: T.border,
     borderRadius: radius.xl,

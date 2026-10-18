@@ -5,7 +5,12 @@ import { Controller, useForm } from "react-hook-form";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
+  AppleButton,
   AuthInput,
+  BackButton,
+  Divider,
+  GoogleIcon,
+  OutlineButton,
   PasswordToggle,
   PrimaryButton,
 } from "@/components/auth/AuthControls";
@@ -14,14 +19,17 @@ import { AuthScaffold } from "@/components/auth/AuthScaffold";
 import { T, themedStyles } from "@/components/theme";
 import {
   EmailNotVerifiedError,
+  openOAuth,
   signInWithEmail,
 } from "@/services/auth/authService";
+import { AuthProviderName } from "@/types/auth";
 import { getRememberedEmail } from "@/services/auth/rememberedEmail";
 import { LoginForm, loginSchema } from "@/validation/authSchemas";
 
 export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oauthProvider, setOauthProvider] = useState<AuthProviderName | null>(null);
   const {
     control,
     formState: { errors, isValid },
@@ -84,9 +92,20 @@ export default function LoginScreen() {
     }
   }
 
+  async function continueWithProvider(provider: AuthProviderName) {
+    try {
+      setOauthProvider(provider);
+      await openOAuth(provider);
+    } catch {
+      Alert.alert("Sign in unavailable", `We couldn't start ${provider === "apple" ? "Apple" : "Google"} sign in. Please try again.`);
+    } finally {
+      setOauthProvider(null);
+    }
+  }
+
   return (
-    <AuthScaffold>
-      <AuthTitle>{"Hey,\nWelcome\nBack"}</AuthTitle>
+    <AuthScaffold topAccessory={<BackButton onPress={() => router.replace("/")} />}>
+      <AuthTitle>{"Welcome\nback!"}</AuthTitle>
 
       <View style={styles.form}>
         <Controller
@@ -146,9 +165,25 @@ export default function LoginScreen() {
         title={loading ? "Signing in..." : "Sign In"}
       />
 
+      <View style={styles.providerOptions}>
+        <Divider />
+        <AppleButton
+          disabled={Boolean(oauthProvider)}
+          onPress={() => void continueWithProvider("apple")}
+          title={oauthProvider === "apple" ? "Opening Apple..." : "Continue with Apple"}
+        />
+        <OutlineButton
+          disabled={Boolean(oauthProvider)}
+          onPress={() => void continueWithProvider("google")}
+          title={oauthProvider === "google" ? "Opening Google..." : "Continue with Google"}
+        >
+          <GoogleIcon />
+        </OutlineButton>
+      </View>
+
       <Text style={styles.footer}>
         {"Don't have an account? "}
-        <Text style={styles.link} onPress={() => router.push("/(auth)/auth-options")}>
+        <Text style={styles.link} onPress={() => router.replace("/")}>
           Sign up
         </Text>
       </Text>
@@ -169,6 +204,10 @@ const styles = themedStyles(() => StyleSheet.create({
     color: T.blue,
     fontSize: 12,
     fontWeight: "800",
+  },
+  providerOptions: {
+    gap: 12,
+    marginTop: 24,
   },
   footer: {
     color: T.muted,

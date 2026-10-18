@@ -6,9 +6,9 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import Animated, { cancelAnimation, Easing, type SharedValue, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { GoogleIcon, OutlineButton } from "@/components/auth/AuthControls";
-import { radius, shadow, T, themedStyles } from "@/components/theme";
-import { haptic, useResponsiveScreenLayout } from "@/components/ui";
+import { AppleButton, GoogleIcon, OutlineButton } from "@/components/auth/AuthControls";
+import { shadow, T, themedStyles } from "@/components/theme";
+import { useResponsiveScreenLayout } from "@/components/ui";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];
@@ -171,10 +171,7 @@ export default function AuthOptionsScreen() {
       </View>
       <QuestPhonePreview />
       <View style={styles.actions}>
-        <Pressable accessibilityRole="button" onPress={() => { haptic(); showOAuthSetup(); }} style={({ pressed }) => [styles.appleButton, pressed && styles.pressed]}>
-          <Ionicons color={T.onAccent} name="logo-apple" size={21} />
-          <Text style={styles.appleLabel}>Continue with Apple</Text>
-        </Pressable>
+        <AppleButton title="Continue with Apple" onPress={showOAuthSetup} />
         <OutlineButton title="Continue with Google" onPress={showOAuthSetup}><GoogleIcon /></OutlineButton>
         <OutlineButton title="Use email instead" onPress={continueWithEmail}><Ionicons color={T.blue} name="mail-outline" size={21} /></OutlineButton>
         <Text style={styles.legal}>By continuing, you agree to our <Text style={styles.legalLink}>Terms of Service</Text> and <Text style={styles.legalLink}>Privacy Policy</Text>.</Text>
@@ -216,8 +213,6 @@ const styles = themedStyles(() => StyleSheet.create({
   phoneLineLong: { width: "82%", height: 4, borderRadius: 999, backgroundColor: T.dark },
   phoneLineShort: { width: "56%", height: 3, borderRadius: 999, backgroundColor: T.border },
   actions: { gap: 10 },
-  appleButton: { minHeight: 52, borderRadius: radius.md, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 10, backgroundColor: T.dark },
-  appleLabel: { color: T.onAccent, fontSize: 16, fontWeight: "900" },
   legal: { color: T.muted, fontFamily: "Rubik", fontSize: 11, lineHeight: 15, fontWeight: "500", textAlign: "center" },
   legalLink: { color: T.muted, fontFamily: "RubikBold", textDecorationLine: "underline" },
   pressed: { transform: [{ scale: 0.97 }] },

@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, ImageBackground, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -93,7 +94,15 @@ export default function OnboardingWelcomeScreen() {
         />
       </Animated.View>
       <Animated.View style={[styles.actions, { opacity: welcomeOpacity, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, paddingBottom: Math.max(insets.bottom + 2, 10) }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Start my adventure" onPress={getStarted} style={({ pressed }) => [styles.getStartedAction, pressed && styles.actionPressed]}><Text style={styles.getStartedActionText}>Start my Adventure</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Start my adventure" onPress={getStarted} style={({ pressed }) => [styles.getStartedAction, pressed && styles.actionPressed]}>
+          <LinearGradient
+            colors={["rgba(255,255,255,0.25)", "rgba(255,255,255,0.07)", "rgba(255,255,255,0)"]}
+            locations={[0, 0.42, 0.72]}
+            pointerEvents="none"
+            style={styles.getStartedActionGloss}
+          />
+          <Text style={styles.getStartedActionText}>Start my Adventure</Text>
+        </Pressable>
         <View style={styles.divider} />
         <Pressable accessibilityRole="button" accessibilityLabel="Sign in" onPress={signIn} style={({ pressed }) => ({ alignSelf: "center", minHeight: 34, justifyContent: "center", opacity: pressed ? 0.65 : 1 })}><Text style={styles.authPrompt}>Already have an account? <Text style={styles.signInText}>Sign In</Text></Text></Pressable>
       </Animated.View>
@@ -157,6 +166,11 @@ const styles = themedStyles(() => StyleSheet.create({
     justifyContent: "center",
     flexDirection: "row",
     gap: 12,
+    overflow: "hidden",
+  },
+  getStartedActionGloss: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 17,
   },
   getStartedActionText: {
     color: T.onAccent,

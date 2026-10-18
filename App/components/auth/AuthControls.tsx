@@ -98,6 +98,27 @@ export function OutlineButton({ title, onPress, disabled, children }: OutlineBut
   );
 }
 
+export function AppleButton({ title, onPress, disabled }: Omit<OutlineButtonProps, "children">) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={() => {
+        haptic();
+        onPress();
+      }}
+      style={({ pressed }) => [
+        styles.appleButton,
+        pressed && !disabled ? styles.pressed : null,
+        disabled ? styles.disabled : null,
+      ]}
+    >
+      <Ionicons color={T.onAccent} name="logo-apple" size={21} />
+      <Text style={styles.appleLabel}>{title}</Text>
+    </Pressable>
+  );
+}
+
 export function BackButton({ onPress }: { onPress: () => void }) {
   return <View style={styles.backButton}><IconButton icon="arrow-back" label="Back" onPress={onPress} /></View>;
 }
@@ -215,6 +236,20 @@ const styles = themedStyles(() => StyleSheet.create({
     color: T.dark,
     fontSize: 14,
     fontWeight: "900"
+  },
+  appleButton: {
+    minHeight: 52,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 10,
+    backgroundColor: T.dark,
+  },
+  appleLabel: {
+    color: T.onAccent,
+    fontSize: 16,
+    fontWeight: "900",
   },
   disabled: {
     opacity: 0.58

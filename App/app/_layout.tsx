@@ -120,7 +120,13 @@ function AppLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: T.bg }}>
       <StatusBar style={resolvedAppearance === "dark" ? "light" : "dark"} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: T.bg } }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          gestureEnabled: false,
+          contentStyle: { backgroundColor: T.bg },
+        }}
+      >
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
