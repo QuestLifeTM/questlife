@@ -1,12 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Asset } from "expo-asset";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import Animated, { Easing, FadeInRight, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { Easing, FadeInRight, FadeInUp, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
-import { ONBOARDING_DISCOVERY_TOTAL } from "@/components/onboarding-progress";
+import { ONBOARDING_TOTAL_STEPS } from "@/components/onboarding-progress";
 import { T, themedStyles } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
@@ -23,17 +23,15 @@ type Question = {
 const QUESTIONS: Question[] = [
   {
     id: "lookingFor",
-    maximumSelections: 7,
+    maximumSelections: 1,
     minimumSelections: 1,
-    helper: "Choose all that apply",
     options: [
-      { id: "discover", icon: require("../../assets/onboarding/question-icons/backpack.png"), label: "Discover something new" },
-      { id: "friends", icon: require("../../assets/onboarding/question-icons/friends.png"), label: "Something to do with friends" },
-      { id: "someone", icon: require("../../assets/onboarding/question-icons/heart-with-pulse.png"), label: "Something to do with someone" },
-      { id: "outside", icon: require("../../assets/onboarding/question-icons/forest.png"), label: "Get outside" },
-      { id: "creative", icon: require("../../assets/onboarding/question-icons/paint-palette.png"), label: "Try something creative" },
-      { id: "push-myself", icon: require("../../assets/onboarding/question-icons/lightning.png"), label: "Push myself" },
-      { id: "good-time", icon: require("../../assets/onboarding/question-icons/smiling.png"), label: "Just have a good time" },
+      { id: "under-18", icon: require("../../assets/onboarding/question-icons/backpack.png"), label: "Under 18" },
+      { id: "18-24", icon: require("../../assets/onboarding/question-icons/lightning.png"), label: "18–24" },
+      { id: "25-34", icon: require("../../assets/onboarding/question-icons/goal.png"), label: "25–34" },
+      { id: "35-44", icon: require("../../assets/onboarding/question-icons/personal-growth.png"), label: "35–44" },
+      { id: "45-54", icon: require("../../assets/onboarding/question-icons/star.png"), label: "45–54" },
+      { id: "55-plus", icon: require("../../assets/onboarding/question-icons/happy.png"), label: "55+" },
     ],
   },
   {
@@ -60,7 +58,9 @@ const QUESTIONS: Question[] = [
   },
   {
     id: "idealLife",
-    helper: "Choose 1 option",
+    maximumSelections: 4,
+    minimumSelections: 1,
+    helper: "Choose all that feel right",
     options: [
       { id: "purpose", icon: require("../../assets/onboarding/question-icons/goal.png"), label: "Living each day with purpose" },
       { id: "amazing-people", icon: require("../../assets/onboarding/question-icons/friends.png"), label: "Surrounding myself with amazing people" },
@@ -69,6 +69,8 @@ const QUESTIONS: Question[] = [
     ],
   },
 ];
+const QUESTION_CHARACTER_MS = 28;
+const OPTION_STAGGER_MS = 95;
 
 export default function AboutYouOnboardingScreen() {
   const { firstName } = useLocalSearchParams<{ firstName?: string }>();
@@ -77,9 +79,22 @@ export default function AboutYouOnboardingScreen() {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<Question["id"], string[]>>({} as Record<Question["id"], string[]>);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [typedQuestion, setTypedQuestion] = useState("");
+  const [showQuestionOptions, setShowQuestionOptions] = useState(false);
+  const [animateOptionReveal, setAnimateOptionReveal] = useState(false);
+  const seenQuestionIds = useRef(new Set<Question["id"]>());
+  const firstQuestionName = firstName?.trim() || "there";
   const completionOpacity = useSharedValue(1);
   const completionStyle = useAnimatedStyle(() => ({ opacity: completionOpacity.get() }));
   const question = QUESTIONS[questionIndex];
+  const questionTitleSegments = question.id === "lookingFor"
+    ? [{ text: "What's your age range, " }, { text: `${firstQuestionName}?`, accent: true }]
+    : question.id === "socialCircle"
+      ? [{ text: "Who do you usually go on " }, { text: "adventures", accent: true }, { text: " with?" }]
+      : question.id === "discoverySource"
+        ? [{ text: "Where did you " }, { text: "find", accent: true }, { text: " us?" }]
+        : [{ text: "What do you want your " }, { text: "life", accent: true }, { text: " to be about?" }];
+  const questionCopy = questionTitleSegments.map((segment) => segment.text).join("");
   const selectedIds = answers[question.id] ?? [];
   const maximumSelections = question.maximumSelections ?? 1;
   const minimumSelections = question.minimumSelections ?? maximumSelections;
@@ -93,6 +108,40 @@ export default function AboutYouOnboardingScreen() {
       require("../../assets/onboarding/stone-arch-background.png"),
     ]).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const hasSeenQuestion = seenQuestionIds.current.has(question.id);
+
+    if (hasSeenQuestion || reduceMotion) {
+      setTypedQuestion(questionCopy);
+      setShowQuestionOptions(true);
+      setAnimateOptionReveal(false);
+      return;
+    }
+
+    setTypedQuestion("");
+    setShowQuestionOptions(false);
+    setAnimateOptionReveal(true);
+
+    let characterIndex = 0;
+    let typingTimer: ReturnType<typeof setInterval> | undefined;
+    let optionsTimer: ReturnType<typeof setTimeout> | undefined;
+    typingTimer = setInterval(() => {
+      characterIndex += 1;
+      setTypedQuestion(questionCopy.slice(0, characterIndex));
+      if (characterIndex < questionCopy.length) return;
+      if (typingTimer) clearInterval(typingTimer);
+      optionsTimer = setTimeout(() => {
+        seenQuestionIds.current.add(question.id);
+        setShowQuestionOptions(true);
+      }, 150);
+    }, QUESTION_CHARACTER_MS);
+
+    return () => {
+      if (typingTimer) clearInterval(typingTimer);
+      if (optionsTimer) clearTimeout(optionsTimer);
+    };
+  }, [question.id, questionCopy, questionIndex, reduceMotion]);
 
   function chooseOption(optionId: string) {
     haptic();
@@ -118,13 +167,7 @@ export default function AboutYouOnboardingScreen() {
     const duration = reduceMotion ? 0 : 260;
     completionOpacity.set(withTiming(0, { duration, easing: Easing.bezier(0.23, 1, 0.32, 1) }));
     setTimeout(() => {
-      router.replace({
-        pathname: "/onboarding/understanding",
-        params: {
-          ...(firstName ? { firstName } : {}),
-          ...(answers.idealLife?.[0] ? { idealLifeId: answers.idealLife[0] } : {}),
-        },
-      });
+      router.replace("/onboarding/understanding");
     }, duration);
   }
 
@@ -138,37 +181,35 @@ export default function AboutYouOnboardingScreen() {
   }
 
   function questionTitle() {
-    switch (question.id) {
-      case "lookingFor":
-        return <>What are you really looking for <Text style={styles.titleAccent}>right now</Text>?</>;
-      case "socialCircle":
-        return <>Who do you usually go on <Text style={styles.titleAccent}>adventures</Text> with?</>;
-      case "discoverySource":
-        return <>Where did you <Text style={styles.titleAccent}>find</Text> us?</>;
-      case "idealLife":
-        return <>What do you want your <Text style={styles.titleAccent}>life</Text> to be about?</>;
-    }
+    let remainingCharacters = typedQuestion.length;
+    return questionTitleSegments.map((segment, index) => {
+      const visibleText = segment.text.slice(0, Math.max(0, remainingCharacters));
+      remainingCharacters -= segment.text.length;
+      return <Text key={`${segment.text}-${index}`} style={segment.accent ? styles.titleAccent : undefined}>{visibleText}</Text>;
+    });
   }
 
   return (
     <View style={styles.root}>
       <Animated.View pointerEvents={isCompleting ? "none" : "auto"} style={[styles.completionLayer, completionStyle]}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={questionIndex + 1} totalSteps={ONBOARDING_DISCOVERY_TOTAL} phaseLabel="Getting to know you" onBack={goBack} /></View>
-        <Animated.View key={question.id} entering={FadeInRight.duration(reduceMotion ? 0 : 280)} style={styles.questionStage}>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={questionIndex + 1} totalSteps={ONBOARDING_TOTAL_STEPS} phaseLabel="Getting to know you" onBack={goBack} /></View>
+        <Animated.View key={question.id} entering={seenQuestionIds.current.has(question.id) ? undefined : FadeInRight.duration(reduceMotion ? 0 : 280)} style={styles.questionStage}>
           <View style={styles.questionHeader}>
-            {questionIndex === 0 && firstName?.trim() ? <Text style={styles.greeting}>Nice to meet you, <Text style={styles.greetingName}>{firstName.trim()}</Text>.</Text> : null}
             <Text style={styles.title}>{questionTitle()}</Text>
-            {question.helper ? <Text style={styles.helper}>{question.helper}</Text> : null}
+            {question.helper && showQuestionOptions ? <Text style={styles.helper}>{question.helper}</Text> : null}
           </View>
           <ScrollView style={styles.optionScroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.optionList}>
-          {question.options.map((option) => {
+          {showQuestionOptions && question.options.map((option, optionIndex) => {
             const selected = selectedIds.includes(option.id);
-            return <Pressable key={option.id} accessibilityRole={maximumSelections === 1 ? "radio" : "checkbox"} accessibilityLabel={option.label} accessibilityState={{ checked: selected, disabled: maximumSelections > 1 && !selected && selectedIds.length >= maximumSelections }} onPress={() => chooseOption(option.id)} style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && styles.optionPressed]}>
+            const optionBody = <Pressable accessibilityRole={maximumSelections === 1 ? "radio" : "checkbox"} accessibilityLabel={option.label} accessibilityState={{ checked: selected, disabled: maximumSelections > 1 && !selected && selectedIds.length >= maximumSelections }} onPress={() => chooseOption(option.id)} style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && styles.optionPressed]}>
               {option.icon ? <View style={styles.optionIconFrame}><Image source={option.icon} resizeMode="contain" style={styles.optionIcon} /></View> : option.ionicon ? <View style={styles.optionIconFrame}><Ionicons name={option.ionicon} size={25} color={option.iconColor ?? T.dark} /></View> : option.emoji ? <View style={styles.optionIconFrame}><Text style={styles.optionEmoji}>{option.emoji}</Text></View> : null}
               <Text style={styles.optionLabel}>{option.label}</Text>
               {selected ? <Ionicons name="checkmark" size={18} color={T.blue} /> : null}
             </Pressable>;
+            return animateOptionReveal
+              ? <Animated.View key={option.id} entering={FadeInUp.duration(reduceMotion ? 0 : 320).delay(reduceMotion ? 0 : optionIndex * OPTION_STAGGER_MS)}>{optionBody}</Animated.View>
+              : <View key={option.id}>{optionBody}</View>;
           })}
           </ScrollView>
         </Animated.View>
@@ -193,8 +234,6 @@ const styles = themedStyles(() => StyleSheet.create({
   progressSection: { paddingTop: 2 },
   questionStage: { flex: 1 },
   questionHeader: { paddingTop: 18, paddingBottom: 18, gap: 8 },
-  greeting: { color: T.muted, fontFamily: "RubikBold", fontSize: 15, lineHeight: 20 },
-  greetingName: { color: T.blue },
   title: { maxWidth: 348, color: T.dark, fontFamily: "RubikBlack", fontSize: 23, lineHeight: 28, letterSpacing: -0.35 },
   titleAccent: { color: T.blue },
   helper: { color: T.muted, fontFamily: "RubikBold", fontSize: 13, lineHeight: 18 },

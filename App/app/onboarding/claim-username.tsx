@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { OnboardingScaffold } from "@/components/onboarding-scaffold";
 import { T, themedStyles } from "@/components/theme";
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
-import { ONBOARDING_PERSONALIZATION_TOTAL } from "@/components/onboarding-progress";
+import { ONBOARDING_TOTAL_STEPS } from "@/components/onboarding-progress";
 import { haptic } from "@/components/ui";
 import { checkUsernameAvailability } from "@/services/auth/authService";
 import { getOnboardingUsernameDraft, saveOnboardingUsernameDraft } from "@/services/onboarding/username-draft";
@@ -98,7 +98,7 @@ export default function ClaimUsernameScreen() {
           <Text style={styles.continueText}>Continue</Text>
         </Pressable>}
       >
-        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={1} totalSteps={ONBOARDING_PERSONALIZATION_TOTAL} phaseLabel="Personalizing your experience" onBack={goBack} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={5} totalSteps={ONBOARDING_TOTAL_STEPS} phaseLabel="Personalizing your experience" onBack={goBack} /></View>
         <View style={styles.copy}>
           <Text style={styles.title}>Claim your <Text style={styles.titleAccent}>username</Text></Text>
           <Text style={styles.body}>You can edit it later.</Text>

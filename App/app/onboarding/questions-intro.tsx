@@ -8,7 +8,7 @@ import { T, themedStyles } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";
-import { ONBOARDING_PERSONALIZATION_TOTAL } from "@/components/onboarding-progress";
+import { ONBOARDING_TOTAL_STEPS } from "@/components/onboarding-progress";
 
 type OnboardingOption = {
   id: string;
@@ -131,7 +131,7 @@ export default function QuestionsIntroScreen() {
   const question = QUESTIONS[questionIndex];
   const selectedIds = answers[question.id] ?? [];
   const hasRequiredSelections = selectedIds.length >= question.minimumSelections;
-  const progressStep = questionIndex + 2;
+  const progressStep = questionIndex + 6;
 
   function toggleOption(id: string) {
     haptic();
@@ -174,7 +174,7 @@ export default function QuestionsIntroScreen() {
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: Math.max(insets.top + 6, 18), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={progressStep} totalSteps={ONBOARDING_PERSONALIZATION_TOTAL} phaseLabel="Personalizing your experience" onBack={goBack} /></View>
+        <View style={styles.progressSection}><OnboardingQuestionHeader currentStep={progressStep} totalSteps={ONBOARDING_TOTAL_STEPS} phaseLabel="Personalizing your experience" onBack={goBack} /></View>
 
         <Animated.View key={question.id} entering={FadeInRight.duration(reduceMotion ? 0 : 280)} style={styles.questionStage}>
         <View style={styles.questionHeader}>

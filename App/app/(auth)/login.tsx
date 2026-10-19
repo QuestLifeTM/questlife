@@ -103,8 +103,12 @@ export default function LoginScreen() {
     }
   }
 
+  function returnToWelcome() {
+    router.replace({ pathname: "/", params: { skipIntro: "1" } });
+  }
+
   return (
-    <AuthScaffold topAccessory={<BackButton onPress={() => router.replace("/")} />}>
+    <AuthScaffold avoidKeyboard={false} topAccessory={<BackButton onPress={returnToWelcome} />}>
       <AuthTitle>{"Welcome\nback!"}</AuthTitle>
 
       <View style={styles.form}>
@@ -183,7 +187,7 @@ export default function LoginScreen() {
 
       <Text style={styles.footer}>
         {"Don't have an account? "}
-        <Text style={styles.link} onPress={() => router.replace("/")}>
+        <Text style={styles.link} onPress={returnToWelcome}>
           Sign up
         </Text>
       </Text>

@@ -1,5 +1,4 @@
 import { Asset } from "expo-asset";
-import { useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 
 import { UnderstandingDemo } from "@/components/onboarding-understanding-demo";
@@ -9,8 +8,6 @@ import { UnderstandingDemo } from "@/components/onboarding-understanding-demo";
  * The next screen begins the personalization questions directly.
  */
 export default function UnderstandingOnboardingScreen() {
-  const { firstName, idealLifeId } = useLocalSearchParams<{ firstName?: string; idealLifeId?: string }>();
-
   useEffect(() => {
     // These are local bundle assets, but warming them here means the first
     // visible mockup has its files ready without ever delaying onboarding.
@@ -22,5 +19,5 @@ export default function UnderstandingOnboardingScreen() {
     });
   }, []);
 
-  return <UnderstandingDemo firstName={firstName?.trim() || "Friend"} idealLifeId={idealLifeId} />;
+  return <UnderstandingDemo />;
 }

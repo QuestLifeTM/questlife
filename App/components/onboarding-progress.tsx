@@ -9,12 +9,18 @@ const ADVENTURE_CATEGORY_BLUE = "#4D9CFF";
 export const ONBOARDING_QUESTION_TOTAL = 13;
 export const ONBOARDING_DISCOVERY_TOTAL = 4;
 export const ONBOARDING_PERSONALIZATION_TOTAL = 5;
+// The active onboarding route has four discovery questions, then username
+// setup and four personalization questions. The walkthrough screens between
+// those groups are explanatory, not additional progress steps.
+export const ONBOARDING_TOTAL_STEPS = 9;
 
 /** Shared progress treatment for every question in the onboarding flow. */
 export function OnboardingQuestionProgress({ currentStep, totalSteps = ONBOARDING_QUESTION_TOTAL, phaseLabel, animationDuration = 520 }: { currentStep: number; totalSteps?: number; phaseLabel?: string; animationDuration?: number }) {
   const reduceMotion = useReducedMotionPreference();
   const boundedStep = Math.min(Math.max(currentStep, 1), totalSteps);
-  const fillProgress = useSharedValue(Math.max(0, (boundedStep - 1) / totalSteps));
+  // Show the current step immediately so the first question never appears
+  // empty while the first rendered progress transition is being scheduled.
+  const fillProgress = useSharedValue(boundedStep / totalSteps);
 
   useEffect(() => {
     fillProgress.set(withTiming(boundedStep / totalSteps, {

@@ -21,18 +21,11 @@ type DemoPhase = "title" | "explore" | "active" | "journal";
 const SCREEN_FADE_DURATION = 360;
 const SCREEN_COPY_EXIT_DURATION = 220;
 const PREVIEW_MOUNT_SETTLE_MS = 80;
-const OPENING_TEXT_HOLD_MS = 1_600;
-const TEXT_HANDOFF_GAP_MS = 100;
+const INTRO_COPY_HOLD_MS = 2_600;
 const MOCKUP_ENTRANCE_DURATION = 720;
 const MOCKUP_DWELL_MS = 2_600;
 const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 const EASE_IN_OUT = Easing.bezier(0.77, 0, 0.175, 1);
-
-function personalizedTextHoldDuration(copy: string) {
-  // Give longer selected answers a little more reading time, without turning
-  // the walkthrough into a wait. The current options land around 2.15–2.3 s.
-  return Math.min(2_350, Math.max(2_000, 1_250 + copy.length * 16));
-}
 
 // These records are intentionally shaped exactly like the data the app reads
 // in production. They are the only fake part of this walkthrough; every
@@ -108,12 +101,11 @@ const PhoneScreen = memo(function PhoneScreen({ phase, scale, width, height, jou
   </View>;
 });
 
-export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: string; idealLifeId?: string }) {
+export function UnderstandingDemo() {
   const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotionPreference();
   const [phase, setPhase] = useState<DemoPhase>("title");
-  const [showValueStatement, setShowValueStatement] = useState(false);
   const [showContinue, setShowContinue] = useState(false);
   const [exploreAutoScrollEnabled, setExploreAutoScrollEnabled] = useState(true);
   const [showExploreContent, setShowExploreContent] = useState(true);
@@ -150,17 +142,6 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
   // The outer bezel, not just the inner display, begins below the measured
   // copy. This keeps every preview clear when a title wraps to two lines.
   const phoneCopyGap = clamp(height * 0.012, 16, 20);
-  const personalizedIntroText = idealLifeId === "purpose"
-    ? "Here's how QuestLife helps you live each day with purpose."
-    : idealLifeId === "amazing-people"
-      ? "Here's how QuestLife helps you create meaningful connections."
-      : idealLifeId === "no-regrets"
-        ? "Here's how QuestLife helps you make memories you won't regret."
-        : idealLifeId === "proud-self"
-          ? "Here's how QuestLife helps you become someone you're proud to be."
-          : "Here's how QuestLife helps you live a life worth remembering.";
-  const personalizedTextHoldMs = personalizedTextHoldDuration(personalizedIntroText);
-
   const schedule = (callback: () => void, delay: number) => {
     const timer = setTimeout(callback, delay);
     timers.current.push(timer);
@@ -187,50 +168,28 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
             duration: reduceMotion ? 0 : 320,
             easing: EASE_OUT,
             useNativeDriver: true,
-          }).start(({ finished: greetingHidden }) => {
-            if (!greetingHidden) return;
-            setShowValueStatement(true);
-            titleOpacity.setValue(0);
-            Animated.timing(titleOpacity, {
-              toValue: 1,
-              duration: reduceMotion ? 0 : 420,
-              easing: EASE_OUT,
-              useNativeDriver: true,
-            }).start(({ finished: statementShown }) => {
-              if (!statementShown) return;
-              schedule(() => {
-                Animated.timing(titleOpacity, {
-                  toValue: 0,
-                  duration: reduceMotion ? 0 : 360,
-                  easing: EASE_OUT,
-                  useNativeDriver: true,
-                }).start(({ finished: statementHidden }) => {
-                  if (!statementHidden) return;
-                  schedule(() => {
-                    setSubtitleBottom(null);
-                    setPhase("explore");
-                    titleLift.setValue(1);
-                    schedule(() => {
-                      const duration = reduceMotion ? 0 : MOCKUP_ENTRANCE_DURATION;
-                      Animated.parallel([
-                        Animated.timing(titleOpacity, { toValue: 1, duration, easing: EASE_OUT, useNativeDriver: true }),
-                        Animated.timing(phoneOpacity, { toValue: 1, duration, easing: EASE_OUT, useNativeDriver: true }),
-                        Animated.timing(phoneScale, { toValue: 1, duration, easing: EASE_OUT, useNativeDriver: true }),
-                      ]).start();
-                      schedule(transitionToActive, reduceMotion ? 0 : MOCKUP_DWELL_MS);
-                    }, reduceMotion ? 0 : 180);
-                  }, reduceMotion ? 0 : TEXT_HANDOFF_GAP_MS);
-                });
-              }, reduceMotion ? 0 : personalizedTextHoldMs);
-            });
+          }).start(({ finished: introHidden }) => {
+            if (!introHidden) return;
+            setSubtitleBottom(null);
+            setPhase("explore");
+            titleLift.setValue(1);
+            schedule(() => {
+              const duration = reduceMotion ? 0 : MOCKUP_ENTRANCE_DURATION;
+              Animated.parallel([
+                Animated.timing(titleOpacity, { toValue: 1, duration, easing: EASE_OUT, useNativeDriver: true }),
+                Animated.timing(phoneOpacity, { toValue: 1, duration, easing: EASE_OUT, useNativeDriver: true }),
+                Animated.timing(phoneScale, { toValue: 1, duration, easing: EASE_OUT, useNativeDriver: true }),
+              ]).start();
+              schedule(transitionToActive, reduceMotion ? 0 : MOCKUP_DWELL_MS);
+            }, reduceMotion ? 0 : 180);
           });
-        }, reduceMotion ? 0 : OPENING_TEXT_HOLD_MS);
+        }, reduceMotion ? 0 : INTRO_COPY_HOLD_MS);
       });
     }, reduceMotion ? 0 : 80);
     return () => timers.current.forEach(clearTimeout);
   // Animation values are stable refs.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backgroundOpacity, personalizedTextHoldMs, reduceMotion, titleLift]);
+  }, [backgroundOpacity, reduceMotion, titleLift]);
 
   useEffect(() => {
     // Keep the phone in a fixed full-screen layer. Previously, changing the
@@ -275,7 +234,7 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
 
   function advance() {
     haptic();
-    router.replace({ pathname: "/onboarding/questions-path", params: firstName ? { firstName } : {} });
+    router.replace("/onboarding/questions-path");
   }
 
   function transitionToActive() {
@@ -391,19 +350,8 @@ export function UnderstandingDemo({ firstName, idealLifeId }: { firstName: strin
 
   const initialTitleTranslate = Math.max(0, height / 2 - (insets.top + 22) - titleHeight / 2);
   const titleTranslate = titleLift.interpolate({ inputRange: [0, 1], outputRange: [initialTitleTranslate, 0] });
-  const memoryIntro = idealLifeId === "purpose"
-    ? <>Here&apos;s how QuestLife helps you live each day <Text style={styles.subtitleAccent}>with purpose</Text><Text style={styles.subtitleAccent}>.</Text></>
-    : idealLifeId === "amazing-people"
-      ? <>Here&apos;s how QuestLife helps you create <Text style={styles.subtitleAccent}>meaningful connections</Text><Text style={styles.subtitleAccent}>.</Text></>
-      : idealLifeId === "no-regrets"
-        ? <>Here&apos;s how QuestLife helps you make memories you <Text style={styles.subtitleAccent}>won&apos;t regret</Text><Text style={styles.subtitleAccent}>.</Text></>
-        : idealLifeId === "proud-self"
-          ? <>Here&apos;s how QuestLife helps you become <Text style={styles.subtitleAccent}>someone you&apos;re proud</Text> to be<Text style={styles.subtitleAccent}>.</Text></>
-          : null;
   const title = phase === "title"
-    ? showValueStatement
-      ? memoryIntro ?? <>Here&apos;s how <Text style={styles.subtitleAccent}>QuestLife</Text> helps you live a life worth remembering<Text style={styles.subtitleAccent}>.</Text></>
-      : <><Text style={styles.subtitleAccent}>Big adventures</Text> start with one small yes.</>
+    ? <>Using <Text style={styles.subtitleAccent}>QuestLife</Text> is really simple, like we promised!</>
     : phase === "explore"
       ? <>Pick your <Text style={styles.subtitleAccent}>adventure</Text></>
       : phase === "active"

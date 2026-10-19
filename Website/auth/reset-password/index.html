@@ -9,19 +9,27 @@
     <title>Reset your password · QuestLife</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
-  <body>
+  <body class="auth-page">
     <main
+      class="auth-handoff"
       data-app-path="reset-password"
       data-missing-message="This reset link is incomplete or has already been used. Return to QuestLife and request a new password reset email."
       data-ready-message="If the app does not open, launch QuestLife on your phone and request a new reset link."
     >
-      <div class="mark" aria-hidden="true">↗</div>
-      <p class="eyebrow">QuestLife account</p>
-      <h1>Choose a new password.</h1>
-      <p>Open QuestLife to securely set a new password for your account.</p>
-      <a id="open-app" class="open-app" href="questlife://reset-password" aria-disabled="true">Open QuestLife</a>
-      <p id="help" class="help">Preparing your secure reset…</p>
-      <footer>QuestLife</footer>
+      <a class="auth-brand" href="/" aria-label="QuestLife home">
+        <img src="/assets/app/questlife-wordmark.png" alt="QuestLife">
+      </a>
+      <section class="auth-panel" aria-labelledby="reset-title">
+        <div class="auth-icon auth-icon--blue" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10M12 14v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <p class="auth-kicker">Secure password reset</p>
+        <h1 id="reset-title">Choose a new password.</h1>
+        <p class="auth-copy">Open QuestLife to set a secure new password. The app will ask for your new password and confirmation before saving it.</p>
+        <a id="open-app" class="auth-action" href="questlife://reset-password" aria-disabled="true">Continue in QuestLife <span aria-hidden="true">→</span></a>
+        <p id="help" class="auth-help" role="status">Checking your reset link…</p>
+      </section>
+      <p class="auth-footnote">For your protection, this link can only be used once.</p>
     </main>
     <script src="/assets/auth-handoff.js" defer></script>
   </body>

@@ -1,4 +1,5 @@
-import { router } from "expo-router";
+import { Asset } from "expo-asset";
+import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
@@ -15,13 +16,22 @@ const welcomeArtwork = require("../assets/onboarding/screen-one.png");
 
 export default function OnboardingWelcomeScreen() {
   useThemeKey();
+  const { skipIntro } = useLocalSearchParams<{ skipIntro?: string }>();
   const insets = useSafeAreaInsets();
   const { horizontalPadding } = useResponsiveScreenLayout();
-  const [introComplete, setIntroComplete] = useState(false);
+  const [introComplete, setIntroComplete] = useState(skipIntro === "1");
   const [introEnabled, setIntroEnabled] = useState<boolean | null>(null);
   const [firstName, setFirstName] = useState("");
   const [nameSheetVisible, setNameSheetVisible] = useState(false);
   const welcomeOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Cache the welcome artwork while the text-only intro is playing so its
+    // background is ready before the intro hands control to this screen.
+    void Asset.loadAsync(welcomeArtwork).catch(() => {
+      // The ImageBackground can still load the bundled image normally.
+    });
+  }, []);
 
   useEffect(() => {
     if (!introComplete) return;

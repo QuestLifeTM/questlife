@@ -2,11 +2,10 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 
 import { addAcceptedRoutePoint, getActiveQuestSnapshot } from "@/services/active-quest/local-store";
+import { ACTIVE_QUEST_LOCATION_TASK } from "@/services/active-quest/location-task-name";
 import { queueActiveQuestRouteSync } from "@/services/active-quest/sync";
 import { areLocalDataWritesBlocked, getLocalDataOwner, setLocalDataOwner } from "@/services/local-data/owner";
 import { getTrackingSession } from "@/services/active-quest/tracking-session";
-
-export const ACTIVE_QUEST_LOCATION_TASK = "questlife-active-quest-location";
 
 export async function persistQuestLocation(ownerId: string, sessionId: string, location: Location.LocationObject) {
   const trackingSession = await getTrackingSession();

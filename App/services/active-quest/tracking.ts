@@ -1,7 +1,7 @@
 import * as Location from "expo-location";
 
 import { updateActiveQuestSession } from "@/services/active-quest/local-store";
-import { ACTIVE_QUEST_LOCATION_TASK } from "@/services/active-quest/location-task";
+import { ACTIVE_QUEST_LOCATION_TASK } from "@/services/active-quest/location-task-name";
 import { setTrackingSession } from "@/services/active-quest/tracking-session";
 
 const options: Location.LocationTaskOptions = {

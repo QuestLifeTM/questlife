@@ -5,7 +5,7 @@ import { radius, shadow, T, themedStyles } from "@/components/theme";
 import { AmbientGlow, useResponsiveScreenLayout } from "@/components/ui";
 import { useThemeKey } from "@/contexts/SettingsContext";
 
-export function AuthScaffold({ children, topAccessory }: PropsWithChildren<{ topAccessory?: ReactNode }>) {
+export function AuthScaffold({ children, topAccessory, avoidKeyboard = true }: PropsWithChildren<{ topAccessory?: ReactNode; avoidKeyboard?: boolean }>) {
   const themeKey = useThemeKey();
   const insets = useSafeAreaInsets();
   const { horizontalPadding } = useResponsiveScreenLayout();
@@ -14,7 +14,7 @@ export function AuthScaffold({ children, topAccessory }: PropsWithChildren<{ top
     <View style={styles.root}>
       <AmbientGlow />
       <View style={styles.warmGlow} pointerEvents="none" />
-      <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", android: undefined })} style={styles.keyboard}>
+      <KeyboardAvoidingView behavior={avoidKeyboard ? Platform.select({ ios: "padding", android: undefined }) : undefined} style={styles.keyboard}>
         <ScrollView
           contentContainerStyle={[
             styles.content,

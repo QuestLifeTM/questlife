@@ -9,19 +9,27 @@
     <title>Email verified · QuestLife</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
-  <body>
+  <body class="auth-page">
     <main
+      class="auth-handoff"
       data-app-path="auth/callback"
       data-missing-message="This verification link is incomplete or has already been used. Return to QuestLife and request a new email."
       data-ready-message="If the app does not open, launch QuestLife on your phone and sign in with your verified email."
     >
-      <div class="mark" aria-hidden="true">✓</div>
-      <p class="eyebrow">QuestLife account</p>
-      <h1>Your email is verified.</h1>
-      <p>Return to QuestLife to finish signing in and start your first adventure.</p>
-      <a id="open-app" class="open-app" href="questlife://auth/callback" aria-disabled="true">Open QuestLife</a>
-      <p id="help" class="help">Preparing your secure sign-in…</p>
-      <footer>QuestLife</footer>
+      <a class="auth-brand" href="/" aria-label="QuestLife home">
+        <img src="/assets/app/questlife-wordmark.png" alt="QuestLife">
+      </a>
+      <section class="auth-panel" aria-labelledby="verification-title">
+        <div class="auth-icon auth-icon--success" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.2 4.2L19.5 6.8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <p class="auth-kicker">Email confirmed</p>
+        <h1 id="verification-title">You’re all set.</h1>
+        <p class="auth-copy">Your email is verified. Open QuestLife to finish signing in and begin your next adventure.</p>
+        <a id="open-app" class="auth-action" href="questlife://auth/callback" aria-disabled="true">Open QuestLife <span aria-hidden="true">→</span></a>
+        <p id="help" class="auth-help" role="status">Checking your verification link…</p>
+      </section>
+      <p class="auth-footnote">QuestLife keeps your account secure.</p>
     </main>
     <script src="/assets/auth-handoff.js" defer></script>
   </body>

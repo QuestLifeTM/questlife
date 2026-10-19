@@ -123,11 +123,11 @@ export function BackButton({ onPress }: { onPress: () => void }) {
   return <View style={styles.backButton}><IconButton icon="arrow-back" label="Back" onPress={onPress} /></View>;
 }
 
-export function Divider() {
+export function Divider({ label = "or" }: { label?: string }) {
   return (
     <View style={styles.divider}>
       <View style={styles.line} />
-      <Text style={styles.dividerText}>or</Text>
+      <Text style={styles.dividerText}>{label}</Text>
       <View style={styles.line} />
     </View>
   );
@@ -272,13 +272,15 @@ const styles = themedStyles(() => StyleSheet.create({
   },
   line: {
     flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: T.border
+    height: 2,
+    borderRadius: 99,
+    backgroundColor: T.borderStrong
   },
   dividerText: {
     color: T.muted,
+    fontFamily: "RubikBold",
     fontSize: 12,
-    fontWeight: "800"
+    fontWeight: "800",
   },
   googleIcon: {
     width: 20,

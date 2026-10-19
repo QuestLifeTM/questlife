@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { cancelAnimation, Easing, Extrapolation, FadeInRight, interpolate, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withTiming, type SharedValue } from "react-native-reanimated";
 
-import { OnboardingCompassRoute } from "@/components/onboarding-compass-route";
-import { OnboardingQuestionProgress } from "@/components/onboarding-progress";
 import { T, themedStyles } from "@/components/theme";
 import { useResponsiveScreenLayout } from "@/components/ui";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
@@ -183,16 +181,13 @@ export default function PersonalizingOnboardingScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: Math.max(insets.top + 24, 38), paddingBottom: Math.max(insets.bottom + 32, 42), paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }]}>
-      <Animated.View pointerEvents="none" style={[styles.compass, { top: Math.max(insets.top + 52, 84) }, compassStyle]}><OnboardingCompassRoute /></Animated.View>
+      <Animated.View pointerEvents="none" style={[styles.compass, { top: Math.max(insets.top + 52, 84) }, compassStyle]}>
+        <Text style={styles.compassLabel}>PREPARING YOUR QUESTLIFE</Text>
+      </Animated.View>
       <View style={styles.content}>
         <View accessibilityLiveRegion="polite" style={styles.loader}>
           <CollapsingLoaderElement celebration={celebration} offsetX={-26} offsetY={-44}>
             <Text style={styles.percentage}>{progress}%</Text>
-          </CollapsingLoaderElement>
-          <CollapsingLoaderElement celebration={celebration} fillWidth offsetX={30} offsetY={20}>
-            <View style={styles.progressTrack}>
-              <OnboardingQuestionProgress animationDuration={260} currentStep={progress} totalSteps={100} />
-            </View>
           </CollapsingLoaderElement>
           <View accessibilityLabel={`${completedCircles} of ${CIRCLE_COUNT} setup steps complete`} style={styles.completionRow}>
             {Array.from({ length: CIRCLE_COUNT }, (_, index) => {
@@ -245,13 +240,13 @@ function ProfileCompletion({ celebration, floatY, floatRotate }: { celebration: 
 const styles = themedStyles(() => StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
   compass: { position: "absolute", left: 0, right: 0, alignItems: "center" },
+  compassLabel: { color: T.subtle, fontFamily: "RubikBold", fontSize: 11, fontWeight: "900", letterSpacing: 0.9 },
   content: { flex: 1, width: "100%", maxWidth: 320, alignSelf: "center", justifyContent: "center" },
   // Every element in this compact status group shares a deliberate center line.
   // The rail is widest, while the step markers sit on a narrower measured row.
   loader: { width: "100%", minHeight: 224, alignItems: "center", justifyContent: "center", gap: 16 },
   loaderElementFullWidth: { width: "100%" },
   percentage: { color: T.dark, fontFamily: "RubikBlack", fontSize: 46, lineHeight: 54, letterSpacing: -1.5 },
-  progressTrack: { width: "100%" },
   completionRow: { width: 272, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   completionCircle: { width: 26, height: 26, borderRadius: 99, borderWidth: 2, borderColor: T.dark, backgroundColor: T.white, alignItems: "center", justifyContent: "center" },
   completionCircleComplete: { borderColor: T.blue, backgroundColor: T.blue },
