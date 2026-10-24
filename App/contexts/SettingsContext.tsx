@@ -1,5 +1,5 @@
 import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Appearance, useColorScheme } from "react-native";
+import { Appearance, Platform, useColorScheme } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { setTheme } from "@/components/theme";
@@ -44,6 +44,10 @@ export function SettingsProvider({ children }: PropsWithChildren) {
   // React Native resets the native override with `null`; the installed type
   // declaration omits that documented reset value.
   useEffect(() => {
+    // React Native Web exposes the current scheme but does not implement the
+    // native override API. Applying the app palette above is sufficient in a
+    // browser and avoids stopping the initial render.
+    if (Platform.OS === "web") return;
     Appearance.setColorScheme((settings.appearance === "system" ? null : settings.appearance) as never);
   }, [settings.appearance]);
 
