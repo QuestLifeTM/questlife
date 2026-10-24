@@ -7,6 +7,12 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/icons/questlife-app-icon.png",
+      "name": "QuestLife",
+      "shortName": "QuestLife"
+    },
     "plugins": [
       "expo-router",
       "expo-font",

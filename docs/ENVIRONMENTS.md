@@ -7,12 +7,15 @@ change, migration, or preview deployment may update Production automatically.
 | --- | --- | --- | --- |
 | Local | Daily development using fake data | localhost / Expo development build | Local Supabase, when running it |
 | Development | Shared integration testing | Vercel preview or designated dev hosts | QuestLife Dev |
-| Production | Real users | `www.myquestlife.app`, `admin.myquestlife.app` | QuestLife Production |
+| Production | Real users | `www.myquestlife.app`, `app.myquestlife.app`, `admin.myquestlife.app` | QuestLife Production |
 
 ## Domain ownership
 
 - `www.myquestlife.app` is the canonical public Website host.
 - `myquestlife.app` redirects permanently to `www.myquestlife.app`.
+- `app.myquestlife.app` is the phone-width Expo web app. It is deployed through
+  EAS Hosting and receives the production Supabase URL and publishable key only
+  from its EAS `production` environment.
 - `admin.myquestlife.app` is the private Admin host.
 
 The public Website and Admin dashboard remain separate Vercel projects with root

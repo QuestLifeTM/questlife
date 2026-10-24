@@ -35,8 +35,10 @@ For App Store submission, build from `App/`. Do not submit `Admin/` or `Website/
 
 ## Deployments
 
-- **Mobile:** build and submit with EAS from `App/`. The `development`, `preview`,
-  and `production` profiles are defined in `App/eas.json`.
+- **Mobile and web app:** build and submit the native app with EAS from `App/`.
+  Export and deploy the phone-width browser app with `eas deploy --prod` from
+  `App/`; its production host is `app.myquestlife.app`. The `development`,
+  `preview`, and `production` profiles are defined in `App/eas.json`.
 - **Admin:** deploy `Admin/` as its own Vercel project.
 - **Website:** deploy `Website/` as its own Vercel project after the public site is
   implemented.

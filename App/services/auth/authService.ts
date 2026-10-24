@@ -1,6 +1,7 @@
 import * as AuthSession from "expo-auth-session";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
+import { Platform } from "react-native";
 
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -12,21 +13,28 @@ import { rememberEmail } from "@/services/auth/rememberedEmail";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const appAuthRedirectTo = AuthSession.makeRedirectUri({
-  scheme: "questlife",
-  path: "auth/callback",
-});
+const webAppOrigin = "https://app.myquestlife.app";
+const isWeb = Platform.OS === "web";
 
-const appResetPasswordRedirectTo = AuthSession.makeRedirectUri({
-  scheme: "questlife",
-  path: "reset-password",
-});
+const appAuthRedirectTo = isWeb
+  ? `${webAppOrigin}/auth/callback`
+  : AuthSession.makeRedirectUri({
+      scheme: "questlife",
+      path: "auth/callback",
+    });
+
+const appResetPasswordRedirectTo = isWeb
+  ? `${webAppOrigin}/reset-password`
+  : AuthSession.makeRedirectUri({
+      scheme: "questlife",
+      path: "reset-password",
+    });
 
 // Auth emails land on a branded web handoff before securely forwarding their
 // one-time code into the installed app. These URLs must exactly match the
 // production Supabase Auth redirect allow-list.
-const emailAuthRedirectTo = "https://myquestlife.app/auth/callback";
-const emailResetPasswordRedirectTo = "https://myquestlife.app/auth/reset-password";
+const emailAuthRedirectTo = isWeb ? appAuthRedirectTo : "https://www.myquestlife.app/auth/callback";
+const emailResetPasswordRedirectTo = isWeb ? appResetPasswordRedirectTo : "https://www.myquestlife.app/auth/reset-password";
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();

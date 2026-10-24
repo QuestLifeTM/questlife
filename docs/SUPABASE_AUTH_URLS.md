@@ -11,6 +11,8 @@ In **QuestLife Production** → Authentication → URL Configuration, set:
 - **Redirect URLs:**
   - `https://www.myquestlife.app/auth/callback`
   - `https://www.myquestlife.app/auth/reset-password`
+  - `https://app.myquestlife.app/auth/callback`
+  - `https://app.myquestlife.app/reset-password`
   - `https://admin.myquestlife.app/auth/callback`
   - `https://admin.myquestlife.app/reset-password`
   - `questlife://auth/callback`

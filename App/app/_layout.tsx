@@ -3,7 +3,7 @@ import { initializeSentry, Sentry } from "@/lib/sentry";
 import "@/services/active-quest/location-task";
 import { Redirect, Stack, useSegments } from "expo-router";
 import { PropsWithChildren } from "react";
-import { useColorScheme } from "react-native";
+import { Platform, StyleSheet, useColorScheme, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { T } from "@/components/theme";
@@ -118,7 +118,8 @@ function AppLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: T.bg }}>
+    <GestureHandlerRootView style={styles.appShell}>
+      <View style={styles.appViewport}>
       <StatusBar style={resolvedAppearance === "dark" ? "light" : "dark"} />
       <Stack
         screenOptions={{
@@ -149,6 +150,24 @@ function AppLayout() {
         <Stack.Screen name="add-friends" options={{ presentation: "card" }} />
         <Stack.Screen name="add-friend/[userId]" options={{ presentation: "card" }} />
       </Stack>
+      </View>
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  appShell: {
+    flex: 1,
+    alignItems: Platform.OS === "web" ? "center" : undefined,
+    backgroundColor: Platform.OS === "web" ? "#e8dfd5" : T.bg,
+  },
+  // The browser is a direct, phone-sized rendering of the native app. Its
+  // width is deliberately capped at the shared screen width while the height
+  // remains fluid with the browser viewport.
+  appViewport: {
+    flex: 1,
+    width: "100%",
+    maxWidth: Platform.OS === "web" ? 520 : undefined,
+    backgroundColor: T.bg,
+  },
+});
