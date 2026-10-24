@@ -82,6 +82,10 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
   }, []);
 
   const retryCompletedRouteSync = useCallback(async () => {
+    // A signed-out browser has no owner-scoped local quest store to recover.
+    // Native startup establishes an owner before this effect can matter, but
+    // web can mount the provider before its first anonymous route is ready.
+    if (!getLocalDataOwner()) return;
     const sessionIds = await getPendingCompletionSyncSessionIds();
     await Promise.all(sessionIds.map(async (sessionId) => {
       try {
