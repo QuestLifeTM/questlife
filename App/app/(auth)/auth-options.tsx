@@ -28,6 +28,7 @@ import { clearOnboardingUsernameDraft, getOnboardingUsernameDraft } from "@/serv
 import { AuthProviderName } from "@/types/auth";
 import { getAuthErrorMessage } from "@/utils/authErrors";
 import { RegisterForm, registerSchema } from "@/validation/authSchemas";
+import { openLegalPage } from "@/lib/legal";
 
 function pendingUsername() {
   return `quest_${Date.now().toString(36).slice(-10)}`;
@@ -212,7 +213,7 @@ export default function AuthOptionsScreen() {
           <Text onPress={() => router.push("/(auth)/login")} style={styles.loginLink}>Log in</Text>
         </Text>
         <Text style={styles.legal}>
-          By continuing, you agree to our <Text style={styles.legalLink}>Terms of Service</Text>{"\n"}and <Text style={styles.legalLink}>Privacy Policy</Text>.
+          By creating an account, you agree to our <Text accessibilityRole="link" onPress={() => void openLegalPage("terms")} style={styles.legalLink}>Terms of Service</Text>. Read our <Text accessibilityRole="link" onPress={() => void openLegalPage("privacy")} style={styles.legalLink}>Privacy Policy</Text>.
         </Text>
       </Animated.View>
     </AuthScaffold>

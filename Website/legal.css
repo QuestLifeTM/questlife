@@ -1,0 +1,43 @@
+@font-face{font-family:Rubik;src:url('/assets/fonts/Rubik-Regular.ttf') format('truetype');font-display:swap}
+@font-face{font-family:Rubik;src:url('/assets/fonts/Rubik-Bold.ttf') format('truetype');font-weight:700;font-display:swap}
+@font-face{font-family:GeistPixel;src:url('/assets/fonts/GeistPixel-Regular-Variable.ttf') format('truetype');font-display:swap}
+:root{color-scheme:light;--paper:#fbfaf6;--ink:#26333c;--muted:#50616b;--blue:#1769b5;--line:#d9e0df;--surface:#fff;--yellow:#f5ca65;font-family:Rubik,Arial,sans-serif}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;min-width:320px;background:var(--paper);color:var(--ink)}
+a{color:var(--blue);text-underline-offset:3px}
+a:hover{text-decoration-thickness:2px}
+a:focus-visible{outline:3px solid var(--blue);outline-offset:4px;border-radius:2px}
+.skip-link{position:absolute;z-index:10;top:-60px;left:16px;padding:10px 14px;background:var(--surface)}
+.skip-link:focus{top:12px}
+.legal-header{display:flex;justify-content:space-between;align-items:center;gap:20px;max-width:1200px;margin:auto;padding:24px clamp(20px,5vw,64px);border-bottom:1px solid var(--line)}
+.brand{display:inline-flex;align-items:center}
+.brand img{display:block;width:148px;height:auto}
+.header-links,.footer-links{display:flex;flex-wrap:wrap;align-items:center;gap:16px 24px}
+.header-links a,.footer-links a{font-weight:700;text-decoration:none}
+.header-links a[aria-current=page]{text-decoration:underline;text-decoration-thickness:2px}
+.legal-shell{display:grid;grid-template-columns:220px minmax(0,1fr);gap:clamp(32px,6vw,92px);max-width:1200px;margin:auto;padding:clamp(34px,6vw,76px) clamp(20px,5vw,64px) 110px}
+.legal-toc{align-self:start;position:sticky;top:32px}
+.legal-toc h2{font-size:.85rem;margin:0 0 12px;color:var(--muted)}
+.legal-toc a{display:block;padding:7px 0;color:var(--muted);font-size:.9rem;line-height:1.3;text-decoration:none}
+.legal-toc a:hover,.legal-toc a:focus-visible{color:var(--blue);text-decoration:underline}
+.legal-document{min-width:0;max-width:74ch}
+.legal-kicker{font-family:GeistPixel,Rubik,sans-serif;color:var(--blue);font-size:.95rem}
+.legal-document h1{margin:12px 0 16px;font-size:clamp(2.65rem,5vw,4.6rem);line-height:1.03;letter-spacing:-.035em;text-wrap:balance}
+.effective{margin:0 0 30px;color:var(--muted);font-size:.91rem}
+.summary{padding:22px 24px;margin:0 0 42px;border:1px solid var(--line);border-radius:18px;background:var(--surface);line-height:1.65}
+.summary p{margin:0}
+.legal-document section{scroll-margin-top:24px;margin:0 0 42px}
+.legal-document h2{margin:0 0 12px;font-size:clamp(1.4rem,2.2vw,1.75rem);line-height:1.2;letter-spacing:-.02em;text-wrap:balance}
+.legal-document h3{margin:24px 0 8px;font-size:1.06rem;line-height:1.35}
+.legal-document p,.legal-document li{font-size:1rem;line-height:1.68;text-wrap:pretty}
+.legal-document p{margin:0 0 14px}
+.legal-document ul{padding-left:1.4em;margin:12px 0 16px}
+.legal-document li{padding-left:.18em;margin:0 0 8px}
+.legal-document section+section{padding-top:30px;border-top:1px solid var(--line)}
+.callout{padding:18px 22px;border-radius:14px;background:#eaf3fc}
+.legal-footer{display:flex;justify-content:space-between;gap:20px;align-items:center;max-width:1200px;margin:auto;padding:30px clamp(20px,5vw,64px);border-top:1px solid var(--line);color:var(--muted);font-size:.87rem}
+.legal-footer p{margin:0}
+@media(max-width:760px){.legal-header{padding:18px 20px}.brand img{width:128px}.header-links{gap:12px;font-size:.87rem}.legal-shell{display:block;padding-bottom:70px}.legal-toc{position:static;margin:0 0 32px;padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}.legal-toc nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px}.legal-document h1{margin-top:8px}.legal-footer{align-items:flex-start;flex-direction:column}}
+@media(max-width:420px){.header-links a:first-child{display:none}.legal-toc nav{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}

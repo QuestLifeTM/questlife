@@ -21,6 +21,7 @@ import { getAuthErrorMessage } from "@/utils/authErrors";
 import { RegisterForm, registerSchema } from "@/validation/authSchemas";
 import { clearOnboardingUsernameDraft, getOnboardingUsernameDraft } from "@/services/onboarding/username-draft";
 import { haptic, IconButton } from "@/components/ui";
+import { openLegalPage } from "@/lib/legal";
 
 function pendingUsername() {
   return `quest_${Date.now().toString(36).slice(-10)}`;
@@ -233,7 +234,7 @@ export default function RegisterScreen() {
           Log in
         </Text>
       </Text>
-      <Text style={styles.legal}>By continuing, you agree to our <Text style={styles.legalLink}>Terms of Service</Text> and <Text style={styles.legalLink}>Privacy Policy</Text>.</Text>
+      <Text style={styles.legal}>By creating an account, you agree to our <Text accessibilityRole="link" onPress={() => void openLegalPage("terms")} style={styles.legalLink}>Terms of Service</Text>. Read our <Text accessibilityRole="link" onPress={() => void openLegalPage("privacy")} style={styles.legalLink}>Privacy Policy</Text>.</Text>
     </AuthScaffold>
   );
 }
