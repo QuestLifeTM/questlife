@@ -9,6 +9,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "build:web": "node scripts/export-web.mjs",
+    "build:web:production": "node scripts/export-web.mjs --production",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

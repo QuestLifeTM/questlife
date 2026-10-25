@@ -6,10 +6,7 @@ import { BackButton, PrimaryButton } from "@/components/auth/AuthControls";
 import { AuthTitle } from "@/components/auth/AuthText";
 import { AuthScaffold } from "@/components/auth/AuthScaffold";
 import { T, themedStyles } from "@/components/theme";
-import {
-  getRegistrationAccountState,
-  resendSignupConfirmationLink,
-} from "@/services/auth/authService";
+import { resendSignupConfirmationLink } from "@/services/auth/authService";
 import { getAuthErrorMessage } from "@/utils/authErrors";
 
 const RESEND_SECONDS = 60;
@@ -32,40 +29,14 @@ export default function VerifyEmailScreen() {
     return () => clearTimeout(timeout);
   }, [secondsLeft]);
 
-  useEffect(() => {
-    if (!email) return;
-
-    let cancelled = false;
-
-    async function checkVerification() {
-      try {
-        const state = await getRegistrationAccountState(email);
-        if (!cancelled && state === "verified") {
-          cancelled = true;
-          router.replace("/(auth)/login");
-        }
-      } catch {
-        // Keep polling; transient network errors should not strand the screen.
-      }
-    }
-
-    checkVerification();
-    const interval = setInterval(checkVerification, 5000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [email]);
-
   async function handleResend() {
     try {
       setResending(true);
       await resendSignupConfirmationLink(email);
       setSecondsLeft(RESEND_SECONDS);
       Alert.alert(
-        "Confirmation email sent",
-        "Open the confirmation link on this device to finish signing up.",
+        "Request received",
+        "If a confirmation email arrives, open its link on this device to finish signing up.",
       );
     } catch (error) {
       Alert.alert("Resend failed", getAuthErrorMessage(error));
@@ -92,14 +63,14 @@ export default function VerifyEmailScreen() {
   return (
     <AuthScaffold>
       <BackButton onPress={() => router.replace("/(auth)/register")} />
-      <AuthTitle subtitle={`Open the confirmation link sent to\n${email}`}>
+      <AuthTitle subtitle={`Check ${email} for a confirmation link`}>
         {"Verify\nEmail"}
       </AuthTitle>
 
       <View style={styles.form}>
         <Text style={styles.instructions}>
-          Tap the confirmation link in your email. QuestLife will open
-          automatically and finish verification.
+          If a confirmation email arrives, tap its link to finish signing up.
+          If you already have an account, sign in or reset your password.
         </Text>
       </View>
 

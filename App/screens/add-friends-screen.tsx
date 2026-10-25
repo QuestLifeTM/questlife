@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Contacts from "expo-contacts";
-import * as FileSystem from "expo-file-system/legacy";
+import * as FileSystem from "@/lib/device-files";
 import * as Linking from "expo-linking";
 import * as Sharing from "expo-sharing";
 import { useRouter } from "expo-router";
@@ -126,6 +126,11 @@ export function AddFriendsScreen() {
   }
 
   async function connectContacts() {
+    if (Platform.OS === "web") {
+      Alert.alert("Find your friends", "Browsers cannot read your address book. Search for a friend by username above, or share your profile QR code.");
+      setActiveTab("suggested");
+      return;
+    }
     setLoadingContacts(true);
     try {
       const permission = await Contacts.requestPermissionsAsync();
@@ -145,6 +150,10 @@ export function AddFriendsScreen() {
   }
 
   async function openSystemCamera() {
+    if (Platform.OS === "web") {
+      Alert.alert("Scan with your phone", "Point your phone’s camera at a QuestLife QR code. You can also search by username here.");
+      return;
+    }
     const cameraUrl = Platform.OS === "android"
       ? "intent:#Intent;action=android.media.action.IMAGE_CAPTURE;end"
       : "camera://";
@@ -160,6 +169,14 @@ export function AddFriendsScreen() {
     if (sharingQr || !qrCodeRef.current) return;
     setSharingQr(true);
     try {
+      if (Platform.OS === "web") {
+        const pngData = await new Promise<string>((resolve) => qrCodeRef.current?.toDataURL(resolve));
+        const link = document.createElement("a");
+        link.href = `data:image/png;base64,${pngData}`;
+        link.download = "questlife-profile-qr.png";
+        link.click();
+        return;
+      }
       if (!await Sharing.isAvailableAsync()) throw new Error("Sharing is unavailable on this device.");
       const pngData = await new Promise<string>((resolve) => qrCodeRef.current?.toDataURL(resolve));
       const cacheDirectory = FileSystem.cacheDirectory;

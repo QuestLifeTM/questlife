@@ -40,7 +40,7 @@ function SavedQuestPicker({ quest, selected, onPress }: { quest: Quest; selected
 
 export function QuestCollectionsScreen({ onBack }: { onBack: () => void }) {
   const router = useRouter();
-  const { contentWidth, horizontalPadding } = useResponsiveScreenLayout();
+  const { contentWidth, horizontalPadding, columns } = useResponsiveScreenLayout();
   const { quests, loading } = useContent();
   const { userPacks, saveUserPack, loading: engineLoading } = useQuestEngine();
   const { showFeedback } = useAppFeedback();
@@ -53,7 +53,8 @@ export function QuestCollectionsScreen({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
   // `Screen` applies this same horizontal gutter. Size cards from the usable
   // content area, not the viewport, so two cards always occupy one row.
-  const cardWidth = twoColumnWidth(contentWidth - horizontalPadding * 2);
+  const cardColumns = Math.max(2, columns);
+  const cardWidth = (contentWidth - horizontalPadding * 2 - (cardColumns - 1) * 12) / cardColumns;
   const availableQuests = useMemo(() => quests.filter((quest) => quest.saved), [quests]);
   const visibleCollections = useMemo(() => {
     const query = collectionSearch.trim().toLowerCase();

@@ -28,6 +28,8 @@ export function AuthInput({ icon, error, label, rightElement, style, ...props }:
       <View style={[styles.inputShell, error ? styles.inputError : null]}>
         <Ionicons name={icon} size={17} color={error ? T.red : T.muted} />
         <TextInput
+          accessibilityLabel={props.accessibilityLabel ?? label ?? props.placeholder}
+          aria-invalid={Boolean(error)}
           placeholderTextColor={T.muted}
           selectionColor={T.blue}
           autoCapitalize="none"
@@ -53,6 +55,8 @@ export function PrimaryButton({ title, onPress, disabled, loading }: PrimaryButt
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: Boolean(disabled || loading), busy: Boolean(loading) }}
       disabled={disabled || loading}
       onPress={() => {
         haptic();
@@ -113,7 +117,7 @@ export function AppleButton({ title, onPress, disabled }: Omit<OutlineButtonProp
         disabled ? styles.disabled : null,
       ]}
     >
-      <Ionicons color={T.onAccent} name="logo-apple" size={21} />
+      <Ionicons color={T.isDark ? T.bg : T.onAccent} name="logo-apple" size={21} />
       <Text style={styles.appleLabel}>{title}</Text>
     </Pressable>
   );
@@ -247,7 +251,7 @@ const styles = themedStyles(() => StyleSheet.create({
     backgroundColor: T.dark,
   },
   appleLabel: {
-    color: T.onAccent,
+    color: T.isDark ? T.bg : T.onAccent,
     fontSize: 16,
     fontWeight: "900",
   },

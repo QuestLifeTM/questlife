@@ -14,6 +14,7 @@ import { ExploreScreen } from "@/screens/explore-screen";
 import { JournalScreen, type JournalScreenPreview } from "@/screens/journal-screen";
 import type { ActiveQuestRoutePoint } from "@/types/active-quest";
 import type { Quest } from "@/types/content";
+import { ViewportContext } from "@/lib/responsive";
 
 const stoneArchBackground = require("../assets/onboarding/stone-arch-background.png");
 const iphoneMockup = require("../assets/onboarding/iphone-mockup.png");
@@ -97,7 +98,7 @@ const PhoneScreen = memo(function PhoneScreen({ phase, scale, width, height, jou
       : <JournalScreen preview={journal} />;
 
   return <View pointerEvents="none" style={styles.previewClip}>
-    <View style={[styles.previewCanvas, { width, height, transform: [{ scale }] }]}>{content}</View>
+    <View style={[styles.previewCanvas, { width, height, transform: [{ scale }] }]}><ViewportContext.Provider value={{ width, height }}>{content}</ViewportContext.Provider></View>
   </View>;
 });
 

@@ -910,11 +910,12 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
   const router = useRouter();
   const { completionId } = useLocalSearchParams<{ completionId?: string }>();
   const insets = useSafeAreaInsets();
-  const { contentWidth, horizontalPadding, safeAreaOffset } = useResponsiveScreenLayout();
+  const { contentWidth: frameWidth, horizontalPadding, safeAreaOffset, isWide } = useResponsiveScreenLayout();
   const { markJournalRead } = useNotifications();
   const { snapshot: activeQuestSnapshot } = useActiveQuest();
 
   const [tab, setTab] = useState<JournalTab>("journal");
+  const contentWidth = isWide && tab === "journal" ? frameWidth - 320 : frameWidth;
   const [mode, setMode] = useState<CalendarMode>("week");
   const [calendarCollapsed, setCalendarCollapsed] = useState(false);
   const [data, setData] = useState<JournalData | null>(preview?.data ?? null);
@@ -1182,15 +1183,15 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
     <Screen scroll={false} padded={false} ambientGlow={!T.isDark} contentStyle={{ paddingTop: Math.max(insets.top - 12, 12) }}>
       <View style={{ flex: 1 }}>
         <View style={{ alignItems: "center" }}>
-          <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, gap: 8, paddingBottom: 8, transform: [{ translateX: safeAreaOffset }] }}>
+          <View style={{ width: frameWidth, paddingHorizontal: horizontalPadding, gap: 8, paddingBottom: 8, transform: [{ translateX: safeAreaOffset }] }}>
             <Entrance><JournalHeader tab={tab} /></Entrance>
             <Entrance delay={40}><JournalTabs activeTab={tab} onChange={setTab} /></Entrance>
           </View>
         </View>
 
-        {tab === "journal" ? <>
-          <View style={{ backgroundColor: T.bg, alignItems: "center", borderBottomWidth: 1, borderBottomColor: T.border, paddingBottom: 8 }}>
-            <View style={{ width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>
+        {tab === "journal" ? <View style={{ flex: 1, flexDirection: isWide ? "row" : "column", width: frameWidth, alignSelf: "center" }}>
+          <View style={{ backgroundColor: T.bg, alignItems: "center", borderBottomWidth: 1, borderBottomColor: T.border, paddingBottom: 8, width: isWide ? 320 : "100%" }}>
+            <View style={{ width: isWide ? 320 : contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>
               <JournalCalendar mode={mode} onToggleMode={() => setMode((value) => (value === "week" ? "month" : "week"))} collapsed={calendarCollapsed} onToggleCollapsed={() => setCalendarCollapsed((value) => !value)} activeKey={activeKey} todayKey={todayKey} joinKey={joinKey} onSelectDate={handleSelectDate} />
             </View>
           </View>
@@ -1233,7 +1234,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
             ListEmptyComponent={<View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>{loading ? <JournalLoadingSkeleton /> : <Card style={{ marginTop: 18, borderRadius: radius.lg }}><EmptyState emoji="!" title="Couldn't load your journal" body={error ?? "Please try again."} action={<SoftButton label="Try again" icon="refresh" onPress={() => void load(true)} />} /></Card>}</View>}
             ListFooterComponent={data && !loading ? <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><BeforeJoinMarker joinDate={join} /></View> : null}
           />
-        </> : tab === "album" ? <JournalAlbum items={albumItems} onExplore={goExplore} onManageItem={manageAlbumItem} contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} bottomInset={insets.bottom} mediaRefreshToken={mediaRefreshToken} /> : <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={32} onScroll={(event) => {
+        </View> : tab === "album" ? <JournalAlbum items={albumItems} onExplore={goExplore} onManageItem={manageAlbumItem} contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} bottomInset={insets.bottom} mediaRefreshToken={mediaRefreshToken} /> : <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={32} onScroll={(event) => {
           // Synthetic scroll events are released after this callback. Read the
           // primitive now rather than inside React's later state updater.
           const offsetY = event.nativeEvent.contentOffset.y;

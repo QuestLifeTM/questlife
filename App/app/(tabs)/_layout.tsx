@@ -1,14 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { type ColorValue, View } from "react-native";
+import { Platform, type ColorValue, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { T } from "@/components/theme";
 import { useNotifications } from "@/contexts/NotificationsContext";
 import { useThemeKey } from "@/contexts/SettingsContext";
-import { responsiveLayout, tabBarHeight } from "@/lib/responsive";
+import { responsiveLayout, tabBarHeight, webNavigationWidth } from "@/lib/responsive";
 
 const tabIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   index: "home",
+  home: "home",
   explore: "compass",
   social: "people",
   journal: "book",
@@ -41,6 +42,8 @@ export default function TabLayout() {
   useThemeKey();
   const insets = useSafeAreaInsets();
   const height = tabBarHeight(insets.bottom);
+  const { width } = useWindowDimensions();
+  const sideNavigation = webNavigationWidth(width) > 0;
   return (
     <Tabs
       screenOptions={({ route }) => ({
@@ -49,6 +52,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: T.blue,
         tabBarInactiveTintColor: T.muted,
         tabBarStyle: {
+          display: sideNavigation ? "none" : "flex",
           position: "absolute",
           height,
           borderTopLeftRadius: 26,
@@ -77,7 +81,8 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="social" options={{ title: "Social" }} />
       <Tabs.Screen name="explore" options={{ title: "Explore" }} />
-      <Tabs.Screen name="index" options={{ title: "Lobby" }} />
+      <Tabs.Screen name="index" options={{ title: "Lobby", href: Platform.OS === "web" ? null : undefined }} />
+      <Tabs.Screen name="home" options={{ title: "Lobby", href: Platform.OS !== "web" ? null : undefined }} />
       <Tabs.Screen name="journal" options={{ title: "Journal" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>

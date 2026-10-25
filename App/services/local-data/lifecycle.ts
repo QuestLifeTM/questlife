@@ -1,5 +1,5 @@
-import * as FileSystem from "expo-file-system/legacy";
-import * as SecureStore from "expo-secure-store";
+import * as FileSystem from "@/lib/device-files";
+import * as SecureStore from "@/lib/device-storage";
 import { Image as ExpoImage } from "expo-image";
 
 import { clearActiveQuestDataForOwner } from "@/services/active-quest/local-store";

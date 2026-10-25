@@ -1,4 +1,6 @@
-import { useWindowDimensions } from "react-native";
+import { createContext, useContext } from "react";
+import { Platform, useWindowDimensions } from "react-native";
+import { usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /**
@@ -18,7 +20,23 @@ export const responsiveLayout = {
   tabBarMinimumBottomPadding: 12,
   screenBottomSpacing: 24,
   sheetTopClearance: 12,
+  railBreakpoint: 720,
+  sidebarBreakpoint: 1120,
+  catalogMaxWidth: 1200,
+  readingMaxWidth: 760,
+  detailMaxWidth: 960,
 } as const;
+
+export const ViewportContext = createContext<{ width: number; height: number } | null>(null);
+export const ResponsiveSurfaceContext = createContext<string | null>(null);
+export function webNavigationWidth(width: number) {
+  return Platform.OS !== "web" || width < responsiveLayout.railBreakpoint ? 0 : width < responsiveLayout.sidebarBreakpoint ? 80 : 232;
+}
+
+export function useAppViewport() {
+  const window = useWindowDimensions();
+  return useContext(ViewportContext) ?? window;
+}
 
 export function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -44,10 +62,18 @@ export function twoColumnWidth(contentInnerWidth: number, gap = 12) {
 }
 
 export function useResponsiveScreenLayout(maxContentWidth = responsiveLayout.defaultContentMaxWidth) {
-  const { height, width } = useWindowDimensions();
+  const { height, width } = useAppViewport();
+  const actualPathname = usePathname();
+  const pathname = useContext(ResponsiveSurfaceContext) ?? actualPathname;
   const insets = useSafeAreaInsets();
   const safeWidth = Math.max(0, width - insets.left - insets.right);
-  const contentWidth = Math.min(safeWidth, maxContentWidth);
+  const isWeb = Platform.OS === "web";
+  const isCatalog = /^\/(home|explore|saved|quest-collections|journal|profile)(\/|$)/.test(pathname);
+  const isDetail = /^\/(quest|memory|collection|active-quest|in-progress-quest)(\/|$)/.test(pathname);
+  const limit = isWeb && maxContentWidth === responsiveLayout.defaultContentMaxWidth
+    ? isCatalog ? responsiveLayout.catalogMaxWidth : isDetail ? responsiveLayout.detailMaxWidth : responsiveLayout.readingMaxWidth
+    : maxContentWidth;
+  const contentWidth = Math.min(safeWidth, limit);
   const horizontalPadding = responsiveScreenGutter(contentWidth);
   const availableHeight = Math.max(0, height - insets.top - insets.bottom);
 
@@ -62,6 +88,9 @@ export function useResponsiveScreenLayout(maxContentWidth = responsiveLayout.def
     isShort: availableHeight < responsiveLayout.shortHeight,
     safeAreaOffset: (insets.left - insets.right) / 2,
     insets,
+    isWeb,
+    isWide: isWeb && contentWidth >= 780,
+    columns: isWeb && contentWidth >= 1060 ? 3 : isWeb && contentWidth >= 680 ? 2 : 1,
   };
 }
 

@@ -1,5 +1,6 @@
-import * as FileSystem from "expo-file-system/legacy";
+import * as FileSystem from "@/lib/device-files";
 import Constants, { ExecutionEnvironment } from "expo-constants";
+import { Platform } from "react-native";
 
 import { uploadQuestPhoto } from "@/services/engine/questEngineService";
 import { addActiveQuestPhoto, getActiveQuestPhotos, updateActiveQuestPhoto } from "@/services/active-quest/local-store";
@@ -12,7 +13,7 @@ export async function persistQuestPhoto(sessionId: string, temporaryUri: string,
   // The system camera returns a temporary URI on some Android devices. Save it
   // to the user's library first, then preserve a stable private copy for the
   // quest album and eventual upload.
-  if (!options.tutorialOnly && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient) {
+  if (Platform.OS !== "web" && !options.tutorialOnly && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient) {
     try {
       // Expo Go cannot grant the full Android media-library permission. Delay
       // loading this native module until an installed development/production
@@ -37,9 +38,12 @@ export async function persistQuestPhoto(sessionId: string, temporaryUri: string,
   await FileSystem.makeDirectoryAsync(root, { intermediates: true });
   const uri = `${root}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
   await FileSystem.copyAsync({ from: compressedUri, to: uri });
-  const photoId = await addActiveQuestPhoto(sessionId, uri, undefined, Boolean(options.tutorialOnly));
-  if (!options.tutorialOnly) void syncQuestPhoto(sessionId, photoId, uri);
-  return { id: photoId, uri };
+  // Persist a data URL on web: blob URLs expire on refresh and the native
+  // filesystem URI cannot be rendered or fetched by a browser.
+  const displayUri = Platform.OS === "web" ? await FileSystem.readAsStringAsync(uri) : uri;
+  const photoId = await addActiveQuestPhoto(sessionId, displayUri, undefined, Boolean(options.tutorialOnly));
+  if (!options.tutorialOnly) void syncQuestPhoto(sessionId, photoId, displayUri);
+  return { id: photoId, uri: displayUri };
 }
 
 async function syncQuestPhoto(sessionId: string, id: number, uri: string) {

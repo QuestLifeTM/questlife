@@ -1,4 +1,4 @@
-import * as FileSystem from "expo-file-system/legacy";
+import * as FileSystem from "@/lib/device-files";
 
 import { ActiveQuestActivity, ActiveQuestActivityKind, ActiveQuestLocalSession, ActiveQuestPhoto, ActiveQuestRecordingState, ActiveQuestRoutePoint, ActiveQuestRouteSegment, ActiveQuestSnapshot } from "@/types/active-quest";
 import { distanceBetweenMeters, simplifyRouteForRendering } from "@/services/active-quest/route-filter";
@@ -120,7 +120,7 @@ function mutate<T>(operation: (store: ActiveQuestStore) => T | Promise<T>) {
     return value;
   });
   mutationQueue = result.then(() => undefined, () => undefined);
-  void result.then(() => listeners.forEach((listener) => listener()));
+  void result.then(() => listeners.forEach((listener) => listener()), () => undefined);
   return result;
 }
 

@@ -415,7 +415,7 @@ export function ProfileScreen() {
   const { user, refreshProfileName } = useAuth();
   const { showFeedback } = useAppFeedback();
   const { refresh: refreshSocial } = useSocial();
-  const { contentWidth, horizontalPadding, insets, safeAreaOffset } = useResponsiveScreenLayout();
+  const { contentWidth, horizontalPadding, insets, safeAreaOffset, isWide } = useResponsiveScreenLayout();
   const { onScroll, scrollY } = useTopScrollBlur();
   const [overview, setOverview] = useState<ProfileOverview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -453,6 +453,8 @@ export function ProfileScreen() {
         setDraftStatVisibility({ ...DEFAULT_PROFILE_STAT_VISIBILITY, ...next.profile.statVisibility });
         setDraftPrivacy({ ...DEFAULT_PROFILE_PRIVACY, ...next.profile.privacy });
       }
+    } catch (nextError) {
+      setError(saveErrorMessage(nextError));
     } finally {
       setLoading(false);
     }
@@ -530,14 +532,14 @@ export function ProfileScreen() {
   }
 
   if (loading && !overview) return <Screen scroll={false} ambientGlow={false} contentStyle={{ alignItems: "center" }}><ProfileLoadingSkeleton /></Screen>;
-  if (!overview?.profile) return <Screen><EmptyState emoji="!" title="Profile unavailable" body="Sign in to view your profile." /></Screen>;
+  if (!overview?.profile) return <Screen><EmptyState emoji="!" title="Profile unavailable" body={error ?? "Sign in to view your profile."} action={<SoftButton label="Try again" icon="refresh" onPress={() => void load()} />} /></Screen>;
 
   const { profile } = overview;
   const avatarUri = editing ? draftAvatarUri : profile.avatarUrl;
   const displayName = fullProfileName(profile.displayName, user?.user_metadata);
   const username = accountValue(user?.user_metadata, "username") || profile.username || "adventurer";
   const carouselVisibility = editing ? draftStatVisibility : { ...DEFAULT_PROFILE_STAT_VISIBILITY, ...profile.statVisibility };
-  const postTileSize = (contentWidth - horizontalPadding * 2 - 12) / 3;
+  const postTileSize = ((isWide ? contentWidth - 364 : contentWidth) - horizontalPadding * 2 - 12) / 3;
   const profilePosts: QuestFeedPost[] = overview.posts.map((post) => ({
     ...post,
     durationSeconds: post.durationSeconds ?? null,
@@ -552,7 +554,7 @@ export function ProfileScreen() {
 
   return <View style={{ flex: 1, backgroundColor: T.bg }}>
     <Reanimated.ScrollView onScroll={onScroll} scrollEventThrottle={16} contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingBottom: insets.bottom + 112 }}>
-      <View style={{ width: contentWidth, transform: [{ translateX: safeAreaOffset }] }}>
+      <View nativeID="web-profile-composition" style={{ width: contentWidth, transform: [{ translateX: safeAreaOffset }] }}>
       <View style={{ backgroundColor: T.bg }}>
         <View style={{ paddingHorizontal: horizontalPadding, paddingTop: Math.max(insets.top - 12, 12) }}>
           <Header
@@ -572,7 +574,7 @@ export function ProfileScreen() {
             {!editing ? <ProfileTitleBadge title={profile.title} /> : null}
 
             {editing ? <View style={{ width: "100%", maxWidth: 276, minHeight: 52, marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: T.dark, backgroundColor: T.raised, paddingHorizontal: 12, paddingVertical: 6 }}><TextInput value={draftBio} onChangeText={setDraftBio} accessibilityLabel="Bio" placeholder="Write a bio…" placeholderTextColor={T.muted} multiline maxLength={180} textAlignVertical="top" style={{ minHeight: 32, color: T.dark, fontFamily: "Rubik", fontSize: 15, lineHeight: 20, textAlign: "center" }} /></View> : <Text style={{ maxWidth: 286, marginTop: 8, color: profile.bio ? T.dark : T.muted, fontFamily: "Rubik", fontSize: 15, lineHeight: 20, textAlign: "center" }}>{profile.bio || "Tap the pencil icon to add a bio."}</Text>}
-            <View style={{ width: contentWidth, alignSelf: "stretch", marginHorizontal: -horizontalPadding, marginTop: 15 }}><ProfileStatMarquee overview={overview} visibility={carouselVisibility} /></View>
+            <View style={{ width: isWide ? 340 : contentWidth, alignSelf: "stretch", marginHorizontal: -horizontalPadding, marginTop: 15 }}><ProfileStatMarquee overview={overview} visibility={carouselVisibility} /></View>
             {editing ? <><ProfileStatVisibilityBento overview={overview} visibility={draftStatVisibility} onToggle={(id) => setDraftStatVisibility((current) => ({ ...current, [id]: !current[id] }))} /><SoftButton label="Privacy settings" icon="lock-closed-outline" inverse color={T.purple} onPress={() => setPrivacyOpen(true)} style={{ width: "100%", marginTop: 14, minHeight: 48 }} /></> : null}
             {error ? <Text accessibilityRole="alert" style={{ marginTop: 7, color: T.red, fontFamily: "RubikBold", fontSize: 12, textAlign: "center" }}>{error}</Text> : null}
           </View>

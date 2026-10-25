@@ -1,4 +1,4 @@
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/lib/device-storage";
 
 import { AppearancePreference, defaultUserSettings, UserSettings } from "@/types/settings";
 

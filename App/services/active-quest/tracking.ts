@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { Platform } from "react-native";
 
 import { updateActiveQuestSession } from "@/services/active-quest/local-store";
 import { ACTIVE_QUEST_LOCATION_TASK } from "@/services/active-quest/location-task-name";
@@ -29,6 +30,12 @@ export async function beginQuestLocationTracking(ownerId: string, sessionId: str
       return { started: false, reason: "Location permission is needed to record your route." } as const;
     }
 
+    if (Platform.OS === "web") {
+      await setTrackingSession({ ownerId, sessionId });
+      await updateActiveQuestSession(sessionId, { trackingStatus: "tracking" });
+      return { started: true, backgroundGranted: false, reason: "Keep this browser tab open to record your route. Browsers pause location when the tab or device sleeps." } as const;
+    }
+
     // iOS asks for foreground access first. Once granted, this requests the
     // separate Always permission needed for recording while the phone is locked.
     const existingBackground = await Location.getBackgroundPermissionsAsync();
@@ -44,7 +51,7 @@ export async function beginQuestLocationTracking(ownerId: string, sessionId: str
     // This happens only when the installed native app predates the configured
     // iOS location usage strings. Keep the quest usable and explain the fix.
     await updateActiveQuestSession(sessionId, { trackingStatus: "permission-needed" }).catch(() => undefined);
-    return { started: false, reason: "Location needs a freshly rebuilt QuestLife iOS app. Rebuild it, then allow Location access." } as const;
+    return { started: false, reason: Platform.OS === "web" ? "Location could not start. Allow location for this site in your browser, then try again. Your quest can continue without route recording." : "Location needs a freshly rebuilt QuestLife iOS app. Rebuild it, then allow Location access." } as const;
   }
 }
 
@@ -52,6 +59,7 @@ export async function stopQuestLocationTracking() {
   // Invalidate route persistence before waiting on the native service. This
   // covers a location callback delivered during native teardown.
   await setTrackingSession(null);
+  if (Platform.OS === "web") return;
   try {
     const registered = await Location.hasStartedLocationUpdatesAsync(ACTIVE_QUEST_LOCATION_TASK);
     if (registered) await Location.stopLocationUpdatesAsync(ACTIVE_QUEST_LOCATION_TASK);

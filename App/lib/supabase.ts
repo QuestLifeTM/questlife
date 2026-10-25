@@ -19,7 +19,7 @@ export const supabase = createClient(
     persistSession: true,
     detectSessionInUrl: false,
     flowType: "pkce",
-    lock: processLock,
+    ...(Platform.OS === "web" ? {} : { lock: processLock }),
   },
   },
 );

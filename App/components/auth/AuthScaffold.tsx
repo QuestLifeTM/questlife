@@ -1,14 +1,17 @@
 import { Fragment, PropsWithChildren, ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { radius, shadow, T, themedStyles } from "@/components/theme";
 import { AmbientGlow, useResponsiveScreenLayout } from "@/components/ui";
 import { useThemeKey } from "@/contexts/SettingsContext";
+import { useAppViewport } from "@/lib/responsive";
 
 export function AuthScaffold({ children, topAccessory, avoidKeyboard = true }: PropsWithChildren<{ topAccessory?: ReactNode; avoidKeyboard?: boolean }>) {
   const themeKey = useThemeKey();
   const insets = useSafeAreaInsets();
   const { horizontalPadding } = useResponsiveScreenLayout();
+  const { width } = useAppViewport();
+  const split = Platform.OS === "web" && width >= 900;
 
   return (
     <View style={styles.root}>
@@ -30,9 +33,12 @@ export function AuthScaffold({ children, topAccessory, avoidKeyboard = true }: P
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.contentFrame}>
+          <View style={{ width: "100%", maxWidth: split ? 1000 : 440, alignSelf: "center", flexDirection: split ? "row" : "column", alignItems: "center", gap: split ? 72 : 0 }}>
+          {split ? <View style={{ flex: 1, gap: 24 }}><Text style={{ color: T.blue, fontFamily: "RubikBlack", fontSize: 24 }}>QuestLife</Text><Text accessibilityRole="header" style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 38, lineHeight: 46 }}>Make room for your next adventure.</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 17, lineHeight: 27 }}>Discover quests, keep the moments that matter, and share the journey with your crew.</Text></View> : null}
+          <View style={[styles.contentFrame, split && { flex: 1 }]}>
             {topAccessory ? <View style={styles.topAccessory}>{topAccessory}</View> : null}
             <View style={styles.card}><Fragment key={themeKey}>{children}</Fragment></View>
+          </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

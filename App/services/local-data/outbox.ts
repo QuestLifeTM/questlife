@@ -1,5 +1,5 @@
-import * as FileSystem from "expo-file-system/legacy";
-import * as SecureStore from "expo-secure-store";
+import * as FileSystem from "@/lib/device-files";
+import * as SecureStore from "@/lib/device-storage";
 import { AESEncryptionKey, AESSealedData, aesDecryptAsync, aesEncryptAsync } from "expo-crypto";
 
 import { getAllActiveQuestSnapshots, hydrateActiveQuestRecord } from "@/services/active-quest/local-store";

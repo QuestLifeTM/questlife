@@ -74,17 +74,15 @@ export function Screen({
 }: PropsWithChildren<{ scroll?: boolean; padded?: boolean; bottomOverlay?: "none" | "tab"; contentStyle?: StyleProp<ViewStyle>; ambientGlow?: boolean }>) {
   const themeKey = useThemeKey();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { contentWidth, horizontalPadding, isWeb } = useResponsiveScreenLayout();
   const topPadding = Math.max(insets.top + 8, 20);
-  const horizontalPadding = responsiveScreenGutter(width);
-  const contentWidth = Math.min(Math.max(0, width - insets.left - insets.right), responsiveLayout.defaultContentMaxWidth);
   const contentInnerWidth = Math.max(0, contentWidth - horizontalPadding * 2);
   const { onScroll, scrollY } = useTopScrollBlur();
   const constrainedContent = padded ? { width: contentInnerWidth, alignSelf: "center" as const } : null;
   if (!scroll) {
     return (
-      <View style={{ flex: 1, backgroundColor: T.bg }}>
-        {ambientGlow ? <AmbientGlow /> : null}
+      <View style={{ flex: 1, width: "100%", alignSelf: "center", maxWidth: isWeb ? contentWidth : undefined, backgroundColor: T.bg }}>
+        {ambientGlow && !isWeb ? <AmbientGlow /> : null}
         <View style={[{ flex: 1, paddingTop: topPadding }, padded && { paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding }, contentStyle]}>
           <View style={[{ flex: 1 }, constrainedContent]}>
             <React.Fragment key={themeKey}>{children}</React.Fragment>
@@ -94,8 +92,8 @@ export function Screen({
     );
   }
   return (
-    <View style={{ flex: 1, backgroundColor: T.bg }}>
-      {ambientGlow ? <AmbientGlow /> : null}
+    <View style={{ flex: 1, width: "100%", alignSelf: "center", maxWidth: isWeb ? contentWidth : undefined, backgroundColor: T.bg }}>
+      {ambientGlow && !isWeb ? <AmbientGlow /> : null}
       <Reanimated.ScrollView
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
@@ -184,7 +182,7 @@ export function Header({
       ]}
     >
       <View style={{ flex: 1 }}>
-        {titleContent ?? <Text style={headerStyles.title}>{title}</Text>}
+        {titleContent ?? <Text accessibilityRole="header" style={headerStyles.title}>{title}</Text>}
         {subtitleContent ?? (caption ? <Text style={headerStyles.subtitle}>{caption}</Text> : null)}
       </View>
       {right}
@@ -225,6 +223,7 @@ export function Card({
   if (!pressable) return body;
   return (
     <Pressable
+      accessibilityRole="button"
       onPress={() => {
         haptic();
         onPress?.();
@@ -259,6 +258,8 @@ export function SoftButton({
   const baseColor = isPrimaryBlue ? T.primaryButtonEdge : `${color}88`;
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
       disabled={disabled}
       accessibilityState={{ disabled }}
       onPress={() => {
@@ -324,7 +325,7 @@ export function IconButton({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={label ?? (isBackButton ? "Back" : icon === "close" ? "Close" : icon === "folder-open-outline" ? "Saved collections" : icon.replace(/-outline$/, "").replaceAll("-", " "))}
       onPress={() => {
         guardPress(() => {
           haptic();
@@ -397,6 +398,8 @@ export function Sheet({
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotionPreference();
   const { height: windowHeight } = useWindowDimensions();
+  const { width: windowWidth } = useWindowDimensions();
+  const desktopDialog = Platform.OS === "web" && windowWidth >= 720;
   const dragY = useSharedValue(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [contentHeight, setContentHeight] = useState(0);
@@ -466,7 +469,10 @@ export function Sheet({
     };
   }, [expandOnKeyboard, keyboardAvoiding, visible]);
 
-  const resolvedMaxHeight = resolveSheetMaxHeight(maxHeight as number | `${number}%`, windowHeight, insets.top);
+  const resolvedMaxHeight = Math.min(
+    resolveSheetMaxHeight(maxHeight as number | `${number}%`, windowHeight, insets.top),
+    desktopDialog ? Math.max(0, windowHeight - 48) : windowHeight,
+  );
   const keyboardAvailableHeight = Math.max(0, windowHeight - insets.top - responsiveLayout.sheetTopClearance);
   const expandedHeight = expandOnKeyboard && keyboardHeight > 0 && contentHeight > 0
     ? Math.min(keyboardAvailableHeight, contentHeight + keyboardHeight)
@@ -476,8 +482,8 @@ export function Sheet({
     <Modal visible={visible} transparent={!fullScreen} animationType="fade" onRequestClose={() => { if (dismissible) onClose(); }}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <KeyboardAvoidingView enabled={keyboardAvoiding && !expandOnKeyboard} behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
-          <View style={{ flex: 1, backgroundColor: fullScreen ? T.white : T.overlay, justifyContent: "flex-end" }}>
-            {dismissible ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={onClose} style={{ flex: 1 }} /> : <View pointerEvents="none" style={{ flex: 1 }} />}
+          <View style={{ flex: 1, backgroundColor: fullScreen ? T.white : T.overlay, justifyContent: desktopDialog ? "center" : "flex-end", alignItems: desktopDialog ? "center" : "stretch", padding: desktopDialog ? 24 : 0 }}>
+            {dismissible ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={onClose} style={desktopDialog ? { position: "absolute", inset: 0 } : { flex: 1 }} /> : desktopDialog ? null : <View pointerEvents="none" style={{ flex: 1 }} />}
             <Reanimated.View
               accessibilityViewIsModal
               onLayout={({ nativeEvent }) => {
@@ -494,15 +500,16 @@ export function Sheet({
                 borderBottomWidth: 0,
                 paddingBottom: fullScreen ? insets.bottom : insets.bottom + 8,
                 overflow: "hidden",
+                ...(desktopDialog ? { width: "100%", maxWidth: fullScreen ? 960 : 600, borderRadius: 20, borderBottomWidth: 2 } : null),
               }, sheetMotionStyle]}
             >
               {glass ? <BlurView pointerEvents="none" intensity={18} tint={T.isDark ? "dark" : "light"} style={{ position: "absolute", inset: 0 }} /> : null}
-              {dismissible && !fullScreen ? <GestureDetector gesture={dragGesture}>
+              {desktopDialog && dismissible ? <View style={{ alignItems: "flex-end", padding: 12 }}><IconButton icon="close" label="Close dialog" onPress={onClose} /></View> : dismissible && !fullScreen ? <GestureDetector gesture={dragGesture}>
                 <View accessibilityLabel="Drag down to dismiss" style={{ alignItems: "center", paddingTop: 12, paddingBottom: 12 }}>
                   <View style={{ width: 36, height: 4, borderRadius: 99, backgroundColor: T.border }} />
                 </View>
               </GestureDetector> : <View style={{ height: fullScreen ? insets.top + 12 : 0 }} />}
-              {children}
+              {Platform.OS === "web" ? <View testID="web-sheet-body" style={{ flexShrink: 1, minHeight: 0 }}>{children}</View> : children}
             </Reanimated.View>
           </View>
         </KeyboardAvoidingView>
@@ -527,11 +534,12 @@ export function SearchInput({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
+        accessibilityLabel={placeholder}
         placeholderTextColor={T.muted}
         style={{ flex: 1, color: T.dark, fontFamily: "Rubik", fontSize: 15, lineHeight: 20, paddingVertical: 0, includeFontPadding: false, textAlignVertical: "center" }}
       />
       {value ? (
-        <Pressable onPress={() => onChangeText("")}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => onChangeText("")}>
           <Ionicons name="close" size={15} color={T.muted} />
         </Pressable>
       ) : null}

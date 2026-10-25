@@ -1,4 +1,4 @@
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/lib/device-storage";
 
 const TRACKING_SESSION_KEY = "questlife.active-location.v2";
 

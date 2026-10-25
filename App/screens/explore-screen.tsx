@@ -168,7 +168,7 @@ function FilterChoice({
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityState={{ selected }}
+      accessibilityState={{ checked: selected }}
       onPress={onPress}
       style={({ pressed }) => ({
         width: "30%",
@@ -265,7 +265,7 @@ function QuestFeedCard({ quest, onSave }: { quest: Quest; onSave: () => void }) 
  * the preview cannot drift from Explore's cards, header, or controls. */
 export function ExploreScreen({ previewQuests, previewAutoScroll = false, previewAutoScrollEnabled = true }: { previewQuests?: Quest[]; previewAutoScroll?: boolean; previewAutoScrollEnabled?: boolean } = {}) {
   const router = useRouter();
-  const { contentWidth, horizontalPadding: sideGap, safeAreaOffset, insets } = useResponsiveScreenLayout();
+  const { contentWidth, horizontalPadding: sideGap, safeAreaOffset, insets, columns } = useResponsiveScreenLayout();
   const { error, loading, quests, refresh } = useContent();
   const { openQuestSave } = useQuestSave();
   const [search, setSearch] = useState("");
@@ -277,7 +277,8 @@ export function ExploreScreen({ previewQuests, previewAutoScroll = false, previe
   const loopStartOffset = useRef(0);
   const loopEndOffset = useRef(0);
   const loopOffset = useRef(0);
-  const feedCardWidth = contentWidth - sideGap * 2;
+  const feedColumns = previewAutoScroll ? 1 : columns;
+  const feedCardWidth = (contentWidth - sideGap * 2 - (feedColumns - 1) * 16) / feedColumns;
 
   const sourceQuests = previewQuests ?? quests;
   const activeFilters = [filters.duration, filters.difficulty].filter(Boolean).length;
@@ -323,6 +324,9 @@ export function ExploreScreen({ previewQuests, previewAutoScroll = false, previe
   return (
     <Screen scroll={false} padded={false} ambientGlow={false} contentStyle={{ alignItems: "center", paddingTop: Math.max(insets.top - 12, 12) }}>
       <Reanimated.FlatList
+        key={`explore-${feedColumns}`}
+        numColumns={feedColumns}
+        columnWrapperStyle={feedColumns > 1 ? { gap: 16, width: contentWidth, paddingHorizontal: sideGap } : undefined}
         ref={listRef}
         data={previewQuests ? displayFeed : loading || error ? [] : displayFeed}
         keyExtractor={(quest, index) => `${quest.id}-${index}`}
@@ -394,7 +398,7 @@ export function ExploreScreen({ previewQuests, previewAutoScroll = false, previe
                 const selected = option.value === sortBy;
                 const color = selected ? T.blue : T.muted;
                 return (
-                  <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ selected }} onPress={() => setSortBy(option.value)} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: selected ? `${T.blue}0f` : T.white, opacity: pressed ? 0.8 : 1 })}>
+                  <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => setSortBy(option.value)} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: selected ? `${T.blue}0f` : T.white, opacity: pressed ? 0.8 : 1 })}>
                     <SortOptionIcon icon={option.icon} color={color} />
                     <Text style={{ color, fontSize: 11, lineHeight: 14, fontWeight: "800", textAlign: "center" }} numberOfLines={1}>{option.label}</Text>
                   </Pressable>

@@ -31,6 +31,10 @@ Run the admin dashboard:
 npm run admin
 ```
 
+Run the responsive browser app with `npm run app:web` and build it locally with
+`npm run app:build:web`. See [the web app guide](docs/WEB_APP.md) for layout
+conventions, browser capabilities, local visual QA and environment validation.
+
 For App Store submission, build from `App/`. Do not submit `Admin/` or `Website/` to Apple.
 
 ## Deployments

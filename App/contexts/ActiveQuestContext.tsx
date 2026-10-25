@@ -1,7 +1,7 @@
 import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import * as Location from "expo-location";
-import * as FileSystem from "expo-file-system/legacy";
+import * as FileSystem from "@/lib/device-files";
 
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useGuestQuest } from "@/contexts/GuestQuestContext";
@@ -98,8 +98,10 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    void retryCompletedRouteSync();
-  }, [retryCompletedRouteSync]);
+    void retryCompletedRouteSync().catch(() => {
+      setTrackingMessage("Saved quest progress could not be synced. It will retry when you reopen the quest.");
+    });
+  }, [retryCompletedRouteSync, user?.id]);
 
   const reload = useCallback(async () => {
     if (!activeSession) {
@@ -257,7 +259,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     if (!ownerId) return;
     const result = await beginQuestLocationTracking(ownerId, snapshot.session.sessionId);
     if (result.started) await startForegroundLocationWatch(snapshot.session.sessionId);
-    setTrackingMessage(result.started ? (result.backgroundGranted ? "Route recording is on, even while your phone is locked." : "Route recording is on while QuestLife is open.") : result.reason);
+    setTrackingMessage(result.started ? (Platform.OS === "web" ? "Keep this tab open to record your route. Recording pauses when the browser or device sleeps." : result.backgroundGranted ? "Route recording is on, even while your phone is locked." : "Route recording is on while QuestLife is open.") : result.reason);
     await reload();
   }, [reload, snapshot, startForegroundLocationWatch]);
 

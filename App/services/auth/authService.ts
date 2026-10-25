@@ -13,7 +13,7 @@ import { rememberEmail } from "@/services/auth/rememberedEmail";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const webAppOrigin = "https://app.myquestlife.app";
+const webAppOrigin = Platform.OS === "web" && typeof window !== "undefined" ? window.location.origin : "https://app.myquestlife.app";
 const isWeb = Platform.OS === "web";
 
 const appAuthRedirectTo = isWeb
@@ -87,8 +87,6 @@ export class UsernameUnavailableError extends Error {
   }
 }
 
-export type RegistrationAccountState = "available" | "unverified" | "verified" | "invalid_email";
-
 export function isUserEmailVerified(user: {
   confirmed_at?: string | null;
   email_confirmed_at?: string | null;
@@ -151,18 +149,6 @@ export async function sendEmailSignInLink(email: string) {
   if (error) throw error;
 }
 
-export async function getRegistrationAccountState(email: string): Promise<RegistrationAccountState> {
-  assertSupabaseConfigured();
-  const { data, error } = await supabase.rpc("get_public_account_registration_state", {
-    raw_email: normalizeEmail(email),
-  });
-
-  if (error) throw error;
-
-  const status = (data as { status?: RegistrationAccountState } | null)?.status;
-  return status ?? "available";
-}
-
 export async function isUsernameAvailable(username: string) {
   return (await checkUsernameAvailability(username)).available;
 }
@@ -206,14 +192,6 @@ export async function registerWithEmail(email: string, username: string, firstNa
     }
 
     throw error;
-  }
-
-  if (data.user && data.user.identities?.length === 0) {
-    const state = await getRegistrationAccountState(normalizedEmail);
-    if (state === "unverified") {
-      throw new EmailNotVerifiedError(normalizedEmail);
-    }
-    throw new AccountAlreadyExistsError(normalizedEmail);
   }
 
   if (data.session || (data.user && isUserEmailVerified(data.user))) {

@@ -106,6 +106,19 @@ Use a pale canvas, white task surfaces, lively but disciplined status colors, an
 - Mobile layouts stay compact, centered, and readable from 375px through 430px widths.
 - State is communicated with text, icons, and color together.
 
+### Responsive web composition
+
+Use the same palette, typography and tactile controls on web. At 720px, primary
+navigation becomes a compact rail; at 1120px it expands to a labeled sidebar.
+Use the available content width from `useResponsiveScreenLayout`, which excludes
+navigation, rather than scaling a phone canvas. Catalog cards reflow at 680px and
+1060px of available content. Journal pairs its calendar with the timeline, while
+Lobby, profile, settings and quest details use multiple bounded panels when space
+allows. Reading surfaces cap at 760px, details at 960px and catalogs at 1200px.
+Dialogs stay within the viewport and keep explicit close controls on desktop.
+Every future UI change includes keyboard, touch and continuous resize behavior;
+see `AGENTS.md` for implementation and verification conventions.
+
 ## Colors
 
 The palette is a light, warm-neutral foundation with one familiar sky-blue action color and a purposeful set of category and reward signals.

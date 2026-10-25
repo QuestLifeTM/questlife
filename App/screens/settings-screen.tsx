@@ -38,7 +38,7 @@ function SettingsHeader({ eyebrow, title }: { eyebrow: string; title: string }) 
 
 function SettingsPage({ eyebrow = "Your account", title, children }: { eyebrow?: string; title: string; children: React.ReactNode }) {
   const { contentWidth } = useResponsiveScreenLayout();
-  return <Screen padded={false} contentStyle={{ alignItems: "center", gap: 0 }}><View style={{ width: contentWidth, minHeight: "100%" }}><SettingsHeader eyebrow={eyebrow} title={title} /><View style={{ padding: 20, gap: 20 }}>{children}</View></View></Screen>;
+  return <Screen padded={false} contentStyle={{ alignItems: "center", gap: 0 }}><View style={{ width: contentWidth, minHeight: "100%" }}><SettingsHeader eyebrow={eyebrow} title={title} /><View testID="web-settings-groups" style={{ padding: 20, gap: 20 }}>{children}</View></View></Screen>;
 }
 
 function SettingGroup({ title, children }: { title: string; children: React.ReactNode }) {
@@ -65,7 +65,7 @@ function AppearanceSelector({ value, onChange }: { value: AppearancePreference; 
   return <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: 8 }}>
     {choices.map((choice) => {
       const selected = choice.value === value;
-      return <Pressable key={choice.value} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={`${choice.label} appearance`} onPress={() => onChange(choice.value)} style={({ pressed }) => ({ flex: 1, minHeight: 58, borderRadius: 16, borderWidth: 2, borderColor: selected ? T.blue : T.border, backgroundColor: selected ? `${T.blue}18` : T.input, alignItems: "center", justifyContent: "center", gap: 4, opacity: pressed ? 0.72 : 1 })}><Ionicons name={choice.icon as keyof typeof Ionicons.glyphMap} size={18} color={selected ? T.blue : T.muted} /><Text style={{ color: selected ? T.blue : T.muted, fontFamily: "RubikBold", fontSize: 12 }}>{choice.label}</Text></Pressable>;
+      return <Pressable key={choice.value} accessibilityRole="radio" accessibilityState={{ checked: selected }} accessibilityLabel={`${choice.label} appearance`} onPress={() => onChange(choice.value)} style={({ pressed }) => ({ flex: 1, minHeight: 58, borderRadius: 16, borderWidth: 2, borderColor: selected ? T.blue : T.border, backgroundColor: selected ? `${T.blue}18` : T.input, alignItems: "center", justifyContent: "center", gap: 4, opacity: pressed ? 0.72 : 1 })}><Ionicons name={choice.icon as keyof typeof Ionicons.glyphMap} size={18} color={selected ? T.blue : T.muted} /><Text style={{ color: selected ? T.blue : T.muted, fontFamily: "RubikBold", fontSize: 12 }}>{choice.label}</Text></Pressable>;
     })}
   </View>;
 }

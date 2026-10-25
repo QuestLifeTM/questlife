@@ -1,4 +1,4 @@
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/lib/device-storage";
 import { Platform } from "react-native";
 
 const memoryStorage = new Map<string, string>();

@@ -18,7 +18,7 @@ type OnboardingScaffoldProps = PropsWithChildren<{
  */
 export function OnboardingScaffold({ children, footer, scroll = false, contentStyle }: OnboardingScaffoldProps) {
   const themeKey = useThemeKey();
-  const { horizontalPadding, insets } = useResponsiveScreenLayout();
+  const { horizontalPadding, insets, isWeb } = useResponsiveScreenLayout();
   const safeContentPadding = {
     paddingTop: Math.max(insets.top + 6, 18),
     paddingLeft: insets.left + horizontalPadding,
@@ -32,7 +32,7 @@ export function OnboardingScaffold({ children, footer, scroll = false, contentSt
 
   if (scroll) {
     return (
-      <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1, width: "100%", maxWidth: isWeb ? 760 : undefined, alignSelf: "center" }}>
         <ScrollView
           contentContainerStyle={[{ flexGrow: 1, backgroundColor: T.bg }, safeContentPadding, contentStyle]}
           keyboardDismissMode="interactive"
@@ -47,7 +47,7 @@ export function OnboardingScaffold({ children, footer, scroll = false, contentSt
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
+    <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1, width: "100%", maxWidth: isWeb ? 760 : undefined, alignSelf: "center" }}>
       <View style={[{ flex: 1, backgroundColor: T.bg }, safeContentPadding, contentStyle]}><Fragment key={themeKey}>{children}</Fragment></View>
       <View style={[{ backgroundColor: T.bg, paddingTop: 10 }, safeFooterPadding]}>{footer}</View>
     </KeyboardAvoidingView>

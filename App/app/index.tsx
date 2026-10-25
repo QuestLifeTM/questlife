@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, ImageBackground, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Animated, Easing, ImageBackground, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { OnboardingIntro } from "@/components/onboarding-intro";
@@ -18,7 +18,8 @@ export default function OnboardingWelcomeScreen() {
   useThemeKey();
   const { skipIntro } = useLocalSearchParams<{ skipIntro?: string }>();
   const insets = useSafeAreaInsets();
-  const { horizontalPadding } = useResponsiveScreenLayout();
+  const { horizontalPadding, width } = useResponsiveScreenLayout();
+  const split = Platform.OS === "web" && width >= 900;
   const [introComplete, setIntroComplete] = useState(skipIntro === "1");
   const [introEnabled, setIntroEnabled] = useState<boolean | null>(null);
   const [firstName, setFirstName] = useState("");
@@ -94,16 +95,17 @@ export default function OnboardingWelcomeScreen() {
   }
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { overflow: "hidden" }]}>
+      {split ? <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "45%", backgroundColor: T.bg, padding: 48, justifyContent: "center", gap: 20 }}><Text accessibilityRole="header" style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 40, lineHeight: 48 }}>Your next story starts here.</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 17, lineHeight: 27, maxWidth: 400 }}>Find a quest for today. Make a plan with friends. Keep the memories along the way.</Text></View> : null}
       <StatusBar style="light" />
-      <Animated.View style={[styles.artworkFade, { opacity: welcomeOpacity }]}>
+      <Animated.View style={[styles.artworkFade, { opacity: welcomeOpacity, left: split ? "45%" : 0, overflow: "hidden" }]}>
         <ImageBackground
           source={welcomeArtwork}
           resizeMode="cover"
           style={styles.artwork}
         />
       </Animated.View>
-      <Animated.View style={[styles.actions, { opacity: welcomeOpacity, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, paddingBottom: Math.max(insets.bottom + 2, 10) }]}>
+      <Animated.View style={[styles.actions, { opacity: welcomeOpacity, left: split ? "45%" : 0, paddingLeft: insets.left + horizontalPadding, paddingRight: insets.right + horizontalPadding, paddingBottom: Math.max(insets.bottom + 2, 10) }]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Start my adventure" onPress={getStarted} style={({ pressed }) => [styles.getStartedAction, pressed && styles.actionPressed]}>
           <LinearGradient
             colors={["rgba(255,255,255,0.25)", "rgba(255,255,255,0.07)", "rgba(255,255,255,0)"]}

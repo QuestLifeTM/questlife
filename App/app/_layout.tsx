@@ -3,7 +3,7 @@ import { initializeSentry, Sentry } from "@/lib/sentry";
 import "@/services/active-quest/location-task";
 import { Redirect, Stack, useSegments } from "expo-router";
 import { PropsWithChildren } from "react";
-import { Platform, StyleSheet, useColorScheme, View } from "react-native";
+import { Platform, StyleSheet, useColorScheme } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { T } from "@/components/theme";
@@ -21,6 +21,9 @@ import { SocialProvider } from "@/contexts/SocialContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { StreaksProvider } from "@/contexts/StreaksContext";
+import { useGuestQuest } from "@/contexts/GuestQuestContext";
+import { WebAppShell } from "@/components/web-app-shell";
+import "@/lib/web-bootstrap";
 
 initializeSentry("mobile");
 
@@ -54,7 +57,7 @@ function SessionDataProviders({ children }: PropsWithChildren) {
   // needs it. Mount the provider for API compatibility, but defer its first
   // fetch until a social-dependent route is actually opened.
   const socialEnabled = currentPath === "(tabs)/social" || /^(friends|add-friends|add-friend|quest|streak|streak-invite)(\/|$)/.test(currentPath);
-  const notificationsEnabled = currentPath === "(tabs)/index" || currentPath === "(tabs)/journal" || /^(notifications)(\/|$)/.test(currentPath);
+  const notificationsEnabled = currentPath === "(tabs)/index" || currentPath === "(tabs)/home" || currentPath === "(tabs)/journal" || /^(notifications)(\/|$)/.test(currentPath);
 
   // User-scoped providers hold loaded data in memory. Remount them when the
   // account changes so a signed-out user (or the next user) never sees stale
@@ -85,6 +88,7 @@ function SessionDataProviders({ children }: PropsWithChildren) {
 function AppLayout() {
   const segments = useSegments();
   const { initializing, isEmailVerified, session, user } = useAuth();
+  const { guestSession } = useGuestQuest();
   const { settings } = useSettings();
   const systemAppearance = useColorScheme() === "dark" ? "dark" : "light";
   const resolvedAppearance = settings.appearance === "system" ? systemAppearance : settings.appearance;
@@ -98,7 +102,8 @@ function AppLayout() {
     return null;
   }
 
-  if (!session && !isOnboardingRoute && !isAuthRoute && !isCallbackRoute && !isResetRoute) {
+  const isLocalPreview = __DEV__ && Platform.OS === "web" && firstSegment === "web-preview";
+  if (!session && !isLocalPreview && !(guestSession && firstSegment === "active-quest") && !isOnboardingRoute && !isAuthRoute && !isCallbackRoute && !isResetRoute) {
     return <Redirect href="/(auth)/login" />;
   }
 
@@ -114,12 +119,12 @@ function AppLayout() {
   }
 
   if (session && isEmailVerified && (isOnboardingRoute || isAuthRoute)) {
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href={Platform.OS === "web" ? "/home" : "/(tabs)"} />;
   }
 
   return (
     <GestureHandlerRootView style={styles.appShell}>
-      <View style={styles.appViewport}>
+      <WebAppShell authenticated={Boolean(session && isEmailVerified)}>
       <StatusBar style={resolvedAppearance === "dark" ? "light" : "dark"} />
       <Stack
         screenOptions={{
@@ -150,7 +155,7 @@ function AppLayout() {
         <Stack.Screen name="add-friends" options={{ presentation: "card" }} />
         <Stack.Screen name="add-friend/[userId]" options={{ presentation: "card" }} />
       </Stack>
-      </View>
+      </WebAppShell>
     </GestureHandlerRootView>
   );
 }
@@ -158,16 +163,6 @@ function AppLayout() {
 const styles = StyleSheet.create({
   appShell: {
     flex: 1,
-    alignItems: Platform.OS === "web" ? "center" : undefined,
-    backgroundColor: Platform.OS === "web" ? "#e8dfd5" : T.bg,
-  },
-  // The browser is a direct, phone-sized rendering of the native app. Its
-  // width is deliberately capped at the shared screen width while the height
-  // remains fluid with the browser viewport.
-  appViewport: {
-    flex: 1,
-    width: "100%",
-    maxWidth: Platform.OS === "web" ? 520 : undefined,
     backgroundColor: T.bg,
   },
 });

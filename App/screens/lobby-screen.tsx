@@ -633,6 +633,7 @@ export function LobbyScreen() {
       {isInitialLobbyLoad ? <LobbyLoadingSkeleton contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} /> : <LobbyReveal motionKey="lobby-page" reducedMotion={reducedMotion}>
         <View
           style={[styles.container, { width: contentWidth, paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }]}
+          nativeID="web-lobby-composition"
           testID={`lobby-${lobbyStates.request}-${lobbyStates.activity}-${lobbyStates.history}-${lobbyStates.feedback}`}
         >
         <View style={styles.header}>
