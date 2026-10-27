@@ -5,7 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, FlatList, Image, InteractionManager, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Animated, FlatList, Image, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import MapView, { Marker, Polyline } from "@/components/route-map";
@@ -197,7 +197,7 @@ function ActivityTimeline({ activity, photos, accent, onManage, focusLatest = fa
   const [loadRange, setLoadRange] = useState({ start: 0, end: 3 });
   const photoById = useMemo(() => new Map(photos.map((photo) => [photo.id, photo])), [photos]);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 1 }).current;
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index: number | null | undefined }> }) => {
     const indexes = viewableItems.map((item) => item.index).filter((index): index is number => index !== null);
     if (!indexes.length) return;
     const first = Math.min(...indexes);
@@ -548,7 +548,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
         routeRecordingStartedSessionRef.current = session.id;
         // Mounting the native map and requesting GPS can be expensive. Start
         // them after the countdown has yielded its final frame to the UI.
-        InteractionManager.runAfterInteractions(() => { void beginQuestRoute(); });
+        requestIdleCallback(() => { void beginQuestRoute(); });
       }
     }, 3_400);
     return () => {

@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentRef, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, PanResponder, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 import Reanimated from "react-native-reanimated";
 
@@ -310,7 +310,7 @@ function FollowerManagerSheet({ visible, onClose, onChanged }: { visible: boolea
 /** Starts chart motion only when the section actually enters the viewport. */
 function ScrollTriggered({ scrollY, children }: { scrollY: number; children: (active: boolean) => ReactNode }) {
   const { height } = useWindowDimensions();
-  const ref = useRef<View>(null);
+  const ref = useRef<ComponentRef<typeof View>>(null);
   const [active, setActive] = useState(false);
   useEffect(() => {
     if (active) return;

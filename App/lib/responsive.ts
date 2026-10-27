@@ -61,7 +61,7 @@ export function twoColumnWidth(contentInnerWidth: number, gap = 12) {
   return Math.max(0, (contentInnerWidth - gap) / 2);
 }
 
-export function useResponsiveScreenLayout(maxContentWidth = responsiveLayout.defaultContentMaxWidth) {
+export function useResponsiveScreenLayout(maxContentWidth: number = responsiveLayout.defaultContentMaxWidth) {
   const { height, width } = useAppViewport();
   const actualPathname = usePathname();
   const pathname = useContext(ResponsiveSurfaceContext) ?? actualPathname;

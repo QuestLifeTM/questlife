@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { type ComponentRef, useRef } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 
 import { T, themedStyles } from "@/components/theme";
@@ -10,7 +10,7 @@ type OtpInputProps = {
 };
 
 export function OtpInput({ code, disabled, onChangeCode }: OtpInputProps) {
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
   const digits = Array.from({ length: 6 }, (_, index) => code[index] ?? "");
 
   return (

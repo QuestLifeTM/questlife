@@ -6,9 +6,9 @@ Alert.alert = (title, message, buttons = [{ text: "OK" }], options) => {
   const previousFocus = document.activeElement as HTMLElement | null;
   const dialog = document.createElement("dialog");
   dialog.className = "questlife-dialog";
-  dialog.setAttribute("aria-label", title);
+  dialog.setAttribute("aria-label", title ?? "Alert");
   const heading = document.createElement("h2");
-  heading.textContent = title;
+  heading.textContent = title ?? "";
   dialog.append(heading);
   if (message) { const copy = document.createElement("p"); copy.textContent = message; dialog.append(copy); }
   const actions = document.createElement("div");
@@ -35,13 +35,13 @@ Alert.alert = (title, message, buttons = [{ text: "OK" }], options) => {
 Share.share = async (content) => {
   const data = { title: content.title, text: "message" in content ? content.message : undefined, url: "url" in content ? content.url : undefined };
   if (navigator.share) {
-    try { await navigator.share(data); return { action: Share.sharedAction }; }
-    catch (error) { if (error instanceof DOMException && error.name === "AbortError") return { action: Share.dismissedAction }; }
+    try { await navigator.share(data); return { action: Share.sharedAction, activityType: undefined }; }
+    catch (error) { if (error instanceof DOMException && error.name === "AbortError") return { action: Share.dismissedAction, activityType: undefined }; }
   }
   const text = [data.text, data.url].filter(Boolean).join("\n");
   try { await navigator.clipboard.writeText(text); Alert.alert("Copied to clipboard", "Paste this into a message to share it."); }
   catch { Alert.alert("Share", text); }
-  return { action: Share.sharedAction };
+  return { action: Share.sharedAction, activityType: undefined };
 };
 
 const style = document.createElement("style");

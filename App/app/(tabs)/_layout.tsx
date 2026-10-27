@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { Platform, type ColorValue, View, useWindowDimensions } from "react-native";
+import { Platform, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { T } from "@/components/theme";
 import { useNotifications } from "@/contexts/NotificationsContext";
@@ -16,7 +16,7 @@ const tabIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   profile: "person",
 };
 
-function TabIcon({ routeName, focused, color }: { routeName: string; focused: boolean; color: ColorValue }) {
+function TabIcon({ routeName, focused, color }: { routeName: string; focused: boolean; color: string }) {
   const icon = tabIcons[routeName] ?? "ellipse";
   const { hasUnreadJournal } = useNotifications();
   return (
@@ -76,7 +76,7 @@ export default function TabLayout() {
           alignItems: "center",
           justifyContent: "center",
         },
-        tabBarIcon: ({ color, focused }) => <TabIcon routeName={route.name} focused={focused} color={color} />,
+        tabBarIcon: ({ color, focused }) => <TabIcon routeName={route.name} focused={focused} color={typeof color === "string" ? color : focused ? T.blue : T.muted} />,
       })}
     >
       <Tabs.Screen name="social" options={{ title: "Social" }} />
