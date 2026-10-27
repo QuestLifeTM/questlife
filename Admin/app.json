@@ -6,8 +6,6 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "jsEngine": "jsc",
-    "newArchEnabled": true,
     "plugins": [
       "expo-router",
       "expo-font",
@@ -19,8 +17,6 @@
     "ios": {
       "supportsTablet": false
     },
-    "android": {
-      "edgeToEdgeEnabled": true
-    }
+    "android": {}
   }
 }

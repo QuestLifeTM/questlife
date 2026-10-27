@@ -1,0 +1,16 @@
+.bottom-nav .legal a {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.bottom-nav .legal a:hover {
+  color: #006dcc;
+  text-decoration-thickness: 2px;
+}
+
+.bottom-nav .legal a:focus-visible {
+  outline: 3px solid #006dcc;
+  outline-offset: 4px;
+  border-radius: 2px;
+}
