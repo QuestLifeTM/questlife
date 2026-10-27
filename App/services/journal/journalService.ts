@@ -268,9 +268,9 @@ export async function resolveJournalMedia(paths: string[]) {
     .map((path) => isDirectUri(path) ? path : signedByPath.get(path))
     .filter((url): url is string => Boolean(url));
 
-  if (!resolved.length) {
-    throw new Error("Your Journal photos could not be opened. Please try again.");
-  }
+  // A memory can outlive one of its stored image objects. The Journal entry
+  // and post composer remain usable; callers render the photos that resolved
+  // and let the owner add a replacement when none remain.
   return resolved;
 }
 

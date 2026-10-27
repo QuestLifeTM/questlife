@@ -138,9 +138,7 @@ export async function ensureActiveQuestSession(input: { sessionId: string; quest
         sessionId: input.sessionId,
         questId: input.questId,
         startedAt: input.startedAt,
-        // The quest clock is wall-clock based. Restoring its shell must keep
-        // the original start timestamp so backgrounded and terminated time is
-        // included when the UI recalculates elapsed time.
+        // Recover an existing running session from its original start time.
         recordingState: input.resumeExistingSession ? "recording" : "paused",
         pausedAt: input.resumeExistingSession ? null : input.startedAt,
         activeSince: input.resumeExistingSession ? input.startedAt : null,
@@ -154,16 +152,7 @@ export async function ensureActiveQuestSession(input: { sessionId: string; quest
         routeSegments: [],
         updatedAt: new Date().toISOString(),
       };
-    } else if (input.resumeExistingSession && existing.recordingState === "paused" && existing.activeDurationMs === 0 && !existing.activeSince && !store.route.some((point) => point.sessionId === input.sessionId)) {
-      // Repair the empty, device-local placeholder created by older builds
-      // when an already-active server session was opened on a second phone.
-      store.sessions[input.sessionId] = {
-        ...existing,
-        recordingState: "recording",
-        pausedAt: null,
-        activeSince: input.startedAt,
-        updatedAt: new Date().toISOString(),
-      };
+
     }
   });
   return getActiveQuestSession(input.sessionId);
@@ -187,6 +176,7 @@ export async function hydrateActiveQuestRecord(record: RemoteActiveQuestRecord) 
     const local = store.sessions[sessionId];
     const localHasProgress = Boolean(local && (
       local.activeDurationMs > 0 ||
+      (local.recordingState === "paused" && local.pausedAt !== local.startedAt) ||
       local.distanceMeters > 0 ||
       Boolean(local.entryTitle.trim() || local.entryBody.trim()) ||
       local.routeSegments.some((segment) => segment.pointIds.length > 0) ||

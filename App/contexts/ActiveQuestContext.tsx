@@ -31,7 +31,7 @@ type ActiveQuestContextValue = {
   updateActivity: (id: number, value: string) => Promise<void>;
   deleteActivity: (id: number) => Promise<void>;
   deletePhoto: (id: number) => Promise<void>;
-  finishLocalQuest: () => Promise<void>;
+  finishLocalQuest: (sessionId?: string, guestMode?: boolean) => Promise<void>;
 };
 
 const ActiveQuestContext = createContext<ActiveQuestContextValue>({
@@ -282,7 +282,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
   const addPhoto = useCallback(async (uri: string, caption?: string, options: { tutorialOnly?: boolean } = {}) => {
     if (!snapshot) return;
     const photo = await persistQuestPhoto(snapshot.session.sessionId, uri, options);
-    await addActiveQuestActivity(snapshot.session.sessionId, { kind: "photo", photoId: photo.id, caption });
+    await addActiveQuestActivity(snapshot.session.sessionId, { kind: "photo", photoId: photo.id, caption, isTutorialMock: options.tutorialOnly });
     await reload();
     if (!options.tutorialOnly) void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
   }, [reload, snapshot]);
@@ -318,18 +318,20 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     void syncActiveQuestRecord(removed.sessionId).catch(() => undefined);
   }, [deletePhoto, reload, snapshot]);
 
-  const finishLocalQuest = useCallback(async () => {
-    if (!snapshot) return;
+  const finishLocalQuest = useCallback(async (sessionId?: string, guestMode = isGuestSession) => {
+    const finishedSessionId = sessionId ?? snapshot?.session.sessionId;
+    if (!finishedSessionId) return;
+    const finishedSnapshot = snapshot?.session.sessionId === finishedSessionId ? snapshot : await getActiveQuestSnapshot(finishedSessionId);
     await stopQuestLocationTracking();
     stopForegroundLocationWatch();
-    if (isGuestSession) {
-      await finishGuestQuest({ title: "Personalize your Quest", durationSeconds: Math.round(snapshot.session.activeDurationMs / 1_000) });
+    if (guestMode) {
+      await finishGuestQuest({ title: "Personalize your Quest", durationSeconds: Math.round((finishedSnapshot?.session.activeDurationMs ?? 0) / 1_000) });
       setSnapshot(null);
       return;
     }
     // Keep the completed local record as an outbox. If the phone is offline,
     // this state is retried automatically on the next app launch.
-    await updateActiveQuestSession(snapshot.session.sessionId, { completionSyncState: "pending" });
+    await updateActiveQuestSession(finishedSessionId, { completionSyncState: "pending" });
     await retryCompletedRouteSync();
     setSnapshot(null);
   }, [finishGuestQuest, isGuestSession, retryCompletedRouteSync, snapshot, stopForegroundLocationWatch]);

@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CachedImage } from "@/components/cached-image";
 import { categoryColor, T } from "@/components/theme";
-import { IconButton } from "@/components/ui";
+import { IconButton, SoftButton } from "@/components/ui";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { uploadQuestPhoto } from "@/services/engine/questEngineService";
 import { fetchJournalMemory, resolveJournalMedia } from "@/services/journal/journalService";
@@ -93,9 +93,12 @@ export function ShareAdventureScreen() {
     setLoading(true); setError(null);
     fetchJournalMemory(completionId).then(async (nextMemory) => {
       if (!nextMemory) throw new Error("This quest memory is no longer available.");
+      if (!current) return;
+      // The completed quest is enough to build and publish a post. Keep it
+      // available even when an older or deleted Journal photo cannot be signed.
+      setMemory(nextMemory);
       const urls = await resolveJournalMedia(nextMemory.photoPaths);
       if (!current) return;
-      setMemory(nextMemory);
       if (urls.length) setPhotos(urls.slice(0, MAX_POST_PHOTOS).map((uri, index) => ({ id: `quest-${index}-${uri}`, uri, source: "quest" })));
     }).catch((nextError) => { if (current) setError(nextError instanceof Error ? nextError.message : "We couldn't load your quest photos."); }).finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
@@ -143,9 +146,14 @@ export function ShareAdventureScreen() {
   return <View style={{ flex: 1, backgroundColor: T.bg }}>
     <View style={{ width: "100%", maxWidth: layout.contentWidth, alignSelf: "center", paddingTop: insets.top + 10, paddingHorizontal: layout.horizontalPadding, paddingBottom: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
       <View style={{ opacity: posting ? 0.45 : 1 }}><IconButton icon="close" label="Close post composer" onPress={close} color={accentColor} size={44} /></View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Post quest experience" accessibilityState={{ disabled, busy: posting }} disabled={disabled} onPress={() => void post()} style={({ pressed }) => ({ minHeight: 46, minWidth: 100, paddingHorizontal: 20, borderRadius: 23, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, backgroundColor: accentColor, borderBottomWidth: 3, borderBottomColor: `${accentColor}99`, opacity: disabled ? 0.5 : pressed ? 0.78 : 1 })}>
-        {posting ? <ActivityIndicator size="small" color={T.dark} /> : <Ionicons name="arrow-up" size={17} color={T.dark} />}<Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15 }}>{posting ? "Posting…" : "Post"}</Text>
-      </Pressable>
+      <SoftButton
+        label={posting ? "Posting…" : "Post"}
+        icon={posting ? undefined : "arrow-up"}
+        color={accentColor}
+        disabled={disabled}
+        onPress={() => void post()}
+        style={{ minHeight: 50, minWidth: 112, paddingHorizontal: 18 }}
+      />
     </View>
     <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ width: "100%", maxWidth: layout.contentWidth, alignSelf: "center", paddingHorizontal: layout.horizontalPadding, paddingBottom: insets.bottom + 32, gap: 24 }}>
       <View style={{ gap: 12, paddingTop: 8 }}>
@@ -174,7 +182,7 @@ export function ShareAdventureScreen() {
           <View style={{ flex: 1, gap: 3 }}><Text style={labelStyle}>Allow comments</Text><Text style={supportingStyle}>Let people respond to this quest.</Text></View>
           <QuestToggle label="Allow comments" value={commentsEnabled} disabled={posting} accentColor={accentColor} onChange={() => { setCommentsEnabled((current) => !current); setEdited(true); }} />
         </View>
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 7 }}><Ionicons name={visibility === "public" ? "earth-outline" : "people-outline"} size={15} color={T.muted} /><Text style={{ ...supportingStyle, flex: 1 }}>{visibility === "public" ? "Everyone can see this post." : "Only your friends can see this post."} Your original memory stays in your Journal.</Text></View>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 7 }}><Ionicons name={visibility === "public" ? "earth-outline" : "people-outline"} size={15} color={T.muted} /><Text style={{ ...supportingStyle, flex: 1 }}>{visibility === "public" ? "Everyone can see this post." : "Only your friends can see this post."} Your previous reflection stays private in your Journal.</Text></View>
       </View>
       {error ? <View accessibilityRole="alert" style={{ padding: 14, borderRadius: 14, backgroundColor: T.white, borderWidth: 1.5, borderColor: T.red, gap: 10 }}><View style={{ flexDirection: "row", gap: 8 }}><Ionicons name="alert-circle" size={18} color={T.dark} /><Text selectable style={{ ...supportingStyle, color: T.dark, flex: 1 }}>{error}</Text></View>{!memory && completionId ? <Pressable accessibilityRole="button" accessibilityLabel="Retry loading quest" disabled={loading} onPress={() => setLoadAttempt((value) => value + 1)} style={{ minHeight: 44, justifyContent: "center" }}><Text style={labelStyle}>Try again</Text></Pressable> : null}</View> : null}
     </ScrollView>

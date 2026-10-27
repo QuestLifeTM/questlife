@@ -30,7 +30,9 @@ export async function syncActiveQuestRecord(sessionId: string) {
     recording_state: session.recordingState,
     started_at: session.startedAt,
     paused_at: session.pausedAt,
-    active_duration_ms: session.activeDurationMs,
+    // The remote record resumes from updated_at, so checkpoint elapsed time
+    // through that timestamp rather than dropping the current active segment.
+    active_duration_ms: session.activeDurationMs + (session.recordingState === "recording" && session.activeSince ? Math.max(0, new Date(session.updatedAt).getTime() - new Date(session.activeSince).getTime()) : 0),
     distance_meters: session.distanceMeters,
     entry_title: session.entryTitle,
     entry_body: session.entryBody,

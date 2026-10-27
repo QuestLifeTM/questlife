@@ -25,6 +25,8 @@ import { formatElapsedFull, useElapsedDuration } from "@/hooks/useElapsedTime";
 import { Quest } from "@/types/content";
 import { ActiveQuestActivity, ActiveQuestCheckpoint, ActiveQuestPhoto, ActiveQuestRenderableSegment, ActiveQuestRoutePoint } from "@/types/active-quest";
 
+import { FINISH_QUEST_PROMPTS, getFinishQuestPromptIndex } from "@/lib/finish-quest-prompt";
+
 type ActiveQuestTab = "map" | "album" | "entry";
 type QuestNotice = "active" | "paused" | "photo-saved" | "location-help";
 function ActiveQuestViewport({ short, children }: { short: boolean; children: React.ReactNode }) {
@@ -172,6 +174,7 @@ const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoin
       {checkpoints.map((checkpoint) => <Marker key={checkpoint.id} coordinate={{ latitude: checkpoint.latitude, longitude: checkpoint.longitude }} title={checkpoint.label} pinColor={accent} />)}
     </MapView>
     {!followingUser ? <Pressable accessibilityRole="button" accessibilityLabel="Recenter map on your route" onPress={() => setFollowingUser(true)} style={({ pressed }) => ({ position: "absolute", left: 18, bottom: MAP_RECENTER_BOTTOM_OFFSET, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: T.white, borderWidth: 1, borderColor: T.border, boxShadow: "0px 2px 6px rgba(61,52,56,0.14)", transform: [{ scale: pressed ? 0.94 : 1 }] })}><Ionicons name="locate" size={21} color={accent} /></Pressable> : null}
+    {trackingStatus === "permission-needed" || trackingStatus === "unavailable" ? <Pressable accessibilityRole="button" accessibilityLabel="Retry route recording" onPress={onEnableTracking} style={{ position: "absolute", top: 12, left: 16, right: 16, minHeight: 48, padding: 10, borderRadius: 16, backgroundColor: T.white, borderWidth: 1, borderColor: T.border, alignItems: "center", justifyContent: "center" }}><Text style={{ color: T.dark, textAlign: "center", fontSize: 13, fontWeight: "700" }}>{trackingMessage ?? "Route recording is unavailable."} Tap to retry.</Text></Pressable> : null}
     {notice ? <QuestNoticePill notice={notice} accent={accent} message={trackingStatus === "permission-needed" || trackingStatus === "unavailable" ? trackingMessage : null} /> : null}
   </View>;
 });
@@ -198,7 +201,7 @@ function ActivityTimeline({ activity, photos, accent, onManage, focusLatest = fa
   const photoById = useMemo(() => new Map(photos.map((photo) => [photo.id, photo])), [photos]);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 1 }).current;
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index: number | null | undefined }> }) => {
-    const indexes = viewableItems.map((item) => item.index).filter((index): index is number => index !== null);
+    const indexes = viewableItems.map((item) => item.index).filter((index): index is number => index != null);
     if (!indexes.length) return;
     const first = Math.min(...indexes);
     const last = Math.max(...indexes);
@@ -365,9 +368,10 @@ function StaleQuestReminder({
   );
 }
 
-function FinishQuestReviewSheet({ visible, accent, onContinue, onEndQuest }: { visible: boolean; accent: string; onContinue: () => void; onEndQuest: () => void }) {
+function FinishQuestReviewSheet({ visible, accent, promptIndex, onContinue, onEndQuest }: { visible: boolean; accent: string; promptIndex: number; onContinue: () => void; onEndQuest: () => void }) {
   if (!visible) return null;
-  return <Sheet visible onClose={onContinue} maxHeight="54%"><View style={{ paddingHorizontal: 24, paddingBottom: 20, gap: 16 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 25, lineHeight: 31, textAlign: "center" }}>Are you sure you are done?</Text><View style={{ gap: 11 }}><SoftButton label="End Quest" icon="checkmark" color={accent} onPress={onEndQuest} /><SoftButton label="Keep doing this quest" inverse color={accent} onPress={onContinue} /></View></View></Sheet>;
+  const prompt = FINISH_QUEST_PROMPTS[promptIndex];
+  return <Sheet visible onClose={onContinue} maxHeight="54%"><View style={{ paddingHorizontal: 24, paddingBottom: 20, gap: 16 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 25, lineHeight: 31, textAlign: "center" }}>{prompt.title}</Text><View style={{ gap: 11 }}><SoftButton label={prompt.endLabel} icon="checkmark" color={accent} onPress={onEndQuest} /><SoftButton label={prompt.continueLabel} inverse color={accent} onPress={onContinue} /></View></View></Sheet>;
 }
 
 function ActiveQuestLoadingSkeleton() {
@@ -392,9 +396,12 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   // The completion RPC clears the engine's active session immediately. Keep
   // this render snapshot so the recap remains on screen until the user leaves.
   const [completedQuest, setCompletedQuest] = useState<Quest | null>(null);
-  const [completedRecap, setCompletedRecap] = useState<{ title: string; reflection: string; photoUris: string[]; duration: string } | null>(null);
+  const [completedRecap, setCompletedRecap] = useState<{ title: string; reflection: string; photoUris: string[]; duration: string; sessionId?: string; guestMode: boolean } | null>(null);
   const [finishReviewVisible, setFinishReviewVisible] = useState(false);
   const [takingPhoto, setTakingPhoto] = useState(false);
+  const [savingMoment, setSavingMoment] = useState(false);
+  const savingMomentRef = useRef(false);
+  const changingPauseRef = useRef(false);
   const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
   const [pendingPhotoCaption, setPendingPhotoCaption] = useState("");
   const [pendingPhotoIsTutorialMock, setPendingPhotoIsTutorialMock] = useState(false);
@@ -402,6 +409,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const [quickNote, setQuickNote] = useState("");
   const [managedActivity, setManagedActivity] = useState<ActiveQuestActivity | null>(null);
   const [managedPhoto, setManagedPhoto] = useState<ActiveQuestPhoto | null>(null);
+  const [deleteConfirmationVisible, setDeleteConfirmationVisible] = useState(false);
   const [activityDraft, setActivityDraft] = useState("");
   const [countdownStep, setCountdownStep] = useState<QuestCountdownStep | null>(null);
   const [countdownLaunchAt, setCountdownLaunchAt] = useState<number | null>(null);
@@ -413,6 +421,15 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const shownTutorialMockRef = useRef<string | null>(null);
   const journalLaunchSessionRef = useRef<string | null>(null);
   const session = engine?.doingNowSession ?? guestSession;
+  const [finishPromptIndex, setFinishPromptIndex] = useState(0);
+  useEffect(() => {
+    if (!session?.id || preview) return;
+    let active = true;
+    void getFinishQuestPromptIndex(session.id).then((index) => {
+      if (active) setFinishPromptIndex(index);
+    });
+    return () => { active = false; };
+  }, [session?.id, preview]);
   const isGuestQuest = Boolean(guestSession && session?.id === guestSession.id);
   const loadedQuest = getQuest(session?.questId);
   // An active session remains completable even if the live content list has
@@ -439,10 +456,9 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const accent = quest ? (categoryColor[quest.category]?.text ?? quest.color) : T.blue;
   const paused = snapshot?.session.recordingState === "paused";
   const countdownStartedAt = snapshot?.session.startedAt ?? session?.startedAt;
-  // Quest duration is wall-clock based: it includes time while the app is in
-  // the background or has been terminated, using the durable start timestamp.
-  const wallElapsedDuration = useElapsedDuration(session?.startedAt);
-  const elapsedDuration = wallElapsedDuration;
+  // Accumulate only recording time; the active segment continues in the background.
+  const activeSegmentDuration = useElapsedDuration(snapshot?.session.recordingState === "recording" ? snapshot.session.activeSince : null);
+  const elapsedDuration = (snapshot?.session.activeDurationMs ?? 0) + activeSegmentDuration;
   const journalReflection = saveToJournal === "1"
     ? [snapshot?.session.entryBody, ...(snapshot?.activity.filter((item) => item.kind === "note").map((item) => item.body) ?? [])].filter((value): value is string => Boolean(value?.trim())).join("\n\n")
     : snapshot?.session.entryBody ?? "";
@@ -451,6 +467,8 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
     reflection: journalReflection,
     photoUris: (snapshot?.photos ?? []).map((photo) => photo.uri),
     duration: formatElapsedFull(previewElapsedMs ?? elapsedDuration),
+    sessionId: session?.id,
+    guestMode: isGuestQuest,
   });
   const isFreshSession = Boolean(session?.id && countdownStartedAt && (onboarding?.forceCountdown || Date.now() - new Date(countdownStartedAt).getTime() <= 15_000));
   const shouldPlayCountdown = !onboarding?.holdCountdown && isFreshSession && snapshot?.session.recordingState === "paused";
@@ -568,6 +586,33 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const renderedSegments = snapshot?.renderSegments ?? (previewRoute?.length ? [{ id: "preview-route", state: "active" as const, points: previewRoute }] : []);
   const previewLocation = previewRoute?.at(-1);
 
+  if (completeVisible && completedQuest && completedRecap) return <LogLoreFlow
+    guestMode={completedRecap.guestMode}
+    visible
+    quest={completedQuest}
+    sessionId={completedRecap.sessionId}
+    initialTitle={completedRecap.title}
+    initialReflection={completedRecap.reflection}
+    photoUris={completedRecap.photoUris}
+    duration={completedRecap.duration}
+    onSaveDraft={(draft) => saveEntry(draft)}
+    onFinished={async (result, destination, details) => {
+      await finishLocalQuest(completedRecap.sessionId, completedRecap.guestMode);
+      if (!completedRecap.guestMode) await refresh();
+      if (completedRecap.guestMode) { router.replace("/(auth)/auth-options"); return; }
+      if (destination === "share") {
+        router.replace({ pathname: "/share-adventure", params: { completionId: result.completionId, questId: completedQuest.id, title: completedQuest.title, rating: String(details.rating), sharePhotos: JSON.stringify(completedRecap.photoUris.slice(0, 4)) } });
+        return;
+      }
+      if (saveToJournal === "1" && nextQuestId) {
+        try { await startQuest({ questId: nextQuestId, source: "explore" }); await refresh(); setCompleteVisible(false); setCompletedQuest(null); setCompletedRecap(null); router.replace("/active-quest"); }
+        catch { showFeedback({ message: "Your quest is saved in the Journal, but we couldn't start the next quest. Please try again.", icon: "alert-circle", color: T.red }); router.replace("/(tabs)/journal"); }
+        return;
+      }
+      router.replace({ pathname: "/(tabs)/journal", params: { completionId: result.completionId } });
+    }}
+  />;
+
   // The guest guide needs the real shell immediately so it can teach the
   // controls while the device-local snapshot finishes hydrating.
   if (activeQuestLoading && session && !preview && !onboarding) return <ActiveQuestLoadingSkeleton />;
@@ -577,13 +622,28 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   // while navigation resolves rather than flashing the old empty screen.
   if ((!session && !previewQuest && !completeVisible) || !quest) return null;
 
-  const togglePaused = () => { void (paused ? resume() : pause()); };
+  const changePauseState = async (action: () => Promise<void>) => {
+    if (changingPauseRef.current) return false;
+    changingPauseRef.current = true;
+    try {
+      await action();
+      return true;
+    } catch {
+      showFeedback({ message: "Couldn’t update the quest timer. Please try again.", icon: "alert-circle", color: T.red });
+      return false;
+    } finally {
+      changingPauseRef.current = false;
+    }
+  };
+  const togglePaused = () => { void changePauseState(paused ? resume : pause); };
   const openFinishReview = () => {
     void (async () => {
-      // Opening the end-quest flow freezes the recorded duration immediately,
-      // including when the user backs out of the confirmation sheet.
-      try { if (!paused) await pause(); }
-      finally { setFinishReviewVisible(true); }
+      if (await changePauseState(paused ? async () => undefined : pause)) setFinishReviewVisible(true);
+    })();
+  };
+  const continueQuest = () => {
+    void (async () => {
+      if (await changePauseState(resume)) setFinishReviewVisible(false);
     })();
   };
   const enableRouteRecording = beginQuestRoute;
@@ -651,7 +711,9 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
       setQuickNoteVisible(false);
       return;
     }
-    await addActivityNote(note);
+    if (savingMomentRef.current) return;
+    savingMomentRef.current = true; setSavingMoment(true);
+    try { await addActivityNote(note); } catch { showFeedback({ message: "Couldn’t save your note. Please try again.", icon: "alert-circle", color: T.red }); return; } finally { savingMomentRef.current = false; setSavingMoment(false); }
     setQuickNote("");
     setQuickNoteVisible(false);
     showFeedback({ message: "Quick note saved to your quest.", icon: "create", color: T.orange });
@@ -659,8 +721,10 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   };
   const savePendingPhoto = async () => {
     if (!pendingPhotoUri) return;
+    if (savingMomentRef.current) return;
+    savingMomentRef.current = true; setSavingMoment(true);
     const tutorialOnly = pendingPhotoIsTutorialMock;
-    await addPhoto(pendingPhotoUri, pendingPhotoCaption, { tutorialOnly });
+    try { await addPhoto(pendingPhotoUri, pendingPhotoCaption, { tutorialOnly }); } catch { showFeedback({ message: "Couldn’t save your photo. Please try again.", icon: "alert-circle", color: T.red }); return; } finally { savingMomentRef.current = false; setSavingMoment(false); }
     setPendingPhotoUri(null);
     setPendingPhotoCaption("");
     setPendingPhotoIsTutorialMock(false);
@@ -679,27 +743,32 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
     setActivityDraft(activity?.caption ?? "");
   };
   const closeActivityManager = () => {
+    if (savingMomentRef.current) return;
     setManagedActivity(null);
     setManagedPhoto(null);
     setActivityDraft("");
   };
   const saveActivityEdit = async () => {
     if (!managedActivity) return;
-    await updateActivity(managedActivity.id, activityDraft);
+    if (savingMomentRef.current) return;
+    savingMomentRef.current = true; setSavingMoment(true);
+    try { await updateActivity(managedActivity.id, activityDraft); } catch { showFeedback({ message: "Couldn’t save your changes. Please try again.", icon: "alert-circle", color: T.red }); return; } finally { savingMomentRef.current = false; setSavingMoment(false); }
     closeActivityManager();
     showFeedback({ message: managedActivity.kind === "photo" ? "Photo caption updated." : "Quick note updated.", icon: "checkmark-circle", color: accent });
   };
-  const confirmDeleteManagedItem = () => {
+  const deleteManagedItem = async () => {
+    if (savingMomentRef.current) return;
     const isPhoto = Boolean(managedPhoto || managedActivity?.photoId);
-    Alert.alert(isPhoto ? "Delete photo?" : "Delete quick note?", isPhoto ? "This will remove the photo and its caption from this active quest." : "This will remove this quick note from your active quest.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => void (async () => {
-        if (managedPhoto) await deletePhoto(managedPhoto.id);
-        else if (managedActivity) await deleteActivity(managedActivity.id);
-        closeActivityManager();
-        showFeedback({ message: isPhoto ? "Photo deleted." : "Quick note deleted.", icon: "trash", color: T.red });
-      })() },
-    ]);
+    savingMomentRef.current = true; setSavingMoment(true);
+    try {
+      if (managedPhoto) await deletePhoto(managedPhoto.id);
+      else if (managedActivity) await deleteActivity(managedActivity.id);
+      setDeleteConfirmationVisible(false);
+      setManagedActivity(null); setManagedPhoto(null); setActivityDraft("");
+      showFeedback({ message: isPhoto ? "Photo deleted." : "Quick note deleted.", icon: "trash", color: T.red });
+    } catch {
+      showFeedback({ message: "Couldn’t delete this item. Please try again.", icon: "alert-circle", color: T.red });
+    } finally { savingMomentRef.current = false; setSavingMoment(false); }
   };
 
   return <ActiveQuestViewport short={Platform.OS === "web" && viewportHeight < 600}><View pointerEvents={preview ? "none" : "auto"} style={{ flex: 1, width: "100%", maxWidth: activeContentWidth, alignSelf: "center", backgroundColor: T.bg }}>
@@ -719,21 +788,21 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
     </View>
     {!countdownStep && photoSavedVisible ? <QuestNoticePill notice="photo-saved" accent={accent} message={trackingMessage} bottomOffset={Math.max(screenInsets.bottom + 98, 126)} /> : null}
     <FloatingQuestControls accent={accent} duration={duration} paused={paused} takingPhoto={takingPhoto} bottomInset={screenInsets.bottom} onTakePhoto={() => void takePhoto()} onQuickNote={() => setQuickNoteVisible(true)} onFinish={openFinishReview} onTogglePaused={togglePaused} locked={Boolean(onboarding?.locked)} forcedOpen={Boolean(onboarding?.forceQuickActionsOpen) || onboarding?.allowPhotoCapture || onboarding?.allowQuickNote} allowQuickActions={Boolean(onboarding?.allowQuickActions)} allowPhotoCapture={Boolean(onboarding?.allowPhotoCapture)} allowQuickNote={Boolean(onboarding?.allowQuickNote)} showQuickActionsWhenPaused={Boolean(onboarding?.showQuickActionsWhenPaused)} onQuickActionsOpened={onboarding?.onQuickActionsOpened} onQuickNoteOpened={onboarding?.onQuickNoteOpened} />
-    <FinishQuestReviewSheet visible={finishReviewVisible} accent={accent} onContinue={() => setFinishReviewVisible(false)} onEndQuest={() => { void stopTracking(); setFinishReviewVisible(false); setCompletedQuest(quest); captureCompletionRecap(); setCompleteVisible(true); }} />
-    <Sheet visible={quickNoteVisible} onClose={() => { setQuickNote(""); setQuickNoteVisible(false); onboarding?.onQuickNoteDiscarded?.(); }} maxHeight="58%">
+    <FinishQuestReviewSheet promptIndex={finishPromptIndex} visible={finishReviewVisible} accent={accent} onContinue={continueQuest} onEndQuest={() => { void stopTracking().catch(() => showFeedback({ message: "Couldn’t stop route recording. Please check location settings.", icon: "alert-circle", color: T.red })); setFinishReviewVisible(false); setCompletedQuest(quest); captureCompletionRecap(); setCompleteVisible(true); }} />
+    <Sheet visible={quickNoteVisible} onClose={() => { if (savingMomentRef.current) return; setQuickNote(""); setQuickNoteVisible(false); onboarding?.onQuickNoteDiscarded?.(); }} maxHeight="58%">
       <View style={{ paddingHorizontal: 24, paddingBottom: 26, gap: 14 }}>
         <View style={{ gap: 3 }}><Text style={{ color: T.dark, fontSize: 24, lineHeight: 30, fontWeight: "900" }}>Quick note</Text><Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>Capture something before it slips away.</Text></View>
         <TextInput value={quickNote} onChangeText={setQuickNote} autoFocus multiline textAlignVertical="top" placeholder="Found a hidden café." placeholderTextColor={T.muted} style={{ minHeight: 148, borderWidth: 2, borderColor: T.border, borderRadius: 18, padding: 14, color: T.dark, fontSize: 16, lineHeight: 23, fontWeight: "700", backgroundColor: T.bg }} />
-        <View style={{ flexDirection: "row", gap: 11 }}><Pressable accessibilityRole="button" accessibilityLabel="Delete note" onPress={() => { setQuickNote(""); setQuickNoteVisible(false); onboarding?.onQuickNoteDiscarded?.(); }} style={({ pressed }) => ({ flex: 1, minHeight: 54, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: `${T.red}12`, borderWidth: 1.5, borderColor: `${T.red}42`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.red, fontSize: 16, fontWeight: "900" }}>Delete</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Save note" onPress={() => void saveQuickNote()} style={({ pressed }) => ({ flex: 1, minHeight: 54, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: T.primaryButton, borderBottomWidth: 5, borderBottomColor: T.primaryButtonEdge, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.onBlueButton, fontSize: 16, fontWeight: "900" }}>Save</Text></Pressable></View>
+        <View style={{ flexDirection: "row", gap: 11 }}><Pressable accessibilityRole="button" accessibilityLabel="Delete note" onPress={() => { setQuickNote(""); setQuickNoteVisible(false); onboarding?.onQuickNoteDiscarded?.(); }} style={({ pressed }) => ({ flex: 1, minHeight: 54, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: `${T.red}12`, borderWidth: 1.5, borderColor: `${T.red}42`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.red, fontSize: 16, fontWeight: "900" }}>Delete</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Save note" disabled={savingMoment} accessibilityState={{ disabled: savingMoment }} onPress={() => void saveQuickNote()} style={({ pressed }) => ({ flex: 1, minHeight: 54, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: T.primaryButton, borderBottomWidth: 5, borderBottomColor: T.primaryButtonEdge, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.onBlueButton, fontSize: 16, fontWeight: "900" }}>Save</Text></Pressable></View>
       </View>
     </Sheet>
-    <Sheet visible={Boolean(pendingPhotoUri)} onClose={() => { setPendingPhotoUri(null); setPendingPhotoCaption(""); setPendingPhotoIsTutorialMock(false); onboarding?.onPhotoDiscarded?.(); }} maxHeight="88%" fillHeight>
+    <Sheet visible={Boolean(pendingPhotoUri)} onClose={() => { if (savingMomentRef.current) return; setPendingPhotoUri(null); setPendingPhotoCaption(""); setPendingPhotoIsTutorialMock(false); onboarding?.onPhotoDiscarded?.(); }} maxHeight="88%" fillHeight>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 26, gap: 14 }} keyboardShouldPersistTaps="handled">
         <View style={{ gap: 3 }}><Text style={{ color: T.dark, fontSize: 24, lineHeight: 30, fontWeight: "900" }}>{pendingPhotoIsTutorialMock ? "A sample quest moment" : "Your quest moment"}</Text><Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>{pendingPhotoIsTutorialMock ? "This tutorial sample helps introduce the app’s features. It won’t be saved to your official journal." : "This is the photo you took. Add a note to remember it later."}</Text></View>
         {pendingPhotoUri ? <Image source={{ uri: pendingPhotoUri }} resizeMode="cover" style={{ width: "100%", aspectRatio: 1, borderRadius: 22, backgroundColor: T.border }} /> : null}
         <View style={{ gap: 6 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" }}>Caption</Text><TextInput value={pendingPhotoCaption} onChangeText={setPendingPhotoCaption} multiline textAlignVertical="top" placeholder="What made this moment memorable?" placeholderTextColor={T.muted} style={{ minHeight: 96, borderWidth: 2, borderColor: T.border, borderRadius: 18, padding: 13, color: T.dark, fontSize: 15, lineHeight: 21, fontWeight: "700", backgroundColor: T.bg }} /></View>
         <View style={{ flexDirection: "row", gap: 11 }}><Pressable accessibilityRole="button" accessibilityLabel="Retake photo" onPress={() => { setPendingPhotoUri(null); setPendingPhotoCaption(""); setPendingPhotoIsTutorialMock(false); void takePhoto(); }} style={({ pressed }) => ({ flex: 1, minHeight: 51, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: `${accent}12`, borderWidth: 1.5, borderColor: `${accent}45`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: accent, fontSize: 15, fontWeight: "900" }}>Retake photo</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Never mind" onPress={() => { setPendingPhotoUri(null); setPendingPhotoCaption(""); setPendingPhotoIsTutorialMock(false); onboarding?.onPhotoDiscarded?.(); }} style={({ pressed }) => ({ flex: 1, minHeight: 51, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: T.raised, borderWidth: 1.5, borderColor: T.border, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.muted, fontSize: 15, fontWeight: "900" }}>Never mind</Text></Pressable></View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Save photo" onPress={() => void savePendingPhoto()} style={({ pressed }) => ({ minHeight: 58, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: T.primaryButton, borderBottomWidth: 6, borderBottomColor: T.primaryButtonEdge, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.onBlueButton, fontSize: 17, fontWeight: "900" }}>Save photo</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Save photo" disabled={savingMoment} accessibilityState={{ disabled: savingMoment }} onPress={() => void savePendingPhoto()} style={({ pressed }) => ({ minHeight: 58, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: T.primaryButton, borderBottomWidth: 6, borderBottomColor: T.primaryButtonEdge, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.onBlueButton, fontSize: 17, fontWeight: "900" }}>Save photo</Text></Pressable>
       </ScrollView>
     </Sheet>
     <Sheet visible={Boolean(managedActivity || managedPhoto)} onClose={closeActivityManager} maxHeight="70%">
@@ -741,9 +810,17 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
         <View style={{ gap: 3 }}><Text style={{ color: T.dark, fontSize: 24, lineHeight: 30, fontWeight: "900" }}>{managedPhoto ? "Manage photo" : "Manage quick note"}</Text><Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>{managedPhoto ? "Update its caption or remove it from this quest." : "Make a change or remove this note."}</Text></View>
         {managedPhoto ? <Image source={{ uri: managedPhoto.uri }} resizeMode="cover" style={{ width: "100%", aspectRatio: 1.6, borderRadius: 18, backgroundColor: T.border }} /> : null}
         {managedActivity ? <TextInput value={activityDraft} onChangeText={setActivityDraft} multiline textAlignVertical="top" placeholder={managedPhoto ? "Add a caption" : "Write a quick note"} placeholderTextColor={T.muted} style={{ minHeight: 106, borderWidth: 2, borderColor: T.border, borderRadius: 18, padding: 13, color: T.dark, fontSize: 15, lineHeight: 22, fontWeight: "700", backgroundColor: T.bg }} /> : null}
-        <View style={{ flexDirection: "row", gap: 10 }}><Pressable accessibilityRole="button" accessibilityLabel="Delete activity" onPress={confirmDeleteManagedItem} style={({ pressed }) => ({ flex: 1, minHeight: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: `${T.red}12`, borderWidth: 1.5, borderColor: `${T.red}45`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.red, fontSize: 15, fontWeight: "900" }}>Delete</Text></Pressable>{managedActivity ? <Pressable accessibilityRole="button" accessibilityLabel="Save activity changes" onPress={() => void saveActivityEdit()} style={({ pressed }) => ({ flex: 1, minHeight: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: accent, borderBottomWidth: 5, borderBottomColor: `${accent}a8`, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.onAccent, fontSize: 15, fontWeight: "900" }}>Save changes</Text></Pressable> : null}</View>
+        <View style={{ flexDirection: "row", gap: 10 }}><Pressable accessibilityRole="button" accessibilityLabel="Delete activity" disabled={savingMoment} accessibilityState={{ disabled: savingMoment }} onPress={() => setDeleteConfirmationVisible(true)} style={({ pressed }) => ({ flex: 1, minHeight: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: `${T.red}12`, borderWidth: 1.5, borderColor: `${T.red}45`, opacity: pressed ? 0.7 : 1 })}><Text style={{ color: T.red, fontSize: 15, fontWeight: "900" }}>Delete</Text></Pressable>{managedActivity ? <Pressable accessibilityRole="button" accessibilityLabel="Save activity changes" disabled={savingMoment} accessibilityState={{ disabled: savingMoment }} onPress={() => void saveActivityEdit()} style={({ pressed }) => ({ flex: 1, minHeight: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: accent, borderBottomWidth: 5, borderBottomColor: `${accent}a8`, opacity: pressed ? 0.78 : 1, transform: [{ translateY: pressed ? 3 : 0 }] })}><Text style={{ color: T.onAccent, fontSize: 15, fontWeight: "900" }}>Save changes</Text></Pressable> : null}</View>
       </View>
     </Sheet>
-    <LogLoreFlow guestMode={isGuestQuest} visible={completeVisible} quest={quest} sessionId={session?.id} initialTitle={completedRecap?.title ?? snapshot?.session.entryTitle ?? ""} initialReflection={completedRecap?.reflection ?? journalReflection} photoUris={completedRecap?.photoUris ?? (snapshot?.photos ?? []).map((photo) => photo.uri)} duration={completedRecap?.duration ?? duration} onSaveDraft={(draft) => saveEntry(draft)} onFinished={async (result, destination, details) => { await finishLocalQuest(); if (!isGuestQuest) await refresh(); setCompleteVisible(false); setCompletedQuest(null); setCompletedRecap(null); if (isGuestQuest) { router.replace("/(auth)/auth-options"); return; } if (destination === "share") { router.replace({ pathname: "/share-adventure", params: { completionId: result.completionId, questId: quest.id, title: quest.title, rating: String(details.rating), sharePhotos: JSON.stringify((completedRecap?.photoUris ?? snapshot?.photos.map((photo) => photo.uri) ?? []).slice(0, 4)) } }); return; } if (saveToJournal === "1" && nextQuestId) { try { await startQuest({ questId: nextQuestId, source: "explore" }); await refresh(); router.replace("/active-quest"); } catch { showFeedback({ message: "Your quest is saved in the Journal, but we couldn't start the next quest. Please try again.", icon: "alert-circle", color: T.red }); router.replace("/(tabs)/journal"); } return; } router.replace({ pathname: "/(tabs)/journal", params: { completionId: result.completionId } }); }} />
+    <Sheet visible={deleteConfirmationVisible} onClose={() => { if (!savingMoment) setDeleteConfirmationVisible(false); }} maxHeight="50%">
+      <View style={{ paddingHorizontal: 24, paddingBottom: 24, gap: 14 }}>
+        <Text style={{ color: T.dark, fontSize: 22, fontWeight: "900" }}>{managedPhoto || managedActivity?.photoId ? "Delete photo?" : "Delete quick note?"}</Text>
+        <Text style={{ color: T.muted, fontSize: 14, lineHeight: 20 }}>This removes it from your active quest.</Text>
+        <SoftButton label="Delete" icon="trash" color={T.red} disabled={savingMoment} onPress={() => void deleteManagedItem()} />
+        <SoftButton label="Cancel" inverse color={accent} disabled={savingMoment} onPress={() => setDeleteConfirmationVisible(false)} />
+      </View>
+    </Sheet>
+
   </View></ActiveQuestViewport>;
 }
