@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Reanimated, { Easing, FadeInDown, FadeOutUp, LinearTransition, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
 import { Alert, Animated, FlatList, Image, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
@@ -114,14 +115,81 @@ export function QuestCountdownOverlay({ step, accent }: { step: QuestCountdownSt
 }
 
 function ActiveQuestTabs({ active, onChange, accent, disabled = false }: { active: ActiveQuestTab; onChange: (tab: ActiveQuestTab) => void; accent: string; disabled?: boolean }) {
-  const tabs: { id: ActiveQuestTab; label: string }[] = [{ id: "map", label: "Map" }, { id: "album", label: "Memories" }, { id: "entry", label: "Activity" }];
-  return <View style={{ marginHorizontal: 20, padding: 5, flexDirection: "row", alignSelf: "stretch", borderRadius: 18, backgroundColor: T.raised, borderWidth: 1, borderColor: T.border }}>
+  const tabs: { id: ActiveQuestTab; label: string }[] = [{ id: "map", label: "Map" }, { id: "entry", label: "Activity" }, { id: "album", label: "Memories" }];
+  return <View style={{ marginHorizontal: 20, padding: 5, flexDirection: "row", alignSelf: "stretch", borderRadius: 18, backgroundColor: T.raised, borderWidth: 1, borderColor: `${accent}80` }}>
     {tabs.map((tab) => {
       const selected = tab.id === active;
       return <Pressable key={tab.id} accessibilityRole="tab" accessibilityState={{ selected, disabled }} disabled={disabled} onPress={() => { haptic(); onChange(tab.id); }} style={({ pressed }) => ({ flex: 1, minHeight: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: selected ? T.white : "transparent", borderWidth: selected ? 1 : 0, borderColor: selected ? `${accent}45` : "transparent", boxShadow: selected ? "0px 2px 0px rgba(61,52,56,0.08)" : "none", opacity: disabled ? 0.9 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] })}>
         <Text style={{ color: selected ? accent : "#867a79", fontSize: 16, lineHeight: 21, fontWeight: "900" }}>{tab.label}</Text>
       </Pressable>;
     })}
+  </View>;
+}
+
+function textOnQuestColor(color: string) {
+  const rgb = color.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!rgb) return "#ffffff";
+  const channels = rgb.slice(1).map((value) => {
+    const channel = parseInt(value, 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  return (luminance + 0.05) / 0.05 > 1.05 / (luminance + 0.05) ? "#101820" : "#ffffff";
+}
+
+function QuestInstructions({ quest, accent, disabled }: { quest: Quest; accent: string; disabled: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const foreground = textOnQuestColor(accent);
+  const lightQuestColor = T.isDark ? `${accent}25` : (categoryColor[quest.category]?.bg ?? `${accent}18`);
+  const chevronProgress = useSharedValue(0);
+  const chevronStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${chevronProgress.get() * 180}deg` }] }));
+  useEffect(() => {
+    chevronProgress.set(withTiming(expanded ? 1 : 0, { duration: reduceMotion ? 0 : 240, easing: Easing.bezier(0.23, 1, 0.32, 1) }));
+  }, [chevronProgress, expanded, reduceMotion]);
+  const steps = quest.steps.length ? quest.steps : ["Head out at your own pace — no timer starts until you choose.", "Complete the core challenge described above.", "Log your experience in the Journal after finishing."];
+  return <Reanimated.View layout={reduceMotion ? undefined : LinearTransition.duration(280).easing(Easing.bezier(0.23, 1, 0.32, 1))} style={{ overflow: "hidden", borderBottomLeftRadius: 20, borderBottomRightRadius: 20, backgroundColor: lightQuestColor, borderWidth: 2, borderTopWidth: 0, borderColor: `${accent}80` }}>
+    <Pressable accessibilityRole="button" accessibilityLabel="How to do this quest" accessibilityState={{ expanded, disabled }} disabled={disabled} hitSlop={{ top: 4, bottom: 4 }} onPress={() => setExpanded((current) => !current)} style={({ pressed }) => ({ minHeight: 40, paddingHorizontal: 18, flexDirection: "row", alignItems: "center", gap: 10, opacity: pressed ? 0.76 : 1 })}>
+      <Ionicons name="bulb-outline" size={17} color={T.dark} />
+      <Text style={{ flex: 1, color: T.dark, fontFamily: "RubikBold", fontSize: 13, lineHeight: 18 }}>Need a hand?</Text>
+      <Reanimated.View style={chevronStyle}><Ionicons name="chevron-down" size={15} color={T.dark} /></Reanimated.View>
+    </Pressable>
+    {expanded ? <Reanimated.View entering={reduceMotion ? undefined : FadeInDown.duration(220).easing(Easing.bezier(0.23, 1, 0.32, 1))} exiting={reduceMotion ? undefined : FadeOutUp.duration(130)} style={{ paddingHorizontal: 18, paddingTop: 10, paddingBottom: 17, gap: 12, borderTopWidth: 1, borderTopColor: `${accent}38` }}>
+      <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 18, lineHeight: 23 }}>How it works</Text>
+      {steps.map((step, index) => <View key={`${index}-${step}`} style={{ flexDirection: "row", alignItems: "flex-start", gap: 9 }}><View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: accent, alignItems: "center", justifyContent: "center" }}><Text style={{ color: foreground, fontFamily: "RubikBold", fontSize: 12 }}>{index + 1}</Text></View><Text style={{ flex: 1, color: T.dark, fontFamily: "Rubik", fontSize: 13, lineHeight: 19 }}>{step}</Text></View>)}
+    </Reanimated.View> : null}
+  </Reanimated.View>;
+}
+
+function QuestRouteCard({ accent, route, renderSegments, liveLocation, deviceLocation, trackingStatus, trackingMessage, distanceMeters, showUserLocation, onEnableTracking }: { accent: string; route: ActiveQuestRoutePoint[]; renderSegments: ActiveQuestRenderableSegment[]; liveLocation: MapCoordinate | null; deviceLocation: MapCoordinate | null; trackingStatus: "idle" | "tracking" | "permission-needed" | "unavailable"; trackingMessage: string | null; distanceMeters: number; showUserLocation: boolean; onEnableTracking: () => void }) {
+  const map = useRef<MapView>(null);
+  const lastPoint = route.at(-1);
+  const current = liveLocation ?? deviceLocation ?? (lastPoint ? { latitude: lastPoint.latitude, longitude: lastPoint.longitude } : null);
+  const hasLiveFix = Boolean(liveLocation || deviceLocation);
+  const region = current ? { ...current, latitudeDelta: 0.012, longitudeDelta: 0.012 } : null;
+  // Keep the live marker centered between the corner labels as the user moves.
+  const cameraRegion = region;
+  useEffect(() => {
+    if (cameraRegion) map.current?.animateToRegion(cameraRegion, 600);
+  }, [cameraRegion?.latitude, cameraRegion?.longitude]);
+  const miles = Math.max(0, distanceMeters / 1609.344).toFixed(1);
+  const needsTrackingHelp = trackingStatus === "permission-needed" || trackingStatus === "unavailable";
+  return <View style={{ height: 184, overflow: "hidden", borderRadius: 24, backgroundColor: T.isDark ? "#142c35" : "#dce7df", borderWidth: 1, borderColor: T.border, boxShadow: "0px 5px 16px rgba(36,47,50,0.14)" }}>
+    {region ? <MapView ref={map} pointerEvents="none" style={{ position: "absolute", inset: 0 }} initialRegion={cameraRegion ?? undefined} mapType="satellite" showsUserLocation={showUserLocation && hasLiveFix} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false}>
+      {renderSegments.map((segment) => segment.points.length > 1 ? <Polyline key={segment.id} coordinates={segment.points.map((point) => ({ latitude: point.latitude, longitude: point.longitude }))} strokeColor={segment.state === "paused" ? "#c9d1d5" : accent} strokeWidth={5} lineCap="round" lineJoin="round" /> : null)}
+      <Marker coordinate={region} anchor={{ x: 0.5, y: 0.5 }}><View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: accent, borderWidth: 3, borderColor: "#ffffff", boxShadow: "0px 0px 8px rgba(0,0,0,0.45)" }} /></Marker>
+    </MapView> : <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center" }}><Ionicons name="map-outline" size={32} color={accent} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 13, marginTop: 8 }}>Waiting for your location</Text></View>}
+    <View pointerEvents="none" style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.12)" }} />
+    {!needsTrackingHelp ? <View pointerEvents="none" style={{ position: "absolute", right: 12, bottom: 12, maxWidth: "60%", flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 16, paddingHorizontal: 9, paddingVertical: 7, backgroundColor: "rgba(5,19,30,0.64)" }}><Ionicons name="location" size={13} color="#ffffff" /><Text numberOfLines={2} style={{ color: "#ffffff", fontFamily: "RubikBold", fontSize: 10, lineHeight: 13, flexShrink: 1 }}>{hasLiveFix ? "Your current location" : lastPoint ? "Last recorded position" : "Location pending"}</Text></View> : null}
+    <Text accessibilityLabel={`${miles} miles traveled`} style={{ position: "absolute", left: 16, top: 14, color: "#ffffff", fontFamily: "RubikBold", fontSize: 30, lineHeight: 38, fontVariant: ["tabular-nums"], textShadowColor: "rgba(0,0,0,0.65)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>{miles}<Text style={{ fontFamily: "Rubik", fontSize: 23 }}> mi</Text></Text>
+    {trackingStatus === "permission-needed" || trackingStatus === "unavailable" ? <Pressable accessibilityRole="button" accessibilityLabel="Enable route recording" onPress={onEnableTracking} style={{ position: "absolute", left: 12, right: 12, bottom: 12, borderRadius: 13, backgroundColor: "rgba(5,19,30,0.86)", paddingHorizontal: 12, paddingVertical: 10 }}><Text style={{ color: "#ffffff", fontFamily: "RubikBold", fontSize: 12 }} numberOfLines={2}>{trackingMessage ?? "Location is unavailable."} Tap to retry.</Text></Pressable> : null}
+  </View>;
+}
+
+function RecentQuestPhotos({ photos, accent, onManage }: { photos: ActiveQuestPhoto[]; accent: string; onManage: (photo: ActiveQuestPhoto) => void }) {
+  const recent = [...photos].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt)).slice(0, 6);
+  return <View style={{ gap: 11 }}><View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>Recent photos</Text><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12 }}>{photos.length ? `${photos.length} captured` : "No photos yet"}</Text></View>
+    {recent.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 16 }}>{recent.map((photo) => <Pressable key={photo.id} accessibilityRole="button" accessibilityLabel="Manage quest photo" onPress={() => onManage(photo)} style={({ pressed }) => ({ width: 124, height: 124, borderRadius: 17, overflow: "hidden", backgroundColor: T.border, opacity: pressed ? 0.82 : 1 })}><CachedImage uri={photo.uri} style={{ width: "100%", height: "100%" }} />{photo.syncStatus !== "synced" ? <View style={{ position: "absolute", right: 7, bottom: 7, width: 25, height: 25, borderRadius: 13, backgroundColor: T.raised, alignItems: "center", justifyContent: "center" }}><Ionicons name="cloud-upload-outline" size={14} color={accent} /></View> : null}</Pressable>)}</ScrollView> : <View style={{ minHeight: 112, borderRadius: 20, borderWidth: 1.5, borderStyle: "dashed", borderColor: `${accent}88`, backgroundColor: `${accent}10`, flexDirection: "row", alignItems: "center", padding: 16, gap: 14 }}><View style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: `${accent}1c`, alignItems: "center", justifyContent: "center" }}><Ionicons name="camera-outline" size={23} color={accent} /></View><View style={{ flex: 1, gap: 4 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15 }}>No photos yet</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 13, lineHeight: 19 }}>Take a photo to remember the little moments along the way.</Text></View></View>}
   </View>;
 }
 
@@ -132,7 +200,7 @@ const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoin
   const current = route.at(-1);
   // The foreground location subscription drives the native map immediately;
   // accepted route points remain the source of truth for the saved polyline.
-  const liveCoordinate = liveLocation ?? (current ? { latitude: current.latitude, longitude: current.longitude } : deviceLocation);
+  const liveCoordinate = liveLocation ?? deviceLocation ?? (current ? { latitude: current.latitude, longitude: current.longitude } : null);
   const region = liveCoordinate ? { ...liveCoordinate, latitudeDelta: route.length > 1 ? 0.012 : 0.018, longitudeDelta: route.length > 1 ? 0.012 : 0.018 } : null;
   // The lower sheet covers a substantial part of the map. Centre the camera
   // slightly south of the user so the live dot stays in the visible area.
@@ -143,7 +211,7 @@ const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoin
   const mapFallbackSurface = T.isDark ? "#1c2934" : "#e5e8e2";
 
   useEffect(() => {
-    if (animateInitialCamera && cameraRegion && followingUser) map.current?.animateToRegion(cameraRegion, 450);
+    if (animateInitialCamera && cameraRegion && followingUser) map.current?.animateToRegion(cameraRegion, 600);
   }, [animateInitialCamera, cameraRegion?.latitude, cameraRegion?.longitude, followingUser]);
 
   useEffect(() => {
@@ -195,7 +263,7 @@ function activityTime(createdAt: string) {
   return new Date(createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-function ActivityTimeline({ activity, photos, accent, onManage, focusLatest = false }: { activity: ActiveQuestActivity[]; photos: ActiveQuestPhoto[]; accent: string; onManage: (activity: ActiveQuestActivity) => void; focusLatest?: boolean }) {
+function ActivityTimeline({ activity, photos, accent, onManage, focusLatest = false, overview }: { activity: ActiveQuestActivity[]; photos: ActiveQuestPhoto[]; accent: string; onManage: (activity: ActiveQuestActivity) => void; focusLatest?: boolean; overview?: React.ReactElement }) {
   const list = useRef<FlatList<ActiveQuestActivity>>(null);
   const [loadRange, setLoadRange] = useState({ start: 0, end: 3 });
   const photoById = useMemo(() => new Map(photos.map((photo) => [photo.id, photo])), [photos]);
@@ -214,11 +282,13 @@ function ActivityTimeline({ activity, photos, accent, onManage, focusLatest = fa
     return () => clearTimeout(timer);
   }, [activity.length, focusLatest]);
 
-  if (!activity.length) return <View style={{ flex: 1, paddingHorizontal: 28, paddingBottom: 150, backgroundColor: T.bg, alignItems: "center", justifyContent: "center", gap: 12 }}>
+  const emptyTimeline = <View style={{ minHeight: overview ? 170 : undefined, flex: overview ? undefined : 1, paddingHorizontal: 28, paddingBottom: overview ? 14 : 150, backgroundColor: T.bg, alignItems: "center", justifyContent: "center", gap: 12 }}>
     <View style={{ width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", backgroundColor: `${accent}16` }}><Ionicons name="pulse-outline" size={27} color={accent} /></View>
     <Text style={{ color: T.dark, fontSize: 19, lineHeight: 25, fontWeight: "900", textAlign: "center" }}>Your quest story starts here</Text>
     <Text style={{ maxWidth: 300, color: T.muted, fontSize: 14, lineHeight: 20, fontWeight: "700", textAlign: "center" }}>Add a quick note or photo and every moment will appear in this timeline.</Text>
   </View>;
+
+  if (!activity.length && !overview) return emptyTimeline;
 
   return <FlatList
     ref={list}
@@ -229,13 +299,15 @@ function ActivityTimeline({ activity, photos, accent, onManage, focusLatest = fa
     removeClippedSubviews
     onViewableItemsChanged={onViewableItemsChanged}
     viewabilityConfig={viewabilityConfig}
-    contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 224, backgroundColor: T.bg, gap: 14 }}
+    ListHeaderComponent={overview ? <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 25 }}>{overview}<Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>Quest timeline</Text></View> : undefined}
+    ListEmptyComponent={emptyTimeline}
+    contentContainerStyle={{ paddingHorizontal: overview ? 0 : 16, paddingTop: overview ? 0 : 18, paddingBottom: 224, backgroundColor: T.bg, gap: 14 }}
     renderItem={({ item, index }) => {
       const photo = item.photoId ? photoById.get(item.photoId) : undefined;
       const shouldLoadImage = index >= loadRange.start && index <= loadRange.end;
       const icon = item.kind === "photo" ? "camera" : item.kind === "badge" ? "ribbon" : "create";
       const label = item.kind === "photo" ? "Quest photo" : item.kind === "badge" ? "Badge earned" : "Quick note";
-      return <View style={{ flexDirection: "row", alignItems: "stretch", gap: 10 }}>
+      return <View style={{ flexDirection: "row", alignItems: "stretch", gap: 10, marginHorizontal: overview ? 16 : 0 }}>
         <View style={{ width: 56, alignItems: "flex-end", paddingTop: 12 }}>
           <Text style={{ color: T.muted, fontSize: 11, lineHeight: 15, fontWeight: "900" }}>{activityTime(item.createdAt)}</Text>
         </View>
@@ -380,6 +452,7 @@ function ActiveQuestLoadingSkeleton() {
 
 export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, previewRoute, previewElapsedMs }: { preview?: boolean; onboarding?: ActiveQuestOnboardingOptions; previewQuest?: Quest; previewRoute?: ActiveQuestRoutePoint[]; previewElapsedMs?: number }) {
   useThemeKey();
+  const reduceMotion = useReducedMotion();
   const router = useRouter();
   const { saveToJournal, nextQuestId } = useLocalSearchParams<{ saveToJournal?: string; nextQuestId?: string }>();
   const insets = useSafeAreaInsets();
@@ -521,7 +594,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   }, [snapshot?.session.trackingStatus]);
 
   useEffect(() => {
-    if (!preview && tab === "map" && !isStartingQuest) void resolveDeviceLocation();
+    if (!preview && (tab === "map" || tab === "entry") && !isStartingQuest) void resolveDeviceLocation();
   }, [isStartingQuest, preview, resolveDeviceLocation, tab]);
 
   const beginQuestRoute = useCallback(async () => {
@@ -773,19 +846,20 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
 
   return <ActiveQuestViewport short={Platform.OS === "web" && viewportHeight < 600}><View pointerEvents={preview ? "none" : "auto"} style={{ flex: 1, width: "100%", maxWidth: activeContentWidth, alignSelf: "center", backgroundColor: T.bg }}>
     {!preview ? <StatusBar style={T.isDark ? "light" : "dark"} /> : null}
-    <View style={{ backgroundColor: T.white, paddingTop: screenInsets.top + 10, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: T.border }}>
+    <View style={{ backgroundColor: T.white, paddingTop: screenInsets.top + 10, paddingBottom: 16, borderBottomWidth: tab === "entry" ? 0 : 1, borderBottomColor: `${accent}80` }}>
       <View style={{ paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <View style={{ flex: 1, gap: 3 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: paused ? T.orange : T.green }} /><Text style={{ color: T.dark, fontSize: 13, lineHeight: 17, fontWeight: "900" }}>{paused ? "Quest paused" : "Active now"}</Text></View>
-          <Text style={{ flexShrink: 1, color: T.dark, fontFamily: "RubikBlack", fontSize: 25, lineHeight: 31, fontWeight: "900" }}>{quest.title}</Text>
+          <Text style={{ flexShrink: 1, color: T.dark, fontFamily: "RubikBlack", fontSize: 22, lineHeight: 31, fontWeight: "900" }}>{quest.title}</Text>
         </View>
         {!onboarding?.hideExit ? <Pressable accessibilityRole="button" accessibilityLabel="Leave active quest" onPress={() => router.back()} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, backgroundColor: T.raised, borderWidth: 1, borderColor: T.border, alignItems: "center", justifyContent: "center", transform: [{ translateY: -7 }, { scale: pressed ? 0.94 : 1 }] })}><Ionicons name="close" size={22} color={T.dark} /></Pressable> : null}
       </View>
       <View style={{ marginTop: 16 }}><ActiveQuestTabs active={tab} onChange={setTab} accent={accent} disabled={Boolean(onboarding?.locked)} /></View>
     </View>
-    <View style={{ flex: 1, paddingRight: wideWorkspace ? 344 : 0 }}>
-      {tab === "map" ? isStartingQuest ? <QuestStartupSurface accent={accent} step={countdownStep} /> : <LiveMap accent={accent} route={renderedRoute} renderSegments={renderedSegments} deviceLocation={deviceLocation ?? (previewLocation ? { latitude: previewLocation.latitude, longitude: previewLocation.longitude } : null)} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={null} onEnableTracking={handleEnableRouteRecording} forceEnablePrompt={onboarding?.guideStep === "route"} routePromptNudge={onboarding?.routePromptNudge} showUserLocation={!preview} animateInitialCamera={!preview} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} onManage={openPhotoManager} /> : <ActivityTimeline activity={snapshot?.activity ?? []} photos={snapshot?.photos ?? []} accent={accent} onManage={openActivityManager} focusLatest={Boolean(onboarding?.focusLatestActivity)} />}
-    </View>
+    {tab === "entry" ? <QuestInstructions quest={quest} accent={accent} disabled={Boolean(onboarding?.locked)} /> : null}
+    <Reanimated.View layout={reduceMotion ? undefined : LinearTransition.duration(280).easing(Easing.bezier(0.23, 1, 0.32, 1))} style={{ flex: 1, paddingRight: wideWorkspace ? 344 : 0 }}>
+      {tab === "map" ? isStartingQuest ? <QuestStartupSurface accent={accent} step={countdownStep} /> : <LiveMap accent={accent} route={renderedRoute} renderSegments={renderedSegments} deviceLocation={deviceLocation ?? (previewLocation ? { latitude: previewLocation.latitude, longitude: previewLocation.longitude } : null)} liveLocation={liveLocation} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} notice={null} onEnableTracking={handleEnableRouteRecording} forceEnablePrompt={onboarding?.guideStep === "route"} routePromptNudge={onboarding?.routePromptNudge} showUserLocation={!preview} animateInitialCamera={!preview} /> : tab === "album" ? <Album accent={accent} photos={snapshot?.photos ?? []} onManage={openPhotoManager} /> : <ActivityTimeline activity={snapshot?.activity ?? []} photos={snapshot?.photos ?? []} accent={accent} onManage={openActivityManager} focusLatest={Boolean(onboarding?.focusLatestActivity)} overview={<><QuestRouteCard accent={accent} route={renderedRoute} renderSegments={renderedSegments} liveLocation={liveLocation} deviceLocation={deviceLocation ?? (previewLocation ? { latitude: previewLocation.latitude, longitude: previewLocation.longitude } : null)} trackingStatus={snapshot?.session.trackingStatus ?? "idle"} trackingMessage={trackingMessage} distanceMeters={snapshot?.session.distanceMeters ?? 0} showUserLocation={!preview} onEnableTracking={handleEnableRouteRecording} /><RecentQuestPhotos photos={snapshot?.photos ?? []} accent={accent} onManage={openPhotoManager} /></>} />}
+    </Reanimated.View>
     {!countdownStep && photoSavedVisible ? <QuestNoticePill notice="photo-saved" accent={accent} message={trackingMessage} bottomOffset={Math.max(screenInsets.bottom + 98, 126)} /> : null}
     <FloatingQuestControls accent={accent} duration={duration} paused={paused} takingPhoto={takingPhoto} bottomInset={screenInsets.bottom} onTakePhoto={() => void takePhoto()} onQuickNote={() => setQuickNoteVisible(true)} onFinish={openFinishReview} onTogglePaused={togglePaused} locked={Boolean(onboarding?.locked)} forcedOpen={Boolean(onboarding?.forceQuickActionsOpen) || onboarding?.allowPhotoCapture || onboarding?.allowQuickNote} allowQuickActions={Boolean(onboarding?.allowQuickActions)} allowPhotoCapture={Boolean(onboarding?.allowPhotoCapture)} allowQuickNote={Boolean(onboarding?.allowQuickNote)} showQuickActionsWhenPaused={Boolean(onboarding?.showQuickActionsWhenPaused)} onQuickActionsOpened={onboarding?.onQuickActionsOpened} onQuickNoteOpened={onboarding?.onQuickNoteOpened} />
     <FinishQuestReviewSheet promptIndex={finishPromptIndex} visible={finishReviewVisible} accent={accent} onContinue={continueQuest} onEndQuest={() => { void stopTracking().catch(() => showFeedback({ message: "Couldn’t stop route recording. Please check location settings.", icon: "alert-circle", color: T.red })); setFinishReviewVisible(false); setCompletedQuest(quest); captureCompletionRecap(); setCompleteVisible(true); }} />
