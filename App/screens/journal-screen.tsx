@@ -29,6 +29,7 @@ import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMo
 import { fetchProfileOverview, fetchProfileQuestInsights, fetchWeeklyCompletedQuestActivity, ProfileQuestInsights, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
 import { YourStatsDashboard } from "@/screens/profile-screen";
 import { ProfileOverview } from "@/types/profile";
+import { CollapsibleScrollHeader, useCollapsibleScrollHeader } from "@/components/collapsible-scroll-header";
 
 type JournalTab = "journal" | "album" | "stats";
 type CalendarMode = "week" | "month";
@@ -634,7 +635,7 @@ function AlbumQuestGroupCard({ quest, onManageItem, mediaRefreshToken }: { quest
   </View>;
 }
 
-function JournalAlbum({ items, onExplore, onManageItem, contentWidth, horizontalPadding, safeAreaOffset, bottomInset, mediaRefreshToken }: { items: JournalMediaItem[]; onExplore: () => void; onManageItem: (item: JournalMediaItem) => void; contentWidth: number; horizontalPadding: number; safeAreaOffset: number; bottomInset: number; mediaRefreshToken: number }) {
+function JournalAlbum({ items, onExplore, onManageItem, contentWidth, horizontalPadding, safeAreaOffset, bottomInset, mediaRefreshToken, onScroll }: { items: JournalMediaItem[]; onExplore: () => void; onManageItem: (item: JournalMediaItem) => void; contentWidth: number; horizontalPadding: number; safeAreaOffset: number; bottomInset: number; mediaRefreshToken: number; onScroll: (offsetY: number) => void }) {
   const grouped = items.reduce<Record<string, AlbumQuestGroup>>((groups, item) => {
     const key = `${item.dateKey}\u0001${item.questTitle}`;
     (groups[key] ??= { questTitle: item.questTitle, dateKey: item.dateKey, items: [] }).items.push(item);
@@ -642,7 +643,7 @@ function JournalAlbum({ items, onExplore, onManageItem, contentWidth, horizontal
   }, {});
   const quests = Object.values(grouped).sort((a, b) => b.dateKey.localeCompare(a.dateKey) || a.questTitle.localeCompare(b.questTitle));
 
-  return <FlatList data={quests} keyExtractor={(quest) => `${quest.dateKey}-${quest.questTitle}`} style={{ flex: 1 }} removeClippedSubviews windowSize={5} initialNumToRender={4} maxToRenderPerBatch={4} updateCellsBatchingPeriod={80} contentContainerStyle={{ paddingTop: 12, paddingBottom: bottomInset + 112, gap: 20 }} ListEmptyComponent={<View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><Card style={{ borderRadius: radius.xl }}><EmptyState emoji="📷" title="Your album is waiting" body="Finish a quest with a photo and it will become part of your journal album." action={<SoftButton label="Explore quests" icon="compass" color={T.blue} onPress={onExplore} />} /></Card></View>} renderItem={({ item }) => <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><AlbumQuestGroupCard quest={item} onManageItem={onManageItem} mediaRefreshToken={mediaRefreshToken} /></View>} />;
+  return <FlatList onScroll={(event) => onScroll(event.nativeEvent.contentOffset.y)} scrollEventThrottle={16} data={quests} keyExtractor={(quest) => `${quest.dateKey}-${quest.questTitle}`} style={{ flex: 1 }} removeClippedSubviews windowSize={5} initialNumToRender={4} maxToRenderPerBatch={4} updateCellsBatchingPeriod={80} contentContainerStyle={{ paddingTop: 12, paddingBottom: bottomInset + 112, gap: 20 }} ListEmptyComponent={<View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><Card style={{ borderRadius: radius.xl }}><EmptyState emoji="📷" title="Your album is waiting" body="Finish a quest with a photo and it will become part of your journal album." action={<SoftButton label="Explore quests" icon="compass" color={T.blue} onPress={onExplore} />} /></Card></View>} renderItem={({ item }) => <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><AlbumQuestGroupCard quest={item} onManageItem={onManageItem} mediaRefreshToken={mediaRefreshToken} /></View>} />;
 }
 
 function DayStatStrip({ questCount, xp, minutes }: { questCount: number; xp: number; minutes: number }) {
@@ -946,6 +947,9 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
   const pendingCalendarTargetRef = useRef<string | null>(null);
   const calendarScrollRetryCountRef = useRef(0);
   const didFocusCompletionRef = useRef(false);
+  const collapsibleHeader = useCollapsibleScrollHeader();
+
+  useEffect(() => { collapsibleHeader.reveal(); }, [collapsibleHeader.reveal, tab]);
 
   // The inline media shelf is explicitly for the current local calendar day.
   // Refresh this key at midnight so those captures move to Album without a
@@ -1182,12 +1186,12 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
   return (
     <Screen scroll={false} padded={false} ambientGlow={!T.isDark} contentStyle={{ paddingTop: Math.max(insets.top - 12, 12) }}>
       <View style={{ flex: 1 }}>
-        <View style={{ alignItems: "center" }}>
+        <CollapsibleScrollHeader progress={collapsibleHeader.progress}><View style={{ alignItems: "center" }}>
           <View style={{ width: frameWidth, paddingHorizontal: horizontalPadding, gap: 8, paddingBottom: 8, transform: [{ translateX: safeAreaOffset }] }}>
             <Entrance><JournalHeader tab={tab} /></Entrance>
             <Entrance delay={40}><JournalTabs activeTab={tab} onChange={setTab} /></Entrance>
           </View>
-        </View>
+        </View></CollapsibleScrollHeader>
 
         {tab === "journal" ? <View style={{ flex: 1, flexDirection: isWide ? "row" : "column", width: frameWidth, alignSelf: "center" }}>
           <View style={{ backgroundColor: T.bg, alignItems: "center", borderBottomWidth: 1, borderBottomColor: T.border, paddingBottom: 8, width: isWide ? 320 : "100%" }}>
@@ -1209,6 +1213,8 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
             windowSize={5}
             onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={journalViewabilityConfig}
+            onScroll={(event) => collapsibleHeader.onScroll(event.nativeEvent.contentOffset.y)}
+            scrollEventThrottle={16}
             onScrollBeginDrag={() => {
               // A manual gesture takes precedence over a still-pending calendar jump.
               pendingCalendarTargetRef.current = null;
@@ -1234,10 +1240,11 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
             ListEmptyComponent={<View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>{loading ? <JournalLoadingSkeleton /> : <Card style={{ marginTop: 18, borderRadius: radius.lg }}><EmptyState emoji="!" title="Couldn't load your journal" body={error ?? "Please try again."} action={<SoftButton label="Try again" icon="refresh" onPress={() => void load(true)} />} /></Card>}</View>}
             ListFooterComponent={data && !loading ? <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><BeforeJoinMarker joinDate={join} /></View> : undefined}
           />
-        </View> : tab === "album" ? <JournalAlbum items={albumItems} onExplore={goExplore} onManageItem={manageAlbumItem} contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} bottomInset={insets.bottom} mediaRefreshToken={mediaRefreshToken} /> : <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={32} onScroll={(event) => {
+        </View> : tab === "album" ? <JournalAlbum items={albumItems} onExplore={goExplore} onManageItem={manageAlbumItem} contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} bottomInset={insets.bottom} mediaRefreshToken={mediaRefreshToken} onScroll={collapsibleHeader.onScroll} /> : <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={(event) => {
           // Synthetic scroll events are released after this callback. Read the
           // primitive now rather than inside React's later state updater.
           const offsetY = event.nativeEvent.contentOffset.y;
+          collapsibleHeader.onScroll(offsetY);
           setStatsScrollY((current) => Math.abs(current - offsetY) >= 24 ? offsetY : current);
         }} contentContainerStyle={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: insets.bottom + 112, gap: 12, transform: [{ translateX: safeAreaOffset }] }}>
           {statsLoading ? <JournalLoadingSkeleton /> : statsOverview ? <YourStatsDashboard overview={statsOverview} weeklyActivity={weeklyActivity} insights={statsInsights} scrollY={statsScrollY} /> : <Card style={{ marginTop: 8, borderRadius: radius.lg }}><EmptyState emoji="📊" title="Stats unavailable" body="Your progress will appear here once your profile is ready." /></Card>}
