@@ -2,10 +2,13 @@ import * as FileSystem from "@/lib/device-files";
 
 import { ActiveQuestActivity, ActiveQuestActivityKind, ActiveQuestLocalSession, ActiveQuestPhoto, ActiveQuestRecordingState, ActiveQuestRoutePoint, ActiveQuestRouteSegment, ActiveQuestSnapshot } from "@/types/active-quest";
 import { distanceBetweenMeters, simplifyRouteForRendering } from "@/services/active-quest/route-filter";
-import { isAcceptedQuestLocation, RawQuestLocation } from "@/services/active-quest/location-quality-filter";
-import { smoothQuestLocation } from "@/services/active-quest/location-smoothing";
+import { RawQuestLocation } from "@/services/active-quest/location-quality-filter";
+import { measureLocation, emptyMeasurementState, MEASUREMENT_VERSION } from "@/services/active-quest/measurement";
+import { readQuestStore, commitQuestStore, closeQuestStore, readQuestObservations } from "@/lib/device-quest-store";
+import type { Observation } from "@/lib/device-quest-store.types";
 import { buildRenderableSegments } from "@/services/active-quest/route-segments";
-import { getLocalDataOwner, requireLocalDataOwner } from "@/services/local-data/owner";
+import { getTrackingSession } from "@/services/active-quest/tracking-session";
+import { areLocalDataWritesBlocked, getLocalDataOwner, requireLocalDataOwner } from "@/services/local-data/owner";
 
 type ActiveQuestStore = {
   ownerId: string;
@@ -39,6 +42,7 @@ function emptyStore(ownerId: string): ActiveQuestStore {
   };
 }
 
+const migratedRoots = new Set<string>();
 let cache: ActiveQuestStore | null = null;
 let mutationQueue: Promise<void> = Promise.resolve();
 const listeners = new Set<() => void>();
@@ -49,6 +53,15 @@ function freshStore(ownerId: string): ActiveQuestStore {
 
 async function loadStore(ownerId: string) {
   if (cache?.ownerId === ownerId) return cache;
+  // Database errors must surface, never silently replace a durable recording.
+  const durable = await readQuestStore(activeQuestRoot(ownerId));
+  if (durable) {
+    migratedRoots.add(activeQuestRoot(ownerId));
+    const metadata = JSON.parse(durable.metadata) as ActiveQuestStore;
+    if (metadata.ownerId !== ownerId) throw new Error("Store owner mismatch");
+    cache = { ...freshStore(ownerId), ...metadata, route: durable.points, renderRoutes: {} };
+    return cache;
+  }
   try {
     const raw = await FileSystem.readAsStringAsync(storeUri(ownerId));
     const parsed = JSON.parse(raw) as Partial<ActiveQuestStore>;
@@ -97,26 +110,30 @@ async function loadStore(ownerId: string) {
   return cache;
 }
 
-async function persistStore(ownerId: string, store: ActiveQuestStore) {
+async function persistStore(ownerId: string, store: ActiveQuestStore, previous: ActiveQuestStore, observation?: Observation) {
   if (store.ownerId !== ownerId) throw new Error("Refusing to persist data for a different owner.");
-  await FileSystem.makeDirectoryAsync(activeQuestRoot(ownerId), { intermediates: true });
-  const currentStoreUri = storeUri(ownerId);
-  const currentBackupUri = backupStoreUri(ownerId);
-  const existingStore = await FileSystem.getInfoAsync(currentStoreUri);
-  if (existingStore.exists) {
-    const existingBackup = await FileSystem.getInfoAsync(currentBackupUri);
-    if (existingBackup.exists) await FileSystem.deleteAsync(currentBackupUri, { idempotent: true });
-    await FileSystem.copyAsync({ from: currentStoreUri, to: currentBackupUri });
-  }
-  await FileSystem.writeAsStringAsync(currentStoreUri, JSON.stringify(store));
+  const { route, renderRoutes: _render, ...metadata } = store;
+  // First migration writes legacy points once. Subsequent commits append only new points.
+  const known = new Set(migratedRoots.has(activeQuestRoot(ownerId)) ? previous.route.map(p => `${p.sessionId}:${p.id}`) : []);
+  await commitQuestStore(activeQuestRoot(ownerId), {
+    metadata: JSON.stringify(metadata),
+    points: route.filter(p => !known.has(`${p.sessionId}:${p.id}`)),
+    deletedSessions: Object.keys(previous.sessions).filter(id => !store.sessions[id]),
+    observation,
+  });
+  migratedRoots.add(activeQuestRoot(ownerId));
 }
 
-function mutate<T>(operation: (store: ActiveQuestStore) => T | Promise<T>) {
+function mutate<T>(operation: (store: ActiveQuestStore) => T | Promise<T>, observation?: Observation) {
   const ownerId = requireLocalDataOwner();
   const result = mutationQueue.then(async () => {
-    const store = await loadStore(ownerId);
+    if (getLocalDataOwner() !== ownerId) throw new Error("Recording owner changed. Retry after signing in.");
+    const previous = await loadStore(ownerId);
+    // Copy-on-write: a failed transaction must not advance the in-memory distance.
+    const store = { ...previous, sessions: { ...previous.sessions }, route: [...previous.route], renderRoutes: { ...previous.renderRoutes }, photos: [...previous.photos], activity: [...previous.activity] };
     const value = await operation(store);
-    await persistStore(ownerId, store);
+    await persistStore(ownerId, store, previous, observation?.decision ? observation : undefined);
+    cache = store;
     return value;
   });
   mutationQueue = result.then(() => undefined, () => undefined);
@@ -213,7 +230,7 @@ export async function hydrateActiveQuestRecord(record: RemoteActiveQuestRecord) 
     const knownActivityIds = new Set(store.activity.filter((item) => item.sessionId === sessionId).map((item) => item.id));
     for (const activity of record.activity) if (!knownActivityIds.has(activity.id)) store.activity.push({ ...activity, sessionId });
 
-    store.nextPointId = Math.max(store.nextPointId, ...record.route.map((point) => point.id + 1), 1);
+    store.nextPointId = record.route.reduce((next, point) => Math.max(next, point.id + 1), store.nextPointId);
     store.nextPhotoId = Math.max(store.nextPhotoId, ...record.photos.map((photo) => photo.id + 1), 1);
     store.nextActivityId = Math.max(store.nextActivityId, ...record.activity.map((activity) => activity.id + 1), 1);
   });
@@ -285,34 +302,49 @@ export async function setActiveQuestRecordingState(sessionId: string, recordingS
  * Filters and appends under one serialized mutation so foreground and
  * background location sources cannot accept the same point concurrently.
  */
-export async function addAcceptedRoutePoint(sessionId: string, point: RawQuestLocation) {
-  return mutate((store) => {
+export async function addAcceptedRoutePoint(sessionId: string, point: RawQuestLocation, window: { windowId?: string; startedAt?: number } = {}) {
+  const receivedAt = Date.now();
+  const windowId = window.windowId ?? sessionId;
+  const observation: Observation = { key: `${windowId}:${point.capturedAt}:${point.latitude}:${point.longitude}`, sessionId, windowId, startedAt: window.startedAt ?? 0, receivedAt, sample: point, algorithmVersion: MEASUREMENT_VERSION };
+  return mutate(async (store) => {
+    const marker = await getTrackingSession();
+    if (areLocalDataWritesBlocked(store.ownerId) || !marker || marker.ownerId !== store.ownerId || marker.sessionId !== sessionId || (marker.windowId ?? sessionId) !== windowId) return false;
     const session = store.sessions[sessionId];
-    if (!session) return false;
-    const previous = store.route
-      .filter((routePoint) => routePoint.sessionId === sessionId)
-      .sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0] ?? null;
-    if (!isAcceptedQuestLocation(point, previous)) return false;
-    const accepted = smoothQuestLocation(point, previous);
-
+    if (!session || session.trackingStatus !== "tracking") return false;
+    const decision = measureLocation(session.measurementState ?? emptyMeasurementState(), point, windowId, Math.max(Date.parse(session.startedAt), window.startedAt ?? 0), receivedAt);
+    observation.decision = decision.decision;
+    let nextSession = { ...session, measurementState: decision.state, measurementVersion: MEASUREMENT_VERSION, lastDecision: decision.decision };
+    if (decision.decision === "accepted" || decision.decision === "stationary") {
+      nextSession = { ...nextSession, lastFix: { id: 0, sessionId, ...point }, lastLocationAt: point.capturedAt };
+    }
+    store.sessions[sessionId] = nextSession;
+    if (!decision.point) return false;
+    const accepted = decision.point;
+    store.nextPointId = Math.max(store.nextPointId, Date.now() * 1000);
     const nextPoint = { id: store.nextPointId++, sessionId, ...accepted };
     store.route.push(nextPoint);
-    const sessionRoute = store.route.filter((routePoint) => routePoint.sessionId === sessionId).sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
-    store.renderRoutes[sessionId] = simplifyRouteForRendering(sessionRoute);
+    delete store.renderRoutes[sessionId];
     const currentSegment = session.routeSegments.at(-1);
     const segmentState: ActiveQuestRouteSegment["state"] = session.recordingState === "recording" ? "active" : "paused";
-    const routeSegments = currentSegment && currentSegment.state === segmentState
+    const previous = store.route.filter(p => p.sessionId === sessionId).at(-2);
+    const routeSegments = currentSegment && !decision.breakSegment && currentSegment.state === segmentState
       ? [...session.routeSegments.slice(0, -1), { ...currentSegment, pointIds: [...currentSegment.pointIds, nextPoint.id] }]
-      : [...session.routeSegments, { id: `${sessionId}-${Date.now()}`, state: segmentState, startedAt: accepted.capturedAt, endedAt: null, pointIds: previous ? [previous.id, nextPoint.id] : [nextPoint.id] }];
-    store.sessions[sessionId] = {
-      ...session,
-      routeSegments,
-      distanceMeters: session.distanceMeters + (previous ? distanceBetweenMeters(previous, accepted) : 0),
-      lastLocationAt: accepted.capturedAt,
-      trackingStatus: "tracking",
-      updatedAt: new Date().toISOString(),
-    };
+      : [...session.routeSegments.map(s => s.endedAt ? s : { ...s, endedAt: accepted.capturedAt }), { id: `${sessionId}-${nextPoint.id}`, state: segmentState, startedAt: accepted.capturedAt, endedAt: null, pointIds: !decision.breakSegment && previous ? [previous.id, nextPoint.id] : [nextPoint.id] }];
+    store.sessions[sessionId] = { ...nextSession, routeSegments, distanceMeters: session.distanceMeters + decision.distance, updatedAt: new Date().toISOString() };
     return true;
+  }, observation);
+}
+
+/** Original observations for private debugging/replay; never emitted to telemetry. */
+export async function getQuestRecordingDiagnostics(sessionId: string) {
+  await mutationQueue;
+  return readQuestObservations(activeQuestRoot(requireLocalDataOwner()), sessionId);
+}
+
+export async function markRoutePointsSynced(sessionId: string, through: number) {
+  await mutate(store => {
+    const session = store.sessions[sessionId];
+    if (session) store.sessions[sessionId] = { ...session, routeSyncedThrough: Math.max(session.routeSyncedThrough ?? 0, through) };
   });
 }
 
@@ -449,6 +481,9 @@ export async function clearActiveQuestSession(sessionId: string) {
 
 /** Deletes every plaintext active-quest record for one account. */
 export async function clearActiveQuestDataForOwner(ownerId: string) {
+  await mutationQueue;
+  await closeQuestStore(activeQuestRoot(ownerId));
+  migratedRoots.delete(activeQuestRoot(ownerId));
   await FileSystem.deleteAsync(activeQuestRoot(ownerId), { idempotent: true });
   if (cache?.ownerId === ownerId) cache = null;
 }

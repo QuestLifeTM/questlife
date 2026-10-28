@@ -3,12 +3,12 @@ import { Platform } from "react-native";
 
 import { updateActiveQuestSession } from "@/services/active-quest/local-store";
 import { ACTIVE_QUEST_LOCATION_TASK } from "@/services/active-quest/location-task-name";
-import { setTrackingSession } from "@/services/active-quest/tracking-session";
+import { getTrackingSession, setTrackingSession } from "@/services/active-quest/tracking-session";
 
-const options: Location.LocationTaskOptions = {
+export const questLocationOptions: Location.LocationTaskOptions = {
   accuracy: Location.Accuracy.Highest,
-  distanceInterval: 5,
-  timeInterval: 5_000,
+  distanceInterval: 1,
+  timeInterval: 1_000,
   pausesUpdatesAutomatically: false,
   showsBackgroundLocationIndicator: true,
   foregroundService: {
@@ -19,6 +19,9 @@ const options: Location.LocationTaskOptions = {
 
 export async function beginQuestLocationTracking(ownerId: string, sessionId: string) {
   try {
+    const existing = await getTrackingSession();
+    const sameSession = existing?.ownerId === ownerId && existing.sessionId === sessionId;
+    const marker = sameSession ? existing : { ownerId, sessionId, windowId: `${sessionId}-${Date.now()}`, startedAt: Date.now() };
     const servicesEnabled = await Location.hasServicesEnabledAsync();
     if (!servicesEnabled) {
       await updateActiveQuestSession(sessionId, { trackingStatus: "unavailable" });
@@ -31,7 +34,7 @@ export async function beginQuestLocationTracking(ownerId: string, sessionId: str
     }
 
     if (Platform.OS === "web") {
-      await setTrackingSession({ ownerId, sessionId });
+      await setTrackingSession({ ...marker, backgroundGranted: false });
       await updateActiveQuestSession(sessionId, { trackingStatus: "tracking" });
       return { started: true, backgroundGranted: false, reason: "Keep this browser tab open to record your route. Browsers pause location when the tab or device sleeps." } as const;
     }
@@ -40,18 +43,17 @@ export async function beginQuestLocationTracking(ownerId: string, sessionId: str
     // separate Always permission needed for recording while the phone is locked.
     const existingBackground = await Location.getBackgroundPermissionsAsync();
     const background = existingBackground.granted ? existingBackground : await Location.requestBackgroundPermissionsAsync();
-    const registered = await Location.hasStartedLocationUpdatesAsync(ACTIVE_QUEST_LOCATION_TASK);
-    if (!registered) await Location.startLocationUpdatesAsync(ACTIVE_QUEST_LOCATION_TASK, options);
-    // Do not let the background task associate a route with this quest until
-    // the native location service has actually started successfully.
-    await setTrackingSession({ ownerId, sessionId });
+    // Foreground-only permission is a supported fallback; never claim background
+    // recording succeeded when the OS denied it.
+    if (background.granted) await Location.startLocationUpdatesAsync(ACTIVE_QUEST_LOCATION_TASK, questLocationOptions);
+    await setTrackingSession({ ...marker, backgroundGranted: background.granted });
     await updateActiveQuestSession(sessionId, { trackingStatus: "tracking" });
     return { started: true, backgroundGranted: background.granted } as const;
   } catch {
     // This happens only when the installed native app predates the configured
     // iOS location usage strings. Keep the quest usable and explain the fix.
     await updateActiveQuestSession(sessionId, { trackingStatus: "permission-needed" }).catch(() => undefined);
-    return { started: false, reason: Platform.OS === "web" ? "Location could not start. Allow location for this site in your browser, then try again. Your quest can continue without route recording." : "Location needs a freshly rebuilt QuestLife iOS app. Rebuild it, then allow Location access." } as const;
+    return { started: false, reason: Platform.OS === "web" ? "Location could not start. Allow location for this site in your browser, then try again. Your quest can continue without route recording." : "Route recording could not start. Check precise location permissions and try again. If this persists, install a fresh development build." } as const;
   }
 }
 

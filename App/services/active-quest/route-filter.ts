@@ -9,7 +9,7 @@ export function distanceBetweenMeters(a: Pick<ActiveQuestRoutePoint, "latitude" 
   const latitudeA = radians(a.latitude);
   const latitudeB = radians(b.latitude);
   const haversine = Math.sin(deltaLatitude / 2) ** 2 + Math.cos(latitudeA) * Math.cos(latitudeB) * Math.sin(deltaLongitude / 2) ** 2;
-  return 2 * EARTH_RADIUS_METERS * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  return 2 * EARTH_RADIUS_METERS * Math.atan2(Math.sqrt(Math.min(1, Math.max(0, haversine))), Math.sqrt(Math.max(0, 1 - haversine)));
 }
 
 export function routePointIsUsable(next: Omit<ActiveQuestRoutePoint, "id" | "sessionId">, previous: ActiveQuestRoutePoint | null) {

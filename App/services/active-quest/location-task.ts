@@ -1,7 +1,7 @@
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 
-import { addAcceptedRoutePoint, getActiveQuestSnapshot } from "@/services/active-quest/local-store";
+import { addAcceptedRoutePoint, getActiveQuestSession } from "@/services/active-quest/local-store";
 import { ACTIVE_QUEST_LOCATION_TASK } from "@/services/active-quest/location-task-name";
 import { queueActiveQuestRouteSync } from "@/services/active-quest/sync";
 import { areLocalDataWritesBlocked, getLocalDataOwner, setLocalDataOwner } from "@/services/local-data/owner";
@@ -15,6 +15,7 @@ export async function persistQuestLocation(ownerId: string, sessionId: string, l
     trackingSession?.ownerId !== ownerId ||
     trackingSession.sessionId !== sessionId
   ) return false;
+  if (!Number.isFinite(location.timestamp)) return false;
   const next = {
     capturedAt: new Date(location.timestamp).toISOString(),
     latitude: location.coords.latitude,
@@ -24,7 +25,7 @@ export async function persistQuestLocation(ownerId: string, sessionId: string, l
     altitude: location.coords.altitude,
     heading: location.coords.heading,
   };
-  const accepted = await addAcceptedRoutePoint(sessionId, next);
+  const accepted = await addAcceptedRoutePoint(sessionId, next, trackingSession);
   if (accepted) queueActiveQuestRouteSync(sessionId);
   return accepted;
 }
@@ -33,7 +34,7 @@ if (!TaskManager.isTaskDefined(ACTIVE_QUEST_LOCATION_TASK)) {
   TaskManager.defineTask<{ locations?: Location.LocationObject[] }>(ACTIVE_QUEST_LOCATION_TASK, async ({ data, error }) => {
     if (error || !data?.locations?.length) return;
     try {
-      for (const location of data.locations) {
+      for (const location of [...data.locations].sort((a, b) => a.timestamp - b.timestamp)) {
         const session = await getActiveQuestSessionForTracking();
         // A location task may be delivered just after the user ends a quest.
         // Persist only points for the one session that is actively recording.
@@ -62,11 +63,13 @@ async function getActiveQuestSessionForTracking() {
   // for the currently registered session, persisted in the active-quest store.
   const trackingSession = await getTrackingSession();
   if (!trackingSession) return null;
+  if (areLocalDataWritesBlocked(trackingSession.ownerId)) return null;
   const previousOwner = getLocalDataOwner();
+  if (previousOwner && previousOwner !== trackingSession.ownerId) return null;
   setLocalDataOwner(trackingSession.ownerId);
   try {
-    const snapshot = await getActiveQuestSnapshot(trackingSession.sessionId);
-    return snapshot?.session.trackingStatus === "tracking" ? trackingSession : null;
+    const snapshot = await getActiveQuestSession(trackingSession.sessionId);
+    return snapshot?.trackingStatus === "tracking" ? trackingSession : null;
   } finally {
     setLocalDataOwner(previousOwner);
   }

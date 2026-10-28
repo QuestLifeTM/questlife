@@ -1,5 +1,6 @@
+import { getLocalDataOwner } from "@/services/local-data/owner";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { getActiveQuestSnapshot, hydrateActiveQuestRecord, setActiveQuestRecordingState } from "@/services/active-quest/local-store";
+import { getActiveQuestSnapshot, hydrateActiveQuestRecord, setActiveQuestRecordingState, markRoutePointsSynced } from "@/services/active-quest/local-store";
 import { stopQuestLocationTracking } from "@/services/active-quest/tracking";
 import { ActiveQuestActivity, ActiveQuestPhoto, ActiveQuestRoutePoint, ActiveQuestRouteSegment, ActiveQuestRecordingState } from "@/types/active-quest";
 
@@ -12,17 +13,52 @@ const activeRouteSyncs = new Map<string, Promise<void>>();
  * idempotent: a crash between a network response and local state update simply
  * upserts the same snapshot/points/media next time the app becomes active.
  */
-export async function syncActiveQuestRecord(sessionId: string) {
+const syncQueue = new Map<string, Promise<void>>();
+export function syncActiveQuestRecord(sessionId: string): Promise<void> {
+  const owner = getLocalDataOwner();
+  const key = `${owner}:${sessionId}`;
+  const previous = syncQueue.get(key) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(async () => {
+    if (!owner || getLocalDataOwner() !== owner) return;
+    await performSync(sessionId, owner);
+  });
+  syncQueue.set(key, next);
+  void next.finally(() => { if (syncQueue.get(key) === next) syncQueue.delete(key); }).catch(() => undefined);
+  return next;
+}
+async function performSync(sessionId: string, owner: string) {
   if (!isSupabaseConfigured) return;
   const snapshot = await getActiveQuestSnapshot(sessionId);
   if (!snapshot) return;
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id;
-  if (!userId) return;
+  if (!userId || userId !== owner) return;
 
   const { session } = snapshot;
   const pointSegments = new Map<number, { id: string; state: "active" | "paused" }>();
   for (const segment of session.routeSegments) for (const pointId of segment.pointIds) pointSegments.set(pointId, { id: segment.id, state: segment.state });
+  const pending = snapshot.route.filter(point => point.id > (session.routeSyncedThrough ?? 0));
+  for (let offset = 0; offset < pending.length; offset += 250) {
+    const batch = pending.slice(offset, offset + 250);
+    const routeResult = await supabase.from("quest_session_route_points").upsert(batch.map((point) => ({
+      session_id: session.sessionId,
+      user_id: userId,
+      client_point_id: `${session.sessionId}-${point.id}`,
+      captured_at: point.capturedAt,
+      latitude: point.latitude,
+      longitude: point.longitude,
+      accuracy_meters: point.accuracy,
+      speed_meters_per_second: point.speed,
+      altitude_meters: point.altitude,
+      heading_degrees: point.heading,
+      segment_id: pointSegments.get(point.id)?.id ?? null,
+      segment_state: pointSegments.get(point.id)?.state ?? null,
+    })), { onConflict: "session_id,client_point_id" });
+    if (routeResult.error) throw routeResult.error;
+    if (getLocalDataOwner() !== owner) return;
+    await markRoutePointsSynced(sessionId, batch.at(-1)!.id);
+  }
+
   const snapshotResult = await supabase.from("quest_session_snapshots").upsert({
     session_id: session.sessionId,
     user_id: userId,
@@ -47,23 +83,7 @@ export async function syncActiveQuestRecord(sessionId: string) {
   }, { onConflict: "session_id" });
   if (snapshotResult.error) throw snapshotResult.error;
 
-  if (snapshot.route.length) {
-    const routeResult = await supabase.from("quest_session_route_points").upsert(snapshot.route.map((point) => ({
-      session_id: session.sessionId,
-      user_id: userId,
-      client_point_id: `${session.sessionId}-${point.id}`,
-      captured_at: point.capturedAt,
-      latitude: point.latitude,
-      longitude: point.longitude,
-      accuracy_meters: point.accuracy,
-      speed_meters_per_second: point.speed,
-      altitude_meters: point.altitude,
-      heading_degrees: point.heading,
-      segment_id: pointSegments.get(point.id)?.id ?? null,
-      segment_state: pointSegments.get(point.id)?.state ?? null,
-    })), { onConflict: "session_id,client_point_id" });
-    if (routeResult.error) throw routeResult.error;
-  }
+
 
   const uploadedMedia = snapshot.photos.filter((photo) => !photo.isTutorialMock && photo.remotePath);
   if (uploadedMedia.length) {
@@ -116,12 +136,22 @@ function numericClientId(sessionId: string, clientId: string, fallback: number) 
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+async function readRemoteRoute(sessionId: string) {
+  const rows: any[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const page = await supabase.from("quest_session_route_points").select("client_point_id, captured_at, latitude, longitude, accuracy_meters, speed_meters_per_second, altitude_meters, heading_degrees").eq("session_id", sessionId).order("captured_at", { ascending: true }).order("client_point_id", { ascending: true }).range(offset, offset + 499);
+    if (page.error) return { data: rows, error: page.error };
+    rows.push(...(page.data ?? []));
+    if ((page.data?.length ?? 0) < 500) return { data: rows, error: null };
+  }
+}
+
 /** Restores an active quest's server-backed progress after login or device change. */
 export async function hydrateActiveQuestFromServer(sessionId: string) {
   if (!isSupabaseConfigured) return null;
   const [snapshotResult, routeResult, mediaResult, activityResult] = await Promise.all([
     supabase.from("quest_session_snapshots").select("session_id, quest_id, recording_state, started_at, paused_at, active_duration_ms, distance_meters, entry_title, entry_body, last_location_at, render_route, route_segments, updated_at").eq("session_id", sessionId).maybeSingle<SnapshotRow>(),
-    supabase.from("quest_session_route_points").select("client_point_id, captured_at, latitude, longitude, accuracy_meters, speed_meters_per_second, altitude_meters, heading_degrees").eq("session_id", sessionId).order("captured_at", { ascending: true }),
+    readRemoteRoute(sessionId),
     supabase.from("quest_session_media").select("client_media_id, captured_at, storage_url").eq("session_id", sessionId).order("captured_at", { ascending: true }),
     supabase.from("quest_session_activity").select("client_activity_id, kind, created_at, body, caption, badge_label, client_photo_id").eq("session_id", sessionId).order("created_at", { ascending: true }),
   ]);

@@ -16,6 +16,12 @@ export type ActiveQuestLocalSession = {
   lastLocationAt: string | null;
   completionSyncState: "idle" | "pending" | "synced";
   routeSegments: ActiveQuestRouteSegment[];
+  /** Optional for legacy records; original observations are retained locally. */
+  measurementState?: import("@/services/active-quest/measurement").MeasurementState;
+  measurementVersion?: string;
+  lastFix?: ActiveQuestRoutePoint;
+  lastDecision?: import("@/services/active-quest/measurement").MeasurementDecision;
+  routeSyncedThrough?: number;
   updatedAt: string;
 };
 

@@ -13,6 +13,7 @@
     "app:android": "npm --workspace @questlife/mobile run android",
     "app:web": "npm --workspace @questlife/mobile run web",
     "app:build:web": "npm --workspace @questlife/mobile run build:web",
+    "app:test:tracking": "node --test tests/quest-tracking.test.cjs",
     "app:typecheck": "npm --workspace @questlife/mobile run typecheck",
     "admin": "npm --workspace @questlife/admin run start",
     "admin:web": "npm --workspace @questlife/admin run web",

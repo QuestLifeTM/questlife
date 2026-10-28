@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { addActiveQuestActivity, deleteActiveQuestActivity, deleteActiveQuestPhoto, ensureActiveQuestSession, getActiveQuestSnapshot, getPendingCompletionSyncSessionIds, setActiveQuestRecordingState, subscribeToActiveQuestStore, updateActiveQuestActivity, updateActiveQuestSession } from "@/services/active-quest/local-store";
 import { persistQuestPhoto, retryQuestPhotoSync } from "@/services/active-quest/media";
 import { hydrateActiveQuestFromServer, syncActiveQuestRecord } from "@/services/active-quest/sync";
-import { beginQuestLocationTracking, stopQuestLocationTracking } from "@/services/active-quest/tracking";
+import { beginQuestLocationTracking, stopQuestLocationTracking, questLocationOptions } from "@/services/active-quest/tracking";
 import { persistQuestLocation } from "@/services/active-quest/location-task";
 import { getTrackingSession } from "@/services/active-quest/tracking-session";
 import { areLocalDataWritesBlocked, getLocalDataOwner, setLocalDataOwner } from "@/services/local-data/owner";
@@ -110,19 +110,25 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     }
     const next = await getActiveQuestSnapshot(activeSession.id);
     setSnapshot(next);
+    setLiveLocation(next?.session.lastFix ?? next?.route.at(-1) ?? null);
   }, [activeSession]);
 
   const startForegroundLocationWatch = useCallback(async (sessionId: string) => {
     stopForegroundLocationWatch();
+    const marker = await getTrackingSession();
+    // Native background delivery is the single writer. Foreground-only permission
+    // and web use this watcher as a fallback with the identical sampling profile.
+    if (Platform.OS !== "web" && marker?.backgroundGranted) return;
     const subscription = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.Highest, distanceInterval: 1, timeInterval: 1_000 },
+      questLocationOptions,
       (location) => {
         // A queued foreground callback can arrive after the quest has ended.
         // Verify the durable active-tracking marker before retaining anything.
         void getTrackingSession().then((trackingSession) => {
           if (trackingSession?.sessionId !== sessionId || trackingSession.ownerId !== getLocalDataOwner() || areLocalDataWritesBlocked(trackingSession.ownerId)) return;
-          setLiveLocation({ latitude: location.coords.latitude, longitude: location.coords.longitude });
-          void persistQuestLocation(trackingSession.ownerId, sessionId, location).catch(() => undefined);
+          void persistQuestLocation(trackingSession.ownerId, sessionId, location).catch(() => {
+            setTrackingMessage("Route recording could not be saved. Check available device storage and retry.");
+          });
         }).catch(() => undefined);
       },
     );
@@ -196,7 +202,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
         }
         void retryQuestPhotoSync(activeSession.id);
         const restoredSession = await getActiveQuestSnapshot(activeSession.id);
-        if (restoredSession?.session.recordingState === "recording" && restoredSession.session.trackingStatus !== "tracking") {
+        if (restoredSession && (restoredSession.session.trackingStatus === "tracking" || (restoredSession.session.recordingState === "recording" && restoredSession.session.trackingStatus !== "idle"))) {
           const ownerId = getLocalDataOwner();
           if (!ownerId) return restoredSession;
           const result = await beginQuestLocationTracking(ownerId, activeSession.id);
@@ -205,8 +211,9 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
         return getActiveQuestSnapshot(activeSession.id);
       })
       .then((next) => {
-        if (mounted) setSnapshot(next);
+        if (mounted) { setSnapshot(next); setLiveLocation(next?.session.lastFix ?? next?.route.at(-1) ?? null); }
       })
+      .catch(() => { if (mounted) setTrackingMessage("Saved quest progress could not be loaded. Retry after checking device storage."); })
       .finally(() => {
         if (mounted) setLoading(false);
       });
@@ -323,6 +330,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     if (!finishedSessionId) return;
     const finishedSnapshot = snapshot?.session.sessionId === finishedSessionId ? snapshot : await getActiveQuestSnapshot(finishedSessionId);
     await stopQuestLocationTracking();
+    await updateActiveQuestSession(finishedSessionId, { trackingStatus: "idle" });
     stopForegroundLocationWatch();
     if (guestMode) {
       await finishGuestQuest({ title: "Personalize your Quest", durationSeconds: Math.round((finishedSnapshot?.session.activeDurationMs ?? 0) / 1_000) });
