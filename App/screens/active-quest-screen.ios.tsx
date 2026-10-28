@@ -82,7 +82,9 @@ const PREVIEW_PHONE_INSETS = { top: 48, bottom: 24 };
 
 type MapCoordinate = { latitude: number; longitude: number; accuracy?: number | null; capturedAt?: string };
 function walkingRegion(point: MapCoordinate, width = 390, height = 600) {
-  const meters = Math.min(800, Math.max(350, width * 1.15));
+  // Walking quests only need the nearby blocks. Keep this deterministic so
+  // remounting the map after a tab change never falls back to a city-wide view.
+  const meters = Math.min(420, Math.max(260, width * 0.72));
   return { ...point, longitudeDelta: meters / (111320 * Math.max(0.15, Math.cos(point.latitude * Math.PI / 180))), latitudeDelta: meters * height / Math.max(1, width) / 111320 };
 }
 
@@ -177,13 +179,12 @@ function QuestRouteCard({ accent, route, renderSegments, liveLocation, deviceLoc
   // Keep the live marker centered between the corner labels as the user moves.
   const cameraRegion = region;
   useEffect(() => {
-    if (route.length > 1) map.current?.fitToCoordinates(route, { edgePadding: { top: 44, bottom: 34, left: 30, right: 30 }, animated: false });
-    else if (cameraRegion) map.current?.animateToRegion(cameraRegion, 400);
+    if (cameraRegion) map.current?.animateCamera({ center: cameraRegion }, { duration: 300 });
   }, [cameraRegion?.latitude, cameraRegion?.longitude]);
   const miles = Math.max(0, distanceMeters / 1609.344).toFixed(1);
   const needsTrackingHelp = trackingStatus === "permission-needed" || trackingStatus === "unavailable";
   return <View style={{ height: 184, overflow: "hidden", borderRadius: 24, backgroundColor: T.isDark ? "#142c35" : "#dce7df", borderWidth: 1, borderColor: T.border, boxShadow: "0px 5px 16px rgba(36,47,50,0.14)" }}>
-    {region ? <MapView ref={map} pointerEvents="none" style={{ position: "absolute", inset: 0 }} initialRegion={cameraRegion ?? undefined} mapType="standard" showsUserLocation={false} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false}>
+    {region ? <MapView ref={map} pointerEvents="none" style={{ position: "absolute", inset: 0 }} initialRegion={cameraRegion ?? undefined} mapType="standard" showsUserLocation={false} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false} legalLabelInsets={{ left: 8, bottom: 8 }}>
       {renderSegments.map((segment) => segment.points.length > 1 ? <Polyline key={segment.id} coordinates={segment.points.map((point) => ({ latitude: point.latitude, longitude: point.longitude }))} strokeColor={segment.state === "paused" ? "#c9d1d5" : accent} strokeWidth={5} lineCap="round" lineJoin="round" /> : null)}
       <Marker coordinate={region} anchor={{ x: 0.5, y: 0.5 }}><View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: accent, borderWidth: 3, borderColor: "#ffffff", boxShadow: "0px 0px 8px rgba(0,0,0,0.45)" }} /></Marker>
     </MapView> : <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center" }}><Ionicons name="map-outline" size={32} color={accent} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 13, marginTop: 8 }}>Waiting for your location</Text></View>}
@@ -207,15 +208,11 @@ const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoin
   const viewport = useAppViewport();
   const [mapSize, setMapSize] = useState({ width: viewport.width, height: viewport.height });
   const [mapReady, setMapReady] = useState(false);
-  const [clock, setClock] = useState(Date.now());
-  useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 5_000); return () => clearInterval(timer); }, []);
   const routeButtonNudge = useRef(new Animated.Value(0)).current;
   const current = route.at(-1);
   const liveCoordinate = liveLocation ?? (current ? { ...current } : deviceLocation);
   const region = liveCoordinate ? walkingRegion(liveCoordinate, mapSize.width, mapSize.height) : null;
   const cameraRegion = region;
-  const fixAge = liveCoordinate?.capturedAt ? clock - Date.parse(liveCoordinate.capturedAt) : Infinity;
-  const qualityLabel = trackingStatus !== "tracking" ? "Route recording is off" : fixAge > 15_000 ? "Waiting for a reliable GPS fix" : `GPS ±${Math.round(liveCoordinate?.accuracy ?? 0)} m`;
   // Map fallbacks are scene colors rather than generic card surfaces. They
   // retain their geographical character while following the selected mode.
   const mapFallbackCanvas = T.isDark ? "#17212b" : "#edf0eb";
@@ -245,19 +242,15 @@ const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoin
   </View>;
 
   return <View onLayout={({ nativeEvent }) => setMapSize(nativeEvent.layout)} style={{ flex: 1, backgroundColor: mapFallbackSurface }}>
-    <MapView ref={map} style={{ flex: 1 }} initialRegion={cameraRegion ?? undefined} mapType="standard" userInterfaceStyle={T.isDark ? "dark" : "light"} showsPointsOfInterests={false} showsBuildings={false} showsUserLocation={false} showsMyLocationButton={false} showsCompass toolbarEnabled={false} mapPadding={{ top: 100, bottom: BOTTOM_SHEET_CONTENT_HEIGHT + 24, left: 16, right: 16 }} onMapReady={() => setMapReady(true)} onPanDrag={() => setFollowingUser(false)} onRegionChangeComplete={(_region, details) => { if (details?.isGesture) setFollowingUser(false); }}>
+    <MapView ref={map} style={{ flex: 1 }} initialRegion={cameraRegion ?? undefined} mapType="standard" userInterfaceStyle={T.isDark ? "dark" : "light"} showsPointsOfInterests={false} showsBuildings={false} showsUserLocation={false} showsMyLocationButton={false} showsCompass toolbarEnabled={false} scrollEnabled zoomEnabled zoomTapEnabled rotateEnabled pitchEnabled mapPadding={{ top: 100, bottom: BOTTOM_SHEET_CONTENT_HEIGHT + 24, left: 16, right: 16 }} legalLabelInsets={{ left: 8, bottom: BOTTOM_SHEET_CONTENT_HEIGHT + 8 }} onMapReady={() => setMapReady(true)} onPanDrag={() => setFollowingUser(false)} onRegionChangeComplete={(_region, details) => { if (details?.isGesture) setFollowingUser(false); }}>
       {liveCoordinate && liveCoordinate.accuracy != null && liveCoordinate.accuracy > 0 ? <Circle center={liveCoordinate} radius={liveCoordinate.accuracy} fillColor={`${accent}20`} strokeColor={`${accent}70`} strokeWidth={1} /> : null}
-      {liveCoordinate ? <Marker coordinate={liveCoordinate} anchor={{ x: 0.5, y: 0.5 }} title={fixAge > 15_000 ? "Last reliable location" : "Your location"}><View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 3, borderColor: "#ffffff", backgroundColor: fixAge > 15_000 ? T.muted : accent }} /></Marker> : null}
+      {liveCoordinate ? <Marker coordinate={liveCoordinate} anchor={{ x: 0.5, y: 0.5 }} title="Your location"><View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 3, borderColor: "#ffffff", backgroundColor: accent }} /></Marker> : null}
       {renderSegments.map((segment) => {
         const coordinates = segment.points.map((point) => ({ latitude: point.latitude, longitude: point.longitude }));
         return coordinates.length > 1 ? <Polyline key={segment.id} coordinates={coordinates} strokeColor={segment.state === "paused" ? "#9D93A0" : accent} strokeWidth={5} lineCap="round" lineJoin="round" /> : null;
       })}
-      {route[0] ? <Marker coordinate={{ latitude: route[0].latitude, longitude: route[0].longitude }} anchor={{ x: 0.5, y: 0.5 }} title="Quest started"><View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 4, borderColor: T.white, backgroundColor: accent }} /></Marker> : null}
-
       {checkpoints.map((checkpoint) => <Marker key={checkpoint.id} coordinate={{ latitude: checkpoint.latitude, longitude: checkpoint.longitude }} title={checkpoint.label} pinColor={accent} />)}
     </MapView>
-    <View pointerEvents="none" style={{ position: "absolute", top: 112, left: 16, maxWidth: "80%", backgroundColor: T.raised, borderRadius: 12, padding: 8 }}><Text style={{ color: T.dark, fontSize: 12 }}>{qualityLabel}</Text></View>
-    {route.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Show entire recorded route" onPress={() => { setFollowingUser(false); map.current?.fitToCoordinates(route, { edgePadding: { top: 150, bottom: BOTTOM_SHEET_CONTENT_HEIGHT + 32, left: 32, right: 32 }, animated: true }); }} style={{ position: "absolute", right: 18, bottom: MAP_RECENTER_BOTTOM_OFFSET, minWidth: 46, minHeight: 46, borderRadius: 23, backgroundColor: T.raised, alignItems: "center", justifyContent: "center" }}><Ionicons name="scan-outline" size={22} color={accent} /></Pressable> : null}
     {!followingUser ? <Pressable accessibilityRole="button" accessibilityLabel="Recenter map on your route" onPress={() => { if (cameraRegion) map.current?.animateToRegion(cameraRegion, 400); setFollowingUser(true); }} style={({ pressed }) => ({ position: "absolute", left: 18, bottom: MAP_RECENTER_BOTTOM_OFFSET, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: T.white, borderWidth: 1, borderColor: T.border, boxShadow: "0px 2px 6px rgba(61,52,56,0.14)", transform: [{ scale: pressed ? 0.94 : 1 }] })}><Ionicons name="locate" size={21} color={accent} /></Pressable> : null}
     {trackingStatus === "permission-needed" || trackingStatus === "unavailable" ? <Pressable accessibilityRole="button" accessibilityLabel="Retry route recording" onPress={onEnableTracking} style={{ position: "absolute", top: 12, left: 16, right: 16, minHeight: 48, padding: 10, borderRadius: 16, backgroundColor: T.white, borderWidth: 1, borderColor: T.border, alignItems: "center", justifyContent: "center" }}><Text style={{ color: T.dark, textAlign: "center", fontSize: 13, fontWeight: "700" }}>{trackingMessage ?? "Route recording is unavailable."} Tap to retry.</Text></Pressable> : null}
     {notice ? <QuestNoticePill notice={notice} accent={accent} message={trackingStatus === "permission-needed" || trackingStatus === "unavailable" ? trackingMessage : null} /> : null}
