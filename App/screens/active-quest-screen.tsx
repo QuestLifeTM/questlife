@@ -22,7 +22,7 @@ import { useActiveQuest } from "@/contexts/ActiveQuestContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useGuestQuest } from "@/contexts/GuestQuestContext";
 import { useThemeKey } from "@/contexts/SettingsContext";
-import { formatElapsedFull, useElapsedDuration } from "@/hooks/useElapsedTime";
+import { formatElapsedFull, useActiveQuestElapsedDuration } from "@/hooks/useElapsedTime";
 import { Quest } from "@/types/content";
 import { ActiveQuestActivity, ActiveQuestCheckpoint, ActiveQuestPhoto, ActiveQuestRenderableSegment, ActiveQuestRoutePoint } from "@/types/active-quest";
 
@@ -536,9 +536,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const accent = quest ? (categoryColor[quest.category]?.text ?? quest.color) : T.blue;
   const paused = snapshot?.session.recordingState === "paused";
   const countdownStartedAt = snapshot?.session.startedAt ?? session?.startedAt;
-  // Accumulate only recording time; the active segment continues in the background.
-  const activeSegmentDuration = useElapsedDuration(snapshot?.session.recordingState === "recording" ? snapshot.session.activeSince : null);
-  const elapsedDuration = (snapshot?.session.activeDurationMs ?? 0) + activeSegmentDuration;
+  const elapsedDuration = useActiveQuestElapsedDuration(snapshot?.session);
   const journalReflection = saveToJournal === "1"
     ? [snapshot?.session.entryBody, ...(snapshot?.activity.filter((item) => item.kind === "note").map((item) => item.body) ?? [])].filter((value): value is string => Boolean(value?.trim())).join("\n\n")
     : snapshot?.session.entryBody ?? "";

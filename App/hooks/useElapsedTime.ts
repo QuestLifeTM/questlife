@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 
+import { ActiveQuestLocalSession } from "@/types/active-quest";
+
 const SECOND_MS = 1_000;
 const MINUTE_MS = 60 * SECOND_MS;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -52,6 +54,12 @@ export function useElapsedDuration(questStartedAt: string | null | undefined) {
   const now = useSyncExternalStore(subscribe, getCurrentTime, getCurrentTime);
 
   return useMemo(() => elapsedDurationMs(questStartedAt, now), [now, questStartedAt]);
+}
+
+/** Uses the persisted active time plus only the currently recording segment. */
+export function useActiveQuestElapsedDuration(session: ActiveQuestLocalSession | null | undefined) {
+  const activeSegmentDuration = useElapsedDuration(session?.recordingState === "recording" ? session.activeSince : null);
+  return (session?.activeDurationMs ?? 0) + activeSegmentDuration;
 }
 
 function parts(durationMs: number) {

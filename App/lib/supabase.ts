@@ -1,4 +1,4 @@
-import { createClient, processLock } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { AppState, Platform } from "react-native";
 import "@/lib/urlPolyfill";
 
@@ -19,7 +19,6 @@ export const supabase = createClient(
     persistSession: true,
     detectSessionInUrl: false,
     flowType: "pkce",
-    ...(Platform.OS === "web" ? {} : { lock: processLock }),
   },
   },
 );

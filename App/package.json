@@ -4,10 +4,13 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
+    "prestart": "node ../scripts/check-node-version.mjs",
     "start": "expo start",
+    "prestart:dev-client": "node ../scripts/check-node-version.mjs",
     "start:dev-client": "expo start --dev-client --clear",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "preweb": "node ../scripts/check-node-version.mjs",
     "web": "expo start --web",
     "build:web": "node scripts/export-web.mjs",
     "build:web:production": "node scripts/export-web.mjs --production",

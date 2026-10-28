@@ -15,7 +15,7 @@ import { useActiveQuest } from "@/contexts/ActiveQuestContext";
 import { useContent } from "@/contexts/ContentContext";
 import { useNotifications } from "@/contexts/NotificationsContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
-import { formatElapsedCompact, useElapsedDuration } from "@/hooks/useElapsedTime";
+import { formatElapsedCompact, useActiveQuestElapsedDuration } from "@/hooks/useElapsedTime";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { useQuestStart } from "@/hooks/useQuestStart";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
@@ -571,7 +571,9 @@ export function LobbyScreen() {
   const activeQuest = engine?.doingNowSession ? getQuest(engine.doingNowSession.questId) : null;
   const hasActiveSession = Boolean(engine?.doingNowSession);
   const recoveryRequired = Boolean(engine?.doingNowSession?.recoveryRequiredAt);
-  const activeQuestElapsed = useElapsedDuration(engine?.doingNowSession?.startedAt);
+  const snapshotSession = snapshot?.session ?? null;
+  const activeQuestSession = snapshotSession?.sessionId === engine?.doingNowSession?.id ? snapshotSession : null;
+  const activeQuestElapsed = useActiveQuestElapsedDuration(activeQuestSession);
   const recoveryDuration = activeQuestElapsed;
   const questStartedAt = engine?.doingNowSession?.startedAt ?? null;
   const questStartedLabel = questStartedAt
