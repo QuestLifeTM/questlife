@@ -1,5 +1,5 @@
 import { type PropsWithChildren, useCallback, useEffect, useRef, useState } from "react";
-import { type LayoutChangeEvent, Platform } from "react-native";
+import { type LayoutChangeEvent, Platform, View } from "react-native";
 import Animated, { Easing, interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
@@ -8,7 +8,7 @@ const DIRECTION_THRESHOLD = 18;
 const TOP_REVEAL_OFFSET = 8;
 const HEADER_DURATION = 180;
 
-export function useCollapsibleScrollHeader() {
+export function useCollapsibleScrollHeader({ duration = HEADER_DURATION }: { duration?: number } = {}) {
   const progress = useSharedValue(0);
   const lastOffset = useRef(0);
   const directionDistance = useRef(0);
@@ -21,10 +21,10 @@ export function useCollapsibleScrollHeader() {
     if (hidden === hiddenRef.current) return;
     hiddenRef.current = hidden;
     progress.set(withTiming(hidden ? 1 : 0, {
-      duration: reduceMotion ? 0 : HEADER_DURATION,
-      easing: Easing.bezier(0.23, 1, 0.32, 1)
+      duration: reduceMotion ? 0 : duration,
+      easing: Easing.bezier(0.77, 0, 0.175, 1)
     }));
-  }, [progress, reduceMotion]);
+  }, [duration, progress, reduceMotion]);
 
   const onScroll = useCallback((offsetY: number) => {
     if (Platform.OS === "web") return;
@@ -91,6 +91,43 @@ export function CollapsibleScrollHeader({
   return (
     <Animated.View style={[{ overflow: "hidden" }, animatedStyle]}>
       <Animated.View onLayout={onLayout}>{children}</Animated.View>
+    </Animated.View>
+  );
+}
+
+export function FloatingScrollHeader({
+  children,
+  progress,
+  onHeightChange
+}: PropsWithChildren<{
+  progress: ReturnType<typeof useSharedValue<number>>;
+  onHeightChange: (height: number) => void;
+}>) {
+  const [height, setHeight] = useState(0);
+
+  const onLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = event.nativeEvent.layout.height;
+    if (nextHeight <= 0) return;
+    setHeight((current) => Math.abs(current - nextHeight) >= 1 ? nextHeight : current);
+    onHeightChange(nextHeight);
+  }, [onHeightChange]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const value = progress.get();
+    return {
+      opacity: interpolate(value, [0, 0.72, 1], [1, 0.35, 0]),
+      transform: [{ translateY: interpolate(value, [0, 1], [0, -height]) }]
+    };
+  }, [height]);
+
+  return (
+    <Animated.View
+      style={[
+        { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10 },
+        animatedStyle
+      ]}
+    >
+      <View onLayout={onLayout}>{children}</View>
     </Animated.View>
   );
 }

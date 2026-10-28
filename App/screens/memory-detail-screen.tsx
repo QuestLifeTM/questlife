@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { Alert, Image, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
 import Reanimated from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
+import MapView, { Polyline } from "@/components/route-map";
+import { getJournalRouteRegion } from "@/services/journal/route-region";
 import { AvatarPile } from "@/components/avatar-pile";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, GradientBand, IconButton, Screen, Sheet, SoftButton, haptic, usePressGuard, useResponsiveScreenLayout } from "@/components/ui";
 import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
-import { deleteJournalMedia, fetchJournalMemory, resolveJournalMedia, updateJournalMemoryPhotos, updateJournalMemoryReflection, uploadJournalMedia } from "@/services/journal/journalService";
+import { deleteJournalMedia, fetchJournalMemory, resolveJournalMediaItems, updateJournalMemoryPhotos, updateJournalMemoryReflection, uploadJournalMedia } from "@/services/journal/journalService";
 import { fetchMyQuestPostForCompletion, SharedQuestPost } from "@/services/profile/profileService";
 import { JournalMemory } from "@/types/journal";
 
@@ -30,7 +32,7 @@ function MemoryStat({ label, value, icon, color, bordered }: { label: string; va
 
 function MemoryAction({ label, icon, color, onPress, inverse = false, fullWidth = false }: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; inverse?: boolean; fullWidth?: boolean }) {
   const textColor = inverse ? color : T.onAccent;
-  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => ({ flex: fullWidth ? undefined : 1, minHeight: 54, borderRadius: 19, borderWidth: inverse ? 2 : 0, borderColor: inverse ? color : "transparent", borderBottomWidth: inverse ? 4 : 5, borderBottomColor: inverse ? `${color}99` : "rgba(61,52,56,0.22)", backgroundColor: inverse ? T.white : color, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7, paddingHorizontal: 10, opacity: pressed ? 0.86 : 1, transform: [{ translateY: pressed ? 2 : 0 }] })}><Ionicons name={icon} size={18} color={textColor} /><Text numberOfLines={1} style={{ color: textColor, fontFamily: "RubikBold", fontSize: 14, textAlign: "center" }}>{label}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" onPress={() => { haptic(); onPress(); }} style={({ pressed }) => ({ flex: fullWidth ? undefined : 1, minHeight: 54, borderRadius: 19, borderWidth: inverse ? 2 : 0, borderColor: inverse ? color : "transparent", borderBottomWidth: inverse ? 4 : 5, borderBottomColor: inverse ? `${color}99` : "rgba(61,52,56,0.22)", backgroundColor: inverse ? T.white : color, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7, paddingHorizontal: 10, opacity: pressed ? 0.86 : 1, transform: [{ translateY: pressed ? 2 : 0 }] })}><Ionicons name={icon} size={18} color={textColor} /><Text numberOfLines={1} style={{ color: textColor, fontFamily: "RubikBold", fontSize: 14, textAlign: "center" }}>{label}</Text></Pressable>;
 }
 
 function MemorySheetButton({ label, icon, color, onPress, disabled = false, variant = "primary" }: { label: string; icon?: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; disabled?: boolean; variant?: "primary" | "destructive" | "neutral" }) {
@@ -77,7 +79,11 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
   const [memory, setMemory] = useState<JournalMemory | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<{ path: string; uri: string }[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [photosFailed, setPhotosFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const photoUrls = photos.map((photo) => photo.uri);
   const [reflectionEditorVisible, setReflectionEditorVisible] = useState(false);
   const [reflectionDraft, setReflectionDraft] = useState("");
   const [savingReflection, setSavingReflection] = useState(false);
@@ -93,6 +99,10 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
 
   useEffect(() => {
     let mounted = true;
+    setMemory(null);
+    setError(null);
+    setLoading(true);
+    setManagedPhotoIndex(null);
     if (!completionId) {
       setLoading(false);
       return;
@@ -110,14 +120,19 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
     return () => {
       mounted = false;
     };
-  }, [completionId]);
+  }, [completionId, reloadKey]);
 
   useEffect(() => {
     let mounted = true;
-    if (!memory?.photoPaths.length) { setPhotoUrls([]); return; }
-    resolveJournalMedia(memory.photoPaths).then((urls) => { if (mounted) setPhotoUrls(urls); }).catch(() => { if (mounted) setPhotoUrls([]); });
+    setPhotos([]);
+    setPhotosFailed(false);
+    setPhotosLoading(Boolean(memory?.photoPaths.length));
+    if (!memory?.photoPaths.length) return;
+    resolveJournalMediaItems(memory.photoPaths).then((items) => {
+      if (mounted) { setPhotos(items); setPhotosFailed(items.length < memory.photoPaths.length); }
+    }).catch(() => { if (mounted) setPhotosFailed(true); }).finally(() => { if (mounted) setPhotosLoading(false); });
     return () => { mounted = false; };
-  }, [memory?.photoPaths]);
+  }, [memory?.photoPaths, reloadKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -132,6 +147,7 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
         <IconButton icon="chevron-back" onPress={onBack} />
         <Card>
           <EmptyState
+            action={!loading ? <SoftButton label="Try again" icon="refresh" onPress={() => setReloadKey((key) => key + 1)} /> : undefined}
             emoji={loading ? "⏳" : "🔍"}
             title={loading ? "Opening memory" : "Memory unavailable"}
             body={loading ? "Finding this moment in your journal." : error ?? "This memory may have been removed or its quest is no longer available."}
@@ -175,26 +191,30 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
   };
   const shareMemory = async () => {
     try {
-      await Share.share({ title: memory.title, message: `I completed “${memory.title}” on QuestLife. +${memory.xp} XP from a ${memory.timeMin}-minute ${memory.category.toLowerCase()} quest.` });
+      await Share.share({ title: memory.title, message: `I completed “${memory.title}” on QuestLife. +${memory.xp} XP from a ${memory.category.toLowerCase()} quest.${memory.durationRecorded ? ` ${memory.timeMin} minutes recorded.` : ""}` });
     } catch {
       showFeedback({ message: "We couldn't open sharing right now.", icon: "alert-circle", color: T.red });
     }
   };
   const replacePhoto = async () => {
+    let uploadedPath: string | null = null;
     if (managedPhotoIndex === null || savingPhoto) return;
     try {
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.78 });
       if (result.canceled || !result.assets[0]) return;
       setSavingPhoto(true);
       const nextPath = await uploadJournalMedia(result.assets[0].uri);
+      uploadedPath = nextPath;
       const previousPath = memory.photoPaths[managedPhotoIndex];
       const photoPaths = memory.photoPaths.map((path, index) => index === managedPhotoIndex ? nextPath : path);
       await updateJournalMemoryPhotos({ completionId: memory.completionId, photoPaths });
       setMemory((current) => current ? { ...current, photoPaths } : current);
+      uploadedPath = null;
       setManagedPhotoIndex(null);
       void deleteJournalMedia([previousPath]);
       showFeedback({ message: "Photo replaced.", icon: "checkmark-circle", color: actionColor });
     } catch {
+      if (uploadedPath) void deleteJournalMedia([uploadedPath]);
       showFeedback({ message: "We couldn't replace that photo. Please try again.", icon: "alert-circle", color: T.red });
     } finally {
       setSavingPhoto(false);
@@ -265,15 +285,22 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
         <Reanimated.ScrollView onScroll={onScroll} scrollEventThrottle={16} style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ ...edgePadding, paddingTop: 12, paddingBottom: 18, gap: 25 }}>
           <View style={{ minHeight: 78, borderRadius: 20, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, flexDirection: "row", alignItems: "center", paddingVertical: 13, boxShadow: `3px 4px 0px ${T.border}` }}>
             <MemoryStat label="XP earned" value={`+${memory.xp}`} icon="flash" color={actionColor} />
-            <MemoryStat label="Duration" value={`${memory.timeMin}m`} icon="time" color={actionColor} bordered />
-            <MemoryStat label="Photos" value={String(photoUrls.length)} icon="images" color={actionColor} bordered />
+            <MemoryStat label="Duration" value={memory.durationRecorded ? `${memory.timeMin}m` : "—"} icon="time" color={actionColor} bordered />
+            <MemoryStat label="Photos" value={String(memory.photoPaths.length)} icon="images" color={actionColor} bordered />
           </View>
 
+          {memory.routePoints.length > 0 ? <Card style={{ padding: 0, overflow: "hidden", borderRadius: radius.lg }}>
+            <View style={{ padding: 16, gap: 4 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 17 }}>Your recorded route</Text><Text style={{ color: T.muted, fontSize: 13 }}>{memory.distanceMeters != null ? `${(memory.distanceMeters / 1000).toFixed(2)} km recorded` : "Places along your adventure"}</Text></View>
+            <MapView pointerEvents="none" style={{ height: 240 }} initialRegion={getJournalRouteRegion(memory.routePoints)!} scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false} showsUserLocation={false} showsMyLocationButton={false} toolbarEnabled={false} userInterfaceStyle={T.isDark ? "dark" : "light"}>
+              <Polyline coordinates={memory.routePoints} strokeColor={accentColor} strokeWidth={4} />
+            </MapView>
+          </Card> : null}
+          {photosFailed ? <SoftButton label="Some photos couldn’t load — retry" inverse onPress={() => setReloadKey((key) => key + 1)} /> : null}
           {memory.participants.length ? <Card style={{ flexDirection: "row", alignItems: "center", gap: 12 }}><AvatarPile people={memory.participants} size={32} /><View style={{ flex: 1, gap: 2 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 14 }}>Shared adventure</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 17 }}>You completed this with {memory.participants.length} other{memory.participants.length > 1 ? "s" : ""}.</Text></View></Card> : null}
 
           <View style={{ gap: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 21 }}>Photos from this quest</Text>{memory.photoPaths.length < 5 ? <Pressable accessibilityRole="button" accessibilityLabel="Add a photo to this memory" disabled={savingPhoto} onPress={() => void addPhoto()} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: savingPhoto ? 0.45 : pressed ? 0.68 : 1 })}><Ionicons name="add-circle-outline" size={17} color={actionColor} /><Text style={{ color: actionColor, fontFamily: "RubikBold", fontSize: 12 }}>Add photo</Text></Pressable> : null}</View>
-            {photoUrls.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{photoUrls.map((uri, index) => <View key={uri} style={{ width: 180, height: 132, overflow: "hidden", borderRadius: radius.lg, backgroundColor: T.border }}><Image accessibilityLabel={`Quest photo ${index + 1} of ${photoUrls.length}`} source={{ uri }} style={{ width: "100%", height: "100%" }} /><Pressable accessibilityRole="button" accessibilityLabel={`Manage photo ${index + 1}`} onPress={() => setManagedPhotoIndex(index)} hitSlop={7} style={({ pressed }) => ({ position: "absolute", top: 8, right: 8, width: 31, height: 31, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: T.raised, opacity: pressed ? 0.7 : 1 })}><Ionicons name="ellipsis-horizontal" size={18} color={T.dark} /></Pressable></View>)}</ScrollView> : <View style={{ minHeight: 108, borderRadius: radius.lg, borderWidth: 1.5, borderStyle: "dashed", borderColor: `${actionColor}65`, backgroundColor: `${actionColor}0a`, alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 22 }}><Ionicons name="images-outline" size={25} color={actionColor} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 13 }}>No photos saved yet</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700", textAlign: "center" }}>Add a photo to keep this moment in your Journal.</Text></View>}
+            {photoUrls.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{photoUrls.map((uri, index) => <View key={uri} style={{ width: 180, height: 132, overflow: "hidden", borderRadius: radius.lg, backgroundColor: T.border }}><Image accessibilityLabel={`Quest photo ${index + 1} of ${photoUrls.length}`} source={{ uri }} style={{ width: "100%", height: "100%" }} /><Pressable accessibilityRole="button" accessibilityLabel={`Manage photo ${index + 1}`} onPress={() => setManagedPhotoIndex(memory.photoPaths.indexOf(photos[index].path))} hitSlop={7} style={({ pressed }) => ({ position: "absolute", top: 8, right: 8, width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: T.raised, opacity: pressed ? 0.7 : 1 })}><Ionicons name="ellipsis-horizontal" size={18} color={T.dark} /></Pressable></View>)}</ScrollView> : <View style={{ minHeight: 108, borderRadius: radius.lg, borderWidth: 1.5, borderStyle: "dashed", borderColor: `${actionColor}65`, backgroundColor: `${actionColor}0a`, alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 22 }}><Ionicons name="images-outline" size={25} color={actionColor} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 13 }}>{photosLoading ? "Loading your photos…" : photosFailed ? "Photos couldn’t load" : "No photos saved yet"}</Text><Text style={{ color: T.muted, fontSize: 12, lineHeight: 17, fontWeight: "700", textAlign: "center" }}>Add a photo to keep this moment in your Journal.</Text></View>}
           </View>
 
           <View style={{ gap: 10 }}>

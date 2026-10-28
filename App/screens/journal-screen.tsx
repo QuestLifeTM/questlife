@@ -6,6 +6,7 @@ import {
   Animated as RNAnimated,
   FlatList,
   ListRenderItemInfo,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -19,7 +20,7 @@ import { CachedImage } from "@/components/cached-image";
 import { StreakPill } from "@/components/streak-pill";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, Entrance, Header, IconButton, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
-import { fetchJournalData, resolveJournalMedia, toLocalDateKey, upsertJournalEntry } from "@/services/journal/journalService";
+import { fetchJournalData, resolveJournalMediaItems, toLocalDateKey, upsertJournalEntry } from "@/services/journal/journalService";
 import { useActiveQuest } from "@/contexts/ActiveQuestContext";
 import { useNotifications } from "@/contexts/NotificationsContext";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
@@ -30,6 +31,8 @@ import { fetchProfileOverview, fetchProfileQuestInsights, fetchWeeklyCompletedQu
 import { YourStatsDashboard } from "@/screens/profile-screen";
 import { ProfileOverview } from "@/types/profile";
 import { CollapsibleScrollHeader, useCollapsibleScrollHeader } from "@/components/collapsible-scroll-header";
+import { getJournalRouteRegion } from "@/services/journal/route-region";
+import MapView, { Polyline } from "@/components/route-map";
 
 type JournalTab = "journal" | "album" | "stats";
 type CalendarMode = "week" | "month";
@@ -126,7 +129,7 @@ function JournalTabs({ activeTab, onChange }: { activeTab: JournalTab; onChange:
             }}
             style={({ pressed }) => ({
               flex: 1,
-              minHeight: 40,
+              minHeight: 44,
               borderRadius: 20,
               alignItems: "center",
               justifyContent: "center",
@@ -157,6 +160,7 @@ function JournalLoadingSkeleton() {
 
 const DOW_ROW_HEIGHT = 20;
 const WEEK_CELL_HEIGHT = 52;
+const NATIVE_WEEK_CELL_HEIGHT = 74;
 const MONTH_CELL_HEIGHT = 44;
 const INDICATOR_SIZE = 38;
 const CALENDAR_HEADER_HEIGHT = 54;
@@ -238,7 +242,8 @@ function JournalCalendar({
   const indicator = useRef(new RNAnimated.ValueXY({ x: 0, y: 0 })).current;
   const indicatorOpacity = useRef(new RNAnimated.Value(0)).current;
 
-  const weekBodyHeight = DOW_ROW_HEIGHT + WEEK_CELL_HEIGHT;
+  const nativeWeekTiles = Platform.OS !== "web";
+  const weekBodyHeight = nativeWeekTiles ? NATIVE_WEEK_CELL_HEIGHT : DOW_ROW_HEIGHT + WEEK_CELL_HEIGHT;
   const monthBodyHeight = DOW_ROW_HEIGHT + monthRows * MONTH_CELL_HEIGHT;
   const expandedCalendarHeight = CALENDAR_HEADER_HEIGHT + (mode === "week" ? weekBodyHeight : monthBodyHeight);
 
@@ -271,7 +276,7 @@ function JournalCalendar({
     let y = 0;
     let visible = false;
 
-    if (mode === "week") {
+    if (mode === "week" && !nativeWeekTiles) {
       const index = weekDays.findIndex((day) => toLocalDateKey(day) === activeKey);
       if (index >= 0) {
         visible = true;
@@ -303,7 +308,7 @@ function JournalCalendar({
       fade.stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKey, mode, reduceMotion, width]);
+  }, [activeKey, mode, nativeWeekTiles, reduceMotion, width]);
 
   function shift(direction: 1 | -1) {
     if (mode === "week") {
@@ -378,6 +383,19 @@ function JournalCalendar({
     );
   }
 
+  function renderWeekTile(day: Date, index: number) {
+    const dayKey = toLocalDateKey(day);
+    const inRange = dayKey >= joinKey && dayKey <= todayKey;
+    const isActive = dayKey === activeKey;
+    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+    const capColor = isWeekend ? T.red : T.blue;
+
+    return <Pressable key={`week-tile-${index}`} accessibilityRole="button" accessibilityLabel={day.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} accessibilityState={{ disabled: !inRange, selected: isActive }} disabled={!inRange} onPress={() => { haptic(); onSelectDate(dayKey); }} style={({ pressed }) => ({ flex: 1, height: NATIVE_WEEK_CELL_HEIGHT, borderRadius: 13, overflow: "hidden", borderWidth: isActive ? 2 : 1, borderColor: isActive ? capColor : T.border, backgroundColor: isActive ? `${capColor}12` : T.white, opacity: inRange ? (pressed ? 0.72 : 1) : 0.38, transform: [{ translateY: pressed ? 1 : 0 }], boxShadow: isActive ? `0 3px 0 ${capColor}33` : "0 2px 0 rgba(55,45,45,0.08)" })}>
+      <View style={{ height: 25, alignItems: "center", justifyContent: "center", backgroundColor: isActive ? capColor : `${capColor}18` }}><Text style={{ color: isActive ? T.onAccent : capColor, fontSize: 10, lineHeight: 13, fontWeight: "900" }}>{day.toLocaleDateString("en-US", { weekday: "short" })}</Text></View>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><Text style={{ color: isActive ? capColor : T.dark, fontSize: 18, lineHeight: 23, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{day.getDate()}</Text></View>
+    </Pressable>;
+  }
+
   return (
     <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
       <Animated.View pointerEvents={collapsed ? "none" : "auto"} style={[{ overflow: "hidden" }, calendarContentStyle]}>
@@ -427,7 +445,7 @@ function JournalCalendar({
           }}
         />
 
-        <View style={{ height: DOW_ROW_HEIGHT, flexDirection: "row" }}>
+        {mode === "month" || !nativeWeekTiles ? <View style={{ height: DOW_ROW_HEIGHT, flexDirection: "row" }}>
           {weekdayLabels.map((weekday, index) => (
             <Text
               key={`${weekday}-${index}`}
@@ -436,11 +454,11 @@ function JournalCalendar({
               {weekday}
             </Text>
           ))}
-        </View>
+        </View> : null}
 
         <Animated.View pointerEvents={mode === "week" ? "auto" : "none"} style={weekStyle}>
-          <View style={{ flexDirection: "row" }}>
-            {weekDays.map((day, index) => renderCell(day, WEEK_CELL_HEIGHT, `week-${index}`))}
+          <View style={{ flexDirection: "row", gap: nativeWeekTiles ? 5 : 0 }}>
+            {weekDays.map((day, index) => nativeWeekTiles ? renderWeekTile(day, index) : renderCell(day, WEEK_CELL_HEIGHT, `week-${index}`))}
           </View>
         </Animated.View>
 
@@ -573,14 +591,15 @@ function useResolvedMedia(items: JournalMediaItem[], refreshToken = 0) {
     setResolvedItems(directItems);
     setFailed(false);
     setLoading(remoteSources.length > 0);
-    const load = remoteSources.length ? resolveJournalMedia(remoteSources) : Promise.resolve([] as string[]);
+    const load = remoteSources.length ? resolveJournalMediaItems(remoteSources) : Promise.resolve([] as { path: string; uri: string }[]);
     load.then((urls) => {
       if (!mounted) return;
-      const resolvedBySource = new Map(remoteSources.map((source, index) => [source, urls[index]]));
+      const resolvedBySource = new Map(urls.map((item) => [item.path, item.uri]));
       setResolvedItems(items.flatMap((item) => {
         const uri = isDirectMediaUri(item.source) ? item.source : resolvedBySource.get(item.source);
         return uri ? [{ ...item, uri }] : [];
       }));
+      setFailed(urls.length < remoteSources.length);
       setLoading(false);
     }).catch(() => {
       if (mounted) {
@@ -682,46 +701,74 @@ function DayStatStrip({ questCount, xp, minutes }: { questCount: number; xp: num
   );
 }
 
-function MemoryCard({ memory, onPress }: { memory: JournalMemory; onPress: () => void }) {
+function MemoryCard({ memory, onPress, mediaRefreshToken }: { memory: JournalMemory; onPress: () => void; mediaRefreshToken: number }) {
   const accentColor = typeof memory.color === "string" && memory.color.trim() ? memory.color : T.blue;
   const cat = categoryColor[memory.category] ?? { text: accentColor, bg: `${accentColor}18` };
   const diff = difficultyColor[memory.difficulty] ?? difficultyColor.MEDIUM;
+  const mediaItems = useMemo<JournalMediaItem[]>(() => memory.photoPaths.slice(0, 3).map((source, index) => ({ id: `${memory.completionId}-${index}`, source, dateKey: toLocalDateKey(new Date(memory.completedAt)), questTitle: memory.title, completionId: memory.completionId })), [memory.completedAt, memory.completionId, memory.photoPaths, memory.title]);
+  const { resolvedItems, loading: photosLoading } = useResolvedMedia(mediaItems, mediaRefreshToken);
 
-  return (
-    <Card pressable onPress={onPress} style={{ minHeight: 166, borderRadius: 24, overflow: "hidden", padding: 0, boxShadow: `4px 4px 0px ${T.border}` }}>
-      <View style={{ flexDirection: "row", flex: 1 }}>
-        <View style={{ width: 5, backgroundColor: accentColor }} />
-        <View style={{ flex: 1, padding: 16, gap: 8 }}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-            <View style={{ flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-              <Tag label={memory.category} color={cat.text} bg={cat.bg} />
-              <Tag label={memory.difficulty} color={diff.text} bg={diff.bg} />
-            </View>
-            <View accessibilityLabel={`Completed at ${formatTime(memory.completedAt)}`} style={{ minHeight: 32, borderRadius: 16, paddingHorizontal: 9, backgroundColor: `${accentColor}14`, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}>
-              <Ionicons name="time-outline" size={13} color={accentColor} />
-              <Text style={{ color: accentColor, fontSize: 11, lineHeight: 15, fontWeight: "900" }}>{formatTime(memory.completedAt)}</Text>
-            </View>
-          </View>
+  const routeRegion = useMemo(() => getJournalRouteRegion(memory.routePoints), [memory.routePoints]);
 
-          <Text style={{ color: T.dark, fontSize: 18, lineHeight: 23, fontWeight: "900" }} numberOfLines={2}>{memory.title}</Text>
-          <Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }} numberOfLines={2}>
-            {memory.reflection ? `“${memory.reflection}”` : "No reflection saved for this quest yet."}
-          </Text>
+  {
+    const isPreparingPhotos = mediaItems.length > 0 && !resolvedItems.length && photosLoading;
+    const hasPhotos = resolvedItems.length > 0;
+    const hasRoute = Boolean(routeRegion);
+    const hasVisual = hasPhotos || hasRoute || isPreparingPhotos;
 
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: `${T.blue}14` }}>
-                <Ionicons name="flash" size={12} color={T.blue} />
-                <Text style={{ color: T.blue, fontSize: 12, lineHeight: 16, fontWeight: "900" }}>+{memory.xp} XP</Text>
-              </View>
-              <AvatarPile people={memory.participants} />
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={T.muted} />
-          </View>
+    const photoTile = (index: number, style: object) => {
+      const item = resolvedItems[index];
+      if (!item) return null;
+      return <View key={`photo-${index}`} style={[{ overflow: "hidden", backgroundColor: `${accentColor}12` }, style]}><CachedImage uri={item.uri} accessibilityLabel={`Photo ${index + 1} from ${memory.title}`} style={{ width: "100%", height: "100%" }} /></View>;
+    };
+    const routeTile = (style: object) => hasRoute ? <View key="route" style={[{ overflow: "hidden", backgroundColor: `${accentColor}12` }, style]}><MapView pointerEvents="none" style={{ position: "absolute", inset: 0 }} initialRegion={routeRegion!} mapType="standard" userInterfaceStyle={T.isDark ? "dark" : "light"} showsPointsOfInterests={false} showsBuildings={false} showsUserLocation={false} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false} scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false}><Polyline coordinates={memory.routePoints} strokeColor={accentColor} strokeWidth={4} lineCap="round" lineJoin="round" /></MapView><View pointerEvents="none" style={{ position: "absolute", left: 8, bottom: 8, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: "rgba(39,34,35,0.72)" }}><Text style={{ color: T.onAccent, fontSize: 9, fontWeight: "900" }}>Route</Text></View></View> : null;
+
+    const visual = isPreparingPhotos ? (
+      <View style={{ height: 220, borderRadius: 22, alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: `${accentColor}0d` }}>
+        <Ionicons name="images-outline" size={24} color={accentColor} />
+        <Text style={{ color: accentColor, fontSize: 11, fontWeight: "900" }}>Preparing photos…</Text>
+      </View>
+    ) : hasPhotos && hasRoute ? (
+      <View style={{ height: 220, flexDirection: "row", gap: 5, borderRadius: 22, overflow: "hidden", backgroundColor: T.input }}>
+        {photoTile(0, { flex: 1.7 })}
+        <View style={{ flex: 1, gap: 5 }}>
+          {resolvedItems[1] ? photoTile(1, { flex: 1 }) : null}
+          {resolvedItems[2] ? photoTile(2, { flex: 1 }) : null}
+          {routeTile({ flex: resolvedItems.length > 1 ? 1 : 2 })}
         </View>
       </View>
-    </Card>
-  );
+    ) : hasPhotos ? (
+      <View style={{ height: 220, flexDirection: "row", gap: 5, borderRadius: 22, overflow: "hidden", backgroundColor: T.input }}>
+        {photoTile(0, { flex: resolvedItems.length > 1 ? 1.7 : 1 })}
+        {resolvedItems.length > 1 ? <View style={{ flex: 1, gap: 5 }}>{photoTile(1, { flex: 1 })}{resolvedItems[2] ? photoTile(2, { flex: 1 }) : null}</View> : null}
+      </View>
+    ) : hasRoute ? routeTile({ height: 220, borderRadius: 22 }) : null;
+
+    return (
+      <Card pressable onPress={onPress} style={{ width: "100%", borderRadius: 28, overflow: "hidden", padding: 0, borderColor: `${accentColor}44`, boxShadow: `0 5px 0 ${T.border}` }}>
+        <View style={{ height: 5, backgroundColor: accentColor }} />
+        <View style={{ padding: 16, gap: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+            <View style={{ flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", gap: 6 }}><Tag label={memory.category} color={cat.text} bg={cat.bg} /><Tag label={memory.difficulty} color={diff.text} bg={diff.bg} /></View>
+            <View accessibilityLabel={`Completed at ${formatTime(memory.completedAt)}`} style={{ minHeight: 32, borderRadius: 16, paddingHorizontal: 9, backgroundColor: `${accentColor}14`, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}><Ionicons name="time-outline" size={13} color={accentColor} /><Text style={{ color: accentColor, fontSize: 11, lineHeight: 15, fontWeight: "900" }}>{formatTime(memory.completedAt)}</Text></View>
+          </View>
+
+          <Text style={{ color: T.dark, fontSize: 19, lineHeight: 24, fontWeight: "900" }} numberOfLines={2}>{memory.title}</Text>
+
+          {hasVisual ? visual : null}
+
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            <Tag label={`+${memory.xp} XP`} color={T.blue} bg={`${T.blue}14`} />
+            {memory.durationRecorded ? <Tag label={formatMinutes(memory.timeMin)} color={accentColor} bg={`${accentColor}14`} /> : null}
+            {memory.distanceMeters != null && memory.distanceMeters > 0 ? <Tag label={`${(memory.distanceMeters / 1000).toFixed(2)} km`} color={T.green} bg={`${T.green}14`} /> : null}
+          </View>
+          {memory.reflection ? <Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }} numberOfLines={3}>{`“${memory.reflection}”`}</Text> : null}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 26 }}><AvatarPile people={memory.participants} /><View style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: `${accentColor}14` }}><Ionicons name="chevron-forward" size={18} color={accentColor} /></View></View>
+        </View>
+      </Card>
+    );
+  }
+
 }
 
 function ActiveQuestJournalCard({ quest, paused, onPress }: { quest: JournalActiveQuest; paused: boolean; onPress: () => void }) {
@@ -810,8 +857,6 @@ function DaySection({
   const editable = isToday;
   const customTitle = entry?.title?.trim();
   const milestone = milestoneLabels[dayNumber];
-  const xp = memories.reduce((sum, memory) => sum + memory.xp, 0);
-  const minutes = memories.reduce((sum, memory) => sum + memory.timeMin, 0);
   const hasDayContent = Boolean(entry?.title || entry?.mood || memories.length || activeQuest);
   const dateLabel = date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
@@ -856,7 +901,7 @@ function DaySection({
         </View>
       </View>
 
-      {(editable || entry?.mood) ? <MoodSelector mood={entry?.mood ?? null} editable={editable} saving={savingEntry} onSelect={onSelectMood} /> : null}
+      {Platform.OS === "web" && (editable || entry?.mood) ? <MoodSelector mood={entry?.mood ?? null} editable={editable} saving={savingEntry} onSelect={onSelectMood} /> : null}
 
       {milestone ? (
         <View style={{ flexDirection: "row" }}>
@@ -867,9 +912,9 @@ function DaySection({
         </View>
       ) : null}
 
-      {memories.length ? <DayStatStrip questCount={memories.length} xp={xp} minutes={minutes} /> : null}
+      {Platform.OS === "web" && memories.length ? <DayStatStrip questCount={memories.length} xp={memories.reduce((sum, memory) => sum + memory.xp, 0)} minutes={memories.reduce((sum, memory) => sum + memory.timeMin, 0)} /> : null}
 
-      {isToday ? <TodayMediaSection items={todayMediaItems} onOpenAlbum={onOpenAlbum} mediaRefreshToken={mediaRefreshToken} /> : null}
+      {Platform.OS === "web" && isToday ? <TodayMediaSection items={todayMediaItems} onOpenAlbum={onOpenAlbum} mediaRefreshToken={mediaRefreshToken} /> : null}
 
       {activeQuest ? <View style={{ gap: 8 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>In progress</Text><ActiveQuestJournalCard quest={activeQuest} paused={activeQuestPaused} onPress={onOpenActiveQuest} /></View> : null}
 
@@ -878,7 +923,7 @@ function DaySection({
           <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>Memories</Text>
           {memories.map((memory) => (
             <View key={memory.completionId} onLayout={memory.completionId === focusedCompletionId ? (event) => onFocusedMemoryLayout?.(event.nativeEvent.layout.y) : undefined}>
-              <MemoryCard memory={memory} onPress={() => onOpenMemory(memory)} />
+              <MemoryCard memory={memory} onPress={() => onOpenMemory(memory)} mediaRefreshToken={mediaRefreshToken} />
             </View>
           ))}
         </View>
@@ -947,7 +992,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
   const pendingCalendarTargetRef = useRef<string | null>(null);
   const calendarScrollRetryCountRef = useRef(0);
   const didFocusCompletionRef = useRef(false);
-  const collapsibleHeader = useCollapsibleScrollHeader();
+  const collapsibleHeader = useCollapsibleScrollHeader({ duration: 280 });
 
   useEffect(() => { collapsibleHeader.reveal(); }, [collapsibleHeader.reveal, tab]);
 
@@ -986,6 +1031,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
       const journal = await fetchJournalData();
       if (requestId !== journalLoadId.current) return;
       setData(journal);
+      setError(journal.warning ?? null);
       // Re-sign private Journal images after every authenticated data refresh.
       setMediaRefreshToken((value) => value + 1);
       setEntries((current) => {
@@ -1007,6 +1053,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
   useFocusEffect(
     useCallback(() => {
       if (preview) return;
+      setStatsLoaded(false);
       void load();
       void markJournalRead();
       return () => { journalLoadId.current += 1; };
@@ -1017,13 +1064,12 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
     if (preview || tab !== "stats" || statsLoaded) return;
     let active = true;
     setStatsLoading(true);
-    setStatsLoaded(true);
     fetchProfileOverview()
       .then(async (overview) => {
         if (!active) return;
         const [activity, insights] = await Promise.all([
-          fetchWeeklyCompletedQuestActivity().catch(() => []),
-          overview.profile ? fetchProfileQuestInsights(overview.profile.userId).catch(() => null) : Promise.resolve(null),
+          fetchWeeklyCompletedQuestActivity(),
+          overview.profile ? fetchProfileQuestInsights(overview.profile.userId) : Promise.resolve(null),
         ]);
         if (!active) return;
         setStatsOverview(overview);
@@ -1031,7 +1077,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
         setStatsInsights(insights);
       })
       .catch(() => { if (active) setStatsOverview(null); })
-      .finally(() => { if (active) setStatsLoading(false); });
+      .finally(() => { if (active) { setStatsLoading(false); setStatsLoaded(true); } });
     return () => { active = false; };
   }, [preview, statsLoaded, tab]);
 
@@ -1236,7 +1282,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
               }, 60);
             }}
             contentContainerStyle={{ paddingBottom: insets.bottom + (completionId ? 480 : 112) }}
-            ListHeaderComponent={error && data ? <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 14, transform: [{ translateX: safeAreaOffset }] }}><Card style={{ borderRadius: radius.lg, padding: 14, gap: 8 }}><Text style={{ color: T.dark, fontSize: 13, fontWeight: "800" }}>Your latest journal refresh didn’t finish.</Text><SoftButton label="Try again" icon="refresh" inverse color={T.blue} onPress={() => void load(true)} style={{ minHeight: 48 }} /></Card></View> : undefined}
+            ListHeaderComponent={error && data ? <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 14, transform: [{ translateX: safeAreaOffset }] }}><Card style={{ borderRadius: radius.lg, padding: 14, gap: 8 }}><Text style={{ color: T.dark, fontSize: 13, fontWeight: "800" }}>{error}</Text><SoftButton label="Try again" icon="refresh" inverse color={T.blue} onPress={() => void load(true)} style={{ minHeight: 48 }} /></Card></View> : undefined}
             ListEmptyComponent={<View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>{loading ? <JournalLoadingSkeleton /> : <Card style={{ marginTop: 18, borderRadius: radius.lg }}><EmptyState emoji="!" title="Couldn't load your journal" body={error ?? "Please try again."} action={<SoftButton label="Try again" icon="refresh" onPress={() => void load(true)} />} /></Card>}</View>}
             ListFooterComponent={data && !loading ? <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><BeforeJoinMarker joinDate={join} /></View> : undefined}
           />
@@ -1247,7 +1293,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
           collapsibleHeader.onScroll(offsetY);
           setStatsScrollY((current) => Math.abs(current - offsetY) >= 24 ? offsetY : current);
         }} contentContainerStyle={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: insets.bottom + 112, gap: 12, transform: [{ translateX: safeAreaOffset }] }}>
-          {statsLoading ? <JournalLoadingSkeleton /> : statsOverview ? <YourStatsDashboard overview={statsOverview} weeklyActivity={weeklyActivity} insights={statsInsights} scrollY={statsScrollY} /> : <Card style={{ marginTop: 8, borderRadius: radius.lg }}><EmptyState emoji="📊" title="Stats unavailable" body="Your progress will appear here once your profile is ready." /></Card>}
+          {statsLoading ? <JournalLoadingSkeleton /> : statsOverview ? <YourStatsDashboard overview={statsOverview} weeklyActivity={weeklyActivity} insights={statsInsights} scrollY={statsScrollY} /> : <Card style={{ marginTop: 8, borderRadius: radius.lg }}><EmptyState action={<SoftButton label="Try again" onPress={() => setStatsLoaded(false)} />} emoji="📊" title="Stats unavailable" body="Your progress will appear here once your profile is ready." /></Card>}
         </ScrollView>}
       </View>
 

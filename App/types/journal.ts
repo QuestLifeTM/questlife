@@ -18,8 +18,16 @@ export type JournalMemory = {
   difficulty: QuestDifficulty;
   color: string;
   timeMin: number;
+  durationRecorded?: boolean;
+  distanceMeters?: number | null;
   photoPaths: string[];
+  routePoints: JournalRoutePoint[];
   participants: JournalParticipant[];
+};
+
+export type JournalRoutePoint = {
+  latitude: number;
+  longitude: number;
 };
 
 export type JournalParticipant = {
@@ -49,6 +57,7 @@ export type JournalActiveQuest = {
 };
 
 export type JournalData = {
+  warning?: string;
   /** ISO timestamp of profiles.created_at — Day 1 of the archive. */
   joinedAt: string;
   memoriesByDate: Record<string, JournalMemory[]>;

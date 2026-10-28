@@ -78,6 +78,9 @@ export function InProgressQuestScreen() {
     setSaveError(null);
     try {
       const uploads = await Promise.allSettled(photos.map((uri) => uploadJournalMedia(uri)));
+      if (process.env.EXPO_OS !== "web" && uploads.some((result) => result.status === "rejected")) {
+        throw new Error("We couldn't save all of your quest photos. Check your connection and retry — your reflection and photos are still here.");
+      }
       const photoUrls = uploads.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
       const completion = await completeQuest({ questId: quest.id, sessionId: session.id, logged: false, reflection: note.trim() || null, rating, review: null, reviewPublic: false, photoUrls });
       await refresh();

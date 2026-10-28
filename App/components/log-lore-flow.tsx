@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import type { AudioPlayer } from "expo-audio";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Accelerometer } from "expo-sensors";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Image, Pressable, ScrollView, Text, Vibration, View } from "react-native";
+import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import Animated, { Easing, FadeInUp, cancelAnimation, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -15,6 +16,7 @@ import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useStreaks } from "@/contexts/StreaksContext";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { engineErrorMessage, rateQuestCompletion } from "@/services/engine/questEngineService";
+import { syncActiveQuestRecord } from "@/services/active-quest/sync";
 import { uploadJournalMedia } from "@/services/journal/journalService";
 import { isHapticFeedbackEnabled } from "@/services/settings/settingsService";
 import { Quest } from "@/types/content";
@@ -241,11 +243,13 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
   const initializedForOpen = useRef(false);
   const completionRef = useRef<CompletionResult | null>(null);
   const savingRef = useRef(false);
+  const finishingRef = useRef(false);
+  const uploadedPhotosRef = useRef(new Map<string, string>());
   const ratingWobble = useSharedValue(0);
   const reducedMotion = useReducedMotionPreference();
   const ratingWobbleStyle = useAnimatedStyle(() => ({ transform: [{ translateX: ratingWobble.value }] }));
   useEffect(() => {
-    if (!visible) { initializedForOpen.current = false; completionRef.current = null; savingRef.current = false; setCelebrationStarted(false); return; }
+    if (!visible) { initializedForOpen.current = false; completionRef.current = null; savingRef.current = false; finishingRef.current = false; uploadedPhotosRef.current.clear(); setCelebrationStarted(false); return; }
     if (initializedForOpen.current) return;
     initializedForOpen.current = true;
     setRating(0); setRatingError(false); setBusy(false); setError(null); setCelebrationStarted(false);
@@ -257,10 +261,7 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
     if (!celebrationStarted || !isHapticFeedbackEnabled()) return;
 
     // The reward feedback starts only after the sheet has visibly landed.
-    Vibration.vibrate(500);
-    return () => {
-      Vibration.cancel();
-    };
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
   }, [celebrationStarted]);
   useEffect(() => () => {
     if (rewardFadeStartRef.current) clearTimeout(rewardFadeStartRef.current);
@@ -316,10 +317,27 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
     setBusy(true); setError(null);
     try {
       await onSaveDraft?.({ title: initialTitle?.trim() || quest.title, body: initialReflection });
+      // On native, complete_quest_v2 closes the server session. Checkpoint the
+      // local route and reflection first so the completed Journal memory can
+      // always recover the map, even when the user leaves immediately after
+      // the celebration screen appears.
+      if (!guestMode && sessionId) {
+        await syncActiveQuestRecord(sessionId);
+      }
       const safePhotoUris = Array.from(new Set(photoUris.filter((uri): uri is string => typeof uri === "string" && uri.trim().length > 0)));
-      // One unavailable image must never discard the completed quest or the
-      // other photos. The local capture remains available for a later retry.
-      const uploadedPhotos = guestMode ? [] : await Promise.allSettled(safePhotoUris.map((uri) => uploadJournalMedia(uri)));
+      const uploadedPhotos = guestMode ? [] : await Promise.allSettled(safePhotoUris.map(async (uri) => {
+        const existing = uploadedPhotosRef.current.get(uri);
+        if (existing) return existing;
+        const path = await uploadJournalMedia(uri);
+        uploadedPhotosRef.current.set(uri, path);
+        return path;
+      }));
+      // A native capture is still available locally while this sheet remains
+      // open. Do not commit a completion that permanently omits a failed
+      // upload; keep the draft intact and let the owner retry instead.
+      if (uploadedPhotos.some((result) => result.status === "rejected")) {
+        throw new Error("We couldn't save all of your quest photos. Check your connection and retry — your reflection and photos are still here.");
+      }
       const journalPhotoPaths = uploadedPhotos.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
       const completion = guestMode ? { completionId: `guest-${Date.now()}`, xpAwarded: 0, dailyUsed: 0, dailyLimit: 5 } : await completeQuest({ questId: quest.id, sessionId, logged: false, reflection: initialReflection.trim() || null, rating: null, review: null, reviewPublic: false, photoUrls: journalPhotoPaths });
       completionRef.current = completion;
@@ -328,6 +346,7 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
     } catch (nextError) { setError(engineErrorMessage(nextError)); return null; } finally { savingRef.current = false; setBusy(false); }
   };
   const finish = async (destination: CompletionDestination) => {
+    if (savingRef.current || finishingRef.current) return;
     if (!rating) {
       setRatingError(true);
       if (!reducedMotion) ratingWobble.value = withSequence(withTiming(-9, { duration: 55 }), withTiming(9, { duration: 70 }), withTiming(-6, { duration: 60 }), withTiming(0, { duration: 55 }));
@@ -335,11 +354,12 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
     }
     const completion = completionRef.current ?? await persistCompletion();
     if (!completion) return;
+    finishingRef.current = true;
     setBusy(true); setError(null);
     try {
       if (!guestMode) await rateQuestCompletion(completion.completionId, rating);
       await onFinished(completion, destination, { rating, duration });
-    } catch (nextError) { setError(engineErrorMessage(nextError)); setBusy(false); }
+    } catch (nextError) { setError(engineErrorMessage(nextError)); setBusy(false); } finally { finishingRef.current = false; }
   };
   const notes = initialReflection.trim() ? [initialReflection.trim()] : [];
   const validPhotoUris = photoUris.filter((uri): uri is string => typeof uri === "string" && uri.trim().length > 0);
@@ -349,16 +369,16 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
   return <Sheet visible={visible} onClose={() => undefined} fillHeight fullScreen dismissible={false} celebrationEntrance onCelebrationSettled={beginCelebration}>
     <View style={{ flex: 1 }}>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 3, paddingBottom: 196 + insets.bottom, gap: 16 }}>
-        <Animated.View entering={FadeInUp.duration(260)} style={{ alignItems: "center", gap: 7 }}>
+        <Animated.View entering={reducedMotion ? undefined : FadeInUp.duration(260)} style={{ alignItems: "center", gap: 7 }}>
           <CompletionTrophy active={visible} />
           <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 26, lineHeight: 32, textAlign: "center" }}>Quest completed</Text>
         </Animated.View>
-        <Animated.View entering={FadeInUp.delay(45).duration(260)} style={[{ alignItems: "center", gap: 3, marginTop: 4 }, ratingWobbleStyle]}>
+        <Animated.View entering={reducedMotion ? undefined : FadeInUp.delay(45).duration(260)} style={[{ alignItems: "center", gap: 3, marginTop: 4 }, ratingWobbleStyle]}>
           <Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>Rate this quest</Text>
           <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: 3 }}>{[1, 2, 3, 4, 5].map((value) => <RatingStar key={value} rating={value} value={rating} onPress={() => { if (busy) return; playRatingFeedback(); setRating(value); setRatingError(false); setError(null); }} />)}</View>
           {ratingError ? <Text accessibilityRole="alert" style={{ color: T.red, fontFamily: "RubikBold", fontSize: 12, lineHeight: 17 }}>Please rate this quest to continue.</Text> : null}
         </Animated.View>
-        <Animated.View entering={FadeInUp.delay(85).duration(260)} style={{ overflow: "hidden", borderRadius: 21, backgroundColor: T.white, borderWidth: 1.5, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: T.border, marginTop: 8 }}>
+        <Animated.View entering={reducedMotion ? undefined : FadeInUp.delay(85).duration(260)} style={{ overflow: "hidden", borderRadius: 21, backgroundColor: T.white, borderWidth: 1.5, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: T.border, marginTop: 8 }}>
           <View style={{ flexDirection: "row", flex: 1 }}>
           <View style={{ width: 5, backgroundColor: quest.color }} />
           <View style={{ flex: 1, padding: 15, gap: 12 }}>
@@ -366,18 +386,18 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
             <View style={{ gap: 5 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 19, lineHeight: 24 }}>{quest.title}</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 13, lineHeight: 19 }}>{quest.description}</Text></View>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <RecapStat icon="time-outline" label="time" value={duration} color={quest.color} /><View style={{ width: 1, height: 37, backgroundColor: T.border }} />
-              <RecapStat icon="images-outline" label="photos" value={`${photoUris.length}`} color={T.blue} /><View style={{ width: 1, height: 37, backgroundColor: T.border }} />
+              <RecapStat icon="images-outline" label="photos" value={`${validPhotoUris.length}`} color={T.blue} /><View style={{ width: 1, height: 37, backgroundColor: T.border }} />
               <RecapStat icon="document-text-outline" label="notes" value={`${notes.length}`} color={T.orange} /><View style={{ width: 1, height: 37, backgroundColor: T.border }} />
-              <RecapStat icon="flash-outline" label="XP" value={`${quest.xp}`} color={T.yellow} />
+              <RecapStat icon="flash-outline" label="XP" value={completionRef.current ? `${completionRef.current.xpAwarded}` : "…"} color={T.yellow} />
             </View>
           </View>
           </View>
         </Animated.View>
-        {hasPhotos || notes.length ? <Animated.View entering={FadeInUp.delay(125).duration(260)}>
+        {hasPhotos || notes.length ? <Animated.View entering={reducedMotion ? undefined : FadeInUp.delay(125).duration(260)}>
           <QuestMoments photoUris={validPhotoUris} notes={notes} questColor={quest.color} />
         </Animated.View> : null}
       </ScrollView>
-      <Animated.View entering={FadeInUp.delay(165).duration(260)} style={{ position: "absolute", bottom: 0, left: 0, right: 0, overflow: "hidden", paddingHorizontal: 24, paddingTop: 20, paddingBottom: Math.max(insets.bottom, 16), gap: 10 }}>
+      <Animated.View entering={reducedMotion ? undefined : FadeInUp.delay(165).duration(260)} style={{ position: "absolute", bottom: 0, left: 0, right: 0, overflow: "hidden", paddingHorizontal: 24, paddingTop: 20, paddingBottom: Math.max(insets.bottom, 16), gap: 10 }}>
         <BlurView pointerEvents="none" tint="light" intensity={16} style={{ position: "absolute", inset: 0 }} />
         <View pointerEvents="none" style={{ position: "absolute", inset: 0, backgroundColor: T.isDark ? "rgba(36,30,38,0.36)" : "rgba(255,252,248,0.36)" }} />
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 }}><Ionicons name={busy ? "sync" : error ? "alert-circle" : completionRef.current ? "checkmark-circle" : "star-outline"} size={18} color={busy ? quest.color : error ? T.red : completionRef.current ? quest.color : T.dark} /><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 13, lineHeight: 18 }}>{busy ? "Saving to your Journal…" : error ? "Your Journal entry needs to be saved" : completionRef.current ? "Already saved to your Journal" : "Rate your quest to save it"}</Text></View>
