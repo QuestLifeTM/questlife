@@ -13,7 +13,7 @@ import {
   TextInput,
   View
 } from "react-native";
-import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { Extrapolation, FadeIn, FadeInDown, LinearTransition, interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AvatarPile } from "@/components/avatar-pile";
 import { CachedImage } from "@/components/cached-image";
@@ -26,6 +26,7 @@ import { useNotifications } from "@/contexts/NotificationsContext";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { useThemeKey } from "@/contexts/SettingsContext";
 import { MotionPulse } from "@/motion/primitives";
+import { motionDurations, motionEasing } from "@/motion/tokens";
 import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMood } from "@/types/journal";
 import { fetchProfileOverview, fetchProfileQuestInsights, fetchWeeklyCompletedQuestActivity, ProfileQuestInsights, WeeklyCompletedQuestActivity } from "@/services/profile/profileService";
 import { YourStatsDashboard } from "@/screens/profile-screen";
@@ -93,6 +94,11 @@ function formatMinutes(minutes: number) {
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+function sentenceCase(value: string) {
+  const lower = value.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
 // ── Header + tab switch ──────────────────────────────────────────────────────
@@ -702,6 +708,7 @@ function DayStatStrip({ questCount, xp, minutes }: { questCount: number; xp: num
 }
 
 function MemoryCard({ memory, onPress, mediaRefreshToken }: { memory: JournalMemory; onPress: () => void; mediaRefreshToken: number }) {
+  const reduceMotion = useReducedMotionPreference();
   const accentColor = typeof memory.color === "string" && memory.color.trim() ? memory.color : T.blue;
   const cat = categoryColor[memory.category] ?? { text: accentColor, bg: `${accentColor}18` };
   const diff = difficultyColor[memory.difficulty] ?? difficultyColor.MEDIUM;
@@ -724,8 +731,7 @@ function MemoryCard({ memory, onPress, mediaRefreshToken }: { memory: JournalMem
     const routeTile = (style: object) => hasRoute ? <View key="route" style={[{ overflow: "hidden", backgroundColor: `${accentColor}12` }, style]}><MapView pointerEvents="none" style={{ position: "absolute", inset: 0 }} initialRegion={routeRegion!} mapType="standard" userInterfaceStyle={T.isDark ? "dark" : "light"} showsPointsOfInterests={false} showsBuildings={false} showsUserLocation={false} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false} scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false}><Polyline coordinates={memory.routePoints} strokeColor={accentColor} strokeWidth={4} lineCap="round" lineJoin="round" /></MapView><View pointerEvents="none" style={{ position: "absolute", left: 8, bottom: 8, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: "rgba(39,34,35,0.72)" }}><Text style={{ color: T.onAccent, fontSize: 9, fontWeight: "900" }}>Route</Text></View></View> : null;
 
     const visual = isPreparingPhotos ? (
-      <View style={{ height: 220, borderRadius: 22, alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: `${accentColor}0d` }}>
-        <Ionicons name="images-outline" size={24} color={accentColor} />
+      <View style={{ height: 220, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: `${accentColor}0d` }}>
         <Text style={{ color: accentColor, fontSize: 11, fontWeight: "900" }}>Preparing photos…</Text>
       </View>
     ) : hasPhotos && hasRoute ? (
@@ -744,26 +750,40 @@ function MemoryCard({ memory, onPress, mediaRefreshToken }: { memory: JournalMem
       </View>
     ) : hasRoute ? routeTile({ height: 220, borderRadius: 22 }) : null;
 
+    const time = formatTime(memory.completedAt);
+    const stats = [
+      memory.durationRecorded ? formatMinutes(memory.timeMin) : null,
+      memory.distanceMeters != null && memory.distanceMeters > 0 ? `${(memory.distanceMeters / 1000).toFixed(2)} km` : null,
+    ].filter((stat): stat is string => Boolean(stat));
+    const hasParticipants = memory.participants.length > 0;
+    const visualKind = isPreparingPhotos ? "preparing" : hasPhotos && hasRoute ? "photos-route" : hasPhotos ? "photos" : hasRoute ? "route" : "none";
+
     return (
-      <Card pressable onPress={onPress} style={{ width: "100%", borderRadius: 28, overflow: "hidden", padding: 0, borderColor: `${accentColor}44`, boxShadow: `0 5px 0 ${T.border}` }}>
+      <Card pressable onPress={onPress} accessibilityLabel={`${memory.title}, ${sentenceCase(memory.category)}, ${sentenceCase(memory.difficulty)}, completed at ${time}, plus ${memory.xp} XP`} style={{ width: "100%", borderRadius: 24, overflow: "hidden", padding: 0, borderColor: `${accentColor}44`, boxShadow: `0 4px 0 ${T.border}` }}>
         <View style={{ height: 5, backgroundColor: accentColor }} />
-        <View style={{ padding: 16, gap: 12 }}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-            <View style={{ flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", gap: 6 }}><Tag label={memory.category} color={cat.text} bg={cat.bg} /><Tag label={memory.difficulty} color={diff.text} bg={diff.bg} /></View>
-            <View accessibilityLabel={`Completed at ${formatTime(memory.completedAt)}`} style={{ minHeight: 32, borderRadius: 16, paddingHorizontal: 9, backgroundColor: `${accentColor}14`, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}><Ionicons name="time-outline" size={13} color={accentColor} /><Text style={{ color: accentColor, fontSize: 11, lineHeight: 15, fontWeight: "900" }}>{formatTime(memory.completedAt)}</Text></View>
+        <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16, gap: 12 }}>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: T.dark, fontSize: 17, lineHeight: 22, fontWeight: "900" }} numberOfLines={2}>{memory.title}</Text>
+            <Text style={{ fontSize: 12, lineHeight: 16, fontWeight: "800" }} numberOfLines={1}>
+              <Text style={{ color: cat.text }}>{sentenceCase(memory.category)}</Text>
+              <Text style={{ color: T.subtle }}>{"  ·  "}</Text>
+              <Text style={{ color: diff.text }}>{sentenceCase(memory.difficulty)}</Text>
+              <Text style={{ color: T.subtle }}>{"  ·  "}</Text>
+              <Text style={{ color: T.muted, fontVariant: ["tabular-nums"] }}>{time}</Text>
+            </Text>
           </View>
 
-          <Text style={{ color: T.dark, fontSize: 19, lineHeight: 24, fontWeight: "900" }} numberOfLines={2}>{memory.title}</Text>
+          {hasVisual ? <Animated.View key={visualKind} entering={reduceMotion ? undefined : FadeIn.duration(motionDurations.state).easing(motionEasing.enter)}>{visual}</Animated.View> : null}
 
-          {hasVisual ? visual : null}
-
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            <Tag label={`+${memory.xp} XP`} color={T.blue} bg={`${T.blue}14`} />
-            {memory.durationRecorded ? <Tag label={formatMinutes(memory.timeMin)} color={accentColor} bg={`${accentColor}14`} /> : null}
-            {memory.distanceMeters != null && memory.distanceMeters > 0 ? <Tag label={`${(memory.distanceMeters / 1000).toFixed(2)} km`} color={T.green} bg={`${T.green}14`} /> : null}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 26 }}>
+            <Text style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 17, fontWeight: "800", fontVariant: ["tabular-nums"] }} numberOfLines={1}>
+              <Text style={{ color: T.dark, fontWeight: "900" }}>+{memory.xp} XP</Text>
+              {stats.map((stat) => <Text key={stat} style={{ color: T.muted }}>{`  ·  ${stat}`}</Text>)}
+            </Text>
+            {hasParticipants ? <AvatarPile people={memory.participants} /> : null}
           </View>
+
           {memory.reflection ? <Text style={{ color: T.muted, fontSize: 13, lineHeight: 19, fontWeight: "700" }} numberOfLines={3}>{`“${memory.reflection}”`}</Text> : null}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 26 }}><AvatarPile people={memory.participants} /><View style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: `${accentColor}14` }}><Ionicons name="chevron-forward" size={18} color={accentColor} /></View></View>
         </View>
       </Card>
     );
@@ -854,6 +874,7 @@ function DaySection({
   onFocusedMemoryLayout?: (offsetY: number) => void;
   mediaRefreshToken: number;
 }) {
+  const reduceMotion = useReducedMotionPreference();
   const editable = isToday;
   const customTitle = entry?.title?.trim();
   const milestone = milestoneLabels[dayNumber];
@@ -919,12 +940,17 @@ function DaySection({
       {activeQuest ? <View style={{ gap: 8 }}><Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>In progress</Text><ActiveQuestJournalCard quest={activeQuest} paused={activeQuestPaused} onPress={onOpenActiveQuest} /></View> : null}
 
       {memories.length ? (
-        <View style={{ gap: 10 }}>
+        <View style={{ gap: 17 }}>
           <Text style={{ color: T.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>Memories</Text>
-          {memories.map((memory) => (
-            <View key={memory.completionId} onLayout={memory.completionId === focusedCompletionId ? (event) => onFocusedMemoryLayout?.(event.nativeEvent.layout.y) : undefined}>
+          {memories.map((memory, index) => (
+            <Animated.View
+              key={memory.completionId}
+              entering={reduceMotion ? undefined : FadeInDown.delay(Math.min(index, 6) * 50).duration(motionDurations.navigation).easing(motionEasing.enter)}
+              layout={reduceMotion ? undefined : LinearTransition.duration(motionDurations.state).easing(motionEasing.standard)}
+              onLayout={memory.completionId === focusedCompletionId ? (event) => onFocusedMemoryLayout?.(event.nativeEvent.layout.y) : undefined}
+            >
               <MemoryCard memory={memory} onPress={() => onOpenMemory(memory)} mediaRefreshToken={mediaRefreshToken} />
-            </View>
+            </Animated.View>
           ))}
         </View>
       ) : !memories.length && !activeQuest ? (

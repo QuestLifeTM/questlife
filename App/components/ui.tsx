@@ -201,8 +201,9 @@ export function Card({
   children,
   style,
   pressable,
-  onPress
-}: PropsWithChildren<{ style?: StyleProp<ViewStyle>; pressable?: boolean; onPress?: () => void }>) {
+  onPress,
+  accessibilityLabel
+}: PropsWithChildren<{ style?: StyleProp<ViewStyle>; pressable?: boolean; onPress?: () => void; accessibilityLabel?: string }>) {
   const body = (
     <View
       style={[
@@ -224,6 +225,7 @@ export function Card({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       onPress={() => {
         haptic();
         onPress?.();
