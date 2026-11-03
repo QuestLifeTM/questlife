@@ -1,3 +1,4 @@
+import { emptyJourney, validateJourneyEvent, type JourneyEvent } from "./journey-model";
 import * as FileSystem from "@/lib/device-files";
 
 import { ActiveQuestActivity, ActiveQuestActivityKind, ActiveQuestLocalSession, ActiveQuestPhoto, ActiveQuestRecordingState, ActiveQuestRoutePoint, ActiveQuestRouteSegment, ActiveQuestSnapshot } from "@/types/active-quest";
@@ -215,6 +216,7 @@ export async function hydrateActiveQuestRecord(record: RemoteActiveQuestRecord) 
     );
     const restoredSession: ActiveQuestLocalSession = {
       ...record.session,
+      journey: local?.journey,
       trackingStatus: local?.trackingStatus ?? "idle",
       completionSyncState: local?.completionSyncState ?? "idle",
     };
@@ -271,7 +273,7 @@ export async function getActiveQuestSnapshot(sessionId: string): Promise<ActiveQ
   return { session, route, renderRoute, renderSegments, photoCount: photos.length, photos, activity };
 }
 
-export async function updateActiveQuestSession(sessionId: string, changes: Partial<Pick<ActiveQuestLocalSession, "recordingState" | "pausedAt" | "activeSince" | "activeDurationMs" | "distanceMeters" | "entryTitle" | "entryBody" | "trackingStatus" | "lastLocationAt" | "completionSyncState">>) {
+export async function updateActiveQuestSession(sessionId: string, changes: Partial<Pick<ActiveQuestLocalSession, "recordingState" | "pausedAt" | "activeSince" | "activeDurationMs" | "distanceMeters" | "entryTitle" | "entryBody" | "trackingStatus" | "lastLocationAt" | "completionSyncState" | "completionId">>) {
   return mutate((store) => {
     const current = store.sessions[sessionId];
     if (!current) return null;
@@ -505,4 +507,46 @@ export async function clearActiveQuestDataForOwner(ownerId: string) {
 /** Exposed for lifecycle services and background tasks that need owner verification. */
 export function getActiveQuestStoreOwner() {
   return getLocalDataOwner();
+}
+
+/** Same durable transaction as notes/photos: no reward can outlive a failed local save. */
+export async function putJourneyEvent(sessionId: string, event: JourneyEvent, restoring = false) {
+  if (!restoring) validateJourneyEvent(event);
+  return mutate(store => {
+    const session = store.sessions[sessionId];
+    if (!session) throw new Error("Your quest is still loading. Try again.");
+    const journey = session.journey ?? emptyJourney();
+    const existing = journey.events.find(item => item.id === event.id || (event.prompt && item.prompt?.id === event.prompt.id));
+    if (existing) return existing;
+    const events = [...journey.events, event].sort((a, b) => a.activeElapsedMs - b.activeElapsedMs);
+    store.sessions[sessionId] = { ...session, journey: { ...journey, events }, updatedAt: new Date().toISOString() };
+    if (!restoring && (event.kind === "photo" || event.kind === "note")) {
+      const photoId = event.kind === "photo" ? store.nextPhotoId++ : null;
+      if (photoId !== null) store.photos.push({ id: photoId, sessionId, uri: event.uri!, capturedAt: event.capturedAt, syncStatus: "pending", remotePath: null, isTutorialMock: false });
+      store.activity.push({ id: store.nextActivityId++, sessionId, kind: event.kind, createdAt: event.capturedAt, body: event.kind === "note" ? event.body ?? null : null, caption: event.kind === "photo" ? event.body ?? null : null, photoId, badgeLabel: null, isTutorialMock: false });
+    }
+    return event;
+  });
+}
+export async function updateJourneyEvent(sessionId: string, id: string, changes: Partial<Pick<JourneyEvent, "syncState" | "xp" | "error" | "remotePath" | "thumbnailUri" | "thumbnailRemotePath">>) {
+  await mutate(store => {
+    const session = store.sessions[sessionId];
+    if (!session?.journey) return;
+    store.sessions[sessionId] = { ...session, journey: { ...session.journey, events: session.journey.events.map(e => e.id === id ? { ...e, ...changes } : e) } };
+  });
+}
+export async function dismissJourneyPrompt(sessionId: string, id: string) {
+  await mutate(store => {
+    const session = store.sessions[sessionId];
+    if (!session) return;
+    const journey = session.journey ?? emptyJourney();
+    store.sessions[sessionId] = { ...session, journey: { ...journey, dismissed: [...new Set([...journey.dismissed, id])] } };
+  });
+}
+
+export async function getCompletedLocalJourney(completionId: string) {
+  const owner = requireLocalDataOwner();
+  await mutationQueue;
+  const store = await loadStore(owner);
+  return Object.values(store.sessions).find(session => session.completionId === completionId)?.journey ?? null;
 }

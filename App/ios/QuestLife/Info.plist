@@ -70,7 +70,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>QuestLife uses your location to draw the route of an active quest.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Allow $(PRODUCT_NAME) to access your microphone</string>
+	<string>QuestLife uses your microphone when you record a quest video with sound.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to access your device motion</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

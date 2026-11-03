@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, Share, Text, View } from "react-native";
+import { Alert, Image, Platform, Pressable, ScrollView, Share, Text, View } from "react-native";
 import Reanimated from "react-native-reanimated";
 
 import { PartyCategoryIcon } from "@/components/party-category-icon";
@@ -16,6 +16,7 @@ import { useQuestSave } from "@/contexts/QuestSaveContext";
 import { useSocial } from "@/contexts/SocialContext";
 import { engineErrorMessage, fetchQuestReviews } from "@/services/engine/questEngineService";
 import { Quest } from "@/types/content";
+import { isQuestStartCancelled } from "@/services/engine/focused-quest-start";
 import { QuestReviewData } from "@/types/engine";
 
 const categoryButtonColors: Record<Quest["category"], string> = {
@@ -110,15 +111,20 @@ export function QuestDetailScreen({ id, onBack, previewQuest }: { id?: string; o
     setStarting(true);
     try {
       const result = await startQuest({ questId: quest.id, source: "explore" });
+      if (result.navigationHandled) { void refresh().catch(() => undefined); return; }
       await refresh();
       // Older server functions return only a session ID. In that rollout case,
       // the quest content remains the authoritative mode for navigation.
       const startedMode = result.mode ?? questMode;
       router.replace(startedMode === "focused" ? "/active-quest" : "/(tabs)");
+    } catch (error) {
+      if (Platform.OS === "web") throw error;
+      if (!isQuestStartCancelled(error)) Alert.alert("Couldn't start quest", engineErrorMessage(error));
     } finally { setStarting(false); }
   };
   const requestStart = async () => {
     if (questMode === "focused" && hasOtherActive) { setDoingNowBlockVisible(true); return; }
+    if (Platform.OS !== "web" && questMode === "focused") { await beginQuest(); return; }
     const seen = await SecureStore.getItemAsync(modeEducationKey);
     if (seen) { await beginQuest(); } else { setStartEducationVisible(true); }
   };

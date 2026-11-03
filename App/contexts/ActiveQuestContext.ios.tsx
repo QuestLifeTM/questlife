@@ -1,4 +1,6 @@
-import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { hydrateQuestJourney, syncQuestJourney } from "@/services/active-quest/journey.ios";
+import { getQuestLaunchState, subscribeQuestLaunch, failQuestPreparation, isQuestLaunchWaiting } from "@/services/engine/quest-launch-state.ios";
+import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AppState, Linking, Platform } from "react-native";
 import * as Location from "expo-location";
 import * as FileSystem from "@/lib/device-files";
@@ -66,6 +68,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
   const [liveLocation, setLiveLocation] = useState<{ latitude: number; longitude: number; accuracy?: number | null; capturedAt?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [trackingMessage, setTrackingMessage] = useState<string | null>(null);
+  const launch = useSyncExternalStore(subscribeQuestLaunch, getQuestLaunchState, getQuestLaunchState);
   const activeSession = engine?.doingNowSession ?? guestSession;
   const isGuestSession = Boolean(guestSession && activeSession?.id === guestSession.id);
   const watchGeneration = useRef(0);
@@ -92,6 +95,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     const sessionIds = await getPendingCompletionSyncSessionIds();
     await Promise.all(sessionIds.map(async (sessionId) => {
       try {
+        await syncQuestJourney(sessionId);
         await syncActiveQuestRecord(sessionId);
         await updateActiveQuestSession(sessionId, { completionSyncState: "synced" });
       } catch {
@@ -105,6 +109,12 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
       setTrackingMessage("Saved quest progress could not be synced. It will retry when you reopen the quest.");
     });
   }, [retryCompletedRouteSync, user?.id]);
+
+  useEffect(() => {
+    if (!activeSession || isGuestSession) return;
+    const timer = setInterval(() => { if (AppState.currentState === "active") void syncQuestJourney(activeSession.id).catch(() => undefined); }, 30_000);
+    return () => clearInterval(timer);
+  }, [activeSession?.id, isGuestSession]);
 
   const reload = useCallback(async () => {
     if (!activeSession) {
@@ -150,6 +160,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const appStateSubscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
+        if (activeSession && !isGuestSession) void syncQuestJourney(activeSession.id).catch(() => undefined);
         void reload().catch(() => setTrackingMessage("Saved route could not be loaded. Check device storage."));
         if (snapshot?.session.trackingStatus === "tracking") {
           void startForegroundLocationWatch(snapshot.session.sessionId).catch(() => setTrackingMessage("Location updates are unavailable. Check permissions and retry."));
@@ -203,15 +214,16 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
       questId: activeSession.questId,
       startedAt: activeSession.startedAt,
       entryTitle: "",
-      resumeExistingSession: Date.now() - new Date(activeSession.startedAt).getTime() > 15_000,
+      resumeExistingSession: !isQuestLaunchWaiting(activeSession.questId) && Date.now() - new Date(activeSession.startedAt).getTime() > 15_000,
     })
       .then(async () => {
         // The server copy is authoritative for a session restored after login
         // or on another device. If it is temporarily unavailable, retain the
         // local session rather than clearing any in-progress work.
-        if (!isGuestSession) {
-          try { await hydrateActiveQuestFromServer(activeSession.id); } catch { /* Local-first fallback remains available. */ }
+        if (!isGuestSession && !isQuestLaunchWaiting(activeSession.questId)) {
+          try { await hydrateActiveQuestFromServer(activeSession.id); void hydrateQuestJourney(activeSession.id).catch(() => undefined); } catch { /* Local-first fallback remains available. */ }
         }
+        if (!isGuestSession) void syncQuestJourney(activeSession.id).catch(() => undefined);
         void retryQuestPhotoSync(activeSession.id);
         const restoredSession = await getActiveQuestSnapshot(activeSession.id);
         if (restoredSession && (restoredSession.session.trackingStatus === "tracking" || (restoredSession.session.recordingState === "recording" && restoredSession.session.trackingStatus !== "idle"))) {
@@ -225,12 +237,12 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
       .then((next) => {
         if (mounted) { setSnapshot(next); setLiveLocation(previous => newerLiveFix(previous, next?.session.lastFix ?? next?.route.at(-1) ?? null)); }
       })
-      .catch(() => { if (mounted) setTrackingMessage("Saved quest progress could not be loaded. Retry after checking device storage."); })
+      .catch(() => { if (mounted) { setTrackingMessage("Saved quest progress could not be loaded. Retry after checking device storage."); failQuestPreparation(activeSession.id, "Your quest is saved. Retry loading its activity."); } })
       .finally(() => {
         if (mounted) setLoading(false);
       });
     return () => { mounted = false; };
-  }, [activeSession, isGuestSession, retryQuestPhotoSync, startForegroundLocationWatch]);
+  }, [activeSession?.id, isGuestSession, retryQuestPhotoSync, startForegroundLocationWatch, launch?.retryVersion]);
 
   const pause = useCallback(async () => {
     if (!snapshot || snapshot.session.recordingState === "paused") return;
@@ -253,6 +265,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
       activeDurationMs: snapshot.session.activeDurationMs + Math.max(0, additionalElapsedMs),
     });
     void syncActiveQuestRecord(snapshot.session.sessionId).catch(() => undefined);
+    await reload();
     if (snapshot.session.trackingStatus !== "tracking") {
       const ownerId = getLocalDataOwner();
       if (!ownerId) return;

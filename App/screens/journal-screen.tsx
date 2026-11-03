@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AvatarPile } from "@/components/avatar-pile";
 import { CachedImage } from "@/components/cached-image";
 import { StreakPill } from "@/components/streak-pill";
+import { JournalMoodCheckIn } from "@/components/journal-mood-check-in";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, Entrance, Header, IconButton, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
 import { fetchJournalData, resolveJournalMediaItems, toLocalDateKey, upsertJournalEntry } from "@/services/journal/journalService";
@@ -728,7 +729,7 @@ function MemoryCard({ memory, onPress, mediaRefreshToken }: { memory: JournalMem
       if (!item) return null;
       return <View key={`photo-${index}`} style={[{ overflow: "hidden", backgroundColor: `${accentColor}12` }, style]}><CachedImage uri={item.uri} accessibilityLabel={`Photo ${index + 1} from ${memory.title}`} style={{ width: "100%", height: "100%" }} /></View>;
     };
-    const routeTile = (style: object) => hasRoute ? <View key="route" style={[{ overflow: "hidden", backgroundColor: `${accentColor}12` }, style]}><MapView pointerEvents="none" style={{ position: "absolute", inset: 0 }} initialRegion={routeRegion!} mapType="standard" userInterfaceStyle={T.isDark ? "dark" : "light"} showsPointsOfInterests={false} showsBuildings={false} showsUserLocation={false} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false} scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false}><Polyline coordinates={memory.routePoints} strokeColor={accentColor} strokeWidth={4} lineCap="round" lineJoin="round" /></MapView><View pointerEvents="none" style={{ position: "absolute", left: 8, bottom: 8, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: "rgba(39,34,35,0.72)" }}><Text style={{ color: T.onAccent, fontSize: 9, fontWeight: "900" }}>Route</Text></View></View> : null;
+    const routeTile = (style: object) => hasRoute ? <View key="route" style={[{ overflow: "hidden", backgroundColor: `${accentColor}12` }, style]}><MapView pointerEvents="none" style={{ position: "absolute", inset: 0 }} initialRegion={routeRegion!} mapType="standard" userInterfaceStyle={T.isDark ? "dark" : "light"} showsPointsOfInterests={false} showsBuildings={false} showsUserLocation={false} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false} scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false} legalLabelInsets={{ top: 0, right: 6, left: 0, bottom: 6 }}><Polyline coordinates={memory.routePoints} strokeColor={accentColor} strokeWidth={4} lineCap="round" lineJoin="round" /></MapView><View pointerEvents="none" style={{ position: "absolute", left: 8, bottom: 8, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: "rgba(39,34,35,0.72)" }}><Text style={{ color: T.onAccent, fontSize: 9, fontWeight: "900" }}>Route</Text></View></View> : null;
 
     const visual = isPreparingPhotos ? (
       <View style={{ height: 220, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: `${accentColor}0d` }}>
@@ -865,7 +866,7 @@ function DaySection({
   isLast: boolean;
   savingEntry: boolean;
   onEditTitle: () => void;
-  onSelectMood: (mood: JournalMood) => void;
+  onSelectMood: (mood: JournalMood) => Promise<boolean>;
   onOpenMemory: (memory: JournalMemory) => void;
   onOpenActiveQuest: () => void;
   onOpenAlbum: () => void;
@@ -923,6 +924,7 @@ function DaySection({
       </View>
 
       {Platform.OS === "web" && (editable || entry?.mood) ? <MoodSelector mood={entry?.mood ?? null} editable={editable} saving={savingEntry} onSelect={onSelectMood} /> : null}
+      {Platform.OS !== "web" ? <JournalMoodCheckIn entryDate={toLocalDateKey(date)} mood={entry?.mood ?? null} editable={editable} saving={savingEntry} onSave={onSelectMood} /> : null}
 
       {milestone ? (
         <View style={{ flexDirection: "row" }}>
@@ -1220,7 +1222,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
         isLast={index === dayKeys.length - 1}
         savingEntry={savingEntryDates.has(key)}
         onEditTitle={openTitleEditor}
-        onSelectMood={(mood) => void saveEntry(key, { mood })}
+        onSelectMood={(mood) => saveEntry(key, { mood })}
         onOpenMemory={(memory) => router.push(`/memory/${memory.completionId}`)}
         onOpenActiveQuest={() => router.push("/active-quest")}
         onOpenAlbum={() => setTab("album")}

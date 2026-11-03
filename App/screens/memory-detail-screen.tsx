@@ -2,29 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Image, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
-import Reanimated from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
 import MapView, { Polyline } from "@/components/route-map";
 import { getJournalRouteRegion } from "@/services/journal/route-region";
 import { AvatarPile } from "@/components/avatar-pile";
-import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
+import { categoryColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, GradientBand, IconButton, Screen, Sheet, SoftButton, haptic, usePressGuard, useResponsiveScreenLayout } from "@/components/ui";
-import { ScrollTopBlur, useTopScrollBlur } from "@/components/scroll-top-blur";
 import { useAppFeedback } from "@/contexts/AppFeedbackContext";
 import { deleteJournalMedia, fetchJournalMemory, resolveJournalMediaItems, updateJournalMemoryPhotos, updateJournalMemoryReflection, uploadJournalMedia } from "@/services/journal/journalService";
 import { fetchMyQuestPostForCompletion, SharedQuestPost } from "@/services/profile/profileService";
 import { JournalMemory } from "@/types/journal";
-
-const memoryDifficultyIcons: Record<JournalMemory["difficulty"], keyof typeof Ionicons.glyphMap> = {
-  EASY: "leaf-outline",
-  MEDIUM: "flame-outline",
-  HARD: "thunderstorm-outline",
-  FORMIDABLE: "shield-outline",
-};
-
-function MemoryHeaderPill({ label, color, backgroundColor, icon }: { label: string; color: string; backgroundColor: string; icon: React.ReactNode }) {
-  return <View style={{ minHeight: 29, paddingHorizontal: 10, borderRadius: 99, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, backgroundColor, borderWidth: 2, borderColor: color, borderBottomWidth: 3, borderBottomColor: `${color}88` }}>{icon}<Text numberOfLines={1} style={{ color, fontFamily: "RubikBlack", fontSize: 10, lineHeight: 12, letterSpacing: 0.45, textTransform: "uppercase" }}>{label}</Text></View>;
-}
 
 function MemoryStat({ label, value, icon, color, bordered }: { label: string; value: string; icon: keyof typeof Ionicons.glyphMap; color: string; bordered?: boolean }) {
   return <View style={{ flex: 1, minWidth: 0, alignItems: "center", gap: 4, paddingHorizontal: 6, borderLeftWidth: bordered ? 1 : 0, borderLeftColor: T.border }}><View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><Ionicons name={icon} size={15} color={color} /><Text numberOfLines={1} style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 20 }}>{value}</Text></View><Text numberOfLines={1} style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase" }}>{label}</Text></View>;
@@ -92,10 +79,6 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
   const [savingPhoto, setSavingPhoto] = useState(false);
   const [sharedPost, setSharedPost] = useState<SharedQuestPost | null>(null);
   const { showFeedback } = useAppFeedback();
-  // This must run before the loading return below. A memory can render once
-  // without data and then again with data, so calling it only for the latter
-  // would change this screen's hook order.
-  const { onScroll, scrollY } = useTopScrollBlur();
 
   useEffect(() => {
     let mounted = true;
@@ -161,13 +144,7 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
   // Keep older memories renderable even when their stored metadata is no longer mapped.
   const accentColor = typeof memory.color === "string" && memory.color.trim() ? memory.color : T.blue;
   const categoryLabel = typeof memory.category === "string" && memory.category.trim() ? memory.category : "Quest";
-  const difficultyLabel = typeof memory.difficulty === "string" && memory.difficulty.trim() ? memory.difficulty : "MEDIUM";
   const cat = categoryColor[categoryLabel] ?? { text: accentColor, bg: `${accentColor}18` };
-  const diff = difficultyColor[difficultyLabel as keyof typeof difficultyColor] ?? difficultyColor.MEDIUM;
-  const difficultyIcon = memoryDifficultyIcons[difficultyLabel as keyof typeof memoryDifficultyIcons] ?? memoryDifficultyIcons.MEDIUM;
-  const completedAt = new Date(memory.completedAt);
-  const dateLabel = completedAt.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const timeLabel = completedAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   const openReflectionEditor = () => {
     setReflectionDraft(memory.reflection ?? "");
     setReflectionError(null);
@@ -267,35 +244,22 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
     <Screen scroll={false} padded={false}>
       <View style={{ flex: 1 }}>
         <GradientBand color={accentColor} bleedTop bleedTopSpacing={6}>
-          <View style={{ ...edgePadding, paddingBottom: 4 }}>
-            <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <MemoryHeaderPill label={categoryLabel} color={cat.text} backgroundColor={cat.bg} icon={<Ionicons name="sparkles-outline" size={13} color={cat.text} />} />
-                  <MemoryHeaderPill label={difficultyLabel} color={diff.text} backgroundColor={diff.bg} icon={<Ionicons name={difficultyIcon} size={13} color={diff.text} />} />
-                </View>
-                <Text numberOfLines={2} style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 29, lineHeight: 32 }}>{memory.title}</Text>
-                <View accessibilityLabel={`Completed ${dateLabel} at ${timeLabel}`} style={{ flexDirection: "row", alignItems: "center", minHeight: 23, gap: 5 }}><Ionicons name="time-outline" size={15} color={T.muted} /><Text numberOfLines={2} style={{ flex: 1, color: T.muted, fontFamily: "RubikBold", fontSize: 13, lineHeight: 18 }}>Completed {dateLabel} · {timeLabel}</Text></View>
-              </View>
-              <View style={{ paddingTop: 1 }}><IconButton icon="chevron-back" label="Back to Journal" onPress={onBack} /></View>
+          <View style={{ ...edgePadding, marginHorizontal: -16, paddingBottom: 4, gap: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <IconButton icon="chevron-back" label="Back to Journal" size={33} onPress={onBack} />
+              <Pressable accessibilityRole="button" accessibilityLabel="Back to Journal" onPress={onBack} hitSlop={10} style={({ pressed }) => ({ opacity: pressed ? 0.68 : 1 })}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 16 }}>Journal</Text></Pressable>
             </View>
+            <Text numberOfLines={2} style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 29, lineHeight: 32 }}>{memory.title}</Text>
           </View>
         </GradientBand>
 
-        <Reanimated.ScrollView onScroll={onScroll} scrollEventThrottle={16} style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ ...edgePadding, paddingTop: 12, paddingBottom: 18, gap: 25 }}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ ...edgePadding, paddingTop: 12, paddingBottom: 18, gap: 25 }}>
           <View style={{ minHeight: 78, borderRadius: 20, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, flexDirection: "row", alignItems: "center", paddingVertical: 13, boxShadow: `3px 4px 0px ${T.border}` }}>
             <MemoryStat label="XP earned" value={`+${memory.xp}`} icon="flash" color={actionColor} />
             <MemoryStat label="Duration" value={memory.durationRecorded ? `${memory.timeMin}m` : "—"} icon="time" color={actionColor} bordered />
             <MemoryStat label="Photos" value={String(memory.photoPaths.length)} icon="images" color={actionColor} bordered />
           </View>
 
-          {memory.routePoints.length > 0 ? <Card style={{ padding: 0, overflow: "hidden", borderRadius: radius.lg }}>
-            <View style={{ padding: 16, gap: 4 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 17 }}>Your recorded route</Text><Text style={{ color: T.muted, fontSize: 13 }}>{memory.distanceMeters != null ? `${(memory.distanceMeters / 1000).toFixed(2)} km recorded` : "Places along your adventure"}</Text></View>
-            <MapView pointerEvents="none" style={{ height: 240 }} initialRegion={getJournalRouteRegion(memory.routePoints)!} scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false} showsUserLocation={false} showsMyLocationButton={false} toolbarEnabled={false} userInterfaceStyle={T.isDark ? "dark" : "light"}>
-              <Polyline coordinates={memory.routePoints} strokeColor={accentColor} strokeWidth={4} />
-            </MapView>
-          </Card> : null}
-          {photosFailed ? <SoftButton label="Some photos couldn’t load — retry" inverse onPress={() => setReloadKey((key) => key + 1)} /> : null}
           {memory.participants.length ? <Card style={{ flexDirection: "row", alignItems: "center", gap: 12 }}><AvatarPile people={memory.participants} size={32} /><View style={{ flex: 1, gap: 2 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 14 }}>Shared adventure</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 12, lineHeight: 17 }}>You completed this with {memory.participants.length} other{memory.participants.length > 1 ? "s" : ""}.</Text></View></Card> : null}
 
           <View style={{ gap: 10 }}>
@@ -316,8 +280,14 @@ export function MemoryDetailScreen({ completionId, onBack }: { completionId?: st
               {sharedPost.visibility !== "private" ? <MemoryAction label="View in Social" icon="people-outline" color={actionColor} fullWidth onPress={() => router.push({ pathname: "/(tabs)/social", params: { postId: sharedPost.id } })} /> : null}
             </Card>
           </View> : null}
-        </Reanimated.ScrollView>
-        <ScrollTopBlur scrollY={scrollY} />
+
+          {memory.routePoints.length > 0 ? <Card style={{ padding: 0, overflow: "hidden", borderRadius: radius.lg }}>
+            <View style={{ padding: 16, gap: 4 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 17 }}>Your recorded route</Text><Text style={{ color: T.muted, fontSize: 13 }}>{memory.distanceMeters != null ? `${(memory.distanceMeters / 1000).toFixed(2)} km recorded` : "Places along your adventure"}</Text></View>
+            <MapView pointerEvents="none" style={{ height: 240 }} initialRegion={getJournalRouteRegion(memory.routePoints)!} scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false} showsUserLocation={false} showsMyLocationButton={false} toolbarEnabled={false} userInterfaceStyle={T.isDark ? "dark" : "light"} legalLabelInsets={{ top: 0, right: 8, left: 0, bottom: 8 }}>
+              <Polyline coordinates={memory.routePoints} strokeColor={accentColor} strokeWidth={4} />
+            </MapView>
+          </Card> : null}
+        </ScrollView>
 
         <View style={{ ...edgePadding, paddingTop: 12, paddingBottom: Math.max(insets.bottom + 8, 16), gap: 10, borderTopWidth: 1, borderTopColor: T.border, backgroundColor: T.bg }}>
           <MemoryAction label="Share" icon="share-outline" color={actionColor} inverse fullWidth onPress={() => void shareMemory()} />

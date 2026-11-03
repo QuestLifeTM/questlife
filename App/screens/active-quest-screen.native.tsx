@@ -1,10 +1,12 @@
+import { getQuestLaunchState, subscribeQuestLaunch, claimQuestLaunch } from "@/services/engine/quest-launch-state";
+import { isQuestStartCancelled } from "@/services/engine/focused-quest-start";
 import { Ionicons } from "@expo/vector-icons";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Reanimated, { Easing, FadeInDown, FadeOutUp, LinearTransition, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
 import { Alert, Animated, FlatList, Image, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -183,7 +185,7 @@ function QuestRouteCard({ accent, route, renderSegments, liveLocation, deviceLoc
   const miles = Math.max(0, distanceMeters / 1609.344).toFixed(1);
   const needsTrackingHelp = trackingStatus === "permission-needed" || trackingStatus === "unavailable";
   return <View style={{ height: 184, overflow: "hidden", borderRadius: 24, backgroundColor: T.isDark ? "#142c35" : "#dce7df", borderWidth: 1, borderColor: T.border, boxShadow: "0px 5px 16px rgba(36,47,50,0.14)" }}>
-    {region ? <MapView ref={map} pointerEvents="none" style={{ position: "absolute", inset: 0 }} initialRegion={cameraRegion ?? undefined} mapType="standard" showsUserLocation={false} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false} appleLogoInsets={{ top: 0, right: 0, left: 8, bottom: 8 }} legalLabelInsets={{ top: 0, right: 0, left: 78, bottom: 8 }}>
+    {region ? <MapView ref={map} pointerEvents="none" style={{ position: "absolute", inset: 0 }} initialRegion={cameraRegion ?? undefined} mapType="standard" showsUserLocation={false} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false} appleLogoInsets={{ top: 0, right: 0, left: 8, bottom: 8 }} legalLabelInsets={{ top: 0, right: 8, left: 0, bottom: 8 }}>
       {renderSegments.map((segment) => segment.points.length > 1 ? <Polyline key={segment.id} coordinates={segment.points.map((point) => ({ latitude: point.latitude, longitude: point.longitude }))} strokeColor={segment.state === "paused" ? "#c9d1d5" : accent} strokeWidth={5} lineCap="round" lineJoin="round" /> : null)}
       <Marker coordinate={region} anchor={{ x: 0.5, y: 0.5 }}><View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: accent, borderWidth: 3, borderColor: "#ffffff", boxShadow: "0px 0px 8px rgba(0,0,0,0.45)" }} /></Marker>
     </MapView> : <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center" }}><Ionicons name="map-outline" size={32} color={accent} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 13, marginTop: 8 }}>Waiting for your location</Text></View>}
@@ -239,7 +241,7 @@ const LiveMap = memo(function LiveMap({ accent, route, renderSegments, checkpoin
   </View>;
 
   return <View onLayout={({ nativeEvent }) => setMapSize(nativeEvent.layout)} style={{ flex: 1, backgroundColor: mapFallbackSurface }}>
-    <MapView ref={map} style={{ flex: 1 }} initialRegion={cameraRegion ?? undefined} mapType="standard" userInterfaceStyle={T.isDark ? "dark" : "light"} showsPointsOfInterests={false} showsBuildings={false} showsUserLocation={false} showsMyLocationButton={false} showsCompass toolbarEnabled={false} scrollEnabled zoomEnabled zoomTapEnabled rotateEnabled pitchEnabled mapPadding={{ top: 100, bottom: BOTTOM_SHEET_CONTENT_HEIGHT + 24, left: 16, right: 16 }} appleLogoInsets={{ top: 0, right: 0, left: 8, bottom: BOTTOM_SHEET_CONTENT_HEIGHT + 8 }} legalLabelInsets={{ top: 0, right: 0, left: 78, bottom: BOTTOM_SHEET_CONTENT_HEIGHT + 8 }} onMapReady={() => setMapReady(true)} onPanDrag={() => setFollowingUser(false)} onRegionChangeComplete={(_region, details) => { if (details?.isGesture) setFollowingUser(false); }}>
+    <MapView ref={map} style={{ flex: 1 }} initialRegion={cameraRegion ?? undefined} mapType="standard" userInterfaceStyle={T.isDark ? "dark" : "light"} showsPointsOfInterests={false} showsBuildings={false} showsUserLocation={false} showsMyLocationButton={false} showsCompass toolbarEnabled={false} scrollEnabled zoomEnabled zoomTapEnabled rotateEnabled pitchEnabled mapPadding={{ top: 100, bottom: BOTTOM_SHEET_CONTENT_HEIGHT + 24, left: 16, right: 16 }} appleLogoInsets={{ top: 0, right: 0, left: 8, bottom: BOTTOM_SHEET_CONTENT_HEIGHT + 8 }} legalLabelInsets={{ top: 0, right: 8, left: 0, bottom: BOTTOM_SHEET_CONTENT_HEIGHT + 8 }} onMapReady={() => setMapReady(true)} onPanDrag={() => setFollowingUser(false)} onRegionChangeComplete={(_region, details) => { if (details?.isGesture) setFollowingUser(false); }}>
       {liveCoordinate && liveCoordinate.accuracy != null && liveCoordinate.accuracy > 0 ? <Circle center={liveCoordinate} radius={liveCoordinate.accuracy} fillColor={`${accent}20`} strokeColor={`${accent}70`} strokeWidth={1} /> : null}
       {liveCoordinate ? <Marker coordinate={liveCoordinate} anchor={{ x: 0.5, y: 0.5 }} title="Your location"><View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 3, borderColor: "#ffffff", backgroundColor: accent }} /></Marker> : null}
       {renderSegments.map((segment) => {
@@ -501,6 +503,8 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const shownTutorialMockRef = useRef<string | null>(null);
   const journalLaunchSessionRef = useRef<string | null>(null);
   const session = engine?.doingNowSession ?? guestSession;
+  const launchState = useSyncExternalStore(subscribeQuestLaunch, getQuestLaunchState, getQuestLaunchState);
+  const launch = launchState?.questId === session?.questId && (!launchState?.sessionId || launchState.sessionId === session?.id) ? launchState : null;
   const [finishPromptIndex, setFinishPromptIndex] = useState(0);
   useEffect(() => {
     if (!session?.id || preview) return;
@@ -551,7 +555,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const isFreshSession = Boolean(session?.id && countdownStartedAt && (onboarding?.forceCountdown || Date.now() - new Date(countdownStartedAt).getTime() <= 15_000));
   const shouldPlayCountdown = !onboarding?.holdCountdown && isFreshSession && snapshot?.session.recordingState === "paused";
   const isCountdownPending = shouldPlayCountdown && countdownSessionRef.current !== session?.id && !countdownLaunchAt;
-  const isStartingQuest = preview ? false : isCountdownPending || Boolean(countdownLaunchAt && startupCompleteForSession !== session?.id);
+  const isStartingQuest = preview ? false : launch ? launch.phase === "preparing" || launch.phase === "countdown" : isCountdownPending || Boolean(countdownLaunchAt && startupCompleteForSession !== session?.id);
   useEffect(() => {
     if (onboarding?.forcedTab) setTab(onboarding.forcedTab);
   }, [onboarding?.forcedTab]);
@@ -612,6 +616,21 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   }, [enableTracking, resolveDeviceLocation, resume, snapshot?.session.recordingState]);
 
   useEffect(() => {
+    if (!preview && launch && session?.id) {
+      // The full-screen start form owns this countdown. Never run a second one
+      // on the map, including when a previous active screen remains mounted.
+      setCountdownLaunchAt(null);
+      setCountdownStep(null);
+      if (launch.phase === "preparing" || launch.phase === "countdown" || completeVisible) return;
+      if (activeQuestLoading || snapshot?.session.sessionId !== session.id) return;
+      setStartupCompleteForSession(session.id);
+      countdownSessionRef.current = session.id;
+      if (claimQuestLaunch(session.id)) {
+        routeRecordingStartedSessionRef.current = session.id;
+        void beginQuestRoute().catch(() => showFeedback({ message: "Your quest is ready. Tap Resume or enable route recording to continue.", icon: "alert-circle", color: T.orange }));
+      }
+      return;
+    }
     if (preview || onboarding?.holdCountdown || !session?.id || !countdownStartedAt || (!onboarding?.forceCountdown && Date.now() - new Date(countdownStartedAt).getTime() > 15_000)) {
       setCountdownLaunchAt(null);
       return;
@@ -621,7 +640,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
     if (countdownSessionRef.current === session.id) return;
     countdownSessionRef.current = session.id;
     setCountdownLaunchAt(Date.now());
-  }, [activeQuestLoading, countdownStartedAt, onboarding?.forceCountdown, onboarding?.holdCountdown, preview, session?.id, snapshot]);
+  }, [activeQuestLoading, beginQuestRoute, completeVisible, countdownStartedAt, launch, onboarding?.forceCountdown, onboarding?.holdCountdown, preview, session?.id, showFeedback, snapshot]);
 
   useEffect(() => {
     if (preview || !session?.id || !countdownLaunchAt) return;
@@ -684,7 +703,7 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
       }
       if (saveToJournal === "1" && nextQuestId) {
         try { await startQuest({ questId: nextQuestId, source: "explore" }); await refresh(); setCompleteVisible(false); setCompletedQuest(null); setCompletedRecap(null); router.replace("/active-quest"); }
-        catch { showFeedback({ message: "Your quest is saved in the Journal, but we couldn't start the next quest. Please try again.", icon: "alert-circle", color: T.red }); router.replace("/(tabs)/journal"); }
+        catch (error) { if (isQuestStartCancelled(error)) return; showFeedback({ message: "Your quest is saved in the Journal, but we couldn't start the next quest. Please try again.", icon: "alert-circle", color: T.red }); router.replace("/(tabs)/journal"); }
         return;
       }
       router.replace({ pathname: "/(tabs)/journal", params: { completionId: result.completionId } });

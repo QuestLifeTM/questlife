@@ -1,3 +1,4 @@
+import { isQuestLaunchWaiting } from "@/services/engine/quest-launch-state";
 import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
 import * as Location from "expo-location";
@@ -198,7 +199,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
       questId: activeSession.questId,
       startedAt: activeSession.startedAt,
       entryTitle: "",
-      resumeExistingSession: Date.now() - new Date(activeSession.startedAt).getTime() > 15_000,
+      resumeExistingSession: !isQuestLaunchWaiting(activeSession.questId) && Date.now() - new Date(activeSession.startedAt).getTime() > 15_000,
     })
       .then(async () => {
         // The server copy is authoritative for a session restored after login

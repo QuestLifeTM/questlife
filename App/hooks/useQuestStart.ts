@@ -3,6 +3,7 @@ import { Alert } from "react-native";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { abandonMyActiveQuestSession, clearMyActiveQuestRecovery, engineErrorMessage, fetchEngineState } from "@/services/engine/questEngineService";
 import { Sentry } from "@/lib/sentry";
+import { isQuestStartCancelled } from "@/services/engine/focused-quest-start";
 import { Quest } from "@/types/content";
 
 export type QuestStartBlock =
@@ -31,10 +32,12 @@ export function useQuestStart(getQuest: (id?: string) => Quest | null) {
           setBlock({ type: "repeat_quest", quest, repeatXp: Math.round(quest.xp * 0.2) });
           return false;
         }
-        await startQuest(input);
+        const result = await startQuest(input);
+        if (result.navigationHandled) { void refresh().catch(() => undefined); return false; }
         await refresh();
         return true;
       } catch (error) {
+      if (isQuestStartCancelled(error)) return false;
         const message = engineErrorMessage(error);
         if (message.includes("daily limit") || message.includes("5 quests")) {
           setBlock({ type: "daily_limit" });
@@ -95,10 +98,12 @@ export function useQuestStart(getQuest: (id?: string) => Quest | null) {
     try {
       await abandonMyActiveQuestSession();
       await refresh();
-      await startQuest(input);
+      const result = await startQuest(input);
+      if (result.navigationHandled) { void refresh().catch(() => undefined); return false; }
       await refresh();
       return true;
     } catch (error) {
+      if (isQuestStartCancelled(error)) return false;
       const message = engineErrorMessage(error);
       setBlock({ type: "error", message });
       Alert.alert("Couldn't start quest", message);

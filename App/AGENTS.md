@@ -24,3 +24,8 @@
 - Never deploy as part of a UI change unless asked. Local/preview use Development
   Supabase. Production builds must use the production environment and a clean
   Metro cache; verify the embedded project URL before publishing.
+
+- Design preference: use the quest category palette for quest-specific screens and
+  actions, and reuse the app’s raised `SoftButton` style (as in the lobby). Use
+  Rubik typography. Follow an explicitly requested alternate visual theme when
+  provided (for example, red/yellow/green countdown and mood states).

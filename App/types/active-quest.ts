@@ -3,6 +3,8 @@ export type ActiveQuestRouteSegmentState = "active" | "paused";
 
 export type ActiveQuestLocalSession = {
   sessionId: string;
+  completionId?: string;
+  journey?: import("@/services/active-quest/journey-model").QuestJourney;
   questId: string;
   startedAt: string;
   recordingState: ActiveQuestRecordingState;

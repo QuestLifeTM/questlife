@@ -1,6 +1,7 @@
 import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 
+import { useFocusedQuestStart } from "@/hooks/use-focused-quest-start";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   abandonQuestSession,
@@ -22,7 +23,7 @@ type QuestEngineContextValue = {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  startQuest: (input: { questId: string; source?: "explore" | "saved" | "social" }) => Promise<{ sessionId: string; mode: "focused" | "flexible" }>;
+  startQuest: (input: { questId: string; source?: "explore" | "saved" | "social" }) => Promise<{ sessionId: string; mode: "focused" | "flexible"; navigationHandled?: boolean }>;
   abandonActiveQuest: (sessionId?: string) => Promise<void>;
   completeQuest: (input: CompleteQuestInput) => Promise<CompletionResult>;
   resetTodaySoloCompletions: () => Promise<number>;
@@ -102,9 +103,14 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     return () => subscription.remove();
   }, [restoreAppSession]);
 
-  const startQuest = useCallback(
+  const createQuest = useCallback(
     async (input: { questId: string; source?: "explore" | "saved" | "social" }) => {
       const session = await startQuestSession(input);
+      if (Platform.OS === "ios" && session.mode === "focused") {
+        setEngine(current => current ? { ...current, doingNowSession: { id: session.sessionId, questId: input.questId, source: input.source ?? "explore", startedAt: new Date().toISOString() } } : current);
+        void recordActiveQuestAppOpen().catch(() => undefined);
+        return session;
+      }
       if (session.mode === "focused") await recordActiveQuestAppOpen().catch(() => undefined);
       try {
         setEngine(await fetchEngineState());
@@ -123,6 +129,8 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     },
     [],
   );
+
+  const { startQuest, startFlow } = useFocusedQuestStart(createQuest, setEngine);
 
   const abandonActiveQuest = useCallback(async (sessionId = engine?.doingNowSession?.id) => {
     if (!sessionId) return;
@@ -204,7 +212,7 @@ export function QuestEngineProvider({ children }: PropsWithChildren) {
     ],
   );
 
-  return <QuestEngineContext.Provider value={value}>{children}</QuestEngineContext.Provider>;
+  return <QuestEngineContext.Provider value={value}>{children}{startFlow}</QuestEngineContext.Provider>;
 }
 
 export function useQuestEngine() {
