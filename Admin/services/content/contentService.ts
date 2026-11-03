@@ -19,6 +19,7 @@ import {
 } from "@/types/content";
 
 type QuestRow = {
+  personalization?: Quest["sideTasks"];
   id: string;
   title: string;
   category: string;
@@ -205,6 +206,7 @@ function mapQuest(
     title: row.title,
     category,
     xp: row.experience_points,
+    sideTasks: row.personalization ?? [],
     description: row.description,
     steps: row.steps ?? [],
     timeMin: row.estimated_minutes,
@@ -681,10 +683,16 @@ export async function upsertQuest(input: QuestFormInput & { id?: string }) {
   if (userError) throw userError;
   const categoryColor = questCategoryColors[input.category]?.text ?? input.color;
 
+  for (const task of input.sideTasks ?? []) {
+    if (!task.id || !task.title.trim() || !task.description.trim() || !["photo", "video", "note"].includes(task.kind)
+      || !Number.isInteger(task.xp) || task.xp < 0 || !Number.isFinite(task.waitMinutes) || task.waitMinutes < 0
+      || !Number.isFinite(task.expiryMinutes) || task.expiryMinutes <= 0) throw new Error("Complete each side task with a title, description, valid XP and timing.");
+  }
   const payload = {
     title: input.title.trim(),
     category: input.category,
     experience_points: input.xp,
+    personalization: input.sideTasks ?? [],
     description: input.description.trim(),
     steps: input.steps.map((step) => step.trim()).filter(Boolean),
     estimated_minutes: input.timeMin,

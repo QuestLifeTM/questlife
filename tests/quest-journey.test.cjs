@@ -105,3 +105,28 @@ test('deleting a rewarded timeline item cannot recreate its prompt or reward res
   assert.equal(snapshot.activity.length, 0);
   assert.ok(!model.availablePrompts(900000, snapshot.session.journey).some(p => p.id === prompt.id));
 });
+
+test('personalized mood boundaries and paused wall time', () => {
+ const journey = { ...model.emptyJourney(), version: 2, tasks: [] };
+ const mood = elapsed => model.availablePrompts(elapsed, journey).find(p => p.kind === 'mood');
+ assert.equal(mood(0).xp, 0);
+ assert.equal(mood(299999).id, 'mood:0');
+ assert.equal(mood(300000).xp, 10);
+ assert.equal(mood(749999).id, 'mood:1');
+ assert.equal(mood(750000).id, 'mood:2');
+ assert.equal(mood(1200000).id, 'mood:3');
+ assert.equal(model.journeyElapsedMs({ startedAt: new Date(0).toISOString(), journey, recordingState: 'paused', activeDurationMs: 0, activeSince: null }, 750000), 750000);
+});
+test('personalized tasks advance on completion, dismissal and expiry without stacking', () => {
+ const tasks = ['a','b'].map(id => ({ id, title:id, description:id, kind:'note', xp:17, waitMinutes:5, expiryMinutes:3 }));
+ const journey = { ...model.emptyJourney(), version:2, tasks };
+ const side = (elapsed, j=journey) => model.availablePrompts(elapsed,j).filter(p=>p.kind !== 'mood');
+ assert.equal(side(299999).length,0);
+ assert.equal(side(300000)[0].id,'task:a');
+ assert.equal(side(480000).length,0);
+ assert.equal(side(780000)[0].id,'task:b');
+ assert.equal(side(960000).length,0);
+ assert.equal(side(610000,{...journey,ended:{'task:a':310000},dismissed:['task:a']})[0].id,'task:b');
+ assert.equal(side(610000,{...journey,events:[{prompt:{id:'task:a'},activeElapsedMs:310000}]})[0].id,'task:b');
+ assert.equal(side(99999999).length,0);
+});

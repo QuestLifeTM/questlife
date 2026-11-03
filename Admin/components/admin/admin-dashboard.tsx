@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Alert, Animated, Easing, Pressable, ScrollView, Switch, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { AccessibilityInfo, Alert, Animated, Easing, PanResponder, Pressable, ScrollView, Switch, Text, TextInput, View, useWindowDimensions } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useContent } from "@/contexts/ContentContext";
@@ -274,6 +274,7 @@ function asForm(quest: Quest): QuestFormInput {
     timeMin: quest.timeMin,
     title: quest.title,
     xp: quest.xp,
+    sideTasks: quest.sideTasks ?? [],
   };
 }
 
@@ -907,6 +908,7 @@ function QuestForm({
   onChange: (form: QuestFormInput) => void;
   t: Theme;
 }) {
+  const taskHeights = useRef<Record<string, number>>({});
   const editable = !archived;
   const categoryAccent = questCategoryColors[form.category]?.text ?? form.color ?? nova.blue;
   const updateStep = (index: number, value: string) => {
@@ -917,6 +919,31 @@ function QuestForm({
 
   return (
     <View style={{ gap: 18 }}>
+      <View style={{ gap: 12 }}>
+        <FormSectionLabel t={t}>Personalization</FormSectionLabel>
+        <Text style={{ color: t.faint }}>Side tasks appear in order, one at a time. Timers continue while paused.</Text>
+        {(form.sideTasks ?? []).map((task, index) => {
+          const update = (patch: Partial<typeof task>) => onChange({ ...form, sideTasks: form.sideTasks!.map((item, i) => i === index ? { ...item, ...patch } : item) });
+          const move = (offset: number) => { const tasks = [...form.sideTasks!]; const target = index + offset; if (target < 0 || target >= tasks.length) return; [tasks[index], tasks[target]] = [tasks[target], tasks[index]]; onChange({ ...form, sideTasks: tasks }); };
+          return <View key={task.id} onLayout={event => { taskHeights.current[task.id] = event.nativeEvent.layout.height; }} style={{ borderWidth: 1, borderColor: categoryAccent + "40", borderRadius: 18, padding: 16, gap: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: categoryAccent, fontWeight: "800" }}>Side task {index + 1}</Text><View accessibilityLabel="Drag to reorder side task" {...PanResponder.create({ onStartShouldSetPanResponder: () => editable, onMoveShouldSetPanResponder: () => editable, onPanResponderRelease: (_, gesture) => {
+              let distance = Math.abs(gesture.dy); const direction = gesture.dy < 0 ? -1 : 1; let target = index;
+              while (target + direction >= 0 && target + direction < form.sideTasks!.length) { const threshold = (taskHeights.current[form.sideTasks![target + direction].id] ?? 400) / 2; if (distance < threshold) break; distance -= threshold * 2; target += direction; }
+              if (target !== index) { const tasks = [...form.sideTasks!]; const [moved] = tasks.splice(index,1); tasks.splice(target,0,moved); onChange({ ...form, sideTasks: tasks }); }
+            } }).panHandlers} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}><Ionicons name="reorder-three-outline" size={26} color={categoryAccent} /></View></View>
+            <Field editable={editable} label="Task title" t={t} value={task.title} onChangeText={title => update({ title })} />
+            <Field editable={editable} label="Description" t={t} value={task.description} onChangeText={description => update({ description })} />
+            <NumberField editable={editable} label="XP reward" t={t} value={task.xp} onChange={xp => update({ xp })} />
+            <ChoiceGrid minItemWidth={90} options={["photo", "video", "note"] as const} t={t} value={task.kind} onChange={kind => editable && update({ kind })} />
+            <NumberField editable={editable} label="Wait before appearing (minutes)" t={t} value={task.waitMinutes} onChange={waitMinutes => update({ waitMinutes })} />
+            <NumberField editable={editable} label="Expires after (minutes)" t={t} value={task.expiryMinutes} onChange={expiryMinutes => update({ expiryMinutes })} />
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+              {[{ label: "Move up", action: () => move(-1), disabled: index === 0 }, { label: "Move down", action: () => move(1), disabled: index === form.sideTasks!.length - 1 }, { label: "Remove", action: () => onChange({ ...form, sideTasks: form.sideTasks!.filter(item => item.id !== task.id) }), disabled: false }].map(action => <Pressable key={action.label} accessibilityRole="button" accessibilityLabel={`${action.label}: ${task.title || `task ${index + 1}`}`} disabled={!editable || action.disabled} onPress={action.action} style={{ minHeight: 44, justifyContent: "center", opacity: !editable || action.disabled ? 0.35 : 1 }}><Text style={{ color: categoryAccent, fontWeight: "700" }}>{action.label}</Text></Pressable>)}
+            </View>
+          </View>;
+        })}
+        <Pressable accessibilityRole="button" disabled={!editable} onPress={() => onChange({ ...form, sideTasks: [...(form.sideTasks ?? []), { id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`, title: "", description: "", xp: 10, kind: "photo", waitMinutes: 5, expiryMinutes: 3 }] })} style={{ minHeight: 44, justifyContent: "center" }}><Text style={{ color: categoryAccent, fontWeight: "800" }}>+ Add side task</Text></Pressable>
+      </View>
       <Field editable={editable} label="Quest title" t={t} value={form.title} onChangeText={(title) => onChange({ ...form, title })} placeholder="e.g. Sunrise Photo Walk" />
       <View style={{ gap: 10 }}>
         <FormSectionLabel t={t}>Category</FormSectionLabel>

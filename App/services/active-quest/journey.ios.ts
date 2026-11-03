@@ -4,7 +4,7 @@ import * as FileSystem from "@/lib/device-files";
 import { supabase } from "@/lib/supabase";
 import { localUserRoot } from "@/services/local-data/lifecycle";
 import { requireLocalDataOwner, getLocalDataOwner, areLocalDataWritesBlocked } from "@/services/local-data/owner";
-import { getCompletedLocalJourney, getActiveQuestSnapshot, putJourneyEvent, updateJourneyEvent } from "./local-store.ios";
+import { getCompletedLocalJourney, getActiveQuestSnapshot, putJourneyEvent, updateJourneyEvent, updateActiveQuestSession } from "./local-store.ios";
 import { emptyJourney, validateJourneyEvent, type JourneyEvent, type QuestJourney } from "./journey-model";
 
 const BUCKET = "quest-moments";
@@ -44,9 +44,19 @@ export function syncQuestJourney(sessionId: string): Promise<void> {
   const task = previous.catch(() => undefined).then(async () => {
     assertOwner(owner);
     const snapshot = await getActiveQuestSnapshot(sessionId);
-    if (!snapshot?.session.journey?.events.some(event => event.syncState !== "synced")) return;
+    if (!snapshot) return;
+    const dismissals = snapshot.session.journey?.version === 2 ? Object.entries(snapshot.session.journey.ended ?? {}).sort((a,b) => a[1]-b[1]) : [];
+    async function flushDismissals(before: number) {
+      while (dismissals.length && dismissals[0][1] <= before) {
+        const [id, elapsed] = dismissals[0];
+        const result = await supabase.rpc("dismiss_quest_side_task", { p_session_id: sessionId, p_prompt_id: id, p_elapsed: Math.floor(elapsed) });
+        if (result.error) throw result.error;
+        dismissals.shift();
+      }
+    }
     await syncActiveQuestRecord(sessionId);
     for (const event of snapshot?.session.journey?.events ?? []) {
+      await flushDismissals(event.activeElapsedMs);
       if (event.syncState === "synced") continue;
       try {
         assertOwner(owner);
@@ -107,6 +117,7 @@ export function syncQuestJourney(sessionId: string): Promise<void> {
         throw error;
       }
     }
+    await flushDismissals(Infinity);
   });
   syncing.set(key, task);
   void task.finally(() => { if (syncing.get(key) === task) syncing.delete(key); }).catch(() => undefined);
@@ -156,4 +167,17 @@ export async function fetchCompletedQuestJourney(completionId: string) {
     if (local) return local;
     throw error;
   }
+}
+
+export async function initializeQuestPersonalization(sessionId: string) {
+  const owner = requireLocalDataOwner();
+  if (owner === "guest") return;
+  const { data, error } = await supabase.rpc("initialize_quest_personalization", { p_session_id: sessionId });
+  if (error) throw error;
+  assertOwner(owner);
+  if (!data) return;
+  const snapshot = await getActiveQuestSnapshot(sessionId);
+  if (!snapshot) return;
+  const journey = snapshot.session.journey ?? emptyJourney();
+  await updateActiveQuestSession(sessionId, { journey: { ...journey, version: 2, tasks: data.tasks, ended: { ...(data.ended ?? {}), ...journey.ended } } });
 }

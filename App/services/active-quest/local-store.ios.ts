@@ -1,4 +1,4 @@
-import { emptyJourney, validateJourneyEvent, type JourneyEvent } from "./journey-model";
+import { journeyElapsedMs, emptyJourney, validateJourneyEvent, type JourneyEvent } from "./journey-model";
 import * as FileSystem from "@/lib/device-files";
 
 import { ActiveQuestActivity, ActiveQuestActivityKind, ActiveQuestLocalSession, ActiveQuestPhoto, ActiveQuestRecordingState, ActiveQuestRoutePoint, ActiveQuestRouteSegment, ActiveQuestSnapshot } from "@/types/active-quest";
@@ -273,7 +273,7 @@ export async function getActiveQuestSnapshot(sessionId: string): Promise<ActiveQ
   return { session, route, renderRoute, renderSegments, photoCount: photos.length, photos, activity };
 }
 
-export async function updateActiveQuestSession(sessionId: string, changes: Partial<Pick<ActiveQuestLocalSession, "recordingState" | "pausedAt" | "activeSince" | "activeDurationMs" | "distanceMeters" | "entryTitle" | "entryBody" | "trackingStatus" | "lastLocationAt" | "completionSyncState" | "completionId">>) {
+export async function updateActiveQuestSession(sessionId: string, changes: Partial<Pick<ActiveQuestLocalSession, "recordingState" | "pausedAt" | "activeSince" | "activeDurationMs" | "distanceMeters" | "entryTitle" | "entryBody" | "trackingStatus" | "lastLocationAt" | "completionSyncState" | "completionId" | "journey">>) {
   return mutate((store) => {
     const current = store.sessions[sessionId];
     if (!current) return null;
@@ -540,7 +540,7 @@ export async function dismissJourneyPrompt(sessionId: string, id: string) {
     const session = store.sessions[sessionId];
     if (!session) return;
     const journey = session.journey ?? emptyJourney();
-    store.sessions[sessionId] = { ...session, journey: { ...journey, dismissed: [...new Set([...journey.dismissed, id])] } };
+    store.sessions[sessionId] = { ...session, journey: { ...journey, dismissed: [...new Set([...journey.dismissed, id])], ended: { ...journey.ended, [id]: journeyElapsedMs(session) } } };
   });
 }
 

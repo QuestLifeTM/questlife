@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { AppState, Pressable, ScrollView, Text, View } from "react-native";
 import Svg, { Circle, Line, Polyline } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
-import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
+import Animated, { FadeIn, ZoomIn, LinearTransition, useSharedValue, useAnimatedStyle, withSequence, withTiming, cancelAnimation } from "react-native-reanimated";
 import { T } from "./theme";
 import { MoodForm } from "./journal-mood-check-in.ios";
 import { QuestNotification, QuestSectionPlaceholder, QuestVideoMoment } from "./quest-activity-ui.ios";
@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useActiveQuest } from "@/contexts/ActiveQuestContext";
 import { useActiveQuestElapsedDuration } from "@/hooks/useElapsedTime";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
-import { availablePrompts, activeElapsedMs, emptyJourney, type QuestJourney, type JourneyEvent, type QuestPrompt } from "@/services/active-quest/journey-model";
+import { availablePrompts, journeyElapsedMs, emptyJourney, type QuestJourney, type JourneyEvent, type QuestPrompt } from "@/services/active-quest/journey-model";
 import { dismissJourneyPrompt } from "@/services/active-quest/local-store.ios";
 import { saveJourneyEvent, syncQuestJourney, fetchCompletedQuestJourney } from "@/services/active-quest/journey.ios";
 import { toLocalDateKey } from "@/services/journal/journalService";
@@ -76,15 +76,22 @@ export function QuestJourneyTimelineRow({ event, accent, last = false }: { event
 export function QuestJourneyPanel({ accent, suppressed, onCapture, onNote }: { accent: string; suppressed: boolean; onCapture: (prompt: QuestPrompt) => void; onNote: (prompt: QuestPrompt) => void }) {
   const { user } = useAuth();
   const { snapshot } = useActiveQuest();
-  const elapsed = useActiveQuestElapsedDuration(snapshot?.session);
-  const reduced = useReducedMotionPreference();
+  const legacyElapsed = useActiveQuestElapsedDuration(snapshot?.session);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const refresh = () => { if (timer) clearInterval(timer); if (AppState.currentState === "active") { setNow(Date.now()); timer = setInterval(() => setNow(Date.now()), 1000); } };
+    refresh(); const subscription = AppState.addEventListener("change", refresh);
+    return () => { if (timer) clearInterval(timer); subscription.remove(); };
+  }, []);
+  const elapsed = snapshot?.session.journey?.version === 2 ? journeyElapsedMs(snapshot.session, now) : legacyElapsed;
   const [moodOpen, setMoodOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   if (!snapshot || !user) return null;
   const journey = snapshot.session.journey ?? emptyJourney();
   const prompts = availablePrompts(elapsed, journey);
-  const moodBonusAvailable = prompts.some(prompt => prompt.kind === "mood");
+  const moodPrompt = prompts.find(prompt => prompt.kind === "mood");
   const moodNotificationId = prompts.find(prompt => prompt.kind === "mood")?.id ?? "mood:anytime";
   const pending = journey.events.some(e => e.syncState !== "synced");
   const xp = journey.events.reduce((sum, e) => sum + e.xp, 0);
@@ -96,21 +103,21 @@ export function QuestJourneyPanel({ accent, suppressed, onCapture, onNote }: { a
     finally { setRetrying(false); }
   }
   async function dismiss(id: string) {
-    try { await dismissJourneyPrompt(snapshot!.session.sessionId, id); }
+    try { await dismissJourneyPrompt(snapshot!.session.sessionId, id); void syncQuestJourney(snapshot!.session.sessionId).catch(() => undefined); }
     catch { setError("Couldn’t dismiss this suggestion. Try again."); }
   }
-  const showMood = !journey.dismissed.includes(moodNotificationId);
-  const creativePrompts = snapshot.session.recordingState === "recording" ? prompts.filter(prompt => prompt.kind !== "mood") : [];
+  const showMood = Boolean(moodPrompt);
+  const creativePrompts = prompts.filter(prompt => prompt.kind !== "mood");
   if (suppressed || (!showMood && !creativePrompts.length && !xp && !pending && !error && !moodOpen)) return null;
   return <View style={{ gap: 12 }}>
-    {showMood && <QuestNotification title="Mood check-in" detail={moodBonusAvailable ? "How are you feeling? · +5 XP" : "How are you feeling? · Check in anytime"} icon="happy-outline" accent={accent} onOpen={() => setMoodOpen(true)} onDismiss={() => dismiss(moodNotificationId)} />}
-    {creativePrompts.map(prompt => <Animated.View key={prompt.id} entering={FadeIn.duration(reduced ? 120 : 180)} layout={reduced ? undefined : LinearTransition.duration(180)}>
-      <QuestNotification title={prompt.kind === "capture" ? "Capture a little moment" : "Write a quick note"} detail={`${prompt.kind === "capture" ? "Photo or video" : "A sentence is enough"} · +10 XP`} icon={prompt.kind === "capture" ? "camera-outline" : "create-outline"} accent={accent} onOpen={() => prompt.kind === "capture" ? onCapture(prompt) : onNote(prompt)} onDismiss={() => dismiss(prompt.id)} />
-    </Animated.View>)}
+    {showMood && <QuestNotification title="Mood check-in" detail={moodPrompt?.xp ? `How are you feeling? · +${moodPrompt.xp} XP` : "How are you feeling?"} icon="happy-outline" accent={accent} onOpen={() => setMoodOpen(true)} onDismiss={() => dismiss(moodNotificationId)} />}
+    {creativePrompts.map(prompt => <SideTaskMotion key={prompt.id} remaining={(prompt.expiresMs ?? Infinity) - elapsed}>
+      <QuestNotification title={prompt.title ?? (prompt.kind === "capture" ? "Capture a little moment" : "Write a quick note")} detail={`${prompt.description ?? (prompt.kind === "capture" ? "Photo or video" : "A sentence is enough")} · +${prompt.xp} XP`} countdown={prompt.expiresMs === undefined ? undefined : `${Math.floor(Math.ceil(Math.max(0, prompt.expiresMs - elapsed) / 1000) / 60)}:${String(Math.ceil(Math.max(0, prompt.expiresMs - elapsed) / 1000) % 60).padStart(2, "0")}`} icon={prompt.kind === "capture" ? "camera-outline" : "create-outline"} accent={accent} onOpen={() => prompt.kind === "capture" ? onCapture(prompt) : onNote(prompt)} onDismiss={() => dismiss(prompt.id)} />
+    </SideTaskMotion>)}
     {xp > 0 || pending ? <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><Text accessibilityLiveRegion="polite" style={{ flex: 1, color: T.muted, fontFamily: "Rubik", fontSize: 12 }}>{xp > 0 ? `+${xp} bonus XP earned` : "Moments saved"}{pending ? " · Sync / XP pending" : ""}</Text>{pending ? <Pressable accessibilityRole="button" disabled={retrying} onPress={() => void retry()} style={{ minHeight: 44, justifyContent: "center" }}><Text style={{ color: T.dark, fontFamily: "RubikBold" }}>{retrying ? "Syncing…" : "Retry"}</Text></Pressable> : null}</View> : null}
     {error ? <Text accessibilityRole="alert" style={{ color: T.red }}>{error}</Text> : null}
     {moodOpen ? <MoodForm ownerId={user.id} entryDate={toLocalDateKey(new Date())} mood={null} editable saving={false} checkInOnly onClose={() => setMoodOpen(false)} onSave={async mood => {
-      const elapsedNow = activeElapsedMs(snapshot.session);
+      const elapsedNow = journeyElapsedMs(snapshot.session);
       const prompt = availablePrompts(elapsedNow, journey).find(p => p.kind === "mood");
       await saveJourneyEvent(snapshot.session.sessionId, { kind: "mood", mood, activeElapsedMs: elapsedNow, prompt });
       return true;
@@ -130,4 +137,23 @@ export function CompletedQuestJourney({ completionId }: { completionId: string }
   if (error) return <Pressable accessibilityRole="button" onPress={() => setRetry(n => n + 1)} style={{ minHeight: 44 }}><Text style={{ color: T.muted }}>Mood journey couldn’t load. Tap to retry.</Text></Pressable>;
   if (!journey.events.length) return null;
   return <View style={{ gap: 16 }}><QuestMoodGraph events={journey.events} /><QuestJourneyVideos events={journey.events} />{journey.events.some(e => e.xp > 0) ? <Text style={{ color: T.muted, fontFamily: "Rubik" }}>+{journey.events.reduce((sum, e) => sum + e.xp, 0)} activity bonus XP earned during this quest</Text> : null}</View>;
+}
+
+function SideTaskMotion({ remaining, children }: { remaining: number; children: React.ReactNode }) {
+  const reduced = useReducedMotionPreference();
+  const rotation = useSharedValue(0);
+  const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation.get()}deg` }] }));
+  const urgent = remaining <= 60000;
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const refresh = () => {
+      if (timer) clearInterval(timer); cancelAnimation(rotation); rotation.set(0);
+      if (!reduced && AppState.currentState === "active") timer = setInterval(() => {
+        rotation.set(withSequence(withTiming(-1.5, { duration: 90 }), withTiming(1.5, { duration: 120 }), withTiming(-0.7, { duration: 100 }), withTiming(0, { duration: 100 })));
+      }, urgent ? 4000 : 10000);
+    };
+    refresh(); const subscription = AppState.addEventListener("change", refresh);
+    return () => { if (timer) clearInterval(timer); subscription.remove(); cancelAnimation(rotation); };
+  }, [reduced, urgent, rotation]);
+  return <Animated.View entering={reduced ? FadeIn.duration(120) : ZoomIn.springify().damping(18).stiffness(180)} layout={reduced ? undefined : LinearTransition.duration(180)} style={style}>{children}</Animated.View>;
 }

@@ -1,3 +1,4 @@
+import { initializeQuestPersonalization } from "@/services/active-quest/journey.ios";
 import { hydrateQuestJourney, syncQuestJourney } from "@/services/active-quest/journey.ios";
 import { getQuestLaunchState, subscribeQuestLaunch, failQuestPreparation, isQuestLaunchWaiting } from "@/services/engine/quest-launch-state.ios";
 import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -217,6 +218,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
       resumeExistingSession: !isQuestLaunchWaiting(activeSession.questId) && Date.now() - new Date(activeSession.startedAt).getTime() > 15_000,
     })
       .then(async () => {
+        if (!isGuestSession) await initializeQuestPersonalization(activeSession.id).catch(() => undefined);
         // The server copy is authoritative for a session restored after login
         // or on another device. If it is temporarily unavailable, retain the
         // local session rather than clearing any in-progress work.

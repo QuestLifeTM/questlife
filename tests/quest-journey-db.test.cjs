@@ -30,6 +30,7 @@ before(async () => {
     create trigger completion_xp after insert on public.quest_completions for each row execute function public.fixture_completion_xp();
   `);
   await db.exec(fs.readFileSync('supabase/migrations/20261103173147_ios_quest_journey_rewards.sql', 'utf8'));
+  await db.exec(fs.readFileSync('supabase/migrations/20261103224411_personalized_quest_activities.sql', 'utf8'));
 });
 after(async () => { await db?.close(); });
 beforeEach(async () => {
@@ -94,4 +95,28 @@ test('completion links its exact session and adds only base XP, preserving bonus
   assert.equal(linked.completion_id, result.completionId);
   await save(event());
   assert.equal(await xp(), 105);
+});
+
+test('personalized rewards use server prices, preserve snapshots and reject wrong media', async () => {
+ const tasks = [{id:'one',title:'Observe',description:'Write something',kind:'note',xp:23,waitMinutes:0,expiryMinutes:60}];
+ await db.query('update quests set personalization=$1::jsonb', [JSON.stringify(tasks)]);
+ await db.exec(`update quest_sessions set started_at=now()-interval '5 minutes';`);
+ await db.query('select initialize_quest_personalization($1)',[session]);
+ await db.exec(`update quests set personalization='[]';`);
+ const result = await save(event({id:'task-answer',kind:'note',body:'A bird',promptId:'task:one',activeElapsedMs:300000}));
+ assert.equal(result.xp,23);
+ assert.equal((await save(event({id:'task-answer',kind:'note',body:'A bird',promptId:'task:one',activeElapsedMs:300000}))).xp,23);
+ assert.equal(await xp(),23);
+ const mood = await save(event({id:'new-mood',promptId:'mood:1',activeElapsedMs:300000}));
+ assert.equal(mood.xp,10);
+ assert.equal(await xp(),33);
+});
+test('personalized dismissal starts next wait and cannot dismiss future tasks', async () => {
+ const tasks = ['one','two'].map(id=>({id,title:id,description:id,kind:'note',xp:23,waitMinutes:1,expiryMinutes:3}));
+ await db.query('update quests set personalization=$1::jsonb',[JSON.stringify(tasks)]);
+ await db.exec(`update quest_sessions set started_at=now()-interval '5 minutes';`);
+ await db.query('select initialize_quest_personalization($1)',[session]);
+ await assert.rejects(db.query('select dismiss_quest_side_task($1,$2,$3)',[session,'task:two',60000]));
+ await db.query('select dismiss_quest_side_task($1,$2,$3)',[session,'task:one',70000]);
+ assert.equal((await db.query('select resolve_quest_side_task($1,$2) as p',[session,130000])).rows[0].p.id,'task:two');
 });

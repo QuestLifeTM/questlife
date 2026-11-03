@@ -11,7 +11,7 @@ import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { QuestVideo } from "./quest-video.ios";
 
 export type QuestCapture = { id: string; uri: string; kind: "photo" | "video"; durationSeconds?: number; mimeType: string };
-export function QuestCamera({ accent, onClose, onSave }: { accent: string; onClose: () => void; onSave: (capture: QuestCapture, caption: string) => Promise<void> }) {
+export function QuestCamera({ accent, onClose, onSave, responseKind }: { responseKind?: "photo" | "video"; accent: string; onClose: () => void; onSave: (capture: QuestCapture, caption: string) => Promise<void> }) {
   const reduced = useReducedMotionPreference();
   const { contentWidth, height, insets } = useResponsiveScreenLayout(560);
   const camera = useRef<CameraView>(null);
@@ -22,7 +22,7 @@ export function QuestCamera({ accent, onClose, onSave }: { accent: string; onClo
   const dismiss = () => { dismissal.set(withTiming(1, { duration: reduced ? 120 : 220 }, done => { if (done) scheduleOnRN(onClose); })); };
   const [permission, requestPermission] = useCameraPermissions();
   const [microphone, requestMicrophone] = useMicrophonePermissions();
-  const [mode, setMode] = useState<"picture" | "video">("picture");
+  const [mode, setMode] = useState<"picture" | "video">(responseKind === "video" ? "video" : "picture");
   const [facing, setFacing] = useState<"back" | "front">("back");
   const [muted, setMuted] = useState(false);
   const [ready, setReady] = useState(false);
@@ -71,6 +71,10 @@ export function QuestCamera({ accent, onClose, onSave }: { accent: string; onClo
   async function shutter() {
     if (recordingRef.current) { camera.current?.stopRecording(); return; }
     if (!ready || lock.current || !camera.current) return;
+    if (mode === "video" && !microphone?.granted && !muted) {
+      const result = await requestMicrophone();
+      if (!result.granted) { Alert.alert("Video sound is off", "You can record a silent video.", [{ text: "Cancel", style: "cancel" }, { text: "Use silent video", onPress: () => setMuted(true) }]); return; }
+    }
     lock.current = true; setBusy(true); setError(null);
     try {
       if (mode === "picture") {
@@ -121,7 +125,7 @@ export function QuestCamera({ accent, onClose, onSave }: { accent: string; onClo
               </View>}
               <View style={{ position: "absolute", bottom: 16, left: 16, right: 16, gap: 16, alignItems: "center" }}>
                 <View style={{ flexDirection: "row", borderRadius: 24, backgroundColor: T.white, borderWidth: 1, borderColor: T.border, paddingHorizontal: 12 }}>
-                  {(["picture", "video"] as const).map(value => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: mode === value, disabled: busy }} disabled={busy} onPress={() => void chooseMode(value)} style={{ minHeight: 44, paddingHorizontal: 18, justifyContent: "center" }}><Text style={{ color: mode === value ? accent : T.muted, fontFamily: "RubikBold" }}>{value === "picture" ? "Photo" : "Video"}</Text></Pressable>)}
+                  {(["picture", "video"] as const).filter(value => !responseKind || value === (responseKind === "photo" ? "picture" : "video")).map(value => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: mode === value, disabled: busy }} disabled={busy} onPress={() => void chooseMode(value)} style={{ minHeight: 44, paddingHorizontal: 18, justifyContent: "center" }}><Text style={{ color: mode === value ? accent : T.muted, fontFamily: "RubikBold" }}>{value === "picture" ? "Photo" : "Video"}</Text></Pressable>)}
                 </View>
                 <Pressable accessibilityRole="button" accessibilityLabel={recording ? "Stop recording" : mode === "picture" ? "Take photo" : "Record video"} disabled={!recording && (!ready || busy)} onPress={() => void shutter()} style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 3, borderColor: accent, backgroundColor: T.white, padding: 5, opacity: !ready ? 0.4 : 1, alignItems: "center", justifyContent: "center" }}><View style={{ width: recording ? 30 : 60, height: recording ? 30 : 60, borderRadius: recording ? 8 : 30, backgroundColor: mode === "video" ? T.red : accent }} /></Pressable>
                 {muted && mode === "video" ? <Text style={{ color: "white" }}>Silent video</Text> : null}

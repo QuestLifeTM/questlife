@@ -1,0 +1,279 @@
+import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import {
+  adminPermissions,
+  AdminMembership,
+  AdminPermission,
+  Quest,
+  QuestFormInput,
+  QuestStatus,
+  questCategoryColors,
+  normalizeQuestCategory,
+} from "@/types/content";
+
+type QuestRow = {
+  personalization?: Quest["sideTasks"];
+  id: string;
+  title: string;
+  category: string;
+  experience_points: number;
+  description: string;
+  steps: string[] | null;
+  estimated_minutes: number;
+  difficulty: Quest["difficulty"];
+  quest_mode: Quest["mode"];
+  status: QuestStatus;
+  featured: boolean;
+  accent_color: string;
+  review_note: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  published_at: string | null;
+  archived_at: string | null;
+};
+
+type AdminMembershipRow = {
+  permissions: AdminPermission[] | null;
+  role: AdminMembership["role"];
+  user_id: string;
+};
+
+function assertSupabaseConfigured() {
+  if (!isSupabaseConfigured) {
+    throw new Error(SUPABASE_CONFIG_ERROR);
+  }
+}
+
+export function formatTimeLabel(minutes: number) {
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes === 60) return "1 hour";
+  const hours = minutes / 60;
+  if (Number.isInteger(hours)) return `${hours} hours`;
+  return `${Number(hours.toFixed(1))} hours`;
+}
+
+function mapQuest(row: QuestRow, savedDates: Map<string, string>, completedIds: Set<string>): Quest {
+  const category = normalizeQuestCategory(row.category);
+  return {
+    id: row.id,
+    title: row.title,
+    category,
+    xp: row.experience_points,
+    sideTasks: row.personalization ?? [],
+    description: row.description,
+    steps: row.steps ?? [],
+    timeMin: row.estimated_minutes,
+    timeLabel: formatTimeLabel(row.estimated_minutes),
+    difficulty: row.difficulty,
+    mode: row.quest_mode ?? "focused",
+    status: row.status,
+    featured: row.featured,
+    color: questCategoryColors[category].text,
+    saved: savedDates.has(row.id),
+    savedAt: savedDates.get(row.id) ?? null,
+    completed: completedIds.has(row.id),
+    createdBy: row.created_by,
+    createdByLabel: null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    publishedAt: row.published_at,
+    archivedAt: row.archived_at,
+    reviewNote: row.review_note,
+    reviewedAt: row.reviewed_at,
+    reviewedBy: row.reviewed_by,
+  };
+}
+
+async function fetchSavedQuestDates(userId: string) {
+  const { data, error } = await supabase
+    .from("saved_quests")
+    .select("quest_id, created_at")
+    .eq("user_id", userId);
+
+  if (error) throw error;
+
+  return new Map((data ?? []).map((item) => [item.quest_id as string, item.created_at as string]));
+}
+
+async function fetchCompletedQuestIds(userId: string) {
+  const { data, error } = await supabase
+    .from("quest_completions")
+    .select("quest_id")
+    .eq("user_id", userId);
+
+  if (error) throw error;
+
+  return new Set((data ?? []).map((item) => item.quest_id as string));
+}
+
+async function fetchQuestRows(admin: boolean) {
+  const baseColumns = "id, title, category, personalization, experience_points, description, steps, estimated_minutes, difficulty, status, featured, accent_color, review_note, reviewed_at, reviewed_by, created_by, updated_by, created_at, updated_at, published_at, archived_at";
+  const load = async (includeMode: boolean) => {
+    let query = supabase
+      .from("quests")
+      .select(includeMode ? `${baseColumns}, quest_mode` : baseColumns)
+      .order("updated_at", { ascending: false });
+
+    if (!admin) query = query.eq("status", "published");
+    return query.returns<QuestRow[]>();
+  };
+
+  let { data, error } = await load(true);
+
+  // Deploying the mobile app ahead of the database migration must not blank
+  // Explore. Older projects simply treat every existing quest as focused.
+  if (error && /quest_mode|PGRST204|column .* does not exist/i.test(error.message)) {
+    ({ data, error } = await load(false));
+    data = (data ?? []).map((row) => ({ ...row, quest_mode: "focused" }));
+  }
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function fetchContentLibrary({ admin = false, userId }: { admin?: boolean; userId?: string } = {}) {
+  assertSupabaseConfigured();
+  const resolvedUserId = userId ?? (await supabase.auth.getUser()).data.user?.id;
+  if (!resolvedUserId) return { quests: (await fetchQuestRows(admin)).map((row) => mapQuest(row, new Map(), new Set())) };
+
+  const [savedDates, completedIds] = await Promise.all([
+    fetchSavedQuestDates(resolvedUserId),
+    fetchCompletedQuestIds(resolvedUserId),
+  ]);
+
+  const questRows = await fetchQuestRows(admin);
+  return { quests: questRows.map((row) => mapQuest(row, savedDates, completedIds)) };
+}
+
+/** Content-only refresh for admin-published changes; user state stays in memory. */
+export async function fetchPublishedQuestCatalog() {
+  assertSupabaseConfigured();
+  const questRows = await fetchQuestRows(false);
+  return questRows.map((row) => mapQuest(row, new Map(), new Set()));
+}
+
+export async function getAdminMembership(): Promise<AdminMembership | null> {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) return null;
+
+  const { data, error } = await supabase
+    .from("admin_memberships")
+    .select("user_id, role, permissions")
+    .eq("user_id", userData.user.id)
+    .maybeSingle<AdminMembershipRow>();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  return {
+    permissions: data.role === "super_admin"
+      ? [...adminPermissions]
+      : (data.permissions ?? []).filter((permission): permission is AdminPermission =>
+        (adminPermissions as readonly string[]).includes(permission),
+      ),
+    role: data.role,
+    userId: data.user_id,
+  };
+}
+
+export async function upsertQuest(input: QuestFormInput & { id?: string }) {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  const categoryColor = questCategoryColors[input.category]?.text ?? input.color;
+
+  for (const task of input.sideTasks ?? []) {
+    if (!task.id || !task.title.trim() || !task.description.trim() || !["photo", "video", "note"].includes(task.kind)
+      || !Number.isInteger(task.xp) || task.xp < 0 || !Number.isFinite(task.waitMinutes) || task.waitMinutes < 0
+      || !Number.isFinite(task.expiryMinutes) || task.expiryMinutes <= 0) throw new Error("Complete each side task with a title, description, valid XP and timing.");
+  }
+  const payload = {
+    title: input.title.trim(),
+    category: input.category,
+    experience_points: input.xp,
+    personalization: input.sideTasks ?? [],
+    description: input.description.trim(),
+    steps: input.steps.map((step) => step.trim()).filter(Boolean),
+    estimated_minutes: input.timeMin,
+    difficulty: input.difficulty,
+    quest_mode: input.mode,
+    status: input.status,
+    featured: input.featured,
+    accent_color: categoryColor,
+    review_note: input.reviewNote?.trim() || null,
+    published_at: input.status === "published" ? new Date().toISOString() : null,
+    archived_at: input.status === "archived" ? new Date().toISOString() : null,
+    updated_by: userData.user?.id ?? null,
+    ...(input.id ? {} : { created_by: userData.user?.id ?? null }),
+  };
+
+  const query = input.id
+    ? supabase.from("quests").update(payload).eq("id", input.id)
+    : supabase.from("quests").insert(payload);
+
+  const { data, error } = await query.select("*").single<QuestRow>();
+  if (error) throw error;
+
+  await writeAudit(input.id ? "quest.updated" : "quest.created", "quest", data.id, {
+    status: input.status,
+    title: input.title,
+  });
+
+  return mapQuest(data, new Map(), new Set());
+}
+
+export async function toggleSavedQuest(questId: string, saved: boolean) {
+  assertSupabaseConfigured();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error("No authenticated user.");
+
+  if (saved) {
+    const { error } = await supabase.from("saved_quests").delete().match({
+      quest_id: questId,
+      user_id: userData.user.id,
+    });
+    if (error) throw error;
+    return false;
+  }
+
+  // A saved quest is immutable membership, so this must be an idempotent
+  // INSERT rather than an UPSERT. Supabase's default UPSERT emits
+  // `ON CONFLICT DO UPDATE`, which requires UPDATE permission even when the
+  // row does not yet exist. Users deliberately have only select/insert/delete
+  // access to this RLS-protected table.
+  const { error } = await supabase.from("saved_quests").upsert(
+    {
+      quest_id: questId,
+      user_id: userData.user.id,
+    },
+    {
+      ignoreDuplicates: true,
+      onConflict: "user_id,quest_id",
+    },
+  );
+  if (error) throw error;
+  return true;
+}
+
+async function writeAudit(
+  action: string,
+  targetType: string,
+  targetId: string,
+  metadata: Record<string, unknown>,
+) {
+  const { data: userData } = await supabase.auth.getUser();
+  await supabase.from("admin_audit_log").insert({
+    action,
+    actor_user_id: userData.user?.id ?? null,
+    metadata,
+    target_id: targetId,
+    target_type: targetType,
+  });
+}

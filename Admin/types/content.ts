@@ -40,7 +40,10 @@ export const questCategoryColors: Record<QuestCategory, { text: string; bg: stri
   "WILD CARD": { text: "#D14DFF", bg: "#FAE9FF" },
 };
 
+export type QuestSideTask = { id: string; title: string; description: string; xp: number; kind: "photo" | "video" | "note"; waitMinutes: number; expiryMinutes: number };
+
 export type Quest = {
+  sideTasks?: QuestSideTask[];
   id: string;
   title: string;
   category: QuestCategory;
@@ -88,6 +91,7 @@ export type AdventurePack = {
 };
 
 export type QuestFormInput = {
+  sideTasks?: QuestSideTask[];
   title: string;
   category: QuestCategory;
   xp: number;

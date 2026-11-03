@@ -24,8 +24,8 @@ export function QuestSectionPlaceholder({ accent, icon, title, detail, loading =
 }
 
 /** Drag reveals intent immediately; releasing past the threshold commits once. */
-export function QuestNotification({ title, detail, icon, accent, onOpen, onDismiss }: {
-  title: string; detail: string; icon: Icon; accent: string; onOpen: () => void; onDismiss: () => Promise<void>;
+export function QuestNotification({ title, detail, icon, accent, onOpen, onDismiss, countdown }: {
+  title: string; detail: string; countdown?: string; icon: Icon; accent: string; onOpen: () => void; onDismiss: () => Promise<void>;
 }) {
   const reduced = useReducedMotionPreference();
   const x = useSharedValue(0);
@@ -64,7 +64,7 @@ export function QuestNotification({ title, detail, icon, accent, onOpen, onDismi
     <Animated.View accessible={false} style={[{ position: "absolute", inset: 0, backgroundColor: T.red, justifyContent: "center", alignItems: "flex-end", paddingHorizontal: 20 }, dismissReveal]}><Ionicons name="trash-outline" color={T.onAccent} size={25} /><Text style={{ color: T.onAccent, fontFamily: "RubikBold", fontSize: 11, marginTop: 4 }}>Dismiss</Text></Animated.View>
     <GestureDetector gesture={pan}><Animated.View style={slide}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${title}. ${detail}`} accessibilityHint="Swipe right to open or left to dismiss this suggestion." accessibilityState={{ disabled: pending }} accessibilityActions={[{ name: "activate", label: "Open" }, { name: "dismiss", label: "Dismiss notification" }]} onAccessibilityAction={event => { void commit(event.nativeEvent.actionName === "dismiss"); }} disabled={pending} onPress={() => void commit(false)} style={({ pressed }) => ({ minHeight: 72, padding: 16, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: T.raised, borderWidth: 1.5, borderColor: `${accent}40`, borderRadius: 20, opacity: pressed ? 0.85 : 1 })}>
-        <Ionicons name={icon} size={25} color={accent} /><View style={{ flex: 1, gap: 4 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15 }}>{title}</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 13, lineHeight: 18 }}>{detail}</Text></View><Ionicons name="arrow-forward" size={19} color={accent} />
+        <Ionicons name={icon} size={25} color={accent} /><View style={{ flex: 1, gap: 4 }}><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 15 }}>{title}</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 13, lineHeight: 18 }}>{detail}</Text>{countdown ? <View style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 12, backgroundColor: `${accent}14`, paddingHorizontal: 8, paddingVertical: 4 }}><Ionicons name="time-outline" size={12} color={accent} /><Text accessibilityLabel={`Expires in ${countdown}`} style={{ color: accent, fontFamily: "RubikBold", fontSize: 11, fontVariant: ["tabular-nums"] }}>{countdown} left</Text></View> : null}</View><Ionicons name="arrow-forward" size={19} color={accent} />
       </Pressable>
     </Animated.View></GestureDetector>
   </View>;
