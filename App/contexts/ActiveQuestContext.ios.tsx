@@ -161,6 +161,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const appStateSubscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
+        void retryCompletedRouteSync().catch(() => undefined);
         if (activeSession && !isGuestSession) void syncQuestJourney(activeSession.id).catch(() => undefined);
         void reload().catch(() => setTrackingMessage("Saved route could not be loaded. Check device storage."));
         if (snapshot?.session.trackingStatus === "tracking") {
@@ -171,7 +172,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
       }
     });
     return () => appStateSubscription.remove();
-  }, [reload, snapshot?.session.sessionId, snapshot?.session.trackingStatus, startForegroundLocationWatch, stopForegroundLocationWatch]);
+  }, [reload, retryCompletedRouteSync, snapshot?.session.sessionId, snapshot?.session.trackingStatus, startForegroundLocationWatch, stopForegroundLocationWatch]);
 
   useEffect(() => {
     if (snapshot?.session.trackingStatus === "tracking") {

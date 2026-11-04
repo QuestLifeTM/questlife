@@ -1,5 +1,6 @@
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { readUploadBytes } from "@/services/media/upload-bytes";
 import { compressFeedImage } from "@/services/media/feed-image";
 import { normalizeQuestCategory, Quest } from "@/types/content";
 import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMood, journalMoods } from "@/types/journal";
@@ -318,8 +319,7 @@ export async function uploadJournalMedia(localUri: string): Promise<string> {
   if (!userData.user) throw new Error("No authenticated user.");
 
   const compressedUri = await compressFeedImage(localUri);
-  const response = await fetch(compressedUri);
-  const blob = await response.arrayBuffer();
+  const blob = await readUploadBytes(compressedUri);
   const extension = "jpg";
   const path = `${userData.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
   const contentType = "image/jpeg";

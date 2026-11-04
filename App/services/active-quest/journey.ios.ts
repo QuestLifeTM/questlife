@@ -97,6 +97,7 @@ export function syncQuestJourney(sessionId: string): Promise<void> {
           const base64 = await FileSystem.readAsStringAsync(event.uri, { encoding: FileSystem.EncodingType.Base64 });
           const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
           assertOwner(owner);
+          if (!bytes.byteLength) throw new Error("The captured file is empty. Capture this moment again.");
           const uploaded = await supabase.storage.from(BUCKET).upload(remotePath, bytes, { contentType: event.mimeType, upsert: true });
           if (uploaded.error) throw uploaded.error;
           assertOwner(owner);
@@ -113,7 +114,7 @@ export function syncQuestJourney(sessionId: string): Promise<void> {
         await updateJourneyEvent(sessionId, event.id, { syncState: "synced", xp: result.data?.xp ?? 0, error: undefined });
       } catch (error) {
         assertOwner(owner);
-        await updateJourneyEvent(sessionId, event.id, { syncState: "failed", error: "Saved on this device. Sync will retry; bonus XP is pending." });
+        await updateJourneyEvent(sessionId, event.id, { syncState: "failed", error: `Saved on this device. Sync will retry; bonus XP is pending. ${error instanceof Error ? error.message : (error as { message?: string })?.message ?? "Upload or save failed."}` });
         throw error;
       }
     }
@@ -132,8 +133,7 @@ export async function fetchQuestJourney(sessionId: string): Promise<QuestJourney
     const event = row.event as JourneyEvent;
     if (event.remotePath) {
       const { data: media, error: mediaError } = await supabase.storage.from(BUCKET).createSignedUrl(event.remotePath, 3600);
-      if (mediaError) throw mediaError;
-      event.uri = media.signedUrl;
+      event.uri = mediaError ? undefined : media?.signedUrl;
       if (event.thumbnailRemotePath) {
         const { data: poster } = await supabase.storage.from(BUCKET).createSignedUrl(event.thumbnailRemotePath, 3600);
         event.thumbnailUri = poster?.signedUrl;
@@ -160,7 +160,9 @@ export async function fetchCompletedQuestJourney(completionId: string) {
     const events = new Map(remote.events.map(event => [event.id, event]));
     for (const event of local?.events ?? []) {
       const synced = events.get(event.id);
-      events.set(event.id, synced ? { ...synced, uri: event.uri ?? synced.uri, thumbnailUri: event.thumbnailUri ?? synced.thumbnailUri } : event);
+      const localUri = event.uri && !/^https?:/i.test(event.uri) && await FileSystem.getInfoAsync(event.uri).then(info => info.exists).catch(() => false) ? event.uri : undefined;
+      const localThumbnail = event.thumbnailUri && !/^https?:/i.test(event.thumbnailUri) && await FileSystem.getInfoAsync(event.thumbnailUri).then(info => info.exists).catch(() => false) ? event.thumbnailUri : undefined;
+      events.set(event.id, synced ? { ...synced, uri: localUri ?? synced.uri, thumbnailUri: localThumbnail ?? synced.thumbnailUri } : { ...event, uri: localUri, thumbnailUri: localThumbnail });
     }
     return { ...remote, events: [...events.values()] };
   } catch (error) {

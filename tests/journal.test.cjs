@@ -29,7 +29,7 @@ function service(tables = {}, signed = []) {
   };
   return { calls, api: load('App/services/journal/journalService.ts', {
     '@/lib/env': {}, '@/lib/supabase': { isSupabaseConfigured: true, supabase },
-    '@/services/media/feed-image': {}, '@/types/content': { normalizeQuestCategory: (value) => value },
+    '@/services/media/upload-bytes': {}, '@/services/media/feed-image': {}, '@/types/content': { normalizeQuestCategory: (value) => value },
     '@/types/journal': { journalMoods: ['sad', 'neutral', 'happy'] },
   }) };
 }
