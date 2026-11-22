@@ -1,3 +1,7 @@
+import { createSyncCoordinator } from "./sync-coordinator";
+import { syncChanged } from "./sync-revisions";
+import { createRetryPolicy } from "./retry-policy";
+const retryPolicy = createRetryPolicy();
 import { getLocalDataOwner } from "@/services/local-data/owner";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { getActiveQuestSnapshot, hydrateActiveQuestRecord, setActiveQuestRecordingState, markRoutePointsSynced } from "@/services/active-quest/local-store";
@@ -13,18 +17,13 @@ const activeRouteSyncs = new Map<string, Promise<void>>();
  * idempotent: a crash between a network response and local state update simply
  * upserts the same snapshot/points/media next time the app becomes active.
  */
-const syncQueue = new Map<string, Promise<void>>();
+const coordinateSync = createSyncCoordinator();
 export function syncActiveQuestRecord(sessionId: string): Promise<void> {
   const owner = getLocalDataOwner();
-  const key = `${owner}:${sessionId}`;
-  const previous = syncQueue.get(key) ?? Promise.resolve();
-  const next = previous.catch(() => undefined).then(async () => {
+  return coordinateSync(`${owner}:${sessionId}`, async () => {
     if (!owner || getLocalDataOwner() !== owner) return;
     await performSync(sessionId, owner);
   });
-  syncQueue.set(key, next);
-  void next.finally(() => { if (syncQueue.get(key) === next) syncQueue.delete(key); }).catch(() => undefined);
-  return next;
 }
 async function performSync(sessionId: string, owner: string) {
   if (!isSupabaseConfigured) return;
@@ -59,7 +58,7 @@ async function performSync(sessionId: string, owner: string) {
     await markRoutePointsSynced(sessionId, batch.at(-1)!.id);
   }
 
-  const snapshotResult = await supabase.from("quest_session_snapshots").upsert({
+  const snapshotPayload = {
     session_id: session.sessionId,
     user_id: userId,
     quest_id: session.questId,
@@ -80,21 +79,21 @@ async function performSync(sessionId: string, owner: string) {
     })),
     route_segments: session.routeSegments,
     updated_at: session.updatedAt,
-  }, { onConflict: "session_id" });
-  if (snapshotResult.error) throw snapshotResult.error;
+  };
+  await syncChanged(`${owner}:${sessionId}:snapshot`, snapshotPayload, () => supabase.from("quest_session_snapshots").upsert(snapshotPayload, { onConflict: "session_id" }));
 
 
 
   const uploadedMedia = snapshot.photos.filter((photo) => !photo.isTutorialMock && photo.remotePath);
   if (uploadedMedia.length) {
-    const mediaResult = await supabase.from("quest_session_media").upsert(uploadedMedia.map((photo) => ({
+    const mediaPayload = uploadedMedia.map((photo) => ({
       session_id: session.sessionId,
       user_id: userId,
       client_media_id: `${session.sessionId}-${photo.id}`,
       captured_at: photo.capturedAt,
       storage_url: photo.remotePath,
-    })), { onConflict: "session_id,client_media_id" });
-    if (mediaResult.error) throw mediaResult.error;
+    }));
+    await syncChanged(`${owner}:${sessionId}:media`, mediaPayload, () => supabase.from("quest_session_media").upsert(mediaPayload, { onConflict: "session_id,client_media_id" }));
   }
 
   const activityRows = snapshot.activity.filter((item) => !item.isTutorialMock).map((item) => ({
@@ -109,8 +108,7 @@ async function performSync(sessionId: string, owner: string) {
     client_photo_id: item.photoId === null ? null : `${session.sessionId}-${item.photoId}`,
   }));
   if (activityRows.length) {
-    const activityResult = await supabase.from("quest_session_activity").upsert(activityRows, { onConflict: "session_id,client_activity_id" });
-    if (activityResult.error) throw activityResult.error;
+    await syncChanged(`${owner}:${sessionId}:activity`, activityRows, () => supabase.from("quest_session_activity").upsert(activityRows, { onConflict: "session_id,client_activity_id" }));
   }
 }
 
@@ -236,8 +234,8 @@ export async function pauseAndFlushCurrentUsersActiveQuest() {
 /** Persists route progress periodically without issuing a write per GPS update. */
 export function queueActiveQuestRouteSync(sessionId: string) {
   const now = Date.now();
-  if (now - (lastRouteSyncAt.get(sessionId) ?? 0) < ROUTE_SYNC_INTERVAL_MS || activeRouteSyncs.has(sessionId)) return;
+  if (!retryPolicy.ready(`${getLocalDataOwner()}:${sessionId}`) || now - (lastRouteSyncAt.get(sessionId) ?? 0) < ROUTE_SYNC_INTERVAL_MS || activeRouteSyncs.has(sessionId)) return;
   lastRouteSyncAt.set(sessionId, now);
-  const task = syncActiveQuestRecord(sessionId).catch(() => undefined).finally(() => activeRouteSyncs.delete(sessionId));
+  const task = syncActiveQuestRecord(sessionId).then(() => retryPolicy.success(`${getLocalDataOwner()}:${sessionId}`), () => retryPolicy.failure(`${getLocalDataOwner()}:${sessionId}`)).finally(() => activeRouteSyncs.delete(sessionId));
   activeRouteSyncs.set(sessionId, task);
 }

@@ -18,4 +18,5 @@ export type MoodFormProps = Omit<JournalMoodCheckInProps, "onSave"> & {
   onCountdownFinished?: () => void;
   countdownSessionId?: string;
   checkInOnly?: boolean;
+  successXp?: number;
 };

@@ -18,7 +18,37 @@ export type QuestAlbum = {
   title: string;
   date: string;
   items: AlbumMedia[];
+  category?: string;
+  grouped?: boolean;
 };
+export type AlbumGrouping = "quest" | "week" | "month" | "category";
+
+export function groupAlbums(albums: QuestAlbum[], grouping: AlbumGrouping): QuestAlbum[] {
+  if (grouping === "quest") return albums;
+  const groups = new Map<string, QuestAlbum>();
+  const seen = new Set<string>();
+  for (const album of albums) for (const item of album.items) {
+    const identity = item.path ? `${item.bucket}:${item.path}` : item.localUri ?? `${album.id}:${item.id}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    const captured = new Date(item.capturedAt || album.date);
+    const date = Number.isNaN(captured.getTime()) ? new Date(album.date) : captured;
+    const start = new Date(date.getFullYear(), date.getMonth(), grouping === "month" ? 1 : date.getDate());
+    if (grouping === "week") start.setDate(start.getDate() - start.getDay());
+    const key = grouping === "category" ? album.category ?? "Other" : `${start.getFullYear()}-${start.getMonth() + 1}-${start.getDate()}`;
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    const format = (value: Date) => value.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const title = grouping === "category" ? key.charAt(0).toUpperCase() + key.slice(1).replace(/[_-]/g, " ")
+      : grouping === "month" ? start.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+      : `${format(start)} – ${format(end)}`;
+    const group = groups.get(key) ?? { id: `${grouping}:${key}`, title, date: start.toISOString(), items: [], grouped: true };
+    group.items.push({ ...item, id: `${album.id}:${item.id}` });
+    groups.set(key, group);
+  }
+  return [...groups.values()].map(group => ({ ...group, items: group.items.sort((a, b) => Date.parse(a.capturedAt) - Date.parse(b.capturedAt) || a.id.localeCompare(b.id)) }))
+    .sort((a, b) => grouping === "category" ? a.title.localeCompare(b.title) : b.date.localeCompare(a.date));
+}
 
 export function journeyMedia(events: JourneyEvent[]): AlbumMedia[] {
   return events.filter((event) => event.kind === "photo" || event.kind === "video").map((event) => ({
@@ -47,7 +77,7 @@ export function mergeAlbumMedia(...sources: AlbumMedia[][]): AlbumMedia[] {
 }
 
 export function memoryAlbum(memory: JournalMemory): QuestAlbum {
-  return { id: memory.completionId, completionId: memory.completionId, title: memory.title, date: memory.completedAt,
+  return { id: memory.completionId, completionId: memory.completionId, title: memory.title, date: memory.completedAt, category: memory.category,
     items: memory.photoPaths.map((path, index) => ({ id: `legacy:${index}`, kind: "photo", bucket: "journal-media", path, capturedAt: memory.completedAt })) };
 }
 

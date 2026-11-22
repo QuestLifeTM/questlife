@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AppState, FlatList, Pressable, Text, View, type ViewToken } from "react-native";
+import { AppState, FlatList, Pressable, Text, View } from "react-native";
 import { Image } from "expo-image";
 import Animated, { Easing, FadeIn, FadeInUp, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
@@ -7,13 +7,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { T } from "./theme";
 import { EmptyState, SoftButton } from "./ui";
-import { albumGeometry, journeyMedia, mergeAlbumMedia, type QuestAlbum } from "@/services/journal/album-model";
+import { albumGeometry, groupAlbums, journeyMedia, mergeAlbumMedia, type QuestAlbum } from "@/services/journal/album-model";
 import { getCachedAlbumMedia, getCachedCompletedAlbums, loadCompletedAlbums, resolveAlbumMedia, type ResolvedAlbumMedia } from "@/services/journal/album-media.ios";
 import type { JournalAlbumProps } from "./journal-album.types";
+import { AlbumViewer } from "./album-viewer.ios";
 
 const EASE = Easing.bezier(0.23, 1, 0.32, 1);
 const rotations = ["1deg", "-5deg", "3deg", "-4deg"];
-const AlbumStrip = memo(function AlbumStrip({ album, width, refreshToken, onOpen, reduced }: { album: QuestAlbum; width: number; refreshToken: number; onOpen: (id?: string) => void; reduced: boolean }) {
+const AlbumStrip = memo(function AlbumStrip({ album, width, refreshToken, onOpen, reduced }: { album: QuestAlbum; width: number; refreshToken: number; onOpen: (id: string) => void; reduced: boolean }) {
   const press = useSharedValue(1);
   const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: press.get() }] }));
   const geometry = albumGeometry(width, album.items.length);
@@ -35,10 +36,10 @@ const AlbumStrip = memo(function AlbumStrip({ album, width, refreshToken, onOpen
   return <Animated.View entering={reduced ? FadeIn.duration(100) : FadeInUp.duration(220).easing(EASE).withInitialValues({ opacity: 0, transform: [{ translateY: 10 }] })} style={{ alignItems: "center", paddingTop: 8, paddingBottom: 4 }}>
     <View style={{ width: geometry.width, flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 6 }}>
       <Text style={{ flex: 1, minWidth: 0, color: T.dark, fontFamily: "RubikBlack", fontSize: 18, lineHeight: 22, letterSpacing: 0 }} numberOfLines={2}>{album.title}</Text>
-      <Text style={{ flexShrink: 0, maxWidth: "42%", color: T.muted, fontFamily: "Rubik", fontSize: 11, lineHeight: 16, paddingTop: 3, letterSpacing: 0, textAlign: "right" }} numberOfLines={1}>{new Date(album.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</Text>
+      {!album.grouped ? <Text style={{ flexShrink: 0, maxWidth: "42%", color: T.muted, fontFamily: "Rubik", fontSize: 11, lineHeight: 16, paddingTop: 3, letterSpacing: 0, textAlign: "right" }} numberOfLines={1}>{new Date(album.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</Text> : null}
     </View>
     <Animated.View style={pressStyle}>
-    <Pressable accessibilityRole="button" accessibilityLabel={`${album.title}, ${album.items.length} photos and videos. Open quest.`} onPress={() => onOpen(album.completionId)}
+    <Pressable accessibilityRole="button" accessibilityLabel={`${album.title}, ${album.items.length} photos and videos. Open album.`} onPress={() => onOpen(album.id)}
       onPressIn={() => { press.set(withTiming(reduced ? 1 : 0.985, { duration: 120, easing: EASE })); }}
       onPressOut={() => { press.set(withTiming(1, { duration: 120, easing: EASE })); }}
       style={({ pressed }) => ({ width: geometry.width, height: geometry.height, opacity: pressed ? 0.85 : 1 })}>
@@ -67,6 +68,8 @@ const AlbumStrip = memo(function AlbumStrip({ album, width, refreshToken, onOpen
 export function IOSJournalAlbum(props: JournalAlbumProps) {
   const { user } = useAuth();
   const reduced = useReducedMotionPreference();
+  const [openedAlbum, setOpenedAlbum] = useState<string | null>(null);
+  useEffect(() => { setOpenedAlbum(null); }, [user?.id]);
   const [result, setResult] = useState<{ owner?: string; albums: QuestAlbum[]; warning?: string }>(() => getCachedCompletedAlbums() ?? { albums: [] });
   const [fetching, setFetching] = useState(true);
   const [foreground, setForeground] = useState(0);
@@ -94,10 +97,10 @@ export function IOSJournalAlbum(props: JournalAlbumProps) {
     let current: QuestAlbum[] = [];
     if (snapshot && active?.sessionId === snapshot.session.sessionId) {
       const items = mergeAlbumMedia(snapshot.photos.filter(p => !p.isTutorialMock).map(photo => ({ id: `active:${photo.id}`, kind: "photo" as const, bucket: "journal-media" as const, path: photo.remotePath ?? undefined, localUri: photo.uri, capturedAt: photo.capturedAt })), journeyMedia(snapshot.session.journey?.events ?? []));
-      current = [{ id: active.sessionId, sessionId: active.sessionId, title: active.title, date: active.startedAt, items }];
+      current = [{ id: active.sessionId, sessionId: active.sessionId, title: active.title, date: active.startedAt, category: active.category, items }];
     }
-    return [...current, ...completed].filter(album => album.items.length).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
-  }, [result, props.snapshot, props.data?.activeQuest, user?.id]);
+    return groupAlbums([...current, ...completed].filter(album => album.items.length).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id)), props.grouping ?? "quest");
+  }, [result, props.snapshot, props.data?.activeQuest, props.grouping, user?.id]);
   const albumsRef = useRef(albums);
   albumsRef.current = albums;
   const prefetch = useCallback((start: number) => {
@@ -109,14 +112,15 @@ export function IOSJournalAlbum(props: JournalAlbumProps) {
   }, []);
   useEffect(() => { prefetch(0); }, [albums, prefetch]);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 10, minimumViewTime: 80 }).current;
-  const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken<QuestAlbum>[] }) => {
+  const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: { index?: number | null }[] }) => {
     const last = viewableItems.reduce((max, item) => Math.max(max, item.index ?? 0), 0);
     prefetch(last + 1);
   }, [prefetch]);
   const warning = props.error ?? (result.owner === user?.id ? result.warning : undefined);
   const width = Math.min(props.contentWidth - props.horizontalPadding * 2, 440);
   const pending = props.loading || fetching;
-  return <FlatList data={albums} keyExtractor={album => album.id} style={{ flex: 1 }} showsVerticalScrollIndicator={false}
+  const selectedAlbum = albums.find(album => album.id === openedAlbum);
+  return <><FlatList data={albums} keyExtractor={album => album.id} style={{ flex: 1 }} showsVerticalScrollIndicator={false}
     initialNumToRender={6} windowSize={7} maxToRenderPerBatch={3} updateCellsBatchingPeriod={24}
     viewabilityConfig={viewabilityConfig} onViewableItemsChanged={onViewableItemsChanged} removeClippedSubviews={false}
     onScroll={event => props.onScroll(event.nativeEvent.contentOffset.y)} scrollEventThrottle={16}
@@ -124,5 +128,6 @@ export function IOSJournalAlbum(props: JournalAlbumProps) {
     contentContainerStyle={{ paddingTop: 22, paddingBottom: props.bottomInset + 112, gap: 24 }}
     ListHeaderComponent={warning ? <View style={{ width, alignSelf: "center", gap: 8 }}><Text style={{ color: T.muted, textAlign: "center" }}>{warning}</Text><SoftButton label="Try again" onPress={() => { setForeground(value => value + 1); props.onRefresh(); }} /></View> : undefined}
     ListEmptyComponent={<View style={{ width, alignSelf: "center" }}>{pending ? <View accessibilityRole="progressbar" accessibilityLabel="Loading your albums" style={{ height: 220, justifyContent: "center", alignItems: "center" }}><Text style={{ color: T.muted }}>Loading your albums…</Text></View> : warning ? null : <EmptyState emoji="📷" title="Your album is waiting" body="Photos and videos from your quests will appear here." action={<SoftButton label="Explore quests" onPress={props.onExplore} />} />}</View>}
-    renderItem={({ item }) => <View style={{ width, alignSelf: "center" }}><AlbumStrip key={`${user?.id}:${item.id}`} album={item} width={width} refreshToken={props.refreshToken + foreground} onOpen={props.onOpen} reduced={reduced} /></View>} />;
+    renderItem={({ item }) => <View style={{ width, alignSelf: "center" }}><AlbumStrip key={`${user?.id}:${item.id}`} album={item} width={width} refreshToken={props.refreshToken + foreground} onOpen={setOpenedAlbum} reduced={reduced} /></View>} />
+    {selectedAlbum ? <AlbumViewer key={`${user?.id}:${selectedAlbum.id}`} album={selectedAlbum} onClose={() => setOpenedAlbum(null)} /> : null}</>;
 }

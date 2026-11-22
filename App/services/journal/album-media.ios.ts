@@ -98,13 +98,14 @@ export async function availableLocalUri(uri?: string): Promise<string | undefine
 }
 
 export type ResolvedAlbumMedia = AlbumMedia & { previewUri?: string; error?: string };
-export async function resolveAlbumMedia(items: AlbumMedia[], preferRemote = false): Promise<ResolvedAlbumMedia[]> {
+/** fullMedia resolves the playable video; default resolution stays thumbnail-only for album strips. */
+export async function resolveAlbumMedia(items: AlbumMedia[], preferRemote = false, fullMedia = false): Promise<ResolvedAlbumMedia[]> {
   const owner = prepareCache();
   assertOwner(owner);
   const resolved = await Promise.all(items.map(async (item): Promise<ResolvedAlbumMedia> => {
-    const local = await availableLocalUri(item.kind === "video" ? item.thumbnailUri : item.localUri);
+    const local = await availableLocalUri(item.kind === "video" && !fullMedia ? item.thumbnailUri : item.localUri);
     if (local && !preferRemote) return { ...item, previewUri: local };
-    const path = item.kind === "video" ? item.thumbnailPath : item.path;
+    const path = item.kind === "video" && !fullMedia ? item.thumbnailPath : item.path;
     if (!path && local) return { ...item, previewUri: local };
     if (!path) return { ...item, error: item.kind === "video" ? undefined : "Media is waiting to upload." };
     if (/^https?:/i.test(path)) {

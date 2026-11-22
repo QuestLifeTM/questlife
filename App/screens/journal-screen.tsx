@@ -19,6 +19,8 @@ import { AvatarPile } from "@/components/avatar-pile";
 import { CachedImage } from "@/components/cached-image";
 import { StreakPill } from "@/components/streak-pill";
 import { IOSJournalAlbum } from "@/components/journal-album";
+import { AlbumSortHeader } from "@/components/album-sort-header";
+import type { AlbumGrouping } from "@/services/journal/album-model";
 import { JournalMoodCheckIn } from "@/components/journal-mood-check-in";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, Entrance, Header, IconButton, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
@@ -990,6 +992,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
   const { snapshot: activeQuestSnapshot } = useActiveQuest();
 
   const [tab, setTab] = useState<JournalTab>("journal");
+  const [albumGrouping, setAlbumGrouping] = useState<AlbumGrouping>("quest");
   const contentWidth = isWide && tab === "journal" ? frameWidth - 320 : frameWidth;
   const [mode, setMode] = useState<CalendarMode>("week");
   const [calendarCollapsed, setCalendarCollapsed] = useState(false);
@@ -1263,7 +1266,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
       <View style={{ flex: 1 }}>
         <CollapsibleScrollHeader progress={collapsibleHeader.progress}><View style={{ alignItems: "center" }}>
           <View style={{ width: frameWidth, paddingHorizontal: horizontalPadding, gap: 8, paddingBottom: 8, transform: [{ translateX: safeAreaOffset }] }}>
-            <Entrance><JournalHeader tab={tab} /></Entrance>
+            <Entrance>{Platform.OS === "ios" && tab === "album" ? <AlbumSortHeader grouping={albumGrouping} onChange={setAlbumGrouping} /> : <JournalHeader tab={tab} />}</Entrance>
             <Entrance delay={40}><JournalTabs activeTab={tab} onChange={setTab} /></Entrance>
           </View>
         </View></CollapsibleScrollHeader>
@@ -1315,7 +1318,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
             ListEmptyComponent={<View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>{loading ? <JournalLoadingSkeleton /> : <Card style={{ marginTop: 18, borderRadius: radius.lg }}><EmptyState emoji="!" title="Couldn't load your journal" body={error ?? "Please try again."} action={<SoftButton label="Try again" icon="refresh" onPress={() => void load(true)} />} /></Card>}</View>}
             ListFooterComponent={data && !loading ? <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><BeforeJoinMarker joinDate={join} /></View> : undefined}
           />
-        </View> : tab === "album" ? Platform.OS === "ios" ? <IOSJournalAlbum data={data} snapshot={activeQuestSnapshot} loading={loading} error={error} refreshToken={mediaRefreshToken} contentWidth={contentWidth} horizontalPadding={horizontalPadding} bottomInset={insets.bottom} onRefresh={load} onExplore={goExplore} onOpen={(id) => router.push(id ? `/memory/${id}` : "/active-quest")} onScroll={collapsibleHeader.onScroll} /> : <JournalAlbum items={albumItems} onExplore={goExplore} onManageItem={manageAlbumItem} contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} bottomInset={insets.bottom} mediaRefreshToken={mediaRefreshToken} onScroll={collapsibleHeader.onScroll} /> : <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={(event) => {
+        </View> : tab === "album" ? Platform.OS === "ios" ? <IOSJournalAlbum grouping={albumGrouping} data={data} snapshot={activeQuestSnapshot} loading={loading} error={error} refreshToken={mediaRefreshToken} contentWidth={contentWidth} horizontalPadding={horizontalPadding} bottomInset={insets.bottom} onRefresh={load} onExplore={goExplore} onOpen={(id) => router.push(id ? `/memory/${id}` : "/active-quest")} onScroll={collapsibleHeader.onScroll} /> : <JournalAlbum items={albumItems} onExplore={goExplore} onManageItem={manageAlbumItem} contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} bottomInset={insets.bottom} mediaRefreshToken={mediaRefreshToken} onScroll={collapsibleHeader.onScroll} /> : <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={(event) => {
           // Synthetic scroll events are released after this callback. Read the
           // primitive now rather than inside React's later state updater.
           const offsetY = event.nativeEvent.contentOffset.y;

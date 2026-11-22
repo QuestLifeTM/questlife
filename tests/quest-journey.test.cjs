@@ -64,6 +64,7 @@ function storeHarness() {
   let persisted = null, fail = false, owner = 'alice';
   const store = load('App/services/active-quest/local-store.ios.ts', {
     './journey-model': model,
+    '@/services/active-quest/energy-diagnostics': { energyCount() {} },
     '@/lib/device-files': { documentDirectory: '/local/', readAsStringAsync: async () => { throw new Error('Missing'); } },
     '@/services/active-quest/route-filter': { simplifyRouteForRendering: route => route },
     '@/services/active-quest/measurement': {},

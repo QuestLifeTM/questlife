@@ -1,4 +1,6 @@
 import { syncActiveQuestRecord } from "./sync.ios";
+import { createSyncCoordinator } from "./sync-coordinator";
+import { syncChanged } from "./sync-revisions";
 import * as Crypto from "expo-crypto";
 import * as FileSystem from "@/lib/device-files";
 import { supabase } from "@/lib/supabase";
@@ -8,7 +10,7 @@ import { getCompletedLocalJourney, getActiveQuestSnapshot, putJourneyEvent, upda
 import { emptyJourney, validateJourneyEvent, type JourneyEvent, type QuestJourney } from "./journey-model";
 
 const BUCKET = "quest-moments";
-const syncing = new Map<string, Promise<void>>();
+const coordinateSync = createSyncCoordinator();
 function assertOwner(owner: string) {
   if (getLocalDataOwner() !== owner || areLocalDataWritesBlocked(owner)) throw new Error("Your account changed. Reopen the quest to continue.");
 }
@@ -40,8 +42,7 @@ export function syncQuestJourney(sessionId: string): Promise<void> {
   const owner = requireLocalDataOwner();
   if (owner === "guest") return Promise.resolve();
   const key = `${owner}:${sessionId}`;
-  const previous = syncing.get(key) ?? Promise.resolve();
-  const task = previous.catch(() => undefined).then(async () => {
+  return coordinateSync(key, async () => {
     assertOwner(owner);
     const snapshot = await getActiveQuestSnapshot(sessionId);
     if (!snapshot) return;
@@ -49,8 +50,8 @@ export function syncQuestJourney(sessionId: string): Promise<void> {
     async function flushDismissals(before: number) {
       while (dismissals.length && dismissals[0][1] <= before) {
         const [id, elapsed] = dismissals[0];
-        const result = await supabase.rpc("dismiss_quest_side_task", { p_session_id: sessionId, p_prompt_id: id, p_elapsed: Math.floor(elapsed) });
-        if (result.error) throw result.error;
+        const payload = { p_session_id: sessionId, p_prompt_id: id, p_elapsed: Math.floor(elapsed) };
+        await syncChanged(`${owner}:${sessionId}:dismiss:${id}`, payload, () => supabase.rpc("dismiss_quest_side_task", payload));
         dismissals.shift();
       }
     }
@@ -120,9 +121,6 @@ export function syncQuestJourney(sessionId: string): Promise<void> {
     }
     await flushDismissals(Infinity);
   });
-  syncing.set(key, task);
-  void task.finally(() => { if (syncing.get(key) === task) syncing.delete(key); }).catch(() => undefined);
-  return task;
 }
 
 export async function fetchQuestJourney(sessionId: string): Promise<QuestJourney> {

@@ -75,7 +75,7 @@ function MoodWord({ index, position, reduced, width }: { index: number; position
   return <Animated.Text accessible={false} style={[styles.word, style]}>{OPTIONS[index].heading}</Animated.Text>;
 }
 
-export function MoodForm({ entryDate, mood, editable, onSave, onClose, ownerId, questTitle, onCountdownFinished, countdownSessionId, checkInOnly = false, questCategory, onConfirmStart }: MoodFormProps) {
+export function MoodForm({ entryDate, mood, editable, onSave, onClose, ownerId, questTitle, onCountdownFinished, countdownSessionId, checkInOnly = false, successXp, questCategory, onConfirmStart }: MoodFormProps) {
   const isQuestStart = questTitle !== undefined && !checkInOnly;
   const [countingDown, setCountingDown] = useState(false);
   const [ready, setReady] = useState(isQuestStart);
@@ -245,6 +245,7 @@ export function MoodForm({ entryDate, mood, editable, onSave, onClose, ownerId, 
                 </View>
                 {saved ? <Animated.View entering={reduced ? undefined : FadeIn.duration(220)} style={{ flex: 2, gap: 14, alignItems: "center" }}>
                   <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={[styles.thanks, { color: ink }]}>Thank you for{`\n`}checking in!</Text>
+                  {successXp ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: ink, fontFamily: "RubikBold" }]}>+{successXp} XP gained</Text> : null}
                   <Text style={[styles.message, { color: ink }]}>{OPTIONS[selected].message}</Text>
                 </Animated.View> : !editingNote && !ready && <>
                   <View accessibilityRole="text" accessibilityLabel={`Mood: ${OPTIONS[selected].label}`} style={{ height: 92, justifyContent: "center", overflow: "hidden" }}>

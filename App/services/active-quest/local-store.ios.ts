@@ -1,4 +1,5 @@
 import { journeyElapsedMs, emptyJourney, validateJourneyEvent, type JourneyEvent } from "./journey-model";
+import { energyCount } from "@/services/active-quest/energy-diagnostics";
 import * as FileSystem from "@/lib/device-files";
 
 import { ActiveQuestActivity, ActiveQuestActivityKind, ActiveQuestLocalSession, ActiveQuestPhoto, ActiveQuestRecordingState, ActiveQuestRoutePoint, ActiveQuestRouteSegment, ActiveQuestSnapshot } from "@/types/active-quest";
@@ -128,6 +129,7 @@ async function persistStore(ownerId: string, store: ActiveQuestStore, previous: 
 function mutate<T>(operation: (store: ActiveQuestStore) => T | Promise<T>, observation?: Observation) {
   const ownerId = requireLocalDataOwner();
   const result = mutationQueue.then(async () => {
+    const started = Date.now();
     if (getLocalDataOwner() !== ownerId) throw new Error("Recording owner changed. Retry after signing in.");
     const previous = await loadStore(ownerId);
     // Copy-on-write: a failed transaction must not advance the in-memory distance.
@@ -135,6 +137,9 @@ function mutate<T>(operation: (store: ActiveQuestStore) => T | Promise<T>, obser
     const value = await operation(store);
     await persistStore(ownerId, store, previous, observation?.decision ? observation : undefined);
     cache = store;
+    energyCount("storage.commits");
+    energyCount("storage.milliseconds", Date.now() - started);
+    if (observation?.decision) energyCount(`location.${observation.decision}`);
     return value;
   });
   mutationQueue = result.then(() => undefined, () => undefined);
@@ -259,6 +264,7 @@ export async function getActiveQuestSession(sessionId: string) {
 }
 
 export async function getActiveQuestSnapshot(sessionId: string): Promise<ActiveQuestSnapshot | null> {
+  energyCount("snapshot.reads");
   const session = await getActiveQuestSession(sessionId);
   if (!session) return null;
   await mutationQueue;
