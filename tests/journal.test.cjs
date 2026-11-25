@@ -29,7 +29,7 @@ function service(tables = {}, signed = []) {
   };
   return { calls, api: load('App/services/journal/journalService.ts', {
     '@/lib/env': {}, '@/lib/supabase': { isSupabaseConfigured: true, supabase },
-    '@/services/media/upload-bytes': {}, '@/services/media/feed-image': {}, '@/types/content': { normalizeQuestCategory: (value) => value },
+    '@/services/media/upload-bytes': {}, '@/services/media/feed-image': {}, '@/types/content': load('App/types/content.ts'),
     '@/types/journal': { journalMoods: ['sad', 'neutral', 'happy'] },
   }) };
 }
@@ -70,4 +70,18 @@ test('route permission failures cannot hide existing journal history', async () 
   const journal = await api.fetchJournalData();
   assert.equal(Object.values(journal.memoriesByDate).flat()[0].completionId, 'saved');
   assert.match(journal.warning, /routes and times/);
+});
+
+
+test('journal memories and active quests use the consolidated category and palette', async () => {
+  const { api } = service({
+    quest_completions: [{ id: 'old', quest_id: 'q', created_at: '2026-11-22T12:00:00Z', xp_awarded: 30, quests: { title: 'Old quest', category: 'EVENTS', accent_color: '#FF4D9C' } }],
+    quest_sessions: [{ id: 'active', quest_id: 'q2', status: 'active', started_at: '2026-11-22T12:00:00Z', quests: { title: 'Active quest', category: 'FITNESS', accent_color: '#FF4560' } }],
+  });
+  const journal = await api.fetchJournalData();
+  const memory = Object.values(journal.memoriesByDate).flat()[0];
+  assert.equal(memory.category, 'SOCIAL');
+  assert.equal(memory.color, '#4ACF78');
+  assert.equal(journal.activeQuest.category, 'FITNESS');
+  assert.equal(journal.activeQuest.color, '#FF5C5C');
 });

@@ -1,0 +1,23 @@
+{
+  "sourceFiles": 313,
+  "declarations": 1128,
+  "textElements": 1212,
+  "icons": 386,
+  "appDeclarations": 929,
+  "families": {
+    "Rubik": 133,
+    "RubikBold": 276,
+    "(no family specified)": 385,
+    "RubikBlack": 134,
+    "Rubik, sans-serif": 1
+  },
+  "weights": {
+    "500": 2,
+    "600": 22,
+    "700": 108,
+    "800": 41,
+    "900": 256,
+    "isActive || isToday ? \"900\" : \"700\"": 1
+  },
+  "unresolvedText": 28
+}

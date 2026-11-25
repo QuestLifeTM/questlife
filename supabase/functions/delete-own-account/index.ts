@@ -68,7 +68,9 @@ async function removePartyMedia(adminClient: ReturnType<typeof createClient>, us
   for (const row of posts.data ?? []) for (const path of row.photo_paths ?? []) addStoragePath(path);
   for (const row of completions.data ?? []) for (const path of row.shared_photo_paths ?? []) addStoragePath(path);
   for (const row of parties.data ?? []) addStoragePath(row.photo_path);
-  for (const batch of Array.from(paths).reduce<string[][]>((all, path, index) => {
+  const { data: ownedPaths, error: ownershipError } = await adminClient.rpc("verified_party_media_for_deletion", { p_user: userId, p_paths: Array.from(paths) });
+  if (ownershipError) throw ownershipError;
+  for (const batch of (ownedPaths as string[] ?? []).reduce<string[][]>((all, path, index) => {
     const batchIndex = Math.floor(index / 100);
     (all[batchIndex] ??= []).push(path);
     return all;

@@ -1,0 +1,226 @@
+{
+  "title": "Performance peptides and public protection",
+  "date": "November 6, 2026",
+  "sources": [
+    {
+      "id": "S1",
+      "short": "FDA, Is It Really FDA Approved?",
+      "entry": "U.S. Food and Drug Administration. (n.d.). Is it really \u2018FDA approved\u2019?",
+      "url": "https://www.fda.gov/consumers/consumer-updates/it-really-fda-approved",
+      "use": "FDA approval and its distinction from other regulatory categories."
+    },
+    {
+      "id": "S2",
+      "short": "FDA, Warrior Labz warning letter, 2023",
+      "entry": "U.S. Food and Drug Administration. (2023, June 12). Warrior Labz SARMS (Warning letter 655280).",
+      "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/warrior-labz-sarms-655280-06122023",
+      "use": "A documented case of human-use marketing despite research-only labeling. A warning letter is not a controlled study of enforcement effectiveness."
+    },
+    {
+      "id": "S3",
+      "short": "Teichman et al., 2006",
+      "entry": "Teichman, S. L., Neale, A., Lawrence, B., Gagnon, C., Castaigne, J.-P., & Frohman, L. A. (2006). Prolonged stimulation of growth hormone (GH) and insulin-like growth factor I secretion by CJC-1295, a long-acting analog of GH-releasing hormone, in healthy adults. The Journal of Clinical Endocrinology & Metabolism, 91(3), 799\u2013805.",
+      "url": "https://doi.org/10.1210/jc.2005-1536",
+      "use": "Original randomized trials. Hormone outcomes do not establish athletic recovery benefits."
+    },
+    {
+      "id": "S4",
+      "short": "Lee & Padgett, 2021",
+      "entry": "Lee, E., & Padgett, B. (2021). Intra-articular injection of BPC 157 for multiple types of knee pain. Alternative Therapies in Health and Medicine, 27(4), 8\u201313.",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/34324435/",
+      "use": "Small retrospective clinic report. No randomized control group. The 11 of 12 figure refers to the BPC-157-only subgroup."
+    },
+    {
+      "id": "S5",
+      "short": "FDA, CJC-1295 review, 2024",
+      "entry": "U.S. Food and Drug Administration. (2024). Evaluation of CJC-1295-related bulk drug substances. Briefing document for the December 4 Pharmacy Compounding Advisory Committee meeting.",
+      "url": "https://www.fda.gov/media/183819/download",
+      "use": "Printed pp. 36\u201342, PDF pp. 39\u201345. 63 exposed healthy adults, 46 with single exposure, specifically the DAC form. Historical evidence review, not a present-day legal-status determination."
+    },
+    {
+      "id": "S6",
+      "short": "FDA, BPC-157 review, 2026",
+      "entry": "U.S. Food and Drug Administration. (2026). Evaluation of BPC-157-related bulk drug substances. Briefing document for the July 23\u201324 Pharmacy Compounding Advisory Committee meeting.",
+      "url": "https://www.fda.gov/media/193343/download",
+      "use": "FDA review identifies five small clinical studies and limited safety information. Avoid the claim that BPC-157 has never been studied in humans."
+    },
+    {
+      "id": "S7",
+      "short": "FDA, TB-500 review, 2026",
+      "entry": "U.S. Food and Drug Administration. (2026). Evaluation of TB-500-related bulk drug substances. Briefing document for the July 23\u201324 Pharmacy Compounding Advisory Committee meeting.",
+      "url": "https://www.fda.gov/media/193349/download",
+      "use": "The review found no human clinical studies of TB-500. Do not substitute evidence about the larger parent molecule thymosin beta-4."
+    },
+    {
+      "id": "S8",
+      "short": "Janvier et al., Talanta, 2018",
+      "entry": "Janvier, S., Cheyns, K., Canfyn, M., Goscinny, S., De Spiegeleer, B., Vanhee, C., & Deconinck, E. (2018). Impurity profiling of the most frequently encountered falsified polypeptide drugs on the Belgian market. Talanta, 188, 795\u2013807. https://doi.org/10.1016/j.talanta.2018.06.023",
+      "url": "https://www.sciensano.be/sites/default/files/janvier_et_al._-_2018_-_impurity_profiling_of_the_most_frequently_encounte.pdf",
+      "use": "27 preparations, 10 peptides, three suspected illegal internet pharmacies. Six exceeded the study's arsenic limit and one the lead limit. Selected Belgian-market samples from 2018, not a current US prevalence estimate or BPC-157 study."
+    },
+    {
+      "id": "S9",
+      "short": "HHS, Federal Register notice, Oct. 30, 2026",
+      "entry": "U.S. Department of Health and Human Services. (2026, October 30). Enforcement discretion policy regarding 503A compounding using certain peptide bulk drug substances. Federal Register, 91(209), 68526\u201368527.",
+      "url": "https://www.govinfo.gov/content/pkg/FR-2026-10-30/html/2026-22192.htm",
+      "use": "Notice describes a draft, nonbinding policy with a comment period. The accompanying policy describes interim enforcement discretion."
+    },
+    {
+      "id": "S10",
+      "short": "HHS, draft/interim peptide policy, Oct. 2026",
+      "entry": "U.S. Department of Health and Human Services. (2026). HHS enforcement discretion policy regarding 503A compounding using certain peptide bulk drug substances, with appendices A and B.",
+      "url": "https://www.hhs.gov/sites/default/files/hhs-503a-peptide-enforcement-discretion-policy-appendix-b.pdf",
+      "use": "Conditional compounding access, not FDA approval. HHS's claim that supervised access can reduce risky sourcing is a policy rationale, not measured outcome evidence."
+    },
+    {
+      "id": "S11",
+      "short": "FTC, Health Products Compliance Guidance, 2022",
+      "entry": "Federal Trade Commission. (2022, December). Health products compliance guidance.",
+      "url": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+      "use": "Health advertising needs scientific substantiation. Guidance explains the law; it is not itself a new binding regulation."
+    },
+    {
+      "id": "S12",
+      "short": "FDA, Investigational New Drug Application",
+      "entry": "U.S. Food and Drug Administration. (n.d.). Investigational new drug application (IND).",
+      "url": "https://www.fda.gov/drugs/types-applications/investigational-new-drug-application-ind",
+      "use": "Existing route for qualifying human investigations, with applicable review requirements. Research access is distinct from retail sale."
+    }
+  ],
+  "slides": [
+    {
+      "n": 1,
+      "speaker": "Luke",
+      "title": "Performance peptides\nand public protection",
+      "kind": "cover",
+      "seconds": 35,
+      "sources": [],
+      "script": "A peptide advertised for recovery can sound like an easy answer to an injury. But before deciding how heavily to regulate it, we need to ask what the evidence supports. Our question is: How should U.S. regulators reduce harm from unapproved peptides marketed for performance and recovery? We propose targeted enforcement against unlawful sales and unsupported claims, alongside protected research and careful monitoring. Sofia will first define what our recommendation covers."
+    },
+    {
+      "n": 2,
+      "speaker": "Sofia",
+      "title": "The scope of our question",
+      "kind": "scope",
+      "seconds": 35,
+      "sources": [
+        "S1",
+        "S12"
+      ],
+      "script": "We use performance peptides as a working term for products promoted for recovery or physical enhancement, especially BPC-157, CJC-1295, and TB-500. It is not one official legal category. Our argument does not apply to every peptide medicine. According to the FDA, approval generally requires evidence of safety and effectiveness for a specific use, plus manufacturing quality. Legitimate research also has its own pathway. These distinctions help us target questionable marketing without treating all peptide science as a problem."
+    },
+    {
+      "n": 3,
+      "speaker": "Luke",
+      "title": "Marketing can outrun the evidence",
+      "kind": "marketing",
+      "seconds": 45,
+      "sources": [
+        "S2",
+        "S11"
+      ],
+      "script": "The social issue is the information consumers encounter. In a 2023 warning letter, the FDA documented a seller promoting BPC-157 and TB-500 for human use despite research-only labeling. The seller also used Instagram to direct people to its store. This is one documented example, not a measurement of how common peptide use is. But it shows why a label alone cannot protect consumers. The Federal Trade Commission says health claims need scientific support. Jabi will now examine what the human research actually demonstrates."
+    },
+    {
+      "n": 4,
+      "speaker": "Jabi",
+      "title": "Human evidence shows promise and limits",
+      "kind": "evidence",
+      "seconds": 55,
+      "sources": [
+        "S3",
+        "S4",
+        "S6",
+        "S7"
+      ],
+      "script": "Some effects are real, but they do not automatically prove the benefits consumers want. In two randomized trials, Teichman and colleagues found that CJC-1295 with DAC increased growth hormone and IGF-one. Those hormone changes do not establish faster injury recovery. A 2021 BPC-157 clinic report found that eleven of twelve patients receiving it alone reported less knee pain. However, the study had no randomized control group. FDA's 2026 review identified several small BPC-157 studies, so saying there is no human research would be wrong. For TB-500 itself, FDA found no human clinical studies. The evidence supports further investigation, while leaving major benefit claims unresolved."
+    },
+    {
+      "n": 5,
+      "speaker": "Jabi",
+      "title": "Repeated use remains a safety question",
+      "kind": "safety",
+      "seconds": 45,
+      "sources": [
+        "S5"
+      ],
+      "script": "Safety is a separate question from whether a product has a biological effect. FDA's 2024 review of published CJC-1295 with DAC studies included sixty-three exposed healthy adults. Forty-six received only one dose, about seventy-three percent. Reported reactions included headaches, flushing, and injection-site reactions. That evidence cannot establish the safety of months of repeated use, particularly in different populations. This does not prove that everyone will be harmed. It means claims of long-term safety go beyond what these studies can support."
+    },
+    {
+      "n": 6,
+      "speaker": "Jabi",
+      "title": "Product quality adds another risk",
+      "kind": "quality",
+      "seconds": 45,
+      "sources": [
+        "S8"
+      ],
+      "script": "Even if a compound eventually proves useful, the product someone buys is a separate concern. In a peer-reviewed 2018 study, Janvier and colleagues tested twenty-seven preparations from three suspected illegal online pharmacies. Six exceeded the study's arsenic limit for injectable drugs, and one exceeded its lead limit. These were selected Belgian-market samples involving ten peptides, not a representative survey of today's U.S. market. We cannot turn them into a national contamination rate. They do show why consumers need reliable product oversight. Sofia will explain how regulation already addresses parts of this problem."
+    },
+    {
+      "n": 7,
+      "speaker": "Sofia",
+      "title": "Existing rules and a changing policy",
+      "kind": "regulation",
+      "seconds": 50,
+      "sources": [
+        "S1",
+        "S2",
+        "S9",
+        "S10"
+      ],
+      "script": "The FDA already regulates drugs. Its safety and effectiveness review is central to approval, and a research-only disclaimer does not automatically excuse human-use sales. The policy landscape also changed recently. An October thirtieth HHS notice announced a draft policy describing conditional enforcement discretion for certain pharmacy compounding. Its six-substance list includes BPC-157 and TB-500, but not CJC-1295. These compounded products remain unapproved. HHS argues that controlled access could reduce risky sourcing. That is a rationale to evaluate, not proof of success. Our proposal therefore targets specific violations while respecting distinct medical and research pathways."
+    },
+    {
+      "n": 8,
+      "speaker": "Sofia",
+      "title": "Our proposed FDA and FTC program",
+      "kind": "proposal",
+      "seconds": 55,
+      "sources": [
+        "S2",
+        "S11",
+        "S12"
+      ],
+      "script": "We propose a twelve-month coordinated program. FDA would prioritize investigations of unlawful human-use peptide sales, especially injectable products with unsupported recovery claims. FTC would address deceptive health advertising within its authority, including relevant paid promotions, and coordinate referrals with FDA. The agencies would follow up on cited sellers and publish aggregate results. Genuine laboratory work, properly authorized human studies, and qualifying compounding would remain subject to their own rules. We are proposing an enforcement priority and an evaluation plan using existing authority. We are not claiming that this program already exists, or that every peptide should become a controlled substance."
+    },
+    {
+      "n": 9,
+      "speaker": "Sofia",
+      "title": "A 12-month pilot with follow-up",
+      "kind": "implementation",
+      "seconds": 45,
+      "sources": [],
+      "script": "Our proposed schedule makes that recommendation testable. In months one and two, the agencies would define a manageable sample of sellers and record the claims being made. They would then investigate suspected violations and recheck sellers after applicable response periods. At six and twelve months, they would report the proportion of sampled listings with confirmed violations corrected or removed and the share of cited sellers with repeat violations. These dates are our design choices. Staffing and costs still need an agency estimate. A limited pilot creates a decision point before expanding the program. Luke will compare it with other options."
+    },
+    {
+      "n": 10,
+      "speaker": "Luke",
+      "title": "Why choose targeted enforcement?",
+      "kind": "alternatives",
+      "seconds": 55,
+      "sources": [
+        "S10"
+      ],
+      "script": "Education alone supports consumer choice and could be relatively easy to introduce, but it does not directly remove deceptive claims. A blanket prohibition offers a simple precautionary rule, yet could restrict useful research or push some purchases toward harder-to-monitor sellers. Those are possible consequences, not established predictions. Expanded supervised access is another option. HHS argues it could provide a more controlled alternative, but product-quality safeguards cannot establish clinical effectiveness. We favor targeted enforcement because it connects our social concern about claims with Jabi's scientific concerns and Sofia's existing legal tools. It can also operate alongside appropriate medical access, rather than requiring one rule for every peptide."
+    },
+    {
+      "n": 11,
+      "speaker": "Jabi",
+      "title": "Limits and measures of success",
+      "kind": "limits",
+      "seconds": 50,
+      "sources": [],
+      "script": "Our proposal has limits. Sellers may change websites, and enforcement requires staff who could otherwise address other public-health problems. Restricting access may also burden people seeking treatment, so clear distinctions and a way to correct mistaken enforcement matter. We would track repeat sellers and periodically review the pilot's scope. Even then, fewer online listings would not prove fewer injuries. More adverse-event reports could reflect better reporting instead of greater harm. A later study would need to examine actual exposure and health outcomes. We should judge the pilot by the problems it can measure, while being honest about the questions it cannot answer."
+    },
+    {
+      "n": 12,
+      "speaker": "Luke",
+      "title": "A specific and accountable response",
+      "kind": "conclusion",
+      "seconds": 40,
+      "sources": [],
+      "script": "Our answer is that stronger oversight should focus on demonstrable risks and unlawful conduct. The social evidence supports challenging misleading claims. The scientific evidence supports caution about long-term use and product quality. The regulatory evidence shows that agencies already have tools, although access policy is changing. A targeted twelve-month program brings those findings together while preserving legitimate investigation. We would retain or revise it based on measured results, not assume it guarantees safety. The goal is fewer misleading sales and better evidence for future decisions. Thank you."
+    }
+  ]
+}

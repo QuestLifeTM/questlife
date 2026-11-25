@@ -77,6 +77,14 @@ test('missing local file falls back remotely; present local file survives offlin
   assert.ok((await api.resolveAlbumMedia([photo('a',{localUri:'file://present'})],true))[0].previewUri.startsWith('https:'));
   assert.equal(calls.length,2);
 });
+test('viewer resolves actual video separately from its poster and supports offline playback',async()=>{
+  const {api,calls}=service({files:['file://clip']});
+  const clip=photo('clip',{kind:'video',bucket:'quest-moments',path:'owner/clip.mp4',thumbnailPath:'owner/poster.jpg'});
+  assert.match((await api.resolveAlbumMedia([clip]))[0].previewUri,/poster.jpg/);
+  assert.match((await api.resolveAlbumMedia([clip],false,true))[0].previewUri,/clip.mp4/);
+  assert.equal((await api.resolveAlbumMedia([{...clip,localUri:'file://clip'}],false,true))[0].previewUri,'file://clip');
+  assert.deepEqual(calls.map(call=>call.path),['owner/poster.jpg','owner/clip.mp4']);
+});
 test('legacy signed URL is renewed and repeated resolution obtains a fresh URL',async()=>{
   const {api,calls}=service();
   const item=photo('old',{path:'https://example.supabase.co/storage/v1/object/sign/journal-media/owner/old.jpg?token=expired'});
