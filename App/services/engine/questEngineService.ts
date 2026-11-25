@@ -1,6 +1,5 @@
 import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { toLocalDateKey } from "@/services/journal/journalService";
 import { compressFeedImage } from "@/services/media/feed-image";
 import {
   CompleteQuestInput,
@@ -18,7 +17,7 @@ function assertSupabaseConfigured() {
 }
 
 function today() {
-  return toLocalDateKey(new Date());
+  return new Date().toISOString().slice(0, 10);
 }
 
 /** Translates the RPC error codes into copy the app can show directly. */

@@ -1,16 +1,15 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import type { AudioPlayer } from "expo-audio";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
-import { Accelerometer } from "expo-sensors";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Image, Pressable, ScrollView, Text, View } from "react-native";
-import Animated, { Easing, FadeInUp, cancelAnimation, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ScrollView, Text, View } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming } from "react-native-reanimated";
 
-import { categoryColor, difficultyColor, T } from "@/components/theme";
-import { haptic, Sheet, Tag } from "@/components/ui";
+import { T } from "@/components/theme";
+import { getCompletionPalette } from "@/components/quest-completion-palette";
+import { CompletionMedallion, QuestCompletionScene } from "@/components/quest-completion-scene";
+import { haptic, Sheet, SoftButton } from "@/components/ui";
 import { useNotifications } from "@/contexts/NotificationsContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
 import { useStreaks } from "@/contexts/StreaksContext";
@@ -35,204 +34,14 @@ function RatingStar({ rating, value, onPress }: { rating: number; value: number;
   return <Pressable accessibilityRole="radio" accessibilityState={{ checked: value === rating }} accessibilityLabel={`${rating} star${rating === 1 ? "" : "s"}`} onPress={() => { scale.value = withSequence(withTiming(1.15, { duration: 90 }), withSpring(1, { damping: 13, stiffness: 260 })); onPress(); }} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}><Animated.View style={[{ width: 31, height: 31, alignItems: "center", justifyContent: "center" }, starStyle]}><Ionicons name="star-outline" size={31} color={T.muted} style={{ position: "absolute" }} /><Animated.View pointerEvents="none" style={[{ position: "absolute", width: 31, height: 31 }, fillStyle]}><Ionicons name="star" size={31} color="#f6b90b" style={{ textShadowColor: "rgba(255, 191, 24, 0.9)", textShadowRadius: 10, textShadowOffset: { width: 0, height: 0 } }} /></Animated.View></Animated.View></Pressable>;
 }
 
-function RecapStat({ icon, label, value, color }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; color: string }) {
-  return <View style={{ flex: 1, minWidth: 0, alignItems: "center", gap: 4 }}><Ionicons name={icon} size={19} color={color} /><Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 14, lineHeight: 18, fontVariant: ["tabular-nums"] }} numberOfLines={1}>{value}</Text><Text style={{ color: T.muted, fontSize: 10, lineHeight: 13, fontWeight: "800" }} numberOfLines={1}>{label}</Text></View>;
-}
-
-function CompletionTrophy({ active }: { active: boolean }) {
-  const reducedMotion = useReducedMotionPreference();
-  const tiltX = useSharedValue(0);
-  const tiltY = useSharedValue(0);
-  const floatY = useSharedValue(0);
-  const trophyStyle = useAnimatedStyle(() => ({ transform: [{ translateY: floatY.value + tiltY.value * 2 }, { rotate: `${tiltX.value * 2}deg` }] }));
-  const shineStyle = useAnimatedStyle(() => ({ transform: [{ translateX: tiltX.value * 27 }, { translateY: tiltY.value * -19 }, { rotate: "-25deg" }], opacity: 0.5 + Math.abs(tiltX.value) * 0.3 }));
-
-  useEffect(() => {
-    if (!active || reducedMotion) {
-      cancelAnimation(floatY);
-      floatY.value = 0;
-      tiltX.value = 0;
-      tiltY.value = 0;
-      return;
-    }
-    // A long, shallow drift feels celebratory without the springy "bouncing" motion.
-    floatY.value = withRepeat(withSequence(withTiming(-4, { duration: 2100, easing: Easing.bezier(0.22, 1, 0.36, 1) }), withTiming(2, { duration: 2100, easing: Easing.bezier(0.64, 0, 0.78, 0) })), -1, true);
-    let listening = true;
-    let subscription: { remove: () => void } | undefined;
-    let restingTilt: { x: number; y: number } | undefined;
-    const beginTracking = async () => {
-      try {
-        if (!(await Accelerometer.isAvailableAsync()) || !listening) return;
-        Accelerometer.setUpdateInterval(120);
-        subscription = Accelerometer.addListener(({ x, y }) => {
-          if (!restingTilt) restingTilt = { x, y };
-          const clamp = (value: number) => Math.max(-1, Math.min(1, value));
-          tiltX.value = withTiming(clamp((x - restingTilt.x) / 0.22), { duration: 240, easing: Easing.bezier(0.22, 1, 0.36, 1) });
-          tiltY.value = withTiming(clamp((y - restingTilt.y) / 0.22), { duration: 240, easing: Easing.bezier(0.22, 1, 0.36, 1) });
-        });
-      } catch {
-        // The badge keeps its floating state on simulators and devices without motion sensors.
-      }
-    };
-    void beginTracking();
-    return () => { listening = false; subscription?.remove(); };
-  }, [active, floatY, reducedMotion, tiltX, tiltY]);
-
-  const sparkle = (size: number, color: string, style: object) => <Ionicons pointerEvents="none" name="star" size={size} color={color} style={[{ position: "absolute" }, style]} />;
-  return <View accessible accessibilityLabel="Quest completion trophy" style={{ width: 176, height: 140, alignItems: "center", justifyContent: "center" }}>
-    <View pointerEvents="none" style={{ position: "absolute", width: 132, height: 108, borderRadius: 54, backgroundColor: "rgba(255, 181, 23, 0.13)", shadowColor: "#ffb317", shadowOpacity: 0.32, shadowRadius: 22, shadowOffset: { width: 0, height: 4 } }} />
-    <View pointerEvents="none" style={{ position: "absolute", width: 114, height: 94, borderRadius: 47, backgroundColor: "rgba(255, 215, 103, 0.2)", shadowColor: "#ffbf26", shadowOpacity: 0.34, shadowRadius: 15, shadowOffset: { width: 0, height: 2 } }} />
-    {sparkle(16, "#ffc13a", { top: 12, left: 9 })}
-    {sparkle(9, "#ffe58a", { top: 1, right: 43 })}
-    {sparkle(12, "#ffc13a", { top: 29, left: 0 })}
-    {sparkle(10, "#ffe58a", { top: 55, right: 1 })}
-    {sparkle(21, "#ffbf24", { right: 7, bottom: 13 })}
-    {sparkle(11, "#ffc13a", { left: 29, bottom: 2 })}
-    <View pointerEvents="none" style={{ position: "absolute", top: 73, left: 4, width: 20, height: 7, borderRadius: 99, backgroundColor: "#ffc64d", transform: [{ rotate: "20deg" }] }} />
-    <View pointerEvents="none" style={{ position: "absolute", top: 40, right: 5, width: 20, height: 8, borderRadius: 99, backgroundColor: "#ffbd35", transform: [{ rotate: "-43deg" }] }} />
-    <View pointerEvents="none" style={{ position: "absolute", top: 72, right: 8, width: 8, height: 8, borderRadius: 99, backgroundColor: "#ffe58a" }} />
-    <View pointerEvents="none" style={{ position: "absolute", top: 23, right: 23, width: 6, height: 6, borderRadius: 99, backgroundColor: "#ffbf24" }} />
-    <View pointerEvents="none" style={{ position: "absolute", bottom: 26, left: 13, width: 5, height: 5, borderRadius: 99, backgroundColor: "#ffc13a" }} />
-    <Animated.View style={trophyStyle}><LinearGradient colors={["#fff9e7", "#fff0bc"]} start={{ x: 0.12, y: 0 }} end={{ x: 0.9, y: 1 }} style={{ width: 100, height: 100, borderRadius: 38, alignItems: "center", justifyContent: "center", overflow: "hidden", borderWidth: 4, borderColor: "#ffdc83", shadowColor: "#ffb517", shadowOpacity: 0.3, shadowRadius: 13, shadowOffset: { width: 0, height: 4 } }}>
-      <Ionicons name="trophy" size={53} color="#ffa70f" />
-      <Ionicons pointerEvents="none" name="star" size={19} color={T.onAccent} style={{ position: "absolute", top: 33 }} />
-      {!reducedMotion ? <Animated.View pointerEvents="none" style={[{ position: "absolute", width: 142, height: 138, left: -19, top: -16 }, shineStyle]}><LinearGradient colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.06)", "rgba(255,255,255,0.55)", "rgba(255,255,255,0.06)", "rgba(255,255,255,0)"]} locations={[0, 0.32, 0.5, 0.68, 1]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }} /></Animated.View> : null}
-    </LinearGradient></Animated.View>
-  </View>;
-}
-
-type ConfettiSymbol = "streamer" | "star" | "party" | "cheer";
-type ConfettiPieceConfig = {
-  color: string;
-  kind: "rain" | "cannon";
-  cannonSide?: "left" | "right";
-  startX: number;
-  endX: number;
-  peakY: number;
-  endY: number;
-  delay: number;
-  rotation: number;
-  symbol: ConfettiSymbol;
-};
-
-const confettiColors = [T.yellow, T.pink, T.blue, T.green, T.orange, T.purple, T.teal];
-const confettiSymbols: ConfettiSymbol[] = ["streamer", "streamer", "star", "streamer", "party", "streamer", "star", "cheer"];
-
-const CANNON_CONFETTI: ConfettiPieceConfig[] = (["right", "left"] as const).flatMap((cannonSide) => Array.from({ length: 18 }, (_, index) => {
-  const fromRight = cannonSide === "right";
-  return {
-    color: confettiColors[index % confettiColors.length],
-    kind: "cannon",
-    cannonSide,
-    startX: 0,
-    // Each cannon covers the middle and both outer edges as its burst falls.
-    endX: (fromRight ? -1 : 1) * (110 + (index % 6) * 50),
-    peakY: -(255 + (index % 5) * 18),
-    endY: 250 + (index % 6) * 62,
-    // Both cannons fire as one coordinated burst.
-    delay: 0,
-    rotation: (fromRight ? -1 : 1) * (350 + (index % 6) * 34),
-    symbol: confettiSymbols[index % confettiSymbols.length],
-  };
-}));
-
-const CONFETTI = CANNON_CONFETTI;
-
-function ConfettiPiece({ piece, active, reducedMotion, originPercent }: { piece: ConfettiPieceConfig; active: boolean; reducedMotion: boolean; originPercent: number }) {
-  const x = useSharedValue<number>(0);
-  const y = useSharedValue<number>(0);
-  const rotation = useSharedValue<number>(0);
-  const opacity = useSharedValue<number>(0);
-  const style = useAnimatedStyle(() => ({ opacity: opacity.value, transform: [{ translateX: x.value }, { translateY: y.value }, { rotate: `${rotation.value}deg` }] }));
-  useEffect(() => {
-    if (!active || reducedMotion) return;
-    x.value = 0; y.value = 0; rotation.value = 0; opacity.value = 0;
-    x.value = withDelay(piece.delay, withTiming(piece.endX, { duration: piece.kind === "cannon" ? 2000 : 2800, easing: Easing.out(Easing.quad) }));
-    y.value = withDelay(piece.delay, piece.kind === "cannon"
-      ? withSequence(withTiming(piece.peakY, { duration: 300, easing: Easing.out(Easing.quad) }), withTiming(piece.endY, { duration: 1700, easing: Easing.in(Easing.quad) }))
-      : withTiming(piece.endY, { duration: 2800, easing: Easing.in(Easing.quad) }));
-    rotation.value = withDelay(piece.delay, withTiming(piece.rotation, { duration: piece.kind === "cannon" ? 2000 : 2800, easing: Easing.linear }));
-    opacity.value = withDelay(piece.delay, withSequence(withTiming(1, { duration: 100 }), withDelay(piece.kind === "cannon" ? 1550 : 2320, withTiming(0, { duration: 380 }))));
-  }, [active, piece, reducedMotion, opacity, rotation, x, y]);
-  const symbol = piece.symbol === "star" ? "★" : piece.symbol === "party" ? "🎉" : piece.symbol === "cheer" ? "🙌" : null;
-  const cannonPosition = piece.cannonSide === "right" ? { right: -12 } : { left: -12 };
-  return <Animated.View pointerEvents="none" style={[{ position: "absolute", top: piece.kind === "cannon" ? 315 + (originPercent % 4) * 15 : -28, left: piece.kind === "rain" ? `${piece.startX}%` : undefined, width: symbol ? 30 : 8, height: symbol ? 30 : 21, borderRadius: 4, backgroundColor: symbol ? "transparent" : piece.color, alignItems: "center", justifyContent: "center" }, piece.kind === "cannon" ? cannonPosition : undefined, style]}>{symbol ? <Text style={{ color: piece.symbol === "star" ? piece.color : undefined, fontSize: piece.symbol === "star" ? 28 : 24, lineHeight: 30 }}>{symbol}</Text> : null}</Animated.View>;
-}
-
-function CompletionConfetti({ active }: { active: boolean }) {
-  const reducedMotion = useReducedMotionPreference();
-  if (reducedMotion) return null;
-  return <View pointerEvents="none" style={{ position: "absolute", inset: 0, overflow: "hidden" }}>{CONFETTI.map((piece, index) => <ConfettiPiece key={index} piece={piece} originPercent={(index / (CONFETTI.length - 1)) * 100} active={active} reducedMotion={reducedMotion} />)}</View>;
-}
-
-function QuestMoments({ photoUris, notes, questColor }: { photoUris: string[]; notes: string[]; questColor: string }) {
-  if (!photoUris.length && !notes.length) return null;
-  // Keep every moment equally weighted: a single photo should not grow into a
-  // different layout, and up to three photos stay centered as one tidy row.
-  const photoSize = 96;
-  return <View style={{ padding: 15, gap: 13, borderRadius: 16, backgroundColor: T.white, borderWidth: 1.5, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: T.border }}>
-    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <Ionicons name="images-outline" size={20} color={T.blue} />
-        <Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 16, lineHeight: 21 }}>Moments from your quest</Text>
-      </View>
-      {photoUris.length ? <Text style={{ color: T.muted, fontSize: 11, lineHeight: 15, fontWeight: "800" }}>{`${photoUris.length} photo${photoUris.length === 1 ? "" : "s"}`}</Text> : null}
-    </View>
-    {photoUris.length ? photoUris.length > 3 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}>
-      {photoUris.map((uri, index) => <Image key={`${uri}-${index}`} source={{ uri }} resizeMode="cover" style={{ width: photoSize, height: photoSize, borderRadius: 14, backgroundColor: T.border }} />)}
-    </ScrollView> : <View style={{ flexDirection: "row", justifyContent: "center", gap: 8 }}>
-      {photoUris.map((uri, index) => <Image key={`${uri}-${index}`} source={{ uri }} resizeMode="cover" style={{ width: photoSize, height: photoSize, borderRadius: 14, backgroundColor: T.border }} />)}
-    </View> : null}
-    {notes.map((note, index) => <View key={`${note}-${index}`} style={{ padding: 13, borderRadius: 14, flexDirection: "row", gap: 9, backgroundColor: `${questColor}0d`, borderWidth: 1, borderColor: `${questColor}2b` }}>
-      <Ionicons name="create-outline" size={18} color={questColor} />
-      <Text style={{ flex: 1, color: T.dark, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>{note}</Text>
-    </View>)}
-  </View>;
-}
-
-function tactileEdge(color: string) {
-  const match = /^#([\da-f]{6})$/i.exec(color);
-  if (!match) return `${color}a8`;
-  const channels = [0, 2, 4].map((offset) => Math.round(parseInt(match[1].slice(offset, offset + 2), 16) * 0.72).toString(16).padStart(2, "0"));
-  return `#${channels.join("")}`;
-}
-
-function CompletionActionButton({ label, icon, inverse = false, color, onPress, disabled }: { label: string; icon?: keyof typeof Ionicons.glyphMap; inverse?: boolean; color: string; onPress: () => void; disabled: boolean }) {
-  return <Pressable
-    accessibilityRole="button"
-    accessibilityLabel={label}
-    accessibilityState={{ disabled }}
-    disabled={disabled}
-    onPress={() => { haptic(); onPress(); }}
-    style={({ pressed }) => ({
-      minHeight: 58,
-      paddingHorizontal: 18,
-      borderRadius: 20,
-      backgroundColor: inverse ? T.white : color,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: icon ? 8 : 0,
-      borderWidth: inverse ? 2 : 0,
-      borderColor: inverse ? color : "transparent",
-      borderBottomWidth: pressed && !disabled ? (inverse ? 2 : 3) : (inverse ? 4 : 6),
-      borderBottomColor: inverse ? `${color}88` : tactileEdge(color),
-      opacity: disabled ? 0.5 : 1,
-      transform: [{ scale: pressed && !disabled ? 0.985 : 1 }]
-    })}
-  >
-    {icon ? <Ionicons name={icon} size={18} color={inverse ? color : T.onAccent} /> : null}
-    <Text style={{ color: inverse ? color : T.onAccent, fontFamily: "RubikBold", fontSize: 16, lineHeight: 22 }}>{label}</Text>
-  </Pressable>;
-}
-
 /** A completed quest is committed before this recap is shown, so this sheet is read-only. */
 export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, initialTitle, initialReflection = "", photoUris = [], duration, sessionId, onSaveDraft }: { guestMode?: boolean; visible: boolean; quest: Quest | null; onFinished: (result: CompletionResult, destination: CompletionDestination, details: CompletionShareDetails) => void | Promise<void>; initialTitle?: string; initialReflection?: string; photoUris?: string[]; duration: string; sessionId?: string; onSaveDraft?: (draft: { title: string; body: string }) => Promise<void> }) {
-  const insets = useSafeAreaInsets();
   const { completeQuest } = useQuestEngine();
+  const palette = getCompletionPalette(T.isDark);
   const { refreshNotifications } = useNotifications();
   const { refresh: refreshStreaks } = useStreaks();
   const [rating, setRating] = useState(0);
+  const [pendingDestination, setPendingDestination] = useState<CompletionDestination | null>(null);
   const [ratingError, setRatingError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -241,6 +50,7 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
   const rewardFadeStartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rewardFadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initializedForOpen = useRef(false);
+  const celebrationBeganRef = useRef(false);
   const completionRef = useRef<CompletionResult | null>(null);
   const savingRef = useRef(false);
   const finishingRef = useRef(false);
@@ -249,10 +59,10 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
   const reducedMotion = useReducedMotionPreference();
   const ratingWobbleStyle = useAnimatedStyle(() => ({ transform: [{ translateX: ratingWobble.value }] }));
   useEffect(() => {
-    if (!visible) { initializedForOpen.current = false; completionRef.current = null; savingRef.current = false; finishingRef.current = false; uploadedPhotosRef.current.clear(); setCelebrationStarted(false); return; }
+    if (!visible) { initializedForOpen.current = false; celebrationBeganRef.current = false; completionRef.current = null; savingRef.current = false; finishingRef.current = false; uploadedPhotosRef.current.clear(); setCelebrationStarted(false); return; }
     if (initializedForOpen.current) return;
     initializedForOpen.current = true;
-    setRating(0); setRatingError(false); setBusy(false); setError(null); setCelebrationStarted(false);
+    setRating(0); setPendingDestination(null); setRatingError(false); setBusy(false); setError(null);
     // End quest immediately creates the durable Journal memory. The screen
     // remains locked until the owner chooses a rating and leaves intentionally.
     void persistCompletion();
@@ -260,7 +70,7 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
   useEffect(() => {
     if (!celebrationStarted || !isHapticFeedbackEnabled()) return;
 
-    // The reward feedback starts only after the sheet has visibly landed.
+    // Reward feedback accompanies the illustration's entrance.
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
   }, [celebrationStarted]);
   useEffect(() => () => {
@@ -269,6 +79,8 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
     rewardPlayerRef.current?.release();
   }, []);
   const beginCelebration = useCallback(() => {
+    if (celebrationBeganRef.current) return;
+    celebrationBeganRef.current = true;
     setCelebrationStarted(true);
     try {
       // The import remains deferred so an older Expo client can still render
@@ -361,53 +173,45 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
       await onFinished(completion, destination, { rating, duration });
     } catch (nextError) { setError(engineErrorMessage(nextError)); setBusy(false); } finally { finishingRef.current = false; }
   };
-  const notes = initialReflection.trim() ? [initialReflection.trim()] : [];
-  const validPhotoUris = photoUris.filter((uri): uri is string => typeof uri === "string" && uri.trim().length > 0);
-  const hasPhotos = validPhotoUris.length > 0;
-  const category = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
-  const difficulty = difficultyColor[quest.difficulty];
-  return <Sheet visible={visible} onClose={() => undefined} fillHeight fullScreen dismissible={false} celebrationEntrance onCelebrationSettled={beginCelebration}>
-    <View style={{ flex: 1 }}>
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 3, paddingBottom: 196 + insets.bottom, gap: 16 }}>
-        <Animated.View entering={reducedMotion ? undefined : FadeInUp.duration(260)} style={{ alignItems: "center", gap: 7 }}>
-          <CompletionTrophy active={visible} />
-          <Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 26, lineHeight: 32, textAlign: "center" }}>Quest completed</Text>
-        </Animated.View>
-        <Animated.View entering={reducedMotion ? undefined : FadeInUp.delay(45).duration(260)} style={[{ alignItems: "center", gap: 3, marginTop: 4 }, ratingWobbleStyle]}>
-          <Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 12, lineHeight: 16 }}>Rate this quest</Text>
-          <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: 3 }}>{[1, 2, 3, 4, 5].map((value) => <RatingStar key={value} rating={value} value={rating} onPress={() => { if (busy) return; playRatingFeedback(); setRating(value); setRatingError(false); setError(null); }} />)}</View>
-          {ratingError ? <Text accessibilityRole="alert" style={{ color: T.red, fontFamily: "RubikBold", fontSize: 12, lineHeight: 17 }}>Please rate this quest to continue.</Text> : null}
-        </Animated.View>
-        <Animated.View entering={reducedMotion ? undefined : FadeInUp.delay(85).duration(260)} style={{ overflow: "hidden", borderRadius: 21, backgroundColor: T.white, borderWidth: 1.5, borderColor: T.border, borderBottomWidth: 5, borderBottomColor: T.border, marginTop: 8 }}>
-          <View style={{ flexDirection: "row", flex: 1 }}>
-          <View style={{ width: 5, backgroundColor: quest.color }} />
-          <View style={{ flex: 1, padding: 15, gap: 12 }}>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}><Tag label={quest.category} color={category.text} bg={category.bg} /><Tag label={quest.difficulty} color={difficulty.text} bg={difficulty.bg} /></View>
-            <View style={{ gap: 5 }}><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 19, lineHeight: 24 }}>{quest.title}</Text><Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 13, lineHeight: 19 }}>{quest.description}</Text></View>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <RecapStat icon="time-outline" label="time" value={duration} color={quest.color} /><View style={{ width: 1, height: 37, backgroundColor: T.border }} />
-              <RecapStat icon="images-outline" label="photos" value={`${validPhotoUris.length}`} color={T.blue} /><View style={{ width: 1, height: 37, backgroundColor: T.border }} />
-              <RecapStat icon="document-text-outline" label="notes" value={`${notes.length}`} color={T.orange} /><View style={{ width: 1, height: 37, backgroundColor: T.border }} />
-              <RecapStat icon="flash-outline" label="XP" value={completionRef.current ? `${completionRef.current.xpAwarded}` : "…"} color={T.yellow} />
-            </View>
-          </View>
-          </View>
-        </Animated.View>
-        {hasPhotos || notes.length ? <Animated.View entering={reducedMotion ? undefined : FadeInUp.delay(125).duration(260)}>
-          <QuestMoments photoUris={validPhotoUris} notes={notes} questColor={quest.color} />
-        </Animated.View> : null}
-      </ScrollView>
-      <Animated.View entering={reducedMotion ? undefined : FadeInUp.delay(165).duration(260)} style={{ position: "absolute", bottom: 0, left: 0, right: 0, overflow: "hidden", paddingHorizontal: 24, paddingTop: 20, paddingBottom: Math.max(insets.bottom, 16), gap: 10 }}>
-        <BlurView pointerEvents="none" tint="light" intensity={16} style={{ position: "absolute", inset: 0 }} />
-        <View pointerEvents="none" style={{ position: "absolute", inset: 0, backgroundColor: T.isDark ? "rgba(36,30,38,0.36)" : "rgba(255,252,248,0.36)" }} />
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 }}><Ionicons name={busy ? "sync" : error ? "alert-circle" : completionRef.current ? "checkmark-circle" : "star-outline"} size={18} color={busy ? quest.color : error ? T.red : completionRef.current ? quest.color : T.dark} /><Text style={{ color: T.dark, fontFamily: "RubikBlack", fontSize: 13, lineHeight: 18 }}>{busy ? "Saving to your Journal…" : error ? "Your Journal entry needs to be saved" : completionRef.current ? "Already saved to your Journal" : "Rate your quest to save it"}</Text></View>
-          {error ? <Text accessibilityRole="alert" style={{ color: T.red, fontSize: 12, lineHeight: 17, fontWeight: "800", textAlign: "center" }}>{error}</Text> : null}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <View style={{ flex: 1 }}><CompletionActionButton label={busy ? "Saving..." : error ? "Retry save" : "Done"} icon="checkmark" inverse color={quest.color} disabled={busy} onPress={() => void finish("journal")} /></View>
-            {!guestMode && !error ? <View style={{ flex: 2 }}><CompletionActionButton label={busy ? "Saving..." : "Share your adventure"} color={quest.color} disabled={busy} onPress={() => void finish("share")} /></View> : null}
-          </View>
-      </Animated.View>
-      <CompletionConfetti active={celebrationStarted} />
+  const validPhotoUris = Array.from(new Set(photoUris.filter((uri): uri is string => typeof uri === "string" && uri.trim().length > 0)));
+  const requestFinish = (destination: CompletionDestination) => {
+    if (busy) return;
+    if (!rating) { setPendingDestination(destination); setRatingError(false); return; }
+    void finish(destination);
+  };
+  return <Sheet visible={visible} onClose={() => undefined} fillHeight fullScreen dismissible={false} surfaceColor={palette.surface} onShown={beginCelebration}>
+    <View style={{ flex: 1, minHeight: 0, display: pendingDestination ? "none" : "flex" }}>
+      <QuestCompletionScene
+        active={celebrationStarted}
+        questTitle={quest.title}
+        category={quest.category}
+        xp={completionRef.current?.xpAwarded ?? null}
+        photoCount={validPhotoUris.length}
+        duration={duration}
+        busy={busy}
+        error={error}
+        guestMode={guestMode}
+        onContinue={() => requestFinish("journal")}
+        onShare={() => requestFinish("share")}
+        onRetry={() => void persistCompletion()}
+      />
     </View>
+    {pendingDestination ? <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 24 }}>
+      <View style={{ width: "100%", maxWidth: 460, alignSelf: "center", gap: 24 }}>
+        <View style={{ alignItems: "center", gap: 20 }}>
+          <CompletionMedallion color={palette.medallion} size={116} />
+          <Text accessibilityRole="header" style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 26, lineHeight: 34, textAlign: "center" }}>How was your quest?</Text>
+          <Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 16, lineHeight: 23, textAlign: "center" }}>{quest.title}</Text>
+        </View>
+        <Animated.View style={[{ alignItems: "center", gap: 12 }, ratingWobbleStyle]}>
+          <Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 13 }}>Rate this quest</Text>
+          <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: 8 }}>{[1, 2, 3, 4, 5].map((value) => <RatingStar key={value} rating={value} value={rating} onPress={() => { if (busy) return; playRatingFeedback(); setRating(value); setRatingError(false); setError(null); }} />)}</View>
+          {ratingError ? <Text accessibilityRole="alert" style={{ color: T.red, fontFamily: "RubikBold", fontSize: 13 }}>Please rate this quest to continue.</Text> : null}
+        </Animated.View>
+        {error ? <Text accessibilityRole="alert" style={{ color: T.red, fontFamily: "Rubik", fontSize: 13, lineHeight: 19, textAlign: "center" }}>{error}</Text> : null}
+        <SoftButton label={busy ? "Saving…" : pendingDestination === "share" ? "Share your adventure" : "Continue"} color={palette.blue} textColor={palette.buttonLabel} style={{ borderBottomColor: palette.buttonEdge }} disabled={busy} onPress={() => void finish(pendingDestination)} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to quest summary" disabled={busy} onPress={() => setPendingDestination(null)} style={{ minHeight: 44, alignItems: "center", justifyContent: "center" }}><Text style={{ color: T.muted, fontFamily: "RubikBold", fontSize: 14 }}>Back to summary</Text></Pressable>
+      </View>
+    </ScrollView> : null}
   </Sheet>;
 }

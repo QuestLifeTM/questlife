@@ -1,8 +1,8 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import { ComponentProps, ReactNode } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,

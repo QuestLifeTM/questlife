@@ -1,7 +1,8 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Image, Platform, Pressable, ScrollView, Share, Text, View } from "react-native";
+import { Alert, Image, Platform, ScrollView, Share, Text, View } from "react-native";
 import Reanimated from "react-native-reanimated";
 
 import { PartyCategoryIcon } from "@/components/party-category-icon";
@@ -18,16 +19,6 @@ import { engineErrorMessage, fetchQuestReviews } from "@/services/engine/questEn
 import { Quest } from "@/types/content";
 import { isQuestStartCancelled } from "@/services/engine/focused-quest-start";
 import { QuestReviewData } from "@/types/engine";
-
-const categoryButtonColors: Record<Quest["category"], string> = {
-  SOCIAL: "#00B894",
-  ADVENTURE: "#4D9CFF",
-  "FOOD AND DRINKS": "#E67E22",
-  FITNESS: "#E84C63",
-  EVENTS: "#D83B7D",
-  CREATIVITY: "#8549D6",
-  "WILD CARD": "#B83CD1",
-};
 
 const difficultyIcons: Record<Quest["difficulty"], keyof typeof Ionicons.glyphMap> = {
   EASY: "leaf-outline",
@@ -95,7 +86,7 @@ export function QuestDetailScreen({ id, onBack, previewQuest }: { id?: string; o
 
   const category = categoryColor[quest.category] ?? { text: quest.color, bg: `${quest.color}18` };
   const difficulty = difficultyColor[quest.difficulty];
-  const actionColor = categoryButtonColors[quest.category];
+  const actionColor = category.text;
   const questMode = quest.mode ?? "focused";
   const friends = overview?.friends ?? [];
   const savedCollections = userPacks.filter((pack) => pack.questIds.includes(quest.id)).length;

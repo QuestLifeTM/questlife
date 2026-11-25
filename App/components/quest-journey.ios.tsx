@@ -1,5 +1,6 @@
+import { Pressable } from "@/components/raised-pressable";
 import { useEffect, useState } from "react";
-import { AppState, Pressable, ScrollView, Text, View } from "react-native";
+import { AppState, ScrollView, Text, View } from "react-native";
 import Svg, { Circle, Line, Polyline } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn, ZoomIn, LinearTransition, useSharedValue, useAnimatedStyle, withSequence, withTiming, cancelAnimation } from "react-native-reanimated";
@@ -60,20 +61,23 @@ export function QuestTimelineXpPill({ event, accent }: { event?: JourneyEvent; a
   return <View style={{ flexShrink: 0, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: `${accent}14`, borderWidth: 1, borderColor: `${accent}30` }}><Text style={{ color: accent, fontFamily: "RubikBold", fontSize: 10 }}>{pending ? "XP pending" : `+${event.xp} XP`}</Text></View>;
 }
 
-export function QuestJourneyTimelineRow({ event, accent, last = false }: { event: JourneyEvent; accent: string; last?: boolean }) {
+export function QuestJourneyTimelineRow({ event, accent, last = false, imageTransition = 120, horizontal = false, width = 280 }: { event: JourneyEvent; accent: string; last?: boolean; imageTransition?: number; horizontal?: boolean; width?: number }) {
   const label = event.kind === "video" ? "Quest video" : "Mood check-in";
   const icon = event.kind === "video" ? "videocam" : "happy-outline";
-  return <View style={{ flexDirection: "row", alignItems: "stretch", gap: 10, marginHorizontal: 16 }}>
-    <View style={{ width: 56, alignItems: "flex-end", paddingTop: 12 }}><Text style={{ color: T.muted, fontSize: 11, lineHeight: 15, fontWeight: "900" }}>{new Date(event.capturedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text></View>
-    <View style={{ width: 18, alignItems: "center" }}>{!last && <View style={{ position: "absolute", top: 25, bottom: -28, width: 2, backgroundColor: `${accent}26` }} />}<View style={{ width: 18, height: 18, marginTop: 10, borderRadius: 9, backgroundColor: accent, borderWidth: 3, borderColor: T.bg }} /></View>
-    <View style={{ flex: 1, overflow: "hidden", borderRadius: 20, padding: 15, gap: 10, backgroundColor: T.white, borderWidth: 1, borderColor: T.border, boxShadow: "0px 3px 10px rgba(61,52,56,0.08)" }}>
+  return <View style={horizontal ? { width, gap: 10 } : { flexDirection: "row", alignItems: "stretch", gap: 10, marginHorizontal: 16 }}>
+    <View style={horizontal ? { minHeight: 18, justifyContent: "center" } : { width: 56, alignItems: "flex-end", paddingTop: 12 }}><Text style={{ color: T.muted, fontSize: 11, lineHeight: 15, fontWeight: "900" }}>{new Date(event.capturedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text></View>
+    <View style={horizontal ? { height: 18, justifyContent: "center" } : { width: 18, alignItems: "center" }}>{!last && <View style={[{ position: "absolute", backgroundColor: `${accent}26` }, horizontal ? { left: 9, right: -14, height: 2 } : { top: 25, bottom: -28, width: 2 }]} />}<View style={{ width: 18, height: 18, marginTop: horizontal ? 0 : 10, borderRadius: 9, backgroundColor: accent, borderWidth: 3, borderColor: T.bg }} /></View>
+    <View style={{ flex: horizontal ? undefined : 1, overflow: "hidden", borderRadius: 20, padding: 15, gap: 10, backgroundColor: T.white, borderWidth: 1, borderColor: T.border, boxShadow: "0px 3px 10px rgba(61,52,56,0.08)" }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}><View style={{ width: 26, height: 26, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: `${accent}16` }}><Ionicons name={icon} size={14} color={accent} /></View><Text style={{ flex: 1, color: T.muted, fontFamily: "RubikBold", fontSize: 11, lineHeight: 15, letterSpacing: 0.35, textTransform: "uppercase" }}>{label}</Text><QuestTimelineXpPill event={event} accent={accent} /></View>
-      {event.kind === "video" ? <>{event.body ? <Text style={{ color: T.dark, fontFamily: "Rubik", fontSize: 16, lineHeight: 23 }}>{event.body}</Text> : null}<QuestVideoMoment event={event} accent={accent} /></> : <Text style={{ color: T.dark, fontFamily: "Rubik", fontSize: 16 }}>Feeling {event.mood ? labels[event.mood].toLowerCase() : "checked in"}</Text>}
+      {event.kind === "video" ? <>{event.body ? <Text style={{ color: T.dark, fontFamily: "Rubik", fontSize: 16, lineHeight: 23 }}>{event.body}</Text> : null}<QuestVideoMoment event={event} accent={accent} imageTransition={imageTransition} /></> : <Text style={{ color: T.dark, fontFamily: "Rubik", fontSize: 16 }}>Feeling {event.mood ? labels[event.mood].toLowerCase() : "checked in"}</Text>}
     </View>
   </View>;
 }
 
-export function QuestJourneyPanel({ accent, suppressed, onCapture, onNote }: { accent: string; suppressed: boolean; onCapture: (prompt: QuestPrompt) => void; onNote: (prompt: QuestPrompt) => void }) {
+export function QuestJourneyPanel({ accent, suppressed, onCapture, onNote, placement, motionEnabled = true }: {
+  accent: string; suppressed: boolean; onCapture: (prompt: QuestPrompt) => void; onNote: (prompt: QuestPrompt) => void;
+  placement?: "below-map" | "overlay"; motionEnabled?: boolean;
+}) {
   const { user } = useAuth();
   const { snapshot } = useActiveQuest();
   const legacyElapsed = useActiveQuestElapsedDuration(snapshot?.session);
@@ -90,11 +94,17 @@ export function QuestJourneyPanel({ accent, suppressed, onCapture, onNote }: { a
   const [retrying, setRetrying] = useState(false);
   if (!snapshot || !user) return null;
   const journey = snapshot.session.journey ?? emptyJourney();
-  const prompts = availablePrompts(elapsed, journey);
+  const prompts = availablePrompts(elapsed, journey).filter(prompt => {
+    // Standard mood, capture and note reminders sit below the map.
+    // Named side tasks and sync notices keep their floating placement.
+    const belowMap = prompt.kind === "mood"
+      || (prompt.kind === "capture" && (prompt.title ?? "Capture a little moment") === "Capture a little moment")
+      || (prompt.kind === "note" && (prompt.title ?? "Write a quick note") === "Write a quick note");
+    return placement === "below-map" ? belowMap : placement === "overlay" ? !belowMap : true;
+  });
   const moodPrompt = prompts.find(prompt => prompt.kind === "mood");
   const moodNotificationId = prompts.find(prompt => prompt.kind === "mood")?.id ?? "mood:anytime";
-  const pending = journey.events.some(e => e.syncState !== "synced");
-  const xp = journey.events.reduce((sum, e) => sum + e.xp, 0);
+  const pending = placement !== "below-map" && journey.events.some(e => e.syncState !== "synced");
   async function retry() {
     if (!snapshot || retrying) return;
     setRetrying(true); setError(null);
@@ -108,15 +118,15 @@ export function QuestJourneyPanel({ accent, suppressed, onCapture, onNote }: { a
   }
   const showMood = Boolean(moodPrompt);
   const creativePrompts = prompts.filter(prompt => prompt.kind !== "mood");
-  if (suppressed || (!showMood && !creativePrompts.length && !xp && !pending && !error && !moodOpen)) return null;
+  if (suppressed || (!showMood && !creativePrompts.length && !pending && !error && !moodOpen)) return null;
   return <View style={{ gap: 12 }}>
-    {showMood && <QuestNotification title="Mood check-in" detail={moodPrompt?.xp ? `How are you feeling? · +${moodPrompt.xp} XP` : "How are you feeling?"} icon="happy-outline" accent={accent} onOpen={() => setMoodOpen(true)} onDismiss={() => dismiss(moodNotificationId)} />}
-    {creativePrompts.map(prompt => <SideTaskMotion key={prompt.id} remaining={(prompt.expiresMs ?? Infinity) - elapsed}>
-      <QuestNotification title={prompt.title ?? (prompt.kind === "capture" ? "Capture a little moment" : "Write a quick note")} detail={`${prompt.description ?? (prompt.kind === "capture" ? "Photo or video" : "A sentence is enough")} · +${prompt.xp} XP`} countdown={prompt.expiresMs === undefined ? undefined : `${Math.floor(Math.ceil(Math.max(0, prompt.expiresMs - elapsed) / 1000) / 60)}:${String(Math.ceil(Math.max(0, prompt.expiresMs - elapsed) / 1000) % 60).padStart(2, "0")}`} icon={prompt.kind === "capture" ? "camera-outline" : "create-outline"} accent={accent} onOpen={() => prompt.kind === "capture" ? onCapture(prompt) : onNote(prompt)} onDismiss={() => dismiss(prompt.id)} />
+    {showMood && <QuestNotification title="Mood check-in" detail="How are you feeling?" rewardXp={moodPrompt?.xp} icon="happy-outline" accent={accent} onOpen={() => setMoodOpen(true)} onDismiss={() => dismiss(moodNotificationId)} />}
+    {creativePrompts.map(prompt => <SideTaskMotion key={prompt.id} remaining={(prompt.expiresMs ?? Infinity) - elapsed} animateOnMount={prompt.kind !== "note"} motionEnabled={motionEnabled}>
+      <QuestNotification title={prompt.title ?? (prompt.kind === "capture" ? "Capture a little moment" : "Write a quick note")} detail={prompt.description ?? (prompt.kind === "capture" ? "Photo or video" : "A sentence is enough")} rewardXp={prompt.xp} countdown={prompt.expiresMs === undefined ? undefined : `${Math.floor(Math.ceil(Math.max(0, prompt.expiresMs - elapsed) / 1000) / 60)}:${String(Math.ceil(Math.max(0, prompt.expiresMs - elapsed) / 1000) % 60).padStart(2, "0")}`} icon={prompt.kind === "capture" ? "camera-outline" : "create-outline"} accent={accent} onOpen={() => prompt.kind === "capture" ? onCapture(prompt) : onNote(prompt)} onDismiss={() => dismiss(prompt.id)} />
     </SideTaskMotion>)}
-    {xp > 0 || pending ? <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><Text accessibilityLiveRegion="polite" style={{ flex: 1, color: T.muted, fontFamily: "Rubik", fontSize: 12 }}>{xp > 0 ? `+${xp} bonus XP earned` : "Moments saved"}{pending ? " · Sync / XP pending" : ""}</Text>{pending ? <Pressable accessibilityRole="button" disabled={retrying} onPress={() => void retry()} style={{ minHeight: 44, justifyContent: "center" }}><Text style={{ color: T.dark, fontFamily: "RubikBold" }}>{retrying ? "Syncing…" : "Retry"}</Text></Pressable> : null}</View> : null}
+    {pending ? <View style={{ padding: 12, borderRadius: 18, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, boxShadow: `4px 4px 0px ${T.border}`, flexDirection: "row", alignItems: "center", gap: 8 }}><Text accessibilityLiveRegion="polite" style={{ flex: 1, color: T.muted, fontFamily: "Rubik", fontSize: 12 }}>Moments saved · Upload / XP pending</Text><Pressable accessibilityRole="button" disabled={retrying} onPress={() => void retry()} style={{ minHeight: 44, justifyContent: "center" }}><Text style={{ color: T.dark, fontFamily: "RubikBold" }}>{retrying ? "Syncing…" : "Retry"}</Text></Pressable></View> : null}
     {error ? <Text accessibilityRole="alert" style={{ color: T.red }}>{error}</Text> : null}
-    {moodOpen ? <MoodForm ownerId={user.id} entryDate={toLocalDateKey(new Date())} mood={null} editable saving={false} checkInOnly onClose={() => setMoodOpen(false)} onSave={async mood => {
+    {moodOpen ? <MoodForm ownerId={user.id} entryDate={toLocalDateKey(new Date())} mood={null} editable saving={false} checkInOnly successXp={moodPrompt?.xp ?? 5} onClose={() => setMoodOpen(false)} onSave={async mood => {
       const elapsedNow = journeyElapsedMs(snapshot.session);
       const prompt = availablePrompts(elapsedNow, journey).find(p => p.kind === "mood");
       await saveJourneyEvent(snapshot.session.sessionId, { kind: "mood", mood, activeElapsedMs: elapsedNow, prompt });
@@ -139,12 +149,15 @@ export function CompletedQuestJourney({ completionId }: { completionId: string }
   return <View style={{ gap: 16 }}><QuestMoodGraph events={journey.events} /><QuestJourneyVideos events={journey.events} />{journey.events.some(e => e.xp > 0) ? <Text style={{ color: T.muted, fontFamily: "Rubik" }}>+{journey.events.reduce((sum, e) => sum + e.xp, 0)} activity bonus XP earned during this quest</Text> : null}</View>;
 }
 
-function SideTaskMotion({ remaining, children }: { remaining: number; children: React.ReactNode }) {
+function SideTaskMotion({ remaining, animateOnMount = true, motionEnabled = true, children }: { remaining: number; animateOnMount?: boolean; motionEnabled?: boolean; children: React.ReactNode }) {
   const reduced = useReducedMotionPreference();
   const rotation = useSharedValue(0);
   const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation.get()}deg` }] }));
   const urgent = remaining <= 60000;
   useEffect(() => {
+    cancelAnimation(rotation);
+    rotation.set(0);
+    if (!motionEnabled) return;
     let timer: ReturnType<typeof setInterval> | undefined;
     const refresh = () => {
       if (timer) clearInterval(timer); cancelAnimation(rotation); rotation.set(0);
@@ -154,6 +167,7 @@ function SideTaskMotion({ remaining, children }: { remaining: number; children: 
     };
     refresh(); const subscription = AppState.addEventListener("change", refresh);
     return () => { if (timer) clearInterval(timer); subscription.remove(); cancelAnimation(rotation); };
-  }, [reduced, urgent, rotation]);
-  return <Animated.View entering={reduced ? FadeIn.duration(120) : ZoomIn.springify().damping(18).stiffness(180)} layout={reduced ? undefined : LinearTransition.duration(180)} style={style}>{children}</Animated.View>;
+  }, [reduced, urgent, rotation, motionEnabled]);
+  if (!motionEnabled) return <View>{children}</View>;
+  return <Animated.View entering={!animateOnMount ? undefined : reduced ? FadeIn.duration(120) : ZoomIn.springify().damping(18).stiffness(180)} layout={reduced ? undefined : LinearTransition.duration(180)} style={style}>{children}</Animated.View>;
 }

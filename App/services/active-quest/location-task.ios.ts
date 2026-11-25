@@ -1,4 +1,6 @@
 import * as Location from "expo-location";
+import { backgroundDelivered } from "./recording-owner";
+import { energyCount } from "./energy-diagnostics";
 import * as TaskManager from "expo-task-manager";
 
 import { addAcceptedRoutePoint, getActiveQuestSession } from "@/services/active-quest/local-store";
@@ -46,7 +48,9 @@ if (!TaskManager.isTaskDefined(ACTIVE_QUEST_LOCATION_TASK)) {
         // Never temporarily overwrite a foreground account. A headless runtime
         // establishes its owner from the durable marker once.
         if (getLocalDataOwner() !== session.ownerId) return;
+        energyCount("location.background");
         await persistQuestLocation(session.ownerId, session.sessionId, location);
+        backgroundDelivered(session.windowId ?? session.sessionId);
       }
     } catch {
       // Background task failures must not escape to LogBox. The location API

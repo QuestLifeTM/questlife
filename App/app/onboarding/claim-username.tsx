@@ -1,7 +1,8 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { OnboardingScaffold } from "@/components/onboarding-scaffold";
 import { T, themedStyles } from "@/components/theme";

@@ -1,7 +1,8 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Image, ScrollView, Text, TextInput, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { categoryColor, difficultyColor, T } from "@/components/theme";

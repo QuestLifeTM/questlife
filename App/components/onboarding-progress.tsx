@@ -5,7 +5,9 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "
 import { T, themedStyles } from "@/components/theme";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 
-const ADVENTURE_CATEGORY_BLUE = "#4D9CFF";
+import { questCategoryColors } from "@/types/content";
+
+const ADVENTURE_CATEGORY_BLUE = questCategoryColors.ADVENTURE.text;
 export const ONBOARDING_QUESTION_TOTAL = 13;
 export const ONBOARDING_DISCOVERY_TOTAL = 4;
 export const ONBOARDING_PERSONALIZATION_TOTAL = 5;

@@ -1,8 +1,9 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import { Asset } from "expo-asset";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ImageSourcePropType, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, FadeInRight, FadeInUp, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { OnboardingQuestionHeader } from "@/components/onboarding-question-header";

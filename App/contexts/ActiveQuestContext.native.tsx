@@ -141,7 +141,19 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     foregroundLocationSubscription.current = subscription;
   }, [stopForegroundLocationWatch]);
 
-  useEffect(() => subscribeToActiveQuestStore(() => { void reload().catch(() => setTrackingMessage("Route progress could not be loaded. Check device storage.")); }), [reload]);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = subscribeToActiveQuestStore(() => {
+      if (timer || AppState.currentState !== "active") return;
+      timer = setTimeout(() => {
+        timer = undefined;
+        if (AppState.currentState === "active") void reload().catch(() => setTrackingMessage("Route progress could not be loaded. Check device storage."));
+      }, 1000);
+    });
+    return () => { unsubscribe(); if (timer) clearTimeout(timer); };
+  }, [reload]);
+
+
 
   useEffect(() => {
     const appStateSubscription = AppState.addEventListener("change", (nextState) => {

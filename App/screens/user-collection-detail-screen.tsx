@@ -1,8 +1,9 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { Link } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Image, ScrollView, Text, TextInput, View } from "react-native";
 
 import { categoryColor, difficultyColor, T } from "@/components/theme";
 import { CollectionDetailSkeleton } from "@/components/collection-loading-skeleton";

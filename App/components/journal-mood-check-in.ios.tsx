@@ -1,16 +1,18 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { Easing, Extrapolation, FadeIn, FadeInRight, FadeOut, interpolate, interpolateColor, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import Svg, { Path, Rect } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 
 import { QuestStartCountdown } from "./quest-start-countdown.ios";
+import { MoodMotionEyes } from "./mood-motion-eyes.ios";
 import { categoryColor, T } from "@/components/theme";
-import { SoftButton } from "@/components/ui";
+import { IconButton, SoftButton } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { useAppViewport, useResponsiveScreenLayout } from "@/lib/responsive";
@@ -36,18 +38,18 @@ function selectionHaptic() {
 }
 
 /** The reference face is geometry, not emoji: discs → sleepy pills → large discs. */
-function MoodFace({ expression, palette, size, readiness = false, readinessInk = T.dark }: { readinessInk?: string; readiness?: boolean; expression: SharedValue<number>; palette: SharedValue<number>; size: number }) {
+function MoodFace({ expression, palette, size, motionActive, reduced, readiness = false, readinessInk = T.dark }: { motionActive: boolean; reduced: boolean; readinessInk?: string; readiness?: boolean; expression: SharedValue<number>; palette: SharedValue<number>; size: number }) {
   const left = useAnimatedProps(() => {
     const p = expression.get();
-    const width = interpolate(p, [0, 1, 2], [58, 102, 132]);
-    const height = interpolate(p, [0, 1, 2], [62, 38, 134]);
+    const width = interpolate(p, [0, 1, 2], [58, 102, 116]);
+    const height = interpolate(p, [0, 1, 2], [62, 38, 128]);
     const center = interpolate(p, [0, 1, 2], [96, 86, 76]);
     return { x: center - width / 2, y: 90 - height / 2, width, height, rx: Math.min(width, height) / 2, fill: readiness ? readinessInk : interpolateColor(palette.get(), [0, 1, 2], INKS) };
   });
   const right = useAnimatedProps(() => {
     const p = expression.get();
-    const width = interpolate(p, [0, 1, 2], [58, 102, 132]);
-    const height = interpolate(p, [0, 1, 2], [62, 38, 134]);
+    const width = interpolate(p, [0, 1, 2], [58, 102, 116]);
+    const height = interpolate(p, [0, 1, 2], [62, 38, 128]);
     const center = interpolate(p, [0, 1, 2], [204, 214, 224]);
     return { x: center - width / 2, y: 90 - height / 2, width, height, rx: Math.min(width, height) / 2, fill: readiness ? readinessInk : interpolateColor(palette.get(), [0, 1, 2], INKS) };
   });
@@ -56,11 +58,13 @@ function MoodFace({ expression, palette, size, readiness = false, readinessInk =
   }));
   const stroke = useAnimatedProps(() => ({ stroke: readiness ? readinessInk : interpolateColor(palette.get(), [0, 1, 2], INKS) }));
   return <View accessible={false} importantForAccessibility="no-hide-descendants" style={{ width: size, height: size * 0.67 }}>
-    <Svg width={size} height={size * 0.67} viewBox="0 0 300 201">
-      <AnimatedRect animatedProps={left} />
-      <AnimatedRect animatedProps={right} />
-    </Svg>
-    <Animated.View style={[{ position: "absolute", top: size * 0.37, left: size * 0.41, width: size * 0.18, height: size * 0.12 }, mouth]}>
+    <MoodMotionEyes size={size} active={motionActive} reduced={reduced}>
+      <Svg width={size} height={size * 0.67} viewBox="0 0 300 201">
+        <AnimatedRect animatedProps={left} />
+        <AnimatedRect animatedProps={right} />
+      </Svg>
+    </MoodMotionEyes>
+    <Animated.View style={[{ position: "absolute", top: size * 0.42 + 12, left: size * 0.41, width: size * 0.18, height: size * 0.12 }, mouth]}>
       <Svg width="100%" height="100%" viewBox="0 0 54 36"><AnimatedPath animatedProps={stroke} d="M 7 27 Q 27 3 47 27" strokeWidth={12} strokeLinecap="round" fill="none" /></Svg>
     </Animated.View>
   </View>;
@@ -75,7 +79,7 @@ function MoodWord({ index, position, reduced, width }: { index: number; position
   return <Animated.Text accessible={false} style={[styles.word, style]}>{OPTIONS[index].heading}</Animated.Text>;
 }
 
-export function MoodForm({ entryDate, mood, editable, onSave, onClose, ownerId, questTitle, onCountdownFinished, countdownSessionId, checkInOnly = false, questCategory, onConfirmStart }: MoodFormProps) {
+export function MoodForm({ entryDate, mood, editable, onSave, onClose, ownerId, questTitle, onCountdownFinished, countdownSessionId, checkInOnly = false, successXp, questCategory, onConfirmStart }: MoodFormProps) {
   const isQuestStart = questTitle !== undefined && !checkInOnly;
   const [countingDown, setCountingDown] = useState(false);
   const [ready, setReady] = useState(isQuestStart);
@@ -105,6 +109,8 @@ export function MoodForm({ entryDate, mood, editable, onSave, onClose, ownerId, 
   const trackWidth = useSharedValue(1);
   const dragging = useSharedValue(false);
   const size = Math.min(310, contentWidth - horizontalPadding * 2 - 18);
+  // Leave room for the ring's 20pt padding and 1.5pt border on each side.
+  const readyFaceSize = Math.max(0, Math.min(size, contentWidth - horizontalPadding * 2 - 43));
   const readinessPalette = categoryColor[questCategory ?? ""] ?? { text: T.blue, bg: T.bg };
   const readyInk = readinessPalette.text;
   const readyBackground = readinessPalette.bg;
@@ -230,21 +236,21 @@ export function MoodForm({ entryDate, mood, editable, onSave, onClose, ownerId, 
       {!countingDown && <Animated.View style={[{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }, canvas]}>
         <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, flex: 1 }}>
           <View style={styles.toolbar}>
-            <Pressable accessibilityRole="button" accessibilityLabel={ready ? "Close quest confirmation" : editingNote ? "Back to mood" : "Back"} disabled={saving} onPress={back} style={styles.icon}><Ionicons name={ready ? "close" : "chevron-back"} size={24} color={ink} /></Pressable>
+            {ready ? <View style={styles.icon} pointerEvents={saving ? "none" : "auto"} accessibilityState={{ disabled: saving }}><IconButton icon="arrow-back" label="Back" backAccent={readyInk} onPress={back} /></View> : <Pressable accessibilityRole="button" accessibilityLabel={editingNote ? "Back to mood" : "Back"} disabled={saving} onPress={back} style={styles.icon}><Ionicons name="chevron-back" size={24} color={ink} /></Pressable>}
             {!saved && !ready && <Pressable accessibilityRole="button" accessibilityLabel="About mood check-ins" onPress={() => Alert.alert("A moment for you", checkInOnly ? "This check-in adds a point to this quest’s mood journey." : "Slide or tap to choose how you feel. Your mood is saved to this day's journal. Optional notes stay on this device and are removed when you sign out.")} style={styles.icon}><Ionicons name="information-circle-outline" size={23} color={ink} /></Pressable>}
           </View>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
             <View style={{ flex: 1 }} onLayout={event => setBodyHeight(event.nativeEvent.layout.height)}>
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, minHeight: bodyHeight, paddingHorizontal: 18, paddingBottom: 16 }}>
                 {!editingNote && !saved && <Animated.View key={ready ? "readiness" : "mood"} entering={reduced ? FadeIn.duration(120) : FadeInRight.duration(220)}>
-                  <Animated.Text accessibilityRole="header" style={[styles.question, foreground]}>{ready ? "Ready to begin?" : isQuestStart || checkInOnly ? "How are you feeling\nright now?" : editable ? "How are you feeling\ntoday?" : "How you felt\non " + new Date(`${entryDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</Animated.Text>
-                  {ready && <Text style={[styles.message, { color: ink, paddingTop: 12 }]}>{questTitle}</Text>}
+                  <Animated.Text accessibilityRole="header" style={[styles.question, ready && styles.readinessHeading, foreground]}>{ready ? "Ready to begin?" : isQuestStart || checkInOnly ? "How are you feeling\nright now?" : editable ? "How are you feeling\ntoday?" : "How you felt\non " + new Date(`${entryDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</Animated.Text>
                 </Animated.View>}
-                <View style={{ flex: editingNote ? 1 : 3, minHeight: editingNote ? Math.min(175, viewport.height * 0.23) : size * 0.67 + 50, alignItems: "center", justifyContent: "center" }}>
-                  <View style={ready ? { padding: 20, borderWidth: 1.5, borderColor: `${readyInk}30`, borderRadius: 180 } : undefined}><MoodFace readinessInk={readyInk} readiness={ready} expression={ready ? readyFace : expression} palette={ready ? readyFace : position} size={editingNote || ready ? size * 0.83 : size} /></View>
+                <View style={{ flex: editingNote ? 1 : 3, minHeight: editingNote ? Math.min(175, viewport.height * 0.23) : size * 0.67 + 50, marginHorizontal: ready ? -18 : 0, alignItems: "center", justifyContent: "center" }}>
+                  <View style={ready ? { padding: 20, borderWidth: 1.5, borderColor: `${readyInk}30`, borderRadius: 180 } : undefined}><MoodFace motionActive={!editingNote && !saved && !countingDown} reduced={reduced} readinessInk={readyInk} readiness={ready} expression={ready ? readyFace : expression} palette={ready ? readyFace : position} size={ready ? readyFaceSize : editingNote ? size * 0.83 : size} /></View>
                 </View>
                 {saved ? <Animated.View entering={reduced ? undefined : FadeIn.duration(220)} style={{ flex: 2, gap: 14, alignItems: "center" }}>
                   <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={[styles.thanks, { color: ink }]}>Thank you for{`\n`}checking in!</Text>
+                  {successXp ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: ink, fontFamily: "RubikBold" }]}>+{successXp} XP gained</Text> : null}
                   <Text style={[styles.message, { color: ink }]}>{OPTIONS[selected].message}</Text>
                 </Animated.View> : !editingNote && !ready && <>
                   <View accessibilityRole="text" accessibilityLabel={`Mood: ${OPTIONS[selected].label}`} style={{ height: 92, justifyContent: "center", overflow: "hidden" }}>
@@ -312,6 +318,7 @@ const styles = StyleSheet.create({
   toolbar: { minHeight: 52, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   icon: { minWidth: 48, minHeight: 48, alignItems: "center", justifyContent: "center" },
   question: { fontFamily: "Rubik", fontSize: 24, lineHeight: 31, textAlign: "center", paddingTop: 24, paddingBottom: 8 },
+  readinessHeading: { fontFamily: "RubikBold", fontSize: 30, lineHeight: 38 },
   word: { position: "absolute", width: "100%", textAlign: "center", fontFamily: "RubikBlack", fontSize: 60, letterSpacing: -3 },
   thumb: { position: "absolute", left: 0, width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   tickLabel: { fontFamily: "Rubik", fontSize: 16 },

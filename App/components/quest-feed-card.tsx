@@ -1,8 +1,9 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { FlatList, LayoutChangeEvent, Pressable, Text, View } from "react-native";
+import { FlatList, LayoutChangeEvent, Text, View } from "react-native";
 import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
 
 import { PartyCategoryIcon } from "@/components/party-category-icon";

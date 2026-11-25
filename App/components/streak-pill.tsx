@@ -1,5 +1,6 @@
+import { Pressable } from "@/components/raised-pressable";
 import { useRouter } from "expo-router";
-import { Pressable, Text } from "react-native";
+import { Text } from "react-native";
 import { QuestlifeFlame } from "@/components/questlife-flame";
 import { T } from "@/components/theme";
 import { useStreaks } from "@/contexts/StreaksContext";

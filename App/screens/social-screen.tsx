@@ -1,7 +1,8 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { FlatList, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { FlatList, Platform, ScrollView, Text, View } from "react-native";
 
 import { AddFriendIcon } from "@/components/add-friend-icon";
 import { QuestFeedCard } from "@/components/quest-feed-card";

@@ -1,5 +1,6 @@
+import { Pressable } from "@/components/raised-pressable";
 import { router, useLocalSearchParams } from "expo-router";
-import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ImageSourcePropType, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { T, themedStyles } from "@/components/theme";
 import { haptic, useResponsiveScreenLayout } from "@/components/ui";

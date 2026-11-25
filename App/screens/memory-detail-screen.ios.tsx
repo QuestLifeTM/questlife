@@ -1,8 +1,9 @@
+import { Pressable } from "@/components/raised-pressable";
 import { CompletedQuestJourney } from "@/components/quest-journey.ios";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
+import { Alert, Image, ScrollView, Share, Text, TextInput, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import MapView, { Polyline } from "@/components/route-map";
 import { getJournalRouteRegion } from "@/services/journal/route-region";

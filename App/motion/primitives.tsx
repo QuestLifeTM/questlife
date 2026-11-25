@@ -1,5 +1,6 @@
+import { Pressable } from "@/components/raised-pressable";
 import { useEffect, type PropsWithChildren } from "react";
-import { Pressable, type PressableProps, type StyleProp, type ViewProps, type ViewStyle } from "react-native";
+import { type PressableProps, type StyleProp, type ViewProps, type ViewStyle } from "react-native";
 import Animated, {
   FadeInDown,
   useAnimatedStyle,

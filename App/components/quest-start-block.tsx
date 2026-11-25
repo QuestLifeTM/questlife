@@ -3,16 +3,14 @@ import { Text, View } from "react-native";
 import { T } from "@/components/theme";
 import { Card, SoftButton } from "@/components/ui";
 import { QuestStartBlock } from "@/hooks/useQuestStart";
-import { QuestCategory } from "@/types/content";
+import { questCategoryColors, QuestCategory } from "@/types/content";
 
 const repeatQuestPresentation: Record<QuestCategory, { accent: string; encouragement: string }> = {
-  ADVENTURE: { accent: T.blue, encouragement: "Take a different path this time." },
-  "FOOD AND DRINKS": { accent: T.orange, encouragement: "Try a new flavor or bring someone along." },
-  FITNESS: { accent: T.red, encouragement: "Keep your momentum going." },
-  CREATIVITY: { accent: T.purple, encouragement: "Make something new from the same spark." },
-  EVENTS: { accent: T.pink, encouragement: "Make another moment of it." },
-  SOCIAL: { accent: "#087d73", encouragement: "Bring someone along this time." },
-  "WILD CARD": { accent: "#9b42b6", encouragement: "See where round two takes you." },
+  ADVENTURE: { accent: questCategoryColors["ADVENTURE"].text, encouragement: "Take a different path this time." },
+  "FOOD AND DRINKS": { accent: questCategoryColors["FOOD AND DRINKS"].text, encouragement: "Try a new flavor or bring someone along." },
+  FITNESS: { accent: questCategoryColors["FITNESS"].text, encouragement: "Keep your momentum going." },
+  CREATIVITY: { accent: questCategoryColors["CREATIVITY"].text, encouragement: "Make something new from the same spark." },
+  SOCIAL: { accent: questCategoryColors["SOCIAL"].text, encouragement: "Bring someone along this time." },
 };
 
 export function QuestStartBlockSheet({

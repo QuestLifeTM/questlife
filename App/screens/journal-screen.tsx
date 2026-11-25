@@ -1,3 +1,4 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -7,7 +8,6 @@ import {
   FlatList,
   ListRenderItemInfo,
   Platform,
-  Pressable,
   ScrollView,
   Text,
   TextInput,
@@ -19,6 +19,8 @@ import { AvatarPile } from "@/components/avatar-pile";
 import { CachedImage } from "@/components/cached-image";
 import { StreakPill } from "@/components/streak-pill";
 import { IOSJournalAlbum } from "@/components/journal-album";
+import { AlbumSortHeader } from "@/components/album-sort-header";
+import type { AlbumGrouping } from "@/services/journal/album-model";
 import { JournalMoodCheckIn } from "@/components/journal-mood-check-in";
 import { categoryColor, difficultyColor, radius, T } from "@/components/theme";
 import { Card, EmptyState, Entrance, Header, IconButton, Screen, Sheet, SoftButton, Tag, haptic, useResponsiveScreenLayout } from "@/components/ui";
@@ -990,6 +992,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
   const { snapshot: activeQuestSnapshot } = useActiveQuest();
 
   const [tab, setTab] = useState<JournalTab>("journal");
+  const [albumGrouping, setAlbumGrouping] = useState<AlbumGrouping>("quest");
   const contentWidth = isWide && tab === "journal" ? frameWidth - 320 : frameWidth;
   const [mode, setMode] = useState<CalendarMode>("week");
   const [calendarCollapsed, setCalendarCollapsed] = useState(false);
@@ -1021,6 +1024,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
   const pendingCalendarTargetRef = useRef<string | null>(null);
   const calendarScrollRetryCountRef = useRef(0);
   const didFocusCompletionRef = useRef(false);
+  const selectedCompletionIdRef = useRef<string | null>(null);
   const collapsibleHeader = useCollapsibleScrollHeader({ duration: 280 });
 
   useEffect(() => { collapsibleHeader.reveal(); }, [collapsibleHeader.reveal, tab]);
@@ -1116,9 +1120,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
     return join <= todayKey ? join : todayKey;
   }, [data, todayKey]);
 
-  // Newest day first: the journal opens on today, and scrolling down reads
-  // backwards through the archive — so scrolling down moves the calendar
-  // indicator toward earlier dates, matching "past is behind you".
+  // Archive order for platforms with continuous history. iOS renders only activeKey.
   const dayKeys = useMemo(() => {
     const keys: string[] = [];
     const join = parseKey(joinKey);
@@ -1127,6 +1129,16 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
     }
     return keys;
   }, [joinKey, todayKey]);
+
+  useEffect(() => {
+    if (Platform.OS !== "ios" || !completionId || selectedCompletionIdRef.current === completionId) return;
+    const dateKey = Object.entries(data?.memoriesByDate ?? {}).find(([, memories]) => memories.some(memory => memory.completionId === completionId))?.[0];
+    if (!dateKey) return;
+    selectedCompletionIdRef.current = completionId;
+    didFocusCompletionRef.current = false;
+    activeKeyRef.current = dateKey;
+    setActiveKey(dateKey);
+  }, [completionId, data?.memoriesByDate]);
 
   const albumItems = useMemo<JournalMediaItem[]>(() => {
     const completedMedia = Object.entries(data?.memoriesByDate ?? {}).flatMap(([dateKey, memories]) => memories.flatMap((memory) => memory.photoPaths.map((source, index) => ({
@@ -1159,6 +1171,12 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
   function handleSelectDate(key: string) {
     activeKeyRef.current = key;
     setActiveKey(key);
+    if (Platform.OS === "ios") {
+      pendingCalendarTargetRef.current = null;
+      calendarScrollRetryCountRef.current = 0;
+      collapsibleHeader.reveal();
+      return;
+    }
     scrollToDay(key);
   }
 
@@ -1220,7 +1238,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
         todayMediaItems={todayMediaItems}
         activeQuest={activeQuest}
         activeQuestPaused={activeQuestPaused}
-        isLast={index === dayKeys.length - 1}
+        isLast={Platform.OS === "ios" || index === dayKeys.length - 1}
         savingEntry={savingEntryDates.has(key)}
         onEditTitle={openTitleEditor}
         onSelectMood={(mood) => saveEntry(key, { mood })}
@@ -1263,7 +1281,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
       <View style={{ flex: 1 }}>
         <CollapsibleScrollHeader progress={collapsibleHeader.progress}><View style={{ alignItems: "center" }}>
           <View style={{ width: frameWidth, paddingHorizontal: horizontalPadding, gap: 8, paddingBottom: 8, transform: [{ translateX: safeAreaOffset }] }}>
-            <Entrance><JournalHeader tab={tab} /></Entrance>
+            <Entrance>{Platform.OS === "ios" && tab === "album" ? <AlbumSortHeader grouping={albumGrouping} onChange={setAlbumGrouping} /> : <JournalHeader tab={tab} />}</Entrance>
             <Entrance delay={40}><JournalTabs activeTab={tab} onChange={setTab} /></Entrance>
           </View>
         </View></CollapsibleScrollHeader>
@@ -1275,8 +1293,9 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
             </View>
           </View>
           <FlatList
+            key={Platform.OS === "ios" ? `journal-${activeKey}` : "journal-archive"}
             ref={journalListRef}
-            data={loading && !data ? [] : dayKeys}
+            data={!data && (loading || Platform.OS === "ios") ? [] : Platform.OS === "ios" ? [activeKey] : dayKeys}
             keyExtractor={(key) => key}
             renderItem={renderDay}
             style={{ flex: 1 }}
@@ -1286,8 +1305,8 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
             maxToRenderPerBatch={3}
             updateCellsBatchingPeriod={80}
             windowSize={5}
-            onViewableItemsChanged={onViewableItemsChanged}
-            viewabilityConfig={journalViewabilityConfig}
+            onViewableItemsChanged={Platform.OS === "ios" ? undefined : onViewableItemsChanged}
+            viewabilityConfig={Platform.OS === "ios" ? undefined : journalViewabilityConfig}
             onScroll={(event) => collapsibleHeader.onScroll(event.nativeEvent.contentOffset.y)}
             scrollEventThrottle={16}
             onScrollBeginDrag={() => {
@@ -1295,7 +1314,7 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
               pendingCalendarTargetRef.current = null;
               calendarScrollRetryCountRef.current = 0;
             }}
-            onScrollToIndexFailed={({ index, averageItemLength }) => {
+            onScrollToIndexFailed={Platform.OS === "ios" ? undefined : ({ index, averageItemLength }) => {
               const key = dayKeys[index];
               if (!key || pendingCalendarTargetRef.current !== key) return;
               calendarScrollRetryCountRef.current += 1;
@@ -1313,9 +1332,9 @@ export function JournalScreen({ preview }: { preview?: JournalScreenPreview } = 
             contentContainerStyle={{ paddingBottom: insets.bottom + (completionId ? 480 : 112) }}
             ListHeaderComponent={error && data ? <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, paddingTop: 14, transform: [{ translateX: safeAreaOffset }] }}><Card style={{ borderRadius: radius.lg, padding: 14, gap: 8 }}><Text style={{ color: T.dark, fontSize: 13, fontWeight: "800" }}>{error}</Text><SoftButton label="Try again" icon="refresh" inverse color={T.blue} onPress={() => void load(true)} style={{ minHeight: 48 }} /></Card></View> : undefined}
             ListEmptyComponent={<View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}>{loading ? <JournalLoadingSkeleton /> : <Card style={{ marginTop: 18, borderRadius: radius.lg }}><EmptyState emoji="!" title="Couldn't load your journal" body={error ?? "Please try again."} action={<SoftButton label="Try again" icon="refresh" onPress={() => void load(true)} />} /></Card>}</View>}
-            ListFooterComponent={data && !loading ? <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><BeforeJoinMarker joinDate={join} /></View> : undefined}
+            ListFooterComponent={Platform.OS !== "ios" && data && !loading ? <View style={{ width: contentWidth, alignSelf: "center", paddingHorizontal: horizontalPadding, transform: [{ translateX: safeAreaOffset }] }}><BeforeJoinMarker joinDate={join} /></View> : undefined}
           />
-        </View> : tab === "album" ? Platform.OS === "ios" ? <IOSJournalAlbum data={data} snapshot={activeQuestSnapshot} loading={loading} error={error} refreshToken={mediaRefreshToken} contentWidth={contentWidth} horizontalPadding={horizontalPadding} bottomInset={insets.bottom} onRefresh={load} onExplore={goExplore} onOpen={(id) => router.push(id ? `/memory/${id}` : "/active-quest")} onScroll={collapsibleHeader.onScroll} /> : <JournalAlbum items={albumItems} onExplore={goExplore} onManageItem={manageAlbumItem} contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} bottomInset={insets.bottom} mediaRefreshToken={mediaRefreshToken} onScroll={collapsibleHeader.onScroll} /> : <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={(event) => {
+        </View> : tab === "album" ? Platform.OS === "ios" ? <IOSJournalAlbum grouping={albumGrouping} data={data} snapshot={activeQuestSnapshot} loading={loading} error={error} refreshToken={mediaRefreshToken} contentWidth={contentWidth} horizontalPadding={horizontalPadding} bottomInset={insets.bottom} onRefresh={load} onExplore={goExplore} onOpen={(id) => router.push(id ? `/memory/${id}` : "/active-quest")} onScroll={collapsibleHeader.onScroll} /> : <JournalAlbum items={albumItems} onExplore={goExplore} onManageItem={manageAlbumItem} contentWidth={contentWidth} horizontalPadding={horizontalPadding} safeAreaOffset={safeAreaOffset} bottomInset={insets.bottom} mediaRefreshToken={mediaRefreshToken} onScroll={collapsibleHeader.onScroll} /> : <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={(event) => {
           // Synthetic scroll events are released after this callback. Read the
           // primitive now rather than inside React's later state updater.
           const offsetY = event.nativeEvent.contentOffset.y;

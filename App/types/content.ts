@@ -1,12 +1,10 @@
 export const questCategories = [
   "All",
   "ADVENTURE",
-  "FOOD AND DRINKS",
   "FITNESS",
+  "FOOD AND DRINKS",
   "CREATIVITY",
-  "EVENTS",
   "SOCIAL",
-  "WILD CARD",
 ] as const;
 
 export const questDifficulties = [
@@ -24,20 +22,21 @@ export type QuestStatus = (typeof questStatuses)[number];
 export type QuestMode = "focused" | "flexible";
 
 /** Maps records created before the category consolidation to their live category. */
-export function normalizeQuestCategory(category: string): QuestCategory {
-  if (category === "SKILLS") return "CREATIVITY";
-  if (category === "NATURE") return "ADVENTURE";
-  return category as QuestCategory;
+export function normalizeQuestCategory(category: string | null | undefined): QuestCategory {
+  // Keep the stored Food & Drinks key compatible with older app versions.
+  const key = (category ?? "").trim().toUpperCase();
+  if (key === "FOOD & DRINKS") return "FOOD AND DRINKS";
+  return key !== "ALL" && (questCategories as readonly string[]).includes(key)
+    ? key as QuestCategory
+    : "SOCIAL";
 }
 
 export const questCategoryColors: Record<QuestCategory, { text: string; bg: string }> = {
-  SOCIAL: { text: "#00E6B3", bg: "#E5FFF9" },
-  ADVENTURE: { text: "#4D9CFF", bg: "#EAF4FF" },
-  "FOOD AND DRINKS": { text: "#FF9C4D", bg: "#FFF2E3" },
-  FITNESS: { text: "#FF4560", bg: "#FFECEF" },
-  EVENTS: { text: "#FF4D9C", bg: "#FFEAF4" },
-  CREATIVITY: { text: "#9C4DFF", bg: "#F3EAFF" },
-  "WILD CARD": { text: "#D14DFF", bg: "#FAE9FF" },
+  ADVENTURE: { text: "#4AA3FF", bg: "#E9F4FF" },
+  "FOOD AND DRINKS": { text: "#FF9A4A", bg: "#FFF3E9" },
+  FITNESS: { text: "#FF5C5C", bg: "#FFEBEB" },
+  CREATIVITY: { text: "#A474FF", bg: "#F4EEFF" },
+  SOCIAL: { text: "#4ACF78", bg: "#E9F9EF" },
 };
 
 export type QuestSideTask = { id: string; title: string; description: string; xp: number; kind: "photo" | "video" | "note"; waitMinutes: number; expiryMinutes: number };

@@ -1,8 +1,9 @@
+import { Pressable } from "@/components/raised-pressable";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 
 import {
   AppleButton,

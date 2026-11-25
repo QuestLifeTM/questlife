@@ -1,12 +1,14 @@
 import { useEffect } from "react";
 import { AppState, View } from "react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
+import { energyCount } from "@/services/active-quest/energy-diagnostics";
 
 export function QuestVideo({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri, instance => { instance.loop = false; });
   useEffect(() => {
+    energyCount("media.playersMounted");
     const sub = AppState.addEventListener("change", state => { if (state !== "active") player.pause(); });
-    return () => sub.remove();
+    return () => { sub.remove(); energyCount("media.playersUnmounted"); };
   }, [player]);
   return <View style={{ width: "100%", aspectRatio: 3 / 4, borderRadius: 24, overflow: "hidden", backgroundColor: "#191D28" }}>
     <VideoView player={player} nativeControls contentFit="contain" style={{ flex: 1 }} />

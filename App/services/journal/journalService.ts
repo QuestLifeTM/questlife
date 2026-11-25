@@ -2,7 +2,7 @@ import { SUPABASE_CONFIG_ERROR } from "@/lib/env";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { readUploadBytes } from "@/services/media/upload-bytes";
 import { compressFeedImage } from "@/services/media/feed-image";
-import { normalizeQuestCategory, Quest } from "@/types/content";
+import { normalizeQuestCategory, questCategoryColors, Quest } from "@/types/content";
 import { JournalActiveQuest, JournalData, JournalEntry, JournalMemory, JournalMood, journalMoods } from "@/types/journal";
 
 type CompletionQuestRow = {
@@ -87,7 +87,7 @@ function mapMemory(row: CompletionRow, session: CompletedSessionRow | null = nul
     xp: Math.max(0, row.xp_awarded ?? 0),
     category: normalizeQuestCategory(quest?.category ?? "ADVENTURE"),
     difficulty: quest?.difficulty ?? "EASY",
-    color: quest?.accent_color ?? "#49a6f4",
+    color: questCategoryColors[normalizeQuestCategory(quest?.category ?? "ADVENTURE")].text,
     timeMin: snapshot ? Math.round(Math.max(0, snapshot.active_duration_ms) / 60000) : 0,
     durationRecorded: Boolean(snapshot),
     distanceMeters: snapshot ? Math.max(0, snapshot.distance_meters) : null,
@@ -111,7 +111,7 @@ function mapActiveQuest(row: ActiveSessionRow | null): JournalActiveQuest | null
     startedAt: row.started_at,
     category: normalizeQuestCategory(row.quests.category),
     difficulty: row.quests.difficulty,
-    color: row.quests.accent_color,
+    color: questCategoryColors[normalizeQuestCategory(row.quests.category)].text,
   };
 }
 

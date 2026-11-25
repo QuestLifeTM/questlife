@@ -1,9 +1,10 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Asset } from "expo-asset";
 import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, ImageBackground, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Animated, Easing, ImageBackground, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { OnboardingIntro } from "@/components/onboarding-intro";

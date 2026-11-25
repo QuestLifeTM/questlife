@@ -1,7 +1,8 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Image, ScrollView, Text, TextInput, View } from "react-native";
 
 import { T } from "@/components/theme";
 import { Sheet, SoftButton } from "@/components/ui";

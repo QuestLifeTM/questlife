@@ -168,14 +168,14 @@ export async function upsertOwnProfile(input: {
 }) {
   if (!isSupabaseConfigured) throw new Error(SUPABASE_CONFIG_ERROR);
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .upsert(
-      { display_name: input.displayName ?? null, email: input.email, id: input.id },
-      { onConflict: "id" },
-    )
-    .select()
-    .single<Profile>();
+  // INSERT may include the owner ID; UPDATE deliberately never changes it.
+  const fields = { display_name: input.displayName ?? null, email: input.email };
+  const { error: insertError } = await supabase.from("profiles").upsert(
+    { ...fields, id: input.id }, { onConflict: "id", ignoreDuplicates: true },
+  );
+  if (insertError) throw insertError;
+  const { data, error } = await supabase.from("profiles")
+    .update(fields).eq("id", input.id).select().single<Profile>();
 
   if (error) throw error;
   return data;
@@ -190,7 +190,15 @@ export async function fetchProfileOverview(userId?: string): Promise<ProfileOver
   if (error) throw error;
   const payload = data as ProfileOverview | null;
   if (!payload) throw new Error("Profile overview is unavailable.");
-  let topCategories = (payload.stats?.topCategories ?? []).map((item) => ({ ...item, category: normalizeQuestCategory(item.category) }));
+  const categoryCounts = new Map<QuestCategory, number>();
+  for (const item of payload.stats?.topCategories ?? []) {
+    const category = normalizeQuestCategory(item.category);
+    categoryCounts.set(category, (categoryCounts.get(category) ?? 0) + item.completedQuests);
+  }
+  let topCategories = [...categoryCounts.entries()]
+    .map(([category, completedQuests]) => ({ category, completedQuests }))
+    .sort((a, b) => b.completedQuests - a.completedQuests || a.category.localeCompare(b.category))
+    .slice(0, 3);
   // The overview RPC predates the Quest Rail in some deployments. Build the
   // rail from the actual completion history so it always reflects the three
   // quest categories this profile has participated in most often.
@@ -451,7 +459,10 @@ export async function fetchQuestSocialFeed(scope: "public" | "friends") {
   assertSupabaseConfigured();
   const { data, error } = await supabase.rpc("get_quest_social_feed", { p_scope: scope, p_limit: 30 });
   if (error) throw error;
-  return ((data ?? []) as QuestFeedPost[]).map((post) => ({ ...post, commentsEnabled: post.commentsEnabled ?? true }));
+  return ((data ?? []) as QuestFeedPost[]).map((post) => {
+    const category = normalizeQuestCategory(post.questCategory);
+    return { ...post, commentsEnabled: post.commentsEnabled ?? true, questCategory: category, questColor: questCategoryColors[category].text };
+  });
 }
 
 export async function deleteQuestPost(postId: string) {

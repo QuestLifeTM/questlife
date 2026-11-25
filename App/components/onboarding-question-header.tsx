@@ -1,5 +1,6 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import { ONBOARDING_QUESTION_TOTAL, OnboardingQuestionProgress } from "@/components/onboarding-progress";
 import { T, themedStyles } from "@/components/theme";

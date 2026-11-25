@@ -111,28 +111,28 @@ async function fetchCompletedQuestIds(userId: string) {
 }
 
 async function fetchQuestRows(admin: boolean) {
-  const baseColumns = "id, title, category, personalization, experience_points, description, steps, estimated_minutes, difficulty, status, featured, accent_color, review_note, reviewed_at, reviewed_by, created_by, updated_by, created_at, updated_at, published_at, archived_at";
-  const load = async (includeMode: boolean) => {
-    let query = supabase
-      .from("quests")
-      .select(includeMode ? `${baseColumns}, quest_mode` : baseColumns)
+  const baseColumns = "id, title, category, experience_points, description, steps, estimated_minutes, difficulty, status, featured, accent_color, review_note, reviewed_at, reviewed_by, created_by, updated_by, created_at, updated_at, published_at, archived_at";
+  // Optional feature columns can arrive after the iOS update. Remove only the
+  // column the server reports missing; permission/network failures still surface.
+  const optionalColumns = new Set(["personalization", "quest_mode"]);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    let query = supabase.from("quests")
+      .select([baseColumns, ...optionalColumns].join(", "))
       .order("updated_at", { ascending: false });
-
     if (!admin) query = query.eq("status", "published");
-    return query.returns<QuestRow[]>();
-  };
-
-  let { data, error } = await load(true);
-
-  // Deploying the mobile app ahead of the database migration must not blank
-  // Explore. Older projects simply treat every existing quest as focused.
-  if (error && /quest_mode|PGRST204|column .* does not exist/i.test(error.message)) {
-    ({ data, error } = await load(false));
-    data = (data ?? []).map((row) => ({ ...row, quest_mode: "focused" }));
+    const { data, error } = await query.returns<QuestRow[]>();
+    if (!error) return (data ?? []).map(row => ({
+      ...row,
+      personalization: row.personalization ?? [],
+      quest_mode: row.quest_mode ?? "focused",
+    }));
+    const missingColumn = (error.code === "42703" || error.code === "PGRST204")
+      ? [...optionalColumns].find(column => new RegExp(`\\b${column}\\b`).test(error.message))
+      : undefined;
+    if (!missingColumn) throw error;
+    optionalColumns.delete(missingColumn);
   }
-
-  if (error) throw error;
-  return data ?? [];
+  throw new Error("Unable to load the quest catalog. Please try again.");
 }
 
 export async function fetchContentLibrary({ admin = false, userId }: { admin?: boolean; userId?: string } = {}) {

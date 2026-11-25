@@ -1,5 +1,5 @@
 import Svg, { Path } from "react-native-svg";
-import { QuestCategory } from "@/types/content";
+import { normalizeQuestCategory, questCategoryColors, QuestCategory } from "@/types/content";
 
 type PartyCategoryIconProps = {
   category: QuestCategory;
@@ -8,18 +8,9 @@ type PartyCategoryIconProps = {
   strokeWidth?: number;
 };
 
-const iconColors: Record<QuestCategory, string> = {
-  SOCIAL: "#00E6B3",
-  ADVENTURE: "#4DA8FF",
-  "FOOD AND DRINKS": "#E98F49",
-  FITNESS: "#FF4560",
-  EVENTS: "#FF4D9C",
-  CREATIVITY: "#9C4DFF",
-  "WILD CARD": "#D14DFF"
-};
-
 export function PartyCategoryIcon({ category, size = 22, color: colorOverride, strokeWidth = 1.9 }: PartyCategoryIconProps) {
-  const color = colorOverride ?? iconColors[category];
+  category = normalizeQuestCategory(category);
+  const color = colorOverride ?? questCategoryColors[category].text;
   const stroke = { stroke: color, strokeWidth, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
   return (
@@ -36,11 +27,6 @@ export function PartyCategoryIcon({ category, size = 22, color: colorOverride, s
         <Path d="M12 8.5C12.5523 8.5 13 8.05228 13 7.5C13 6.94772 12.5523 6.5 12 6.5C11.4477 6.5 11 6.94772 11 7.5C11 8.05228 11.4477 8.5 12 8.5Z" fill={color} />
         <Path d="M16 11C16.5523 11 17 10.5523 17 10C17 9.44772 16.5523 9 16 9C15.4477 9 15 9.44772 15 10C15 10.5523 15.4477 11 16 11Z" fill={color} />
       </> : null}
-      {category === "EVENTS" ? <>
-        <Path d="M18 5H6C4.61929 5 3.5 6.11929 3.5 7.5V18.5C3.5 19.8807 4.61929 21 6 21H18C19.3807 21 20.5 19.8807 20.5 18.5V7.5C20.5 6.11929 19.3807 5 18 5Z" {...stroke} />
-        <Path d="M3.5 9.5H20.5M8 3V7M16 3V7" {...stroke} />
-        <Path d="M12 16.2C12.6628 16.2 13.2 15.6628 13.2 15C13.2 14.3373 12.6628 13.8 12 13.8C11.3373 13.8 10.8 14.3373 10.8 15C10.8 15.6628 11.3373 16.2 12 16.2Z" fill={color} />
-      </> : null}
       {category === "FITNESS" ? <>
         <Path d="M4 9V15M7 7V17M17 7V17M20 9V15" {...stroke} />
         <Path d="M7 12H17" {...stroke} />
@@ -55,10 +41,6 @@ export function PartyCategoryIcon({ category, size = 22, color: colorOverride, s
         <Path d="M3.5 20C3.5 17 6 15 9 15C12 15 14.5 17 14.5 20" {...stroke} />
         <Path d="M16 5.5C16.6398 5.66947 17.2056 6.04577 17.6093 6.57029C18.013 7.09482 18.2319 7.73812 18.2319 8.4C18.2319 9.06188 18.013 9.70518 17.6093 10.2297C17.2056 10.7542 16.6398 11.1305 16 11.3" {...stroke} />
         <Path d="M17 15C19.3 15.5 21 17.4 21 20" {...stroke} />
-      </> : null}
-      {category === "WILD CARD" ? <>
-        <Path d="M12 3C12.6 6.5 13.5 7.4 17 8C13.5 8.6 12.6 9.5 12 13C11.4 9.5 10.5 8.6 7 8C10.5 7.4 11.4 6.5 12 3Z" {...stroke} />
-        <Path d="M18 14C18.3 15.6 18.7 16 20.3 16.3C18.7 16.6 18.3 17 18 18.6C17.7 17 17.3 16.6 15.7 16.3C17.3 16 17.7 15.6 18 14Z" {...stroke} />
       </> : null}
     </Svg>
   );

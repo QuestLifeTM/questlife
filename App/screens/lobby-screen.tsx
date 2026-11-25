@@ -1,7 +1,8 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Easing, Pressable, StyleProp, StyleSheet, Text, TextStyle, View, useWindowDimensions } from "react-native";
+import { Alert, Animated, Easing, StyleProp, StyleSheet, Text, TextStyle, View, useWindowDimensions } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { getLobbyLayout, lobbyDesign, resolveLobbyStates } from "@/components/lobby-design";

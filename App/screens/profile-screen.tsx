@@ -1,9 +1,10 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { type ComponentRef, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, PanResponder, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Animated, Easing, PanResponder, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 import Reanimated from "react-native-reanimated";
 
 import { EmptyState, Header, Screen, Sheet, SoftButton, haptic, useResponsiveScreenLayout } from "@/components/ui";

@@ -1,6 +1,7 @@
 import type { JournalData } from "@/types/journal";
 import type { ActiveQuestSnapshot } from "@/types/active-quest";
 export type JournalAlbumProps = {
+  grouping?: import("@/services/journal/album-model").AlbumGrouping;
   data: JournalData | null;
   snapshot: ActiveQuestSnapshot | null;
   loading: boolean;

@@ -1,7 +1,8 @@
+import { Pressable } from "@/components/raised-pressable";
 import { router, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
-import { ImageBackground, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { ImageBackground, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { T, themedStyles } from "@/components/theme";

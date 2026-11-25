@@ -1,7 +1,8 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, Share, Text, View } from "react-native";
+import { Alert, ScrollView, Share, Text, View } from "react-native";
 import Reanimated from "react-native-reanimated";
 
 import { ProfileAvatar } from "@/components/profile-avatar";

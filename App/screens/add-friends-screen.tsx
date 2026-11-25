@@ -1,3 +1,4 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import * as Contacts from "expo-contacts";
 import * as FileSystem from "@/lib/device-files";
@@ -6,7 +7,7 @@ import * as Sharing from "expo-sharing";
 import { useRouter } from "expo-router";
 import QRCode from "react-native-qrcode-svg";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Alert, Platform, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { Card, EmptyState, haptic, Header, IconButton, Screen, SoftButton, useResponsiveScreenLayout } from "@/components/ui";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { T } from "@/components/theme";

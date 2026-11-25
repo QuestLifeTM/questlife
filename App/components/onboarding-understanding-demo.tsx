@@ -13,7 +13,7 @@ import { ActiveQuestScreen } from "@/screens/active-quest-screen";
 import { ExploreScreen } from "@/screens/explore-screen";
 import { JournalScreen, type JournalScreenPreview } from "@/screens/journal-screen";
 import type { ActiveQuestRoutePoint } from "@/types/active-quest";
-import type { Quest } from "@/types/content";
+import { questCategoryColors, type Quest } from "@/types/content";
 import { ViewportContext } from "@/lib/responsive";
 
 const stoneArchBackground = require("../assets/onboarding/stone-arch-background.png");
@@ -32,16 +32,16 @@ const EASE_IN_OUT = Easing.bezier(0.77, 0, 0.175, 1);
 // in production. They are the only fake part of this walkthrough; every
 // surface below is the production screen component.
 const DEMO_QUESTS: Quest[] = [
-  { id: "demo-scenic-stroll", title: "Take a scenic stroll", category: "ADVENTURE", xp: 120, description: "Follow a fresh route and notice three things you have never seen before.", steps: ["Pick a route that feels a little new.", "Notice three details you would usually walk past.", "Add a note or photo before you head home."], timeMin: 20, timeLabel: "20 min", difficulty: "EASY", status: "published", featured: true, color: T.blue, saved: false, completed: false, createdByLabel: "QuestLifeTeam" },
-  { id: "demo-local-treat", title: "Try a local treat", category: "FOOD AND DRINKS", xp: 160, description: "Pick a place you have been curious about and try one small thing.", steps: [], timeMin: 30, timeLabel: "30 min", difficulty: "EASY", status: "published", featured: false, color: T.orange, saved: false, completed: false },
-  { id: "demo-tiny-masterpiece", title: "Make a tiny masterpiece", category: "CREATIVITY", xp: 140, description: "Use what is around you to create something worth remembering.", steps: [], timeMin: 25, timeLabel: "25 min", difficulty: "MEDIUM", status: "published", featured: false, color: T.purple, saved: false, completed: false },
-  { id: "demo-call", title: "Call someone who matters", category: "SOCIAL", xp: 100, description: "Make a little time for someone who always lifts your mood.", steps: [], timeMin: 15, timeLabel: "15 min", difficulty: "EASY", status: "published", featured: false, color: T.teal, saved: false, completed: false },
-  { id: "demo-favorite-view", title: "Find your favorite view", category: "ADVENTURE", xp: 180, description: "Head somewhere open and take in the view without rushing.", steps: [], timeMin: 35, timeLabel: "35 min", difficulty: "EASY", status: "published", featured: false, color: T.blue, saved: false, completed: false },
-  { id: "demo-playlist", title: "Move to a new playlist", category: "FITNESS", xp: 130, description: "Take a walk, stretch, or dance to a song that changes your energy.", steps: [], timeMin: 20, timeLabel: "20 min", difficulty: "EASY", status: "published", featured: false, color: T.pink, saved: false, completed: false },
-  { id: "demo-future-note", title: "Write a note to future you", category: "CREATIVITY", xp: 110, description: "Save a small thought about today for your future self.", steps: [], timeMin: 15, timeLabel: "15 min", difficulty: "EASY", status: "published", featured: false, color: T.purple, saved: false, completed: false },
-  { id: "demo-hidden-corner", title: "Discover a hidden corner", category: "ADVENTURE", xp: 210, description: "Let a new street or path choose the next part of your day.", steps: [], timeMin: 40, timeLabel: "40 min", difficulty: "MEDIUM", status: "published", featured: false, color: T.blue, saved: false, completed: false },
-  { id: "demo-spontaneous-plan", title: "Share a spontaneous plan", category: "SOCIAL", xp: 150, description: "Invite someone along for one simple, low-pressure adventure.", steps: [], timeMin: 25, timeLabel: "25 min", difficulty: "EASY", status: "published", featured: false, color: T.teal, saved: false, completed: false },
-  { id: "demo-seasonal", title: "Find something delicious", category: "FOOD AND DRINKS", xp: 170, description: "Try a dish, drink, or snack that is new to you.", steps: [], timeMin: 30, timeLabel: "30 min", difficulty: "EASY", status: "published", featured: false, color: T.orange, saved: false, completed: false },
+  { id: "demo-scenic-stroll", title: "Take a scenic stroll", category: "ADVENTURE", xp: 120, description: "Follow a fresh route and notice three things you have never seen before.", steps: ["Pick a route that feels a little new.", "Notice three details you would usually walk past.", "Add a note or photo before you head home."], timeMin: 20, timeLabel: "20 min", difficulty: "EASY", status: "published", featured: true, color: questCategoryColors["ADVENTURE"].text, saved: false, completed: false, createdByLabel: "QuestLifeTeam" },
+  { id: "demo-local-treat", title: "Try a local treat", category: "FOOD AND DRINKS", xp: 160, description: "Pick a place you have been curious about and try one small thing.", steps: [], timeMin: 30, timeLabel: "30 min", difficulty: "EASY", status: "published", featured: false, color: questCategoryColors["FOOD AND DRINKS"].text, saved: false, completed: false },
+  { id: "demo-tiny-masterpiece", title: "Make a tiny masterpiece", category: "CREATIVITY", xp: 140, description: "Use what is around you to create something worth remembering.", steps: [], timeMin: 25, timeLabel: "25 min", difficulty: "MEDIUM", status: "published", featured: false, color: questCategoryColors["CREATIVITY"].text, saved: false, completed: false },
+  { id: "demo-call", title: "Call someone who matters", category: "SOCIAL", xp: 100, description: "Make a little time for someone who always lifts your mood.", steps: [], timeMin: 15, timeLabel: "15 min", difficulty: "EASY", status: "published", featured: false, color: questCategoryColors["SOCIAL"].text, saved: false, completed: false },
+  { id: "demo-favorite-view", title: "Find your favorite view", category: "ADVENTURE", xp: 180, description: "Head somewhere open and take in the view without rushing.", steps: [], timeMin: 35, timeLabel: "35 min", difficulty: "EASY", status: "published", featured: false, color: questCategoryColors["ADVENTURE"].text, saved: false, completed: false },
+  { id: "demo-playlist", title: "Move to a new playlist", category: "FITNESS", xp: 130, description: "Take a walk, stretch, or dance to a song that changes your energy.", steps: [], timeMin: 20, timeLabel: "20 min", difficulty: "EASY", status: "published", featured: false, color: questCategoryColors["FITNESS"].text, saved: false, completed: false },
+  { id: "demo-future-note", title: "Write a note to future you", category: "CREATIVITY", xp: 110, description: "Save a small thought about today for your future self.", steps: [], timeMin: 15, timeLabel: "15 min", difficulty: "EASY", status: "published", featured: false, color: questCategoryColors["CREATIVITY"].text, saved: false, completed: false },
+  { id: "demo-hidden-corner", title: "Discover a hidden corner", category: "ADVENTURE", xp: 210, description: "Let a new street or path choose the next part of your day.", steps: [], timeMin: 40, timeLabel: "40 min", difficulty: "MEDIUM", status: "published", featured: false, color: questCategoryColors["ADVENTURE"].text, saved: false, completed: false },
+  { id: "demo-spontaneous-plan", title: "Share a spontaneous plan", category: "SOCIAL", xp: 150, description: "Invite someone along for one simple, low-pressure adventure.", steps: [], timeMin: 25, timeLabel: "25 min", difficulty: "EASY", status: "published", featured: false, color: questCategoryColors["SOCIAL"].text, saved: false, completed: false },
+  { id: "demo-seasonal", title: "Find something delicious", category: "FOOD AND DRINKS", xp: 170, description: "Try a dish, drink, or snack that is new to you.", steps: [], timeMin: 30, timeLabel: "30 min", difficulty: "EASY", status: "published", featured: false, color: questCategoryColors["FOOD AND DRINKS"].text, saved: false, completed: false },
 ];
 
 const DEMO_ACTIVE_QUEST: Quest = {
@@ -56,7 +56,7 @@ const DEMO_ACTIVE_QUEST: Quest = {
   difficulty: "EASY",
   status: "published",
   featured: false,
-  color: T.blue,
+  color: questCategoryColors.ADVENTURE.text,
   saved: false,
   completed: false,
 };

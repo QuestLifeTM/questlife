@@ -1,3 +1,4 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
 import { BlurView } from "expo-blur";
@@ -11,7 +12,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleProp,
   Text,
@@ -244,6 +244,7 @@ export function SoftButton({
   color = T.blue,
   inverse = false,
   disabled = false,
+  textColor,
   style
 }: {
   label: string;
@@ -252,12 +253,14 @@ export function SoftButton({
   color?: string;
   inverse?: boolean;
   disabled?: boolean;
+  textColor?: string;
   style?: StyleProp<ViewStyle>;
 }) {
   const guardPress = usePressGuard();
   const isPrimaryBlue = color === T.blue;
   const fillColor = isPrimaryBlue ? T.primaryButton : color;
   const baseColor = isPrimaryBlue ? T.primaryButtonEdge : `${color}88`;
+  const foregroundColor = textColor ?? (inverse ? color : isPrimaryBlue ? T.onBlueButton : T.onAccent);
   return (
     <Pressable
       accessibilityRole="button"
@@ -291,8 +294,8 @@ export function SoftButton({
         style
       ]}
     >
-      {icon ? <Ionicons name={icon} size={19} color={inverse ? color : isPrimaryBlue ? T.onBlueButton : T.onAccent} /> : null}
-      <Text style={{ fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.55, textTransform: "uppercase", color: inverse ? color : isPrimaryBlue ? T.onBlueButton : T.onAccent }}>{label}</Text>
+      {icon ? <Ionicons name={icon} size={19} color={foregroundColor} /> : null}
+      <Text style={{ fontFamily: "RubikBold", fontSize: 15, lineHeight: 20, letterSpacing: 0.55, textTransform: "uppercase", color: foregroundColor }}>{label}</Text>
     </Pressable>
   );
 }
@@ -396,7 +399,9 @@ export function Sheet({
   glass = false,
   celebrationEntrance = false,
   onCelebrationSettled,
-}: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"]; fillHeight?: boolean; /** Render as a locked, edge-to-edge completion screen instead of a bottom sheet. */ fullScreen?: boolean; /** Prevent backdrop, drag, and system-back dismissal while a flow must be completed. */ dismissible?: boolean; keyboardAvoiding?: boolean; expandOnKeyboard?: boolean; glass?: boolean; /** A one-off, fast reward-sheet entrance that lands before its celebration begins. */ celebrationEntrance?: boolean; onCelebrationSettled?: () => void }>) {
+  surfaceColor,
+  onShown,
+}: PropsWithChildren<{ visible: boolean; onClose: () => void; maxHeight?: ViewStyle["maxHeight"]; fillHeight?: boolean; /** Render as a locked, edge-to-edge completion screen instead of a bottom sheet. */ fullScreen?: boolean; /** Prevent backdrop, drag, and system-back dismissal while a flow must be completed. */ dismissible?: boolean; keyboardAvoiding?: boolean; expandOnKeyboard?: boolean; glass?: boolean; /** A one-off, fast reward-sheet entrance that lands before its celebration begins. */ celebrationEntrance?: boolean; onCelebrationSettled?: () => void; surfaceColor?: string; onShown?: () => void }>) {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotionPreference();
   const { height: windowHeight } = useWindowDimensions();
@@ -481,10 +486,10 @@ export function Sheet({
     : undefined;
 
   return (
-    <Modal visible={visible} transparent={!fullScreen} animationType="fade" onRequestClose={() => { if (dismissible) onClose(); }}>
+    <Modal visible={visible} onShow={onShown} transparent={!fullScreen} animationType="fade" onRequestClose={() => { if (dismissible) onClose(); }}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <KeyboardAvoidingView enabled={keyboardAvoiding && !expandOnKeyboard} behavior={Platform.select({ ios: "padding", android: "height" })} style={{ flex: 1 }}>
-          <View style={{ flex: 1, backgroundColor: fullScreen ? T.white : T.overlay, justifyContent: desktopDialog ? "center" : "flex-end", alignItems: desktopDialog ? "center" : "stretch", padding: desktopDialog ? 24 : 0 }}>
+          <View style={{ flex: 1, backgroundColor: fullScreen ? surfaceColor ?? T.white : T.overlay, justifyContent: desktopDialog ? "center" : "flex-end", alignItems: desktopDialog ? "center" : "stretch", padding: desktopDialog ? 24 : 0 }}>
             {dismissible ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={onClose} style={desktopDialog ? { position: "absolute", inset: 0 } : { flex: 1 }} /> : desktopDialog ? null : <View pointerEvents="none" style={{ flex: 1 }} />}
             <Reanimated.View
               accessibilityViewIsModal
@@ -494,7 +499,7 @@ export function Sheet({
               style={[{
                 maxHeight: fullScreen ? "100%" : expandedHeight ?? resolvedMaxHeight,
                 ...(fullScreen ? { height: "100%", borderRadius: 0, borderWidth: 0, paddingBottom: insets.bottom } : fillHeight || expandedHeight !== undefined ? { height: expandedHeight ?? resolvedMaxHeight } : null),
-                backgroundColor: glass ? T.raised : T.white,
+                backgroundColor: glass ? T.raised : surfaceColor ?? T.white,
                 borderTopLeftRadius: fullScreen ? 0 : radius.sheet,
                 borderTopRightRadius: fullScreen ? 0 : radius.sheet,
                 borderWidth: fullScreen ? 0 : 2,
@@ -511,7 +516,7 @@ export function Sheet({
                   <View style={{ width: 36, height: 4, borderRadius: 99, backgroundColor: T.border }} />
                 </View>
               </GestureDetector> : <View style={{ height: fullScreen ? insets.top + 12 : 0 }} />}
-              {Platform.OS === "web" ? <View testID="web-sheet-body" style={{ flexShrink: 1, minHeight: 0 }}>{children}</View> : children}
+              {Platform.OS === "web" ? <View testID="web-sheet-body" style={{ flex: fillHeight || fullScreen ? 1 : undefined, flexShrink: 1, minHeight: 0 }}>{children}</View> : children}
             </Reanimated.View>
           </View>
         </KeyboardAvoidingView>

@@ -1,4 +1,7 @@
 import { initializeQuestPersonalization } from "@/services/active-quest/journey.ios";
+import { backgroundOwnsPersistence } from "@/services/active-quest/recording-owner";
+import { energyCount } from "@/services/active-quest/energy-diagnostics";
+import { createRetryPolicy } from "@/services/active-quest/retry-policy";
 import { hydrateQuestJourney, syncQuestJourney } from "@/services/active-quest/journey.ios";
 import { getQuestLaunchState, subscribeQuestLaunch, failQuestPreparation, isQuestLaunchWaiting } from "@/services/engine/quest-launch-state.ios";
 import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -113,7 +116,10 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!activeSession || isGuestSession) return;
-    const timer = setInterval(() => { if (AppState.currentState === "active") void syncQuestJourney(activeSession.id).catch(() => undefined); }, 30_000);
+    const retry = createRetryPolicy();
+    const timer = setInterval(() => {
+      if (AppState.currentState === "active" && retry.ready(activeSession.id)) void syncQuestJourney(activeSession.id).then(() => retry.success(activeSession.id), () => retry.failure(activeSession.id));
+    }, 30_000);
     return () => clearInterval(timer);
   }, [activeSession?.id, isGuestSession]);
 
@@ -135,6 +141,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     const subscription = await Location.watchPositionAsync(
       questLocationOptions,
       (location) => {
+        energyCount("location.foreground");
         if (generation !== watchGeneration.current) return;
         // A queued foreground callback can arrive after the quest has ended.
         // Verify the durable active-tracking marker before retaining anything.
@@ -142,6 +149,7 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
           if (trackingSession?.sessionId !== sessionId || trackingSession.ownerId !== getLocalDataOwner() || areLocalDataWritesBlocked(trackingSession.ownerId)) return;
           const preview = locationPreview(location);
           if (preview) setLiveLocation(previous => newerLiveFix(previous, preview));
+          if (trackingSession.backgroundGranted && backgroundOwnsPersistence(trackingSession.windowId ?? sessionId)) return;
           void persistQuestLocation(trackingSession.ownerId, sessionId, location).catch(() => {
             setTrackingMessage("Route recording could not be saved. Check available device storage and retry.");
           });
@@ -156,7 +164,17 @@ export function ActiveQuestProvider({ children }: PropsWithChildren) {
     foregroundLocationSubscription.current = subscription;
   }, [stopForegroundLocationWatch]);
 
-  useEffect(() => subscribeToActiveQuestStore(() => { void reload().catch(() => setTrackingMessage("Route progress could not be loaded. Check device storage.")); }), [reload]);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = subscribeToActiveQuestStore(() => {
+      if (timer || AppState.currentState !== "active") return;
+      timer = setTimeout(() => {
+        timer = undefined;
+        if (AppState.currentState === "active") void reload().catch(() => setTrackingMessage("Route progress could not be loaded. Check device storage."));
+      }, 1000);
+    });
+    return () => { unsubscribe(); if (timer) clearTimeout(timer); };
+  }, [reload]);
 
   useEffect(() => {
     const appStateSubscription = AppState.addEventListener("change", (nextState) => {

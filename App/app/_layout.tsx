@@ -29,7 +29,10 @@ initializeSentry("mobile");
 
 function RootLayout() {
   const [fontsLoaded] = useFonts({
-    Rubik: require("../assets/fonts/Rubik-Regular.ttf"),
+    // Keep existing Rubik styles and sizes while using Bold throughout iOS.
+    Rubik: Platform.OS === "ios"
+      ? require("../assets/fonts/Rubik-Bold.ttf")
+      : require("../assets/fonts/Rubik-Regular.ttf"),
     RubikBold: require("../assets/fonts/Rubik-Bold.ttf"),
     RubikBlack: require("../assets/fonts/Rubik-Black.ttf"),
   });
@@ -140,7 +143,7 @@ function AppLayout() {
         <Stack.Screen name="onboarding/understanding" options={{ animation: "none", contentStyle: { backgroundColor: "#101510" } }} />
         <Stack.Screen name="reset-password" />
         <Stack.Screen name="quest/[id]" options={{ presentation: "card" }} />
-        <Stack.Screen name="active-quest" options={{ presentation: "card" }} />
+        <Stack.Screen name="active-quest" options={{ presentation: "card", animation: Platform.OS === "ios" ? "none" : undefined }} />
         <Stack.Screen name="share-adventure" options={{ presentation: "card", animation: "slide_from_right" }} />
         <Stack.Screen name="memory/[completionId]" options={{ presentation: "card" }} />
         <Stack.Screen name="collection/[id]" options={{ presentation: "card" }} />

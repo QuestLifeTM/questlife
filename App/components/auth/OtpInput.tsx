@@ -1,5 +1,6 @@
+import { Pressable } from "@/components/raised-pressable";
 import { type ComponentRef, useRef } from "react";
-import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import { StyleSheet, TextInput, View } from "react-native";
 
 import { T, themedStyles } from "@/components/theme";
 

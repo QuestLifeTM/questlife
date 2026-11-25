@@ -1,5 +1,10 @@
 # QuestLife responsive app conventions
 
+## Current user scope (November 22, 2026)
+
+- Work on iOS only unless the user explicitly requests another platform. Do not change the web build or run web builds for validation. This overrides the cross-platform implementation and web validation requirements below. Keep subsequent visual changes scoped to iOS when editing shared components.
+
+
 - App/ is one Expo application for iOS, Android, and web. Reuse its services,
   providers, validation and Supabase RLS; do not create a second web backend.
 - Every UI change includes phone, tablet and desktop behavior. Use

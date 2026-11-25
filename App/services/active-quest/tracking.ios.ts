@@ -5,8 +5,8 @@ import { ACTIVE_QUEST_LOCATION_TASK } from "@/services/active-quest/location-tas
 import { getTrackingSession, setTrackingSession } from "@/services/active-quest/tracking-session";
 
 export const questLocationOptions: Location.LocationTaskOptions = {
-  accuracy: Location.Accuracy.Highest,
-  distanceInterval: 1,
+  accuracy: process.env.EXPO_PUBLIC_LOCATION_ENERGY_CANDIDATE === "1" ? Location.Accuracy.High : Location.Accuracy.Highest,
+  distanceInterval: process.env.EXPO_PUBLIC_LOCATION_ENERGY_CANDIDATE === "1" ? 5 : 1,
   timeInterval: 1_000,
   pausesUpdatesAutomatically: false,
   showsBackgroundLocationIndicator: true,

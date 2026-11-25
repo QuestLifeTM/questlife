@@ -1,3 +1,4 @@
+import { Pressable } from "@/components/raised-pressable";
 import { Ionicons } from "@expo/vector-icons";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { LinearGradient } from "expo-linear-gradient";
@@ -5,7 +6,7 @@ import { Accelerometer } from "expo-sensors";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Easing, Image, ImageBackground, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Animated, Easing, Image, ImageBackground, ScrollView, Text, View } from "react-native";
 import Reanimated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 

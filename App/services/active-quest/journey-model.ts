@@ -3,6 +3,7 @@ import type { JournalMood } from "@/types/journal";
 export type JourneyKind = "mood" | "photo" | "video" | "note";
 export type QuestPrompt = { id: string; kind: "mood" | "capture" | "note"; dueMs: number; xp: number; version?: 2; title?: string; description?: string; responseKind?: "photo" | "video" | "note"; expiresMs?: number };
 export type JourneyEvent = {
+  captureGroupId?: string;
   id: string; kind: JourneyKind; capturedAt: string; activeElapsedMs: number;
   mood?: JournalMood; body?: string; uri?: string; mimeType?: string; durationSeconds?: number;
   thumbnailUri?: string; thumbnailRemotePath?: string; remotePath?: string; prompt?: QuestPrompt;

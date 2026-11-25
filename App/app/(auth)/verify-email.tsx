@@ -1,6 +1,7 @@
+import { Pressable } from "@/components/raised-pressable";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 
 import { BackButton, PrimaryButton } from "@/components/auth/AuthControls";
 import { AuthTitle } from "@/components/auth/AuthText";

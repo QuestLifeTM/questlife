@@ -1,3 +1,4 @@
+import { Pressable } from "@/components/raised-pressable";
 import { getQuestLaunchState, subscribeQuestLaunch, claimQuestLaunch } from "@/services/engine/quest-launch-state";
 import { isQuestStartCancelled } from "@/services/engine/focused-quest-start";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,7 +9,7 @@ import { StatusBar } from "expo-status-bar";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Reanimated, { Easing, FadeInDown, FadeOutUp, LinearTransition, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
-import { Alert, Animated, FlatList, Image, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Animated, FlatList, Image, Linking, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import MapView, { Circle, Marker, Polyline } from "@/components/route-map";
