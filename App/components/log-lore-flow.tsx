@@ -3,12 +3,12 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import type { AudioPlayer } from "expo-audio";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Platform, ScrollView, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming } from "react-native-reanimated";
 
 import { T } from "@/components/theme";
 import { getCompletionPalette } from "@/components/quest-completion-palette";
-import { CompletionMedallion, QuestCompletionScene } from "@/components/quest-completion-scene";
+import { CompletionMedallion, QuestCompletionScene, ReviewCompletionMedallion } from "@/components/quest-completion-scene";
 import { haptic, Sheet, SoftButton } from "@/components/ui";
 import { useNotifications } from "@/contexts/NotificationsContext";
 import { useQuestEngine } from "@/contexts/QuestEngineContext";
@@ -187,6 +187,7 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
         category={quest.category}
         xp={completionRef.current?.xpAwarded ?? null}
         photoCount={validPhotoUris.length}
+        photoUri={validPhotoUris[0]}
         duration={duration}
         busy={busy}
         error={error}
@@ -199,7 +200,7 @@ export function LogLoreFlow({ guestMode = false, visible, quest, onFinished, ini
     {pendingDestination ? <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 24 }}>
       <View style={{ width: "100%", maxWidth: 460, alignSelf: "center", gap: 24 }}>
         <View style={{ alignItems: "center", gap: 20 }}>
-          <CompletionMedallion color={palette.medallion} size={116} />
+          {Platform.OS === "ios" ? <ReviewCompletionMedallion /> : <CompletionMedallion color={palette.medallion} size={116} />}
           <Text accessibilityRole="header" style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 26, lineHeight: 34, textAlign: "center" }}>How was your quest?</Text>
           <Text style={{ color: T.muted, fontFamily: "Rubik", fontSize: 16, lineHeight: 23, textAlign: "center" }}>{quest.title}</Text>
         </View>

@@ -745,6 +745,12 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
   const renderedSegments = snapshot?.renderSegments ?? (previewRoute?.length ? [{ id: "preview-route", state: "active" as const, points: previewRoute }] : []);
   const previewLocation = previewRoute?.at(-1);
 
+  const openActivityManager = useCallback((activity: ActiveQuestActivity) => {
+    setManagedActivity(activity);
+    setManagedPhoto(activity.photoId ? snapshot?.photos.find((photo) => photo.id === activity.photoId) ?? null : null);
+    setActivityDraft(activity.kind === "photo" ? activity.caption ?? "" : activity.body ?? "");
+  }, [snapshot?.photos]);
+
   if (completeVisible && completedQuest && completedRecap) return <LogLoreFlow
     guestMode={completedRecap.guestMode}
     visible
@@ -878,11 +884,6 @@ export function ActiveQuestScreen({ preview = false, onboarding, previewQuest, p
     setPhotoSavedVisible(true);
     onboarding?.onPhotoSaved?.({ tutorialOnly });
   };
-  const openActivityManager = useCallback((activity: ActiveQuestActivity) => {
-    setManagedActivity(activity);
-    setManagedPhoto(activity.photoId ? snapshot?.photos.find((photo) => photo.id === activity.photoId) ?? null : null);
-    setActivityDraft(activity.kind === "photo" ? activity.caption ?? "" : activity.body ?? "");
-  }, [snapshot?.photos]);
   const openPhotoManager = (photo: ActiveQuestPhoto) => {
     const activity = snapshot?.activity.find((item) => item.photoId === photo.id) ?? null;
     setManagedActivity(activity);

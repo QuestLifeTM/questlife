@@ -1,7 +1,7 @@
 import { Pressable } from "@/components/raised-pressable";
 import { T } from "./theme";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, AppState, Image, KeyboardAvoidingView, Linking, Modal, FlatList, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, Image, KeyboardAvoidingView, Linking, Modal, FlatList, Text, View } from "react-native";
 import { scheduleOnRN } from "react-native-worklets";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import * as Crypto from "expo-crypto";
@@ -10,7 +10,7 @@ import Animated, { FadeIn, FadeInDown, FadeOut, Easing, useSharedValue, useAnima
 import { useResponsiveScreenLayout } from "@/lib/responsive";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { QuestVideo } from "./quest-video.ios";
-import { albumGeometry } from "@/services/journal/album-model";
+import { SoftButton } from "./ui";
 
 export type QuestCapture = { captureGroupId?: string; id: string; uri: string; kind: "photo" | "video"; durationSeconds?: number; mimeType: string };
 export function QuestCamera({ accent, onClose, onSave, responseKind }: { responseKind?: "photo" | "video"; accent: string; onClose: () => void; onSave: (capture: QuestCapture, caption: string) => Promise<void> }) {
@@ -37,7 +37,7 @@ export function QuestCamera({ accent, onClose, onSave, responseKind }: { respons
   const [reviewing, setReviewing] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const savedIds = useRef(new Set<string>());
-  const geometry = albumGeometry(contentWidth - 24, captures.length);
+  const tileSize = (contentWidth - 44) / 2;
   useEffect(() => { if (capture) { setCaptures(items => [...items, capture]); setCapture(null); } }, [capture]);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
@@ -109,33 +109,60 @@ export function QuestCamera({ accent, onClose, onSave, responseKind }: { respons
     catch (cause) { setError(cause instanceof Error ? cause.message : "Your moment couldn’t save. Try again."); }
     finally { lock.current = false; if (mounted.current) setBusy(false); }
   }
+  function removeCapture(item: QuestCapture) {
+    if (lock.current || savedIds.current.has(item.id)) return;
+    const media = item.kind === "photo" ? "photo" : "video";
+    Alert.alert(`Remove ${media}?`, `This ${media} will be removed from this batch.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: () => {
+        if (lock.current || savedIds.current.has(item.id)) return;
+        setSelectedVideo(current => current === item.id ? null : current);
+        setCaptures(items => items.filter(value => value.id !== item.id));
+      } },
+    ]);
+  }
   const icon = (name: keyof typeof Ionicons.glyphMap, label: string, action: () => void, disabled = false) => <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={action} style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center", borderRadius: 24, backgroundColor: `${accent}14`, opacity: disabled ? 0.4 : 1 }}><Ionicons name={name} size={24} color={accent} /></Pressable>;
   return <Modal transparent animationType="none" presentationStyle="overFullScreen" onRequestClose={close}>
     <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(150)} style={[{ flex: 1, backgroundColor: "#12132466", justifyContent: "flex-end" }, dismissalStyle]}>
       <KeyboardAvoidingView behavior="padding" style={{ width: contentWidth, alignSelf: "center", maxHeight: height - insets.top - 12 }}>
-        <Animated.View entering={reduced ? FadeIn.duration(120) : FadeInDown.duration(300).easing(Easing.bezier(0.23, 1, 0.32, 1))} style={{ borderTopLeftRadius: 34, borderTopRightRadius: 34, overflow: "hidden", backgroundColor: T.bg, paddingBottom: Math.max(insets.bottom, 18) }}>
+        <Animated.View entering={reduced ? FadeIn.duration(120) : FadeInDown.duration(300).easing(Easing.bezier(0.23, 1, 0.32, 1))} style={{ borderTopLeftRadius: 34, borderTopRightRadius: 34, overflow: "hidden", backgroundColor: T.bg, paddingBottom: reviewing ? 0 : Math.max(insets.bottom, 18), ...(reviewing ? { height: height - insets.top - 12 } : {}) }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16 }}>
-            {icon("chevron-down", "Close camera", close, busy)}
+            {reviewing ? <Pressable accessibilityRole="button" accessibilityLabel="Close photo review" disabled={busy} onPress={close} style={{ minWidth: 48, minHeight: 48, justifyContent: "center" }}><Text style={{ color: accent, fontFamily: "RubikBold" }}>Close</Text></Pressable> : icon("chevron-down", "Close camera", close, busy)}
             <Text style={{ color: T.dark, fontFamily: "RubikBold", fontSize: 16 }}>{capture ? "Your quest moment" : recording ? `●  ${seconds}s / 30s` : "Capture a moment"}</Text>
-            {icon("camera-reverse-outline", "Switch camera", () => { setReady(false); setFacing(f => f === "back" ? "front" : "back"); }, busy || Boolean(capture))}
+            {reviewing ? <View style={{ width: 48 }} /> : icon("camera-reverse-outline", "Switch camera", () => { setReady(false); setFacing(f => f === "back" ? "front" : "back"); }, busy || Boolean(capture))}
           </View>
-          <FlatList data={reviewing ? captures : []} keyExtractor={item => item.id} initialNumToRender={3} windowSize={3} removeClippedSubviews={false} renderItem={({ item }) => ( <View key={item.id} style={{ gap: 8 }}>
-                {item.kind === "video" ? selectedVideo === item.id && active ? <QuestVideo uri={item.uri} /> : <Pressable accessibilityRole="button" accessibilityLabel="Preview video" onPress={() => setSelectedVideo(item.id)} style={{ minHeight: 80, alignItems: "center", justifyContent: "center", backgroundColor: T.raised, borderRadius: 20 }}><Ionicons name="play-circle" size={40} color={accent} /></Pressable> : <Image source={{ uri: item.uri }} style={{ width: "100%", aspectRatio: 4 / 3, borderRadius: 20 }} />}
-                <Pressable accessibilityRole="button" accessibilityLabel="Remove moment" disabled={busy || savedIds.current.has(item.id)} onPress={() => setCaptures(items => items.filter(value => value.id !== item.id))} style={{ minHeight: 44, justifyContent: "center" }}><Text style={{ color: T.red }}>Remove</Text></Pressable>
-              </View>)} ListHeaderComponent={<View style={{ gap: 14 }}>
-            {reviewing ? <>
-              <Animated.View entering={reduced ? undefined : FadeIn.duration(180)} style={{ width: geometry.width, height: geometry.height, alignSelf: "center" }}>
-                {captures.slice(0, 4).map((item, index) => <View key={item.id} style={{ position: "absolute", left: geometry.left + index * geometry.step, top: index % 2 ? 5 : 11, width: geometry.cardWidth, height: geometry.cardHeight, transform: [{ rotate: ["-8deg", "5deg", "-4deg", "8deg"][index] }], borderRadius: 15, borderWidth: 1.5, borderColor: "white", overflow: "hidden", backgroundColor: T.border }}>
-                  {item.kind === "photo" ? <Image source={{ uri: item.uri }} style={{ width: "100%", height: "100%" }} /> : <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><Ionicons name="videocam" size={32} color={accent} /></View>}
-                  {index === 3 && geometry.extra > 0 ? <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", backgroundColor: "#0008" }}><Text style={{ color: "white", fontSize: 22 }}>+{geometry.extra}</Text></View> : null}
-                </View>)}
-              </Animated.View>
-
+          {reviewing ? <>
+            <FlatList
+              key="capture-review"
+              data={captures}
+              numColumns={2}
+              keyExtractor={item => item.id}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16, gap: 12, flexGrow: 1 }}
+              columnWrapperStyle={{ gap: 12 }}
+              initialNumToRender={8}
+              windowSize={5}
+              renderItem={({ item, index }) => <View style={{ width: tileSize, height: tileSize, borderRadius: 20, overflow: "hidden", backgroundColor: T.raised }}>
+                {item.kind === "photo" ? <Image accessibilityLabel={`Captured photo ${index + 1}`} source={{ uri: item.uri }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /> :
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Preview video ${index + 1}`} onPress={() => setSelectedVideo(item.id)} style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="play-circle" size={48} color={accent} />
+                    <Text style={{ color: T.muted, fontFamily: "Rubik", marginTop: 8 }}>{Math.ceil(item.durationSeconds ?? 0)}s</Text>
+                  </Pressable>}
+                <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${item.kind} ${index + 1}`} disabled={busy || savedIds.current.has(item.id)} onPress={() => removeCapture(item)} style={{ position: "absolute", top: 8, right: 8, width: 44, height: 44, borderRadius: 12, backgroundColor: T.white, borderWidth: 2, borderColor: accent, borderBottomWidth: 4, alignItems: "center", justifyContent: "center", opacity: busy || savedIds.current.has(item.id) ? 0.5 : 1 }}>
+                  <Ionicons name="close" size={24} color={accent} />
+                </Pressable>
+              </View>}
+              ListEmptyComponent={<View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}><Text style={{ color: T.muted, fontFamily: "Rubik", textAlign: "center" }}>No captures yet. Add more to capture a moment.</Text></View>}
+            />
+            <View style={{ padding: 16, paddingBottom: Math.max(insets.bottom, 18), gap: 12, borderTopWidth: 1, borderTopColor: T.borderSubtle, backgroundColor: T.bg }}>
+              {error ? <Text accessibilityRole="alert" style={{ color: T.red, fontFamily: "Rubik" }}>{error}</Text> : null}
               <View style={{ flexDirection: "row", gap: 12 }}>
-                <Pressable accessibilityRole="button" disabled={busy} onPress={() => { setReviewing(false); setReady(false); setError(null); }} style={{ flex: 1, minHeight: 52, justifyContent: "center", alignItems: "center" }}><Text style={{ color: accent, fontFamily: "RubikBold" }}>Add more</Text></Pressable>
-                <Pressable accessibilityRole="button" disabled={busy} onPress={() => void save()} style={{ flex: 2, minHeight: 52, borderRadius: 16, backgroundColor: accent, justifyContent: "center", alignItems: "center" }}><Text style={{ color: T.onAccent, fontFamily: "RubikBold" }}>{busy ? "Saving…" : "Save moment"}</Text></Pressable>
+                <SoftButton label="Add more" color={accent} inverse disabled={busy} onPress={() => { setSelectedVideo(null); setReviewing(false); setReady(false); setError(null); }} style={{ flex: 1, paddingHorizontal: 8 }} />
+                <SoftButton label={busy ? "Saving…" : "Save moment"} color={accent} disabled={busy || captures.length === 0} onPress={() => void save()} style={{ flex: 1.35, paddingHorizontal: 8 }} />
               </View>
-            </> : <View style={{ height: Math.min(height * 0.57, 580), borderRadius: 28, overflow: "hidden", backgroundColor: T.raised }}>
+            </View>
+          </> : <FlatList key="capture-camera" data={[]} renderItem={() => null} ListHeaderComponent={<View style={{ gap: 14 }}>
+            <View style={{ height: Math.min(height * 0.57, 580), borderRadius: 28, overflow: "hidden", backgroundColor: T.raised }}>
               {permission?.granted && active ? <Animated.View style={[{ flex: 1 }, previewStyle]}><CameraView key={`${mode}:${facing}`} ref={camera} mode={mode} facing={facing} mute={muted} videoQuality="720p" videoBitrate={4_000_000} onCameraReady={() => setReady(true)} onMountError={() => { setReady(false); setError("The camera couldn’t start. Close and try again."); }} style={{ flex: 1 }} /></Animated.View> : null}
               {!ready && <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", padding: 24, gap: 16 }}>
                 {permission?.granted ? <ActivityIndicator color={accent} /> : <><Text style={{ color: T.dark, textAlign: "center", fontFamily: "Rubik" }}>Allow camera access to capture your quest.</Text><Pressable accessibilityRole="button" onPress={() => { if (permission?.canAskAgain) void requestPermission(); else void Linking.openSettings(); }} style={{ minHeight: 48, justifyContent: "center" }}><Text style={{ color: accent, fontFamily: "RubikBold" }}>Allow camera</Text></Pressable></>}
@@ -147,12 +174,18 @@ export function QuestCamera({ accent, onClose, onSave, responseKind }: { respons
                 <Pressable accessibilityRole="button" accessibilityLabel={recording ? "Stop recording" : mode === "picture" ? "Take photo" : "Record video"} disabled={!recording && (!ready || busy)} onPress={() => void shutter()} style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 3, borderColor: accent, backgroundColor: T.white, padding: 5, opacity: !ready ? 0.4 : 1, alignItems: "center", justifyContent: "center" }}><View style={{ width: recording ? 30 : 60, height: recording ? 30 : 60, borderRadius: recording ? 8 : 30, backgroundColor: mode === "video" ? T.red : accent }} /></Pressable>
                 {muted && mode === "video" ? <Text style={{ color: "white" }}>Silent video</Text> : null}
               </View>
-            </View>}
+            </View>
             {!reviewing && captures.length > 0 ? <Animated.View entering={reduced ? undefined : FadeIn.duration(180)}><Pressable accessibilityRole="button" disabled={busy} onPress={() => setReviewing(true)} style={{ minHeight: 52, borderRadius: 16, backgroundColor: accent, alignItems: "center", justifyContent: "center" }}><Text style={{ color: T.onAccent, fontFamily: "RubikBold" }}>Done · {captures.length} captured</Text></Pressable></Animated.View> : null}
             {error ? <Text accessibilityRole="alert" style={{ color: T.red, paddingHorizontal: 12 }}>{error}</Text> : null}
-          </View>} contentContainerStyle={{ paddingHorizontal: 12, gap: 14, paddingBottom: 12 }} />
+          </View>} contentContainerStyle={{ paddingHorizontal: 12, gap: 14, paddingBottom: 12 }} />}
         </Animated.View>
       </KeyboardAvoidingView>
+      {reviewing && selectedVideo && active ? <Modal animationType="fade" onRequestClose={() => setSelectedVideo(null)}>
+        <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top, paddingBottom: insets.bottom, justifyContent: "center" }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close video preview" onPress={() => setSelectedVideo(null)} style={{ minHeight: 48, paddingHorizontal: 20, justifyContent: "center", alignSelf: "flex-end" }}><Text style={{ color: accent, fontFamily: "RubikBold" }}>Done</Text></Pressable>
+          <View style={{ flex: 1, justifyContent: "center" }}>{captures.filter(item => item.id === selectedVideo).map(item => <QuestVideo key={item.id} uri={item.uri} />)}</View>
+        </View>
+      </Modal> : null}
     </Animated.View>
   </Modal>;
 }

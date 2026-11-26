@@ -7,6 +7,7 @@ import Animated, { cancelAnimation, Easing, Extrapolation, interpolate, useAnima
 import Svg, { Path } from "react-native-svg";
 
 import { T } from "@/components/theme";
+import { QuestWrapContent } from "@/components/quest-wrap-content";
 import { getCompletionBannerPalette, getCompletionPalette } from "@/components/quest-completion-palette";
 import { CardSheen, CompletionBanner, MedallionAura, MedallionSheen, RewardHeading } from "@/components/quest-completion-effects";
 import { completionCues as CUE, completionProgress as progress } from "@/lib/completion-motion";
@@ -41,6 +42,28 @@ export function CompletionMedallion({ color, size = 190, phase, reduced = false 
       {phase ? <MedallionSheen phase={phase} size={size} reduced={reduced} /> : null}
     </LinearGradient>
   </View>;
+}
+
+/** The review owns its idle loop; leaving it cancels all animation work. */
+export function ReviewCompletionMedallion() {
+  const reduced = useReducedMotionPreference();
+  const idle = useSharedValue(0);
+  const entrance = useSharedValue(reduced ? 1 : 0);
+  useEffect(() => {
+    entrance.set(reduced ? 1 : withTiming(1, { duration: 600, easing: EASE_OUT }));
+    if (!reduced) idle.set(withRepeat(withTiming(Math.PI * 2, { duration: 4400, easing: Easing.linear }), -1, false));
+    return () => { cancelAnimation(idle); cancelAnimation(entrance); };
+  }, [entrance, idle, reduced]);
+  const style = useAnimatedStyle(() => ({ opacity: entrance.get(), transform: [
+    { translateX: reduced ? 0 : Math.sin(idle.get() + 0.6) * 4 },
+    { translateY: reduced ? 0 : 22 * (1 - entrance.get()) + Math.sin(idle.get()) * 7 },
+    { scale: reduced ? 1 : interpolate(entrance.get(), [0, 0.75, 1], [0.8, 1.035, 1]) },
+    { perspective: 700 },
+    { rotateX: `${reduced ? 0 : Math.sin(idle.get() + 0.8) * 4}deg` },
+    { rotateY: `${reduced ? 0 : Math.sin(idle.get() + 1.1) * 7}deg` },
+    { rotate: `${reduced ? 0 : Math.sin(idle.get()) * 4}deg` },
+  ] }));
+  return <Animated.View style={[{ marginBottom: 12 }, style]}><CompletionMedallion color={getCompletionPalette(T.isDark).medallion} size={160} phase={idle} reduced={reduced} /></Animated.View>;
 }
 
 function HeroSpark({ index, clock, idle, color, reduced }: { index: number; clock: SharedValue<number>; idle: SharedValue<number>; color: string; reduced: boolean }) {
@@ -115,10 +138,11 @@ function StatCard({ label, icon, value, fallback, start, clock, color, reduced, 
   </View>;
 }
 
-type Props = { active: boolean; questTitle: string; category?: QuestCategory; xp: number | null; photoCount: number; duration: string; busy: boolean; error: string | null; guestMode: boolean; onContinue: () => void; onShare: () => void; onRetry: () => void };
+type Props = { active: boolean; questTitle: string; category?: QuestCategory; xp: number | null; photoCount: number; photoUri?: string; duration: string; busy: boolean; error: string | null; guestMode: boolean; onContinue: () => void; onShare: () => void; onRetry: () => void };
 
-export function QuestCompletionScene({ active, questTitle, category, xp, photoCount, duration, busy, error, guestMode, onContinue, onShare, onRetry }: Props) {
+export function QuestCompletionScene({ active, questTitle, category, xp, photoCount, photoUri, duration, busy, error, guestMode, onContinue, onShare, onRetry }: Props) {
   const reduced = useReducedMotionPreference();
+  const isWrap = Platform.OS === "ios";
   const palette = getCompletionPalette(T.isDark);
   const bannerPalette = getCompletionBannerPalette(T.isDark, Platform.OS === "ios" ? category : undefined);
   const { fontScale } = useWindowDimensions();
@@ -134,7 +158,7 @@ export function QuestCompletionScene({ active, questTitle, category, xp, photoCo
   const heroSize = stageHeight < 580 ? 160 : 190;
   const headingY = stageHeight * 0.54;
   const statsY = Math.max(stageHeight * 0.80, headingY + summaryHeight + 28);
-  const contentHeight = Math.max(stageHeight, statsY + 110 + Math.max(0, fontScale - 1) * 46);
+  const contentHeight = isWrap ? Math.max(surfaceHeight, 540 + Math.max(0, fontScale - 1) * 220) : Math.max(stageHeight, statsY + 110 + Math.max(0, fontScale - 1) * 46);
   const heroY = stageHeight * 0.30;
   const initialHeroY = stageHeight * 0.39;
   const seconds = parseCompletionDuration(duration);
@@ -166,20 +190,22 @@ export function QuestCompletionScene({ active, questTitle, category, xp, photoCo
   const introTitleStyle = useAnimatedStyle(() => ({ opacity: reduced ? 0 : progress(clock.get(), 180, 220) * (1 - progress(clock.get(), CUE.compact, 230)), transform: [{ translateY: -32 * progress(clock.get(), CUE.compact, 230) }, { scale: 1 - 0.28 * progress(clock.get(), CUE.compact, 230) }] }));
   const headingStyle = useAnimatedStyle(() => ({ opacity: progress(clock.get(), CUE.bannerGone, 100), transform: [{ translateY: reduced ? 0 : 13 * (1 - easeOut(progress(clock.get(), CUE.bannerGone, 220))) }] }));
   const subtitleStyle = useAnimatedStyle(() => ({ opacity: progress(clock.get(), CUE.summary - 140, 280) }));
+  const introHandoffStyle = useAnimatedStyle(() => ({ opacity: isWrap ? 1 - progress(clock.get(), CUE.bannerGone, CUE.summary - CUE.bannerGone) : 1 }));
   const actionsStyle = useAnimatedStyle(() => ({ opacity: progress(clock.get(), CUE.actions, 220) }));
   return <View style={[styles.root, { backgroundColor: palette.surface }]}>
     <View style={styles.sceneViewport} onLayout={({ nativeEvent: { layout: bounds } }) => { setSurfaceHeight(bounds.height); setSurfaceWidth(bounds.width); }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
-        <View style={{ height: contentHeight, width: "100%", overflow: "hidden" }}>
+        <View style={{ minHeight: contentHeight, ...(isWrap ? {} : { height: contentHeight }), width: "100%", overflow: "hidden" }}>
           <CompletionBanner clock={clock} phase={idle} reduced={reduced} width={surfaceWidth} top={initialHeroY - heroSize * 0.65} height={heroSize * 1.3} palette={bannerPalette} />
-          <View pointerEvents="none" style={[styles.heroAnchor, { top: heroY - heroSize / 2 }]}>
+          <Animated.View pointerEvents="none" style={[styles.heroAnchor, { top: heroY - heroSize / 2 }, introHandoffStyle]}>
             <Animated.View style={heroStyle}><CompletionMedallion color={palette.medallion} size={heroSize} phase={idle} reduced={reduced} /></Animated.View>
             {[0, 1, 2, 3].map((index) => <HeroSpark key={index} {...{ index, clock, idle, reduced }} color={palette.stripStreak} />)}
-          </View>
+          </Animated.View>
           <Animated.View pointerEvents="none" style={[styles.introTitle, { top: stageHeight * 0.68 }, introTitleStyle]}>
             <RewardHeading text={"Quest\ncomplete!"} color={palette.blue} clock={clock} start={650} reduced={reduced} intro />
             {[-1, 1].flatMap((side) => [0, 1].map((index) => <View key={`${side}-${index}`} style={{ position: "absolute", top: 4 + index * 23, left: surfaceWidth / 2 + side * (94 + index * 12), width: index ? 5 : 9, height: index ? 5 : 9, backgroundColor: palette.stripEdge, transform: [{ rotate: "20deg" }] }} />))}
           </Animated.View>
+          {isWrap ? <QuestWrapContent clock={clock} reduced={reduced} width={surfaceWidth} height={contentHeight} photoUri={photoUri} duration={duration} xp={xp} questTitle={questTitle} /> : <>
           <View onLayout={({ nativeEvent }) => { if (nativeEvent.layout.height > 0) setSummaryHeight(nativeEvent.layout.height); }} style={[styles.summary, { top: headingY, paddingHorizontal: layout.horizontalPadding }]}>
             <Animated.View style={[{ alignSelf: "stretch" }, headingStyle]}><RewardHeading text="Quest completed!" color={palette.blue} clock={clock} start={CUE.summary + 120} reduced={reduced} /></Animated.View>
             <Animated.View style={[{ alignItems: "center", gap: 7 }, subtitleStyle]}><Text style={[styles.subtitle, { color: palette.copy }]}>You showed up. You followed through.</Text><Text numberOfLines={1} style={{ fontFamily: "Rubik", fontSize: 12, lineHeight: 18, color: palette.copy, textAlign: "center" }}>{questTitle}</Text></Animated.View>
@@ -189,6 +215,7 @@ export function QuestCompletionScene({ active, questTitle, category, xp, photoCo
             <StatCard label="TIME SPENT" icon="time-outline" value={seconds ?? 0} fallback={seconds === null ? duration : undefined} isTime start={CUE.time} clock={clock} reduced={reduced} color={palette.blue} />
             <StatCard label="PHOTOS" icon="images-outline" value={photoCount} start={CUE.photos} clock={clock} reduced={reduced} color={palette.photos} />
           </View>
+          </>}
         </View>
       </ScrollView>
     </View>
